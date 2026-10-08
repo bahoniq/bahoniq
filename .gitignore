@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+
+*.log
+
+data/cache/
+data/logs/
+
+*.db
+*.sqlite
+*.sqlite3
+
+backups/
