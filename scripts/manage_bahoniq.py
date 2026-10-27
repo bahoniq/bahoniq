@@ -16,32 +16,47 @@ from tkinter import messagebox
 # ============================================================
 
 APP_NAME = "BahonIQ — Work Center"
+MAX_BACKUPS = None  # None = не удалять старые копии автоматически
 
-# Папка, где находится этот файл
-APP_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parent
 
-# Папка резервных копий
-BACKUP_ROOT = APP_DIR.parent / "BahonIQ Backups"
 
-# Максимальное количество backup
-MAX_BACKUPS = 10
+def find_project_root():
+    """Ищет корень Work center по основным файлам проекта."""
+    for parent in (SCRIPT_DIR, *SCRIPT_DIR.parents):
+        if (parent / "main.py").is_file():
+            return parent
 
-# Основные файлы проекта
-REQUIRED_FILES = [
+    # Если main.py не найден, используем папку скрипта.
+    return SCRIPT_DIR
+
+
+APP_DIR = find_project_root()
+BACKUP_ROOT = APP_DIR / "BahonIQ Backups"
+
+BACKUP_PREFIX = "Backup_"
+
+IGNORED_NAMES = {
+    "__pycache__",
+    ".git",
+    ".venv",
+    "venv",
+    "BahonIQ Backups",
+}
+
+IGNORED_FILES = {
+    "BahonIQ_error.log",
+    "BahonIQ_launcher_error.log",
+    "BahonIQ_manager_error.log",
+}
+
+REQUIRED_PATHS = [
     "main.py",
     "bootstrap.py",
-    "main_window.py",
-    "config.py",
-    "state.py",
-    "rgb.py",
-    "settings_service.py",
-    "notes.py",
-    "cleanup.py",
-    "anydesk_service.py",
-    "duplicate_window.py",
-    "pdf_center.py",
     "launcher.pyw",
-    "install_launcher.py",
+    "app/main_window.py",
+    "modules",
+    "services",
 ]
 
 
@@ -54,12 +69,14 @@ def clear_screen():
 
 
 def pause():
-    input("\nНажмите Enter для продолжения...")
+    try:
+        input("\nНажмите Enter для продолжения...")
+    except (EOFError, KeyboardInterrupt):
+        pass
 
 
 def print_header(title):
     clear_screen()
-
     print("=" * 72)
     print("  BAHONIQ — WORK CENTER")
     print("  BACKUP MANAGER")
@@ -79,10 +96,67 @@ def ensure_backup_root():
 
 
 def is_backup_folder(path):
-    return (
-        path.is_dir()
-        and path.name.startswith("Backup_")
-    )
+    """Распознаёт только папки резервных копий."""
+    try:
+        return (
+            path.is_dir()
+            and path.name.startswith(BACKUP_PREFIX)
+            and path.resolve().parent == BACKUP_ROOT.resolve()
+        )
+    except OSError:
+        return False
+
+
+def is_yes(value):
+    return value.strip().lower() in {
+        "y", "yes", "д", "да"
+    }
+
+
+def ignore_project_item(directory, names):
+    """
+    Функция исключения для shutil.copytree().
+    Не копирует резервные копии внутрь самих себя.
+    """
+    ignored = set()
+
+    for name in names:
+        if name in IGNORED_NAMES:
+            ignored.add(name)
+        elif name in IGNORED_FILES:
+            ignored.add(name)
+        elif name.endswith((".pyc", ".pyo")):
+            ignored.add(name)
+
+    return ignored
+
+
+def get_folder_size(folder):
+    total = 0
+
+    for root, dirs, files in os.walk(folder):
+        dirs[:] = [
+            name for name in dirs
+            if name not in IGNORED_NAMES
+        ]
+
+        for filename in files:
+            try:
+                total += (Path(root) / filename).stat().st_size
+            except OSError:
+                pass
+
+    return total
+
+
+def format_size(size):
+    if size < 1024:
+        return f"{size} B"
+    if size < 1024 ** 2:
+        return f"{size / 1024:.1f} KB"
+    if size < 1024 ** 3:
+        return f"{size / (1024 ** 2):.1f} MB"
+    return f"{size / (1024 ** 3):.2f} GB"
 
 
 # ============================================================
@@ -90,23 +164,14 @@ def is_backup_folder(path):
 # ============================================================
 
 def find_python_314():
-    """
-    Ищет Python 3.14.
-    Возвращает путь к python.exe или None.
-    """
+    """Ищет python.exe версии 3.14."""
 
     candidates = []
-
-    # --------------------------------------------------------
-    # Через py launcher
-    # --------------------------------------------------------
 
     try:
         result = subprocess.run(
             [
-                "py",
-                "-3.14",
-                "-c",
+                "py", "-3.14", "-c",
                 "import sys; print(sys.executable)"
             ],
             capture_output=True,
@@ -114,75 +179,60 @@ def find_python_314():
             timeout=10
         )
 
-        if result.returncode == 0:
-            path = result.stdout.strip()
+        if result.returncode == 0 and result.stdout.strip():
+            candidates.append(Path(result.stdout.strip()))
 
-            if path:
-                candidate = Path(path)
-
-                if candidate.exists():
-                    candidates.append(candidate)
-
-    except Exception:
+    except (OSError, subprocess.SubprocessError):
         pass
-
-    # --------------------------------------------------------
-    # Стандартные места установки Python
-    # --------------------------------------------------------
 
     local_app_data = os.environ.get("LOCALAPPDATA")
 
     if local_app_data:
-        candidates.extend([
+        candidates.append(
             Path(local_app_data)
-            / "Programs"
-            / "Python"
-            / "Python314"
-            / "python.exe",
-
-            Path(local_app_data)
-            / "Programs"
-            / "Python"
-            / "Python314"
-            / "pythonw.exe",
-        ])
+            / "Programs" / "Python"
+            / "Python314" / "python.exe"
+        )
 
     candidates.extend([
         Path("C:/Python314/python.exe"),
-        Path("C:/Python314/pythonw.exe"),
         Path("C:/Program Files/Python314/python.exe"),
-        Path("C:/Program Files/Python314/pythonw.exe"),
     ])
 
-    # --------------------------------------------------------
-    # Проверка
-    # --------------------------------------------------------
-
-    checked = set()
+    seen = set()
 
     for candidate in candidates:
-
         try:
             candidate = candidate.resolve()
-        except Exception:
+            key = str(candidate).lower()
+
+            if key in seen:
+                continue
+            seen.add(key)
+
+            if not candidate.is_file():
+                continue
+
+            result = subprocess.run(
+                [
+                    str(candidate), "-c",
+                    "import sys; print(sys.version_info[:2])"
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if result.returncode == 0 and "(3, 14)" in result.stdout:
+                return candidate
+
+        except (OSError, subprocess.SubprocessError):
             continue
-
-        if str(candidate).lower() in checked:
-            continue
-
-        checked.add(str(candidate).lower())
-
-        if candidate.exists() and candidate.name.lower() == "python.exe":
-            return candidate
 
     return None
 
 
 def find_pythonw_314():
-    """
-    Находит pythonw.exe рядом с Python 3.14.
-    """
-
     python_exe = find_python_314()
 
     if not python_exe:
@@ -190,10 +240,7 @@ def find_pythonw_314():
 
     pythonw = python_exe.with_name("pythonw.exe")
 
-    if pythonw.exists():
-        return pythonw
-
-    return None
+    return pythonw if pythonw.is_file() else None
 
 
 # ============================================================
@@ -201,119 +248,72 @@ def find_pythonw_314():
 # ============================================================
 
 def create_backup(label=None):
-    """
-    Создаёт полную резервную копию папки Work center.
-    """
-
-    ensure_backup_root()
-
-    timestamp = get_timestamp()
-
-    if label:
-        folder_name = f"Backup_{timestamp}_{label}"
-    else:
-        folder_name = f"Backup_{timestamp}"
-
-    backup_dir = BACKUP_ROOT / folder_name
-
-    print(f"Создание backup:")
-    print()
-    print(f"Источник:")
-    print(APP_DIR)
-    print()
-    print(f"Назначение:")
-    print(backup_dir)
-    print()
+    """Создаёт копию проекта внутри Work center/BahonIQ Backups."""
 
     try:
+        ensure_backup_root()
 
-        ignore = shutil.ignore_patterns(
-            "__pycache__",
-            "*.pyc",
-            "*.pyo",
-            "BahonIQ_error.log",
-            "BahonIQ_launcher_error.log",
-        )
+        timestamp = get_timestamp()
+        suffix = f"_{label}" if label else ""
+        backup_dir = BACKUP_ROOT / f"{BACKUP_PREFIX}{timestamp}{suffix}"
+
+        # Не допускаем перезапись существующей копии.
+        counter = 2
+        while backup_dir.exists():
+            backup_dir = (
+                BACKUP_ROOT
+                / f"{BACKUP_PREFIX}{timestamp}{suffix}_{counter}"
+            )
+            counter += 1
+
+        print("Создание резервной копии")
+        print()
+        print(f"Проект: {APP_DIR}")
+        print(f"Копия:  {backup_dir}")
+        print()
+
+        if not (APP_DIR / "main.py").is_file():
+            print("ОШИБКА: в папке проекта не найден main.py.")
+            print("Проверьте расположение Backup Manager.")
+            return None
 
         shutil.copytree(
             APP_DIR,
             backup_dir,
-            ignore=ignore
+            ignore=ignore_project_item
         )
 
-        print()
-        print("✓ BACKUP СОЗДАН")
-        print()
-        print(f"Папка:")
-        print(backup_dir)
+        # Проверяем, что в копии есть главный файл проекта.
+        if not (backup_dir / "main.py").is_file():
+            print("ОШИБКА: копия не прошла проверку.")
+            return None
 
-        cleanup_old_backups()
+        print("✓ Резервная копия создана.")
+        print(f"Путь: {backup_dir}")
+        print(f"Размер: {format_size(get_folder_size(backup_dir))}")
 
+        # Удаление старых копий не выполняется автоматически.
         return backup_dir
 
-    except Exception as e:
-
+    except Exception as error:
         print()
-        print("✗ ОШИБКА СОЗДАНИЯ BACKUP")
-        print()
-        print(str(e))
-
+        print("✗ Не удалось создать резервную копию.")
+        print(str(error))
         return None
 
 
-def cleanup_old_backups():
-    """
-    Оставляет только последние MAX_BACKUPS backup.
-    """
-
-    ensure_backup_root()
-
-    backups = [
-        item
-        for item in BACKUP_ROOT.iterdir()
-        if is_backup_folder(item)
-    ]
-
-    backups.sort(
-        key=lambda x: x.stat().st_mtime,
-        reverse=True
-    )
-
-    old_backups = backups[MAX_BACKUPS:]
-
-    for backup in old_backups:
-
-        try:
-            shutil.rmtree(backup)
-
-            print(
-                f"Удалён старый backup: "
-                f"{backup.name}"
-            )
-
-        except Exception as e:
-
-            print(
-                f"Не удалось удалить "
-                f"{backup.name}: {e}"
-            )
-
-
 def get_backups():
-    """
-    Возвращает список backup от новых к старым.
-    """
+    """Возвращает список резервных копий от новых к старым."""
 
     ensure_backup_root()
 
     backups = [
-        item
-        for item in BACKUP_ROOT.iterdir()
+        item for item in BACKUP_ROOT.iterdir()
         if is_backup_folder(item)
     ]
 
     backups.sort(
-        key=lambda x: x.stat().st_mtime,
+        key=lambda item: item.stat().st_mtime,
         reverse=True
     )
 
@@ -323,80 +323,38 @@ def get_backups():
 def show_backups():
     print_header("СПИСОК РЕЗЕРВНЫХ КОПИЙ")
 
-    backups = get_backups()
+    try:
+        backups = get_backups()
+    except OSError as error:
+        print(f"Не удалось прочитать каталог копий: {error}")
+        pause()
+        return
+
+    print(f"Папка копий:\n{BACKUP_ROOT}\n")
 
     if not backups:
         print("Резервных копий пока нет.")
         pause()
         return
 
-    print(
-        f"Найдено backup: {len(backups)}"
-    )
-    print()
+    print(f"Найдено копий: {len(backups)}\n")
 
     for index, backup in enumerate(backups, start=1):
-
         try:
-            size = get_folder_size(backup)
-
             modified = datetime.fromtimestamp(
                 backup.stat().st_mtime
-            ).strftime(
-                "%d.%m.%Y %H:%M:%S"
-            )
+            ).strftime("%d.%m.%Y %H:%M:%S")
 
-            print(
-                f"{index:2}. "
-                f"{backup.name}"
-            )
+            size = format_size(get_folder_size(backup))
 
-            print(
-                f"     Дата: {modified}"
-            )
+            print(f"{index}. {backup.name}")
+            print(f"   Дата: {modified}")
+            print(f"   Размер: {size}\n")
 
-            print(
-                f"     Размер: {format_size(size)}"
-            )
-
-            print()
-
-        except Exception:
-            print(
-                f"{index:2}. {backup.name}"
-            )
-            print()
+        except OSError:
+            print(f"{index}. {backup.name}\n")
 
     pause()
-
-
-def get_folder_size(folder):
-    total = 0
-
-    for root, dirs, files in os.walk(folder):
-
-        for filename in files:
-
-            try:
-                path = Path(root) / filename
-                total += path.stat().st_size
-            except Exception:
-                pass
-
-    return total
-
-
-def format_size(size):
-    if size < 1024:
-        return f"{size} B"
-
-    if size < 1024 ** 2:
-        return f"{size / 1024:.1f} KB"
-
-    if size < 1024 ** 3:
-        return f"{size / (1024 ** 2):.1f} MB"
-
-    return f"{size / (1024 ** 3):.2f} GB"
 
 
 # ============================================================
@@ -404,211 +362,137 @@ def format_size(size):
 # ============================================================
 
 def restore_backup():
-    print_header("ВОССТАНОВЛЕНИЕ BACKUP")
+    """
+    Восстанавливает файлы из выбранной копии.
 
-    backups = get_backups()
+    Важно: файлы из копии перезаписывают совпадающие файлы проекта.
+    Дополнительные файлы, которых нет в копии, автоматически
+    не удаляются. Это сделано для защиты от случайной потери данных.
+    """
 
-    if not backups:
+    print_header("ВОССТАНОВЛЕНИЕ РЕЗЕРВНОЙ КОПИИ")
 
-        print("Backup не найден.")
-        print()
-        print(
-            "Сначала создайте резервную копию."
-        )
-
+    try:
+        backups = get_backups()
+    except OSError as error:
+        print(f"Ошибка чтения списка копий: {error}")
         pause()
         return
 
-    print("Доступные резервные копии:")
-    print()
+    if not backups:
+        print("Резервные копии не найдены.")
+        pause()
+        return
 
-    for index, backup in enumerate(
-        backups,
-        start=1
-    ):
+    for index, backup in enumerate(backups, start=1):
+        modified = datetime.fromtimestamp(
+            backup.stat().st_mtime
+        ).strftime("%d.%m.%Y %H:%M:%S")
 
-        try:
-            modified = datetime.fromtimestamp(
-                backup.stat().st_mtime
-            ).strftime(
-                "%d.%m.%Y %H:%M:%S"
-            )
-        except Exception:
-            modified = "неизвестно"
+        print(f"{index}. {backup.name} — {modified}")
 
-        print(
-            f"{index}. "
-            f"{backup.name}"
-        )
+    print("\n0. Отмена\n")
 
-        print(
-            f"   {modified}"
-        )
-
-        print()
-
-    print("0. Отмена")
-    print()
-
-    choice = input(
-        "Выберите номер backup: "
-    ).strip()
+    choice = input("Выберите номер копии: ").strip()
 
     if choice == "0":
         return
 
     try:
         index = int(choice) - 1
-
         if index < 0 or index >= len(backups):
             raise ValueError
-
     except ValueError:
-
-        print()
         print("Неверный номер.")
-
         pause()
         return
 
     selected_backup = backups[index]
 
-    print()
-    print(
-        "Вы выбрали:"
-    )
-    print(
-        selected_backup
-    )
-    print()
+    # Проверяем, что выбранная копия действительно принадлежит менеджеру.
+    if not is_backup_folder(selected_backup):
+        print("ОШИБКА: выбранная папка не распознана как резервная копия.")
+        pause()
+        return
 
-    confirm = input(
-        "Перед восстановлением будет "
-        "создан аварийный backup текущей версии.\n"
-        "Продолжить? (Y/N): "
-    ).strip().lower()
-
-    if confirm not in (
-        "y",
-        "yes",
-        "д",
-        "да",
-    ):
-        print()
+    if not (selected_backup / "main.py").is_file():
+        print("ОШИБКА: в выбранной копии не найден main.py.")
         print("Восстановление отменено.")
         pause()
         return
 
-    # --------------------------------------------------------
-    # Аварийная копия текущего состояния
-    # --------------------------------------------------------
-
     print()
-    print(
-        "Создание аварийной копии "
-        "текущего состояния..."
-    )
+    print(f"Выбрана копия:\n{selected_backup}")
+    print()
+    print("Перед восстановлением будет создана аварийная копия.")
+    print("Совпадающие файлы проекта будут перезаписаны.")
+    print("Дополнительные файлы проекта автоматически не удаляются.")
     print()
 
-    emergency_backup = create_backup(
-        label="BeforeRestore"
-    )
+    confirm = input("Продолжить? (Y/N): ")
 
-    if emergency_backup is None:
-
-        print()
-        print(
-            "ОШИБКА: аварийный backup "
-            "создать не удалось."
-        )
-
-        print()
-        print(
-            "Восстановление остановлено "
-            "для безопасности."
-        )
-
+    if not is_yes(confirm):
+        print("Восстановление отменено.")
         pause()
         return
 
-    print()
-    print(
-        "✓ Аварийный backup создан."
-    )
+    print("\nСоздание аварийной копии текущего проекта...\n")
 
-    # --------------------------------------------------------
-    # Восстановление
-    # --------------------------------------------------------
+    emergency_backup = create_backup(label="BeforeRestore")
 
-    print()
-    print(
-        "Начинается восстановление..."
-    )
-    print()
+    if emergency_backup is None:
+        print("\nАварийная копия не создана. Восстановление остановлено.")
+        pause()
+        return
+
+    print("\nАварийная копия создана.")
+    print("Начинается восстановление...\n")
 
     try:
-
-        ignored_names = {
-            "__pycache__",
-            "BahonIQ_error.log",
-            "BahonIQ_launcher_error.log",
-        }
+        # Защита от попытки восстановить папку в саму себя.
+        if selected_backup.resolve().parent != BACKUP_ROOT.resolve():
+            raise RuntimeError("Путь резервной копии не прошёл проверку.")
 
         for item in selected_backup.iterdir():
-
-            if item.name in ignored_names:
+            if item.name in IGNORED_NAMES or item.name in IGNORED_FILES:
                 continue
 
             destination = APP_DIR / item.name
 
+            # Каталог резервных копий не должен изменяться восстановлением.
+            if destination.resolve() == BACKUP_ROOT.resolve():
+                continue
+
             if item.is_dir():
-
-                if destination.exists():
-
-                    shutil.rmtree(
-                        destination
+                if destination.exists() and not destination.is_dir():
+                    raise RuntimeError(
+                        f"Невозможно заменить файл папкой: {destination}"
                     )
 
                 shutil.copytree(
                     item,
-                    destination
+                    destination,
+                    dirs_exist_ok=True,
+                    ignore=ignore_project_item
                 )
 
-            else:
+            elif item.is_file():
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(item, destination)
 
-                shutil.copy2(
-                    item,
-                    destination
-                )
-
-        print()
+        print("\n" + "=" * 72)
+        print("ВОССТАНОВЛЕНИЕ ЗАВЕРШЕНО")
         print("=" * 72)
-        print("✓ ВОССТАНОВЛЕНИЕ ЗАВЕРШЕНО")
-        print("=" * 72)
-        print()
+        print("\nСовпадающие файлы восстановлены из выбранной копии.")
+        print("Дополнительные файлы проекта не удалялись.")
+        print(f"\nАварийная копия: {emergency_backup}")
 
-        print(
-            "Теперь можно запустить BahonIQ."
-        )
-
-    except Exception as e:
-
-        print()
-        print("=" * 72)
-        print("✗ ОШИБКА ВОССТАНОВЛЕНИЯ")
-        print("=" * 72)
-        print()
-
-        print(str(e))
-
-        print()
-        print(
-            "Аварийный backup находится здесь:"
-        )
-
-        print(
-            emergency_backup
-        )
+    except Exception as error:
+        print("\nОШИБКА ВОССТАНОВЛЕНИЯ")
+        print(str(error))
+        print("\nАварийная копия текущего состояния:")
+        print(emergency_backup)
+        print("\nНе удаляйте аварийную копию.")
 
     pause()
 
@@ -620,109 +504,46 @@ def restore_backup():
 def check_files():
     print_header("ПРОВЕРКА ФАЙЛОВ BAHONIQ")
 
-    print(
-        f"Папка проекта:\n{APP_DIR}"
-    )
-
-    print()
+    print(f"Папка проекта:\n{APP_DIR}\n")
+    print(f"Папка резервных копий:\n{BACKUP_ROOT}\n")
 
     missing = []
     present = []
 
-    for filename in REQUIRED_FILES:
-
-        path = APP_DIR / filename
+    for relative_path in REQUIRED_PATHS:
+        path = APP_DIR / relative_path
 
         if path.exists():
-
-            present.append(filename)
-
-            print(
-                f"✓ {filename}"
-            )
-
+            present.append(relative_path)
+            print(f"✓ {relative_path}")
         else:
+            missing.append(relative_path)
+            print(f"✗ {relative_path} — НЕ НАЙДЕН")
 
-            missing.append(filename)
-
-            print(
-                f"✗ {filename} — НЕ НАЙДЕН"
-            )
-
-    print()
-    print("-" * 72)
-    print()
-
-    print(
-        f"Найдено: {len(present)}"
-    )
-
-    print(
-        f"Отсутствует: {len(missing)}"
-    )
-
-    print()
+    print("\n" + "-" * 72)
+    print(f"Найдено: {len(present)}")
+    print(f"Отсутствует: {len(missing)}")
 
     if missing:
-
-        print(
-            "ВНИМАНИЕ: отсутствуют файлы:"
-        )
-
-        for filename in missing:
-            print(
-                f"  - {filename}"
-            )
-
+        print("\nВНИМАНИЕ: проверьте отсутствующие пути.")
     else:
+        print("\n✓ Все проверяемые основные пути найдены.")
 
-        print(
-            "✓ Все основные файлы на месте."
-        )
-
-    print()
-    print("-" * 72)
-    print()
+    print("\n" + "-" * 72)
 
     python = find_python_314()
-
-    if python:
-
-        print(
-            "✓ Python 3.14 найден:"
-        )
-
-        print(
-            python
-        )
-
-    else:
-
-        print(
-            "✗ Python 3.14 НЕ НАЙДЕН"
-        )
-
     pythonw = find_pythonw_314()
 
-    print()
+    if python:
+        print(f"\n✓ Python 3.14: {python}")
+    else:
+        print("\n✗ Python 3.14 не найден")
 
     if pythonw:
-
-        print(
-            "✓ pythonw.exe найден:"
-        )
-
-        print(
-            pythonw
-        )
-
+        print(f"✓ pythonw.exe: {pythonw}")
     else:
+        print("✗ pythonw.exe не найден")
 
-        print(
-            "✗ pythonw.exe НЕ НАЙДЕН"
-        )
-
-    print()
     pause()
 
 
@@ -736,96 +557,41 @@ def run_bahoniq():
     pythonw = find_pythonw_314()
 
     if not pythonw:
-
-        print(
-            "✗ Python 3.14 / pythonw.exe "
-            "не найден."
-        )
-
-        print()
-        print(
-            "Проверьте установку Python 3.14."
-        )
-
+        print("Python 3.14 или pythonw.exe не найден.")
         pause()
         return
 
     launcher = APP_DIR / "launcher.pyw"
 
-    if not launcher.exists():
-
-        print(
-            "✗ launcher.pyw не найден."
-        )
-
+    if not launcher.is_file():
+        print(f"Файл запуска не найден:\n{launcher}")
         pause()
         return
 
-    print(
-        "Python 3.14:"
-    )
-
-    print(
-        pythonw
-    )
-
-    print()
-
-    print(
-        "Launcher:"
-    )
-
-    print(
-        launcher
-    )
-
-    print()
+    print(f"Python: {pythonw}")
+    print(f"Launcher: {launcher}\n")
 
     try:
-
         startupinfo = None
+        creationflags = 0
 
         if os.name == "nt":
-
             startupinfo = subprocess.STARTUPINFO()
-
-            startupinfo.dwFlags |= (
-                subprocess.STARTF_USESHOWWINDOW
-            )
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            creationflags = subprocess.CREATE_NO_WINDOW
 
         subprocess.Popen(
-            [
-                str(pythonw),
-                str(launcher)
-            ],
+            [str(pythonw), str(launcher)],
             cwd=str(APP_DIR),
             startupinfo=startupinfo,
-            creationflags=(
-                subprocess.CREATE_NO_WINDOW
-                if os.name == "nt"
-                else 0
-            ),
+            creationflags=creationflags
         )
 
-        print()
-        print(
-            "✓ BahonIQ запущен."
-        )
+        print("✓ Команда запуска передана Windows.")
 
-        print()
-        print(
-            "Окно менеджера можно закрыть."
-        )
-
-    except Exception as e:
-
-        print()
-        print(
-            "✗ Не удалось запустить BahonIQ."
-        )
-
-        print()
-        print(str(e))
+    except Exception as error:
+        print("✗ Не удалось запустить BahonIQ.")
+        print(str(error))
 
     pause()
 
@@ -835,96 +601,72 @@ def run_bahoniq():
 # ============================================================
 
 def quick_backup():
-    print_header("СОЗДАНИЕ BACKUP")
+    print_header("СОЗДАНИЕ РЕЗЕРВНОЙ КОПИИ")
 
     backup = create_backup()
 
-    print()
-
     if backup:
-
-        print(
-            "✓ Всё готово."
-        )
-
+        print("\n✓ Всё готово.")
     else:
-
-        print(
-            "✗ Backup не создан."
-        )
+        print("\n✗ Копия не создана. Смотрите сообщение об ошибке выше.")
 
     pause()
 
 
 # ============================================================
-# ПОЛУЧЕНИЕ СТАТУСА
+# STATUS
 # ============================================================
 
 def show_status():
     print_header("СТАТУС BAHONIQ")
 
-    print(
-        f"Папка программы:"
-    )
+    print(f"Папка проекта:\n{APP_DIR}\n")
+    print(f"Папка резервных копий:\n{BACKUP_ROOT}\n")
 
-    print(
-        APP_DIR
-    )
-
-    print()
-
-    backups = get_backups()
-
-    print(
-        f"Количество backup: "
-        f"{len(backups)}"
-    )
-
-    print()
+    try:
+        backups = get_backups()
+        print(f"Количество резервных копий: {len(backups)}")
+        if backups:
+            print(f"Последняя копия: {backups[0].name}")
+    except OSError as error:
+        print(f"Не удалось прочитать список копий: {error}")
 
     python = find_python_314()
 
     if python:
-        print(
-            "✓ Python 3.14"
-        )
-        print(
-            f"  {python}"
-        )
+        print(f"\n✓ Python 3.14: {python}")
     else:
-        print(
-            "✗ Python 3.14 не найден"
-        )
-
-    print()
+        print("\n✗ Python 3.14 не найден")
 
     launcher = APP_DIR / "launcher.pyw"
-
-    if launcher.exists():
-        print(
-            "✓ launcher.pyw"
-        )
-    else:
-        print(
-            "✗ launcher.pyw отсутствует"
-        )
-
-    print()
-
     main_file = APP_DIR / "main.py"
 
-    if main_file.exists():
-        print(
-            "✓ main.py"
-        )
-    else:
-        print(
-            "✗ main.py отсутствует"
-        )
+    print("\n✓ launcher.pyw найден" if launcher.is_file()
+          else "\n✗ launcher.pyw отсутствует")
 
-    print()
+    print("✓ main.py найден" if main_file.is_file()
+          else "✗ main.py отсутствует")
 
     pause()
+
+
+# ============================================================
+# ERROR HANDLER
+# ============================================================
+
+def save_error():
+    try:
+        error_file = APP_DIR / "BahonIQ_manager_error.log"
+
+        with error_file.open("a", encoding="utf-8") as file:
+            file.write("\n\n=== BAHONIQ BACKUP MANAGER ERROR ===\n")
+            file.write(f"Дата: {datetime.now()}\n\n")
+            traceback.print_exc(file=file)
+
+        return error_file
+
+    except Exception:
+        return None
 
 
 # ============================================================
@@ -933,129 +675,38 @@ def show_status():
 
 def menu():
     while True:
+        print_header("ГЛАВНОЕ МЕНЮ")
 
-        print_header(
-            "ГЛАВНОЕ МЕНЮ"
-        )
-
-        print(
-            "  1. Создать backup"
-        )
-
-        print(
-            "  2. Показать backup"
-        )
-
-        print(
-            "  3. Восстановить backup"
-        )
-
-        print(
-            "  4. Проверить файлы"
-        )
-
-        print(
-            "  5. Запустить BahonIQ"
-        )
-
-        print(
-            "  6. Статус системы"
-        )
-
+        print("  1. Создать резервную копию")
+        print("  2. Показать резервные копии")
+        print("  3. Восстановить резервную копию")
+        print("  4. Проверить файлы")
+        print("  5. Запустить BahonIQ")
+        print("  6. Статус системы")
         print()
+        print("  0. Выход")
+        print("\n" + "-" * 72 + "\n")
 
-        print(
-            "  0. Выход"
-        )
-
-        print()
-        print("-" * 72)
-        print()
-
-        choice = input(
-            "Выберите действие: "
-        ).strip()
+        choice = input("Выберите действие: ").strip()
 
         if choice == "1":
-
             quick_backup()
-
         elif choice == "2":
-
             show_backups()
-
         elif choice == "3":
-
             restore_backup()
-
         elif choice == "4":
-
             check_files()
-
         elif choice == "5":
-
             run_bahoniq()
-
         elif choice == "6":
-
             show_status()
-
         elif choice == "0":
-
-            print()
-            print(
-                "BahonIQ Backup Manager завершён."
-            )
-
+            print("\nBahonIQ Backup Manager завершён.")
             break
-
         else:
-
-            print()
-            print(
-                "Неверный пункт меню."
-            )
-
+            print("\nНеверный пункт меню.")
             pause()
-
-
-# ============================================================
-# ERROR HANDLER
-# ============================================================
-
-def save_error():
-
-    try:
-
-        error_file = (
-            APP_DIR
-            / "BahonIQ_manager_error.log"
-        )
-
-        with open(
-            error_file,
-            "w",
-            encoding="utf-8"
-        ) as f:
-
-            f.write(
-                "=== BAHONIQ BACKUP MANAGER ERROR ===\n\n"
-            )
-
-            f.write(
-                f"Дата: "
-                f"{datetime.now()}\n\n"
-            )
-
-            traceback.print_exc(
-                file=f
-            )
-
-        return error_file
-
-    except Exception:
-
-        return None
 
 
 # ============================================================
@@ -1063,52 +714,33 @@ def save_error():
 # ============================================================
 
 def main():
-
     try:
-
         os.chdir(APP_DIR)
+
+        print(f"Корень проекта: {APP_DIR}")
+        print(f"Резервные копии: {BACKUP_ROOT}")
 
         menu()
 
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, EOFError):
+        print("\nРабота Backup Manager остановлена.")
 
-        print()
-        print()
-        print(
-            "Операция отменена."
-        )
-
-    except BaseException as e:
-
+    except BaseException:
         error_file = save_error()
 
-        print()
-        print("=" * 72)
+        print("\n" + "=" * 72)
         print("ОШИБКА BACKUP MANAGER")
         print("=" * 72)
-        print()
-
-        print(
-            str(e)
-        )
-
-        print()
 
         if error_file:
+            print(f"\nПодробный журнал:\n{error_file}")
+        else:
+            traceback.print_exc()
 
-            print(
-                "Подробный лог:"
-            )
-
-            print(
-                error_file
-            )
-
-        print()
-
-        input(
-            "Нажмите Enter для выхода..."
-        )
+        try:
+            input("\nНажмите Enter для выхода...")
+        except (EOFError, KeyboardInterrupt):
+            pass
 
 
 # ============================================================
