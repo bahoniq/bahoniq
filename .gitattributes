@@ -1,0 +1,23 @@
+# Store source text consistently; Git converts Windows launch scripts on checkout.
+* text=auto
+
+*.py text eol=lf
+*.pyw text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.svg text eol=lf
+VERSION text eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+*.png binary
+*.ico binary
+*.xlsx binary
+*.xls binary
+*.docx binary

@@ -19,12 +19,12 @@ class ExcelWorkflow:
         self.engine = engine
 
     # ============================================================
-    # КОНТРОЛЬНАЯ СУММА ИСХОДНОГО ФАЙЛА
+    # КОНТРОЛЬНЫЕ СУММЫ И ИДЕНТИФИКАЦИЯ ФАЙЛОВ
     # ============================================================
 
     @staticmethod
     def _file_fingerprint(path):
-        """Вычисляет SHA-256, не загружая весь файл в память."""
+        """Вычисляет SHA-256 файла, не загружая его целиком в память."""
         digest = hashlib.sha256()
 
         with Path(path).open("rb") as stream:
@@ -32,6 +32,102 @@ class ExcelWorkflow:
                 digest.update(chunk)
 
         return digest.hexdigest()
+
+    @classmethod
+    def _capture_file_identity(cls, path):
+        """
+        Запоминает идентичность файла для безопасной очистки.
+
+        SHA-256 проверяет содержимое, а системные атрибуты помогают
+        обнаружить замену файла после создания.
+        """
+        path = Path(path)
+
+        stat_before = path.stat()
+        fingerprint = cls._file_fingerprint(path)
+        stat_after = path.stat()
+
+        before_identity = (
+            stat_before.st_dev,
+            stat_before.st_ino,
+            stat_before.st_size,
+            stat_before.st_mtime_ns,
+        )
+        after_identity = (
+            stat_after.st_dev,
+            stat_after.st_ino,
+            stat_after.st_size,
+            stat_after.st_mtime_ns,
+        )
+
+        if before_identity != after_identity:
+            raise RuntimeError(
+                "Файл результата изменился во время проверки "
+                "его идентичности."
+            )
+
+        return {
+            "device": stat_after.st_dev,
+            "inode": stat_after.st_ino,
+            "size": stat_after.st_size,
+            "mtime_ns": stat_after.st_mtime_ns,
+            "sha256": fingerprint,
+        }
+
+    @classmethod
+    def _remove_owned_output(cls, path, expected_identity):
+        """
+        Удаляет только проверенный файл, созданный текущим выполнением.
+
+        Если файл исчез, был заменён или изменился, он не удаляется.
+        """
+        path = Path(path)
+
+        if not isinstance(expected_identity, dict):
+            return False
+
+        try:
+            current_identity = cls._capture_file_identity(path)
+        except FileNotFoundError:
+            return False
+        except OSError:
+            return False
+        except Exception:
+            return False
+
+        identity_fields = (
+            "device",
+            "inode",
+            "size",
+            "mtime_ns",
+            "sha256",
+        )
+
+        if any(
+            current_identity.get(field) != expected_identity.get(field)
+            for field in identity_fields
+        ):
+            return False
+
+        try:
+            # Повторная проверка непосредственно перед удалением.
+            latest_stat = path.stat()
+
+            if (
+                latest_stat.st_dev != expected_identity["device"]
+                or latest_stat.st_ino != expected_identity["inode"]
+                or latest_stat.st_size != expected_identity["size"]
+                or latest_stat.st_mtime_ns != expected_identity["mtime_ns"]
+            ):
+                return False
+
+            path.unlink()
+            return True
+
+        except FileNotFoundError:
+            return False
+        except OSError:
+            return False
 
     # ============================================================
     # СОЗДАНИЕ ЗАДАЧИ
@@ -43,7 +139,10 @@ class ExcelWorkflow:
         if not isinstance(instruction, str) or not instruction.strip():
             raise ValueError("Описание задания не должно быть пустым.")
 
-        if not isinstance(source_path, (str, Path)) or not str(source_path).strip():
+        if (
+            not isinstance(source_path, (str, Path))
+            or not str(source_path).strip()
+        ):
             raise ValueError("Не указан исходный Excel-файл.")
 
         source = Path(source_path).expanduser().resolve()
@@ -115,7 +214,7 @@ class ExcelWorkflow:
         exc,
         allowed_statuses,
     ):
-        """Переводит задачу в FAILED, если это разрешено моделью статусов."""
+        """Переводит задачу в FAILED, если переход разрешён."""
 
         try:
             current = self.engine.get_task(task_id)
@@ -144,7 +243,7 @@ class ExcelWorkflow:
 
     @staticmethod
     def _validate_output_filename(output_filename):
-        """Разрешает только имя файла, без пути к каталогу."""
+        """Разрешает только имя файла без пути к каталогу."""
 
         if (
             not isinstance(output_filename, str)
@@ -189,10 +288,12 @@ class ExcelWorkflow:
             )
 
         source = Path(task.source_path).expanduser().resolve()
-
         plan_source_value = plan.get("source")
 
-        if not isinstance(plan_source_value, str) or not plan_source_value.strip():
+        if (
+            not isinstance(plan_source_value, str)
+            or not plan_source_value.strip()
+        ):
             raise ValueError(
                 "В плане не указан исходный файл."
             )
@@ -213,7 +314,10 @@ class ExcelWorkflow:
 
         plan_output_value = plan.get("output")
 
-        if not isinstance(plan_output_value, str) or not plan_output_value.strip():
+        if (
+            not isinstance(plan_output_value, str)
+            or not plan_output_value.strip()
+        ):
             raise ValueError(
                 "В плане не указан путь результата."
             )
@@ -244,7 +348,10 @@ class ExcelWorkflow:
                 "с исходным файлом."
             )
 
-        if not isinstance(plan.get("operations"), list) or not plan["operations"]:
+        if (
+            not isinstance(plan.get("operations"), list)
+            or not plan["operations"]
+        ):
             raise ValueError(
                 "В сохранённом плане отсутствуют операции."
             )
@@ -306,13 +413,11 @@ class ExcelWorkflow:
                     f"Исходный файл не найден: {source}"
                 )
 
-            # Запоминаем состояние исходного файла перед анализом.
             fingerprint_before = self._file_fingerprint(source)
             source_stat = source.stat()
 
             analysis = analyze_workbook(source)
 
-            # Проверяем, что во время анализа файл не менялся.
             fingerprint_after = self._file_fingerprint(source)
 
             if fingerprint_before != fingerprint_after:
@@ -322,9 +427,7 @@ class ExcelWorkflow:
                 )
 
             if output_filename is None:
-                stamp = datetime.now().strftime(
-                    "%Y%m%d_%H%M%S_%f"
-                )
+                stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
                 output_suffix = (
                     ".xlsx"
@@ -340,7 +443,6 @@ class ExcelWorkflow:
                 output_filename
             )
 
-            # Файлы .xls преобразуются в результат .xlsx.
             if source.suffix.lower() == ".xls":
                 requested_suffix = Path(output_filename).suffix.lower()
 
@@ -361,7 +463,6 @@ class ExcelWorkflow:
                     "Результат не может перезаписывать исходный файл."
                 )
 
-            # Не перезаписываем ранее существующий файл.
             if output.exists():
                 raise FileExistsError(
                     f"Файл результата уже существует:\n{output}\n\n"
@@ -376,7 +477,6 @@ class ExcelWorkflow:
 
             self._validate_plan_for_task(task, plan)
 
-            # Повторная проверка после построения плана.
             if self._file_fingerprint(source) != fingerprint_before:
                 raise RuntimeError(
                     "Исходный файл изменился во время подготовки плана. "
@@ -452,7 +552,7 @@ class ExcelWorkflow:
     # ============================================================
 
     def _get_checkpoint(self, task_id, checkpoint_name):
-        """Возвращает последнюю контрольную точку."""
+        """Возвращает последнюю сохранённую контрольную точку."""
 
         with self.engine.db.connect() as con:
             row = con.execute(
@@ -509,7 +609,13 @@ class ExcelWorkflow:
     # ============================================================
 
     def confirm_and_execute(self, task_id, confirmed=False):
-        """Выполняет план только после явного подтверждения пользователя."""
+        """
+        Выполняет план после подтверждения.
+
+        Если проверка созданного файла не пройдёт, пытается удалить
+        только тот результат, идентичность которого удалось подтвердить.
+        Исходный файл и неизвестные файлы не удаляются.
+        """
 
         if confirmed is not True:
             raise PermissionError(
@@ -528,8 +634,8 @@ class ExcelWorkflow:
         self._validate_plan_for_task(task, plan)
 
         source = Path(task.source_path).expanduser().resolve()
+        planned_output = Path(plan["output"]).expanduser().resolve()
 
-        # Получаем SHA-256, сохранённый при подготовке плана.
         saved_fingerprint = self._get_checkpoint(
             task_id,
             "source_fingerprint",
@@ -553,13 +659,9 @@ class ExcelWorkflow:
                 "Выполнение отменено. Подготовь план заново."
             )
 
-        output_path = Path(
-            plan["output"]
-        ).expanduser().resolve()
-
-        if output_path.exists():
+        if planned_output.exists():
             raise FileExistsError(
-                f"Файл результата уже существует:\n{output_path}\n\n"
+                f"Файл результата уже существует:\n{planned_output}\n\n"
                 "Выполнение отменено, чтобы не перезаписать файл."
             )
 
@@ -569,8 +671,12 @@ class ExcelWorkflow:
             "Пользователь подтвердил выполнение плана.",
             {
                 "source_sha256": expected_fingerprint,
+                "planned_output": str(planned_output),
             },
         )
+
+        owned_output_identity = None
+        verification_passed = False
 
         try:
             self.engine.transition(
@@ -597,24 +703,63 @@ class ExcelWorkflow:
                 confirmed=True,
             )
 
-            self.engine.transition(
-                task_id,
-                TaskStatus.VERIFYING,
-                "Файл создан. Проверяем итоговую книгу.",
-            )
+            if not isinstance(result, dict):
+                raise RuntimeError(
+                    "Исполнитель вернул результат неверного формата."
+                )
+
+            result_output_value = result.get("output")
+
+            if (
+                not isinstance(result_output_value, str)
+                or not result_output_value.strip()
+            ):
+                raise RuntimeError(
+                    "Исполнитель не указал путь итогового файла."
+                )
 
             output = Path(
-                result["output"]
+                result_output_value
             ).expanduser().resolve()
+
+            # Нельзя принимать другой путь вместо утверждённого плана.
+            if output != planned_output:
+                raise RuntimeError(
+                    "Путь результата исполнителя не совпадает "
+                    "с путём, утверждённым в плане. "
+                    "Неизвестный файл не будет удалён автоматически."
+                )
 
             if not output.is_file():
                 raise RuntimeError(
                     "Файл результата не найден после выполнения."
                 )
 
+            # Сразу фиксируем идентичность созданного результата.
+            # Эта запись нужна для безопасной очистки при ошибке проверки.
+            owned_output_identity = self._capture_file_identity(output)
+
             if output.stat().st_size == 0:
                 raise RuntimeError(
                     "Файл результата пуст."
+                )
+
+            # Исполнитель должен сообщить контрольную сумму результата.
+            expected_output_hash = result.get("output_sha256")
+
+            if (
+                not isinstance(expected_output_hash, str)
+                or not expected_output_hash
+            ):
+                raise RuntimeError(
+                    "Исполнитель не предоставил контрольную сумму "
+                    "итогового файла. Результат не подтверждён."
+                )
+
+            if owned_output_identity["sha256"] != expected_output_hash:
+                raise RuntimeError(
+                    "Контрольная сумма итогового файла не совпадает "
+                    "с контрольной суммой, возвращённой исполнителем."
                 )
 
             expected_dir = (
@@ -634,24 +779,70 @@ class ExcelWorkflow:
                     "Итоговый файл совпадает с исходником."
                 )
 
-            # Проверяем, что исходник не изменился в ходе выполнения.
+            self.engine.transition(
+                task_id,
+                TaskStatus.VERIFYING,
+                "Файл создан. Проверяем итоговую книгу.",
+            )
+
             if self._file_fingerprint(source) != expected_fingerprint:
                 raise RuntimeError(
                     "Контрольная сумма исходного файла изменилась "
                     "во время выполнения."
                 )
 
-            verification = analyze_workbook(output)
-
-            if verification.get("sheet_count", 0) < 1:
+            # execute_operations already reopens the saved workbook in
+            # read-only mode, verifies its sheet list and checks the output
+            # hash. Running analyze_workbook here repeated a full statistical
+            # scan (duplicates, blanks, examples) although verification only
+            # needs structural evidence. For split_to_sheets we additionally
+            # reconcile input and distributed row counts from the executor.
+            result_sheets = result.get("sheets", [])
+            if not isinstance(result_sheets, list) or not result_sheets:
                 raise RuntimeError(
-                    "Проверка не пройдена: в итоговом файле нет листов."
+                    "Проверка не пройдена: исполнитель не подтвердил листы."
                 )
+
+            split_checks = []
+            for change in result.get("changes", []):
+                if change.get("type") != "split_to_sheets":
+                    continue
+                source_rows = change.get("source_data_rows")
+                distributed_rows = change.get("distributed_rows")
+                created_sheets = change.get("created_sheets", [])
+                if (
+                    not isinstance(source_rows, int)
+                    or not isinstance(distributed_rows, int)
+                    or source_rows != distributed_rows
+                    or not created_sheets
+                ):
+                    raise RuntimeError(
+                        "Проверка разделения не пройдена: количество строк "
+                        "до и после операции не совпадает."
+                    )
+                split_checks.append({
+                    "source_rows": source_rows,
+                    "distributed_rows": distributed_rows,
+                    "created_sheet_count": len(created_sheets),
+                })
+
+            verification = {
+                "mode": "structural_fast",
+                "sheet_count": len(result_sheets),
+                "sheets": result_sheets,
+                "split_to_sheets": split_checks,
+                "output_sha256": owned_output_identity["sha256"],
+            }
 
             if result.get("source_was_modified") is not False:
                 raise RuntimeError(
                     "Результат не подтверждает сохранность исходника."
                 )
+
+            # После успешных проверок сам Excel-файл считается проверенным.
+            # Ошибки последующей записи журнала не должны удалять
+            # уже проверенный результат.
+            verification_passed = True
 
             self.engine.save_checkpoint(
                 task_id,
@@ -668,11 +859,12 @@ class ExcelWorkflow:
             self.engine.add_event(
                 task_id,
                 "verification_passed",
-                "Итоговый Excel-файл открыт и проанализирован.",
+                "Итоговый Excel-файл открыт и структурно проверен.",
                 {
                     "output": str(output),
                     "sheet_count": verification["sheet_count"],
                     "file_size": output.stat().st_size,
+                    "output_sha256": owned_output_identity["sha256"],
                 },
             )
 
@@ -689,6 +881,34 @@ class ExcelWorkflow:
             }
 
         except Exception as exc:
+            # Удаляем результат только при ошибке до успешной проверки.
+            # Если файл был заменён или изменён, безопасная очистка
+            # откажется удалять его.
+            if not verification_passed and owned_output_identity is not None:
+                removed = self._remove_owned_output(
+                    planned_output,
+                    owned_output_identity,
+                )
+
+                if removed:
+                    self._record_error(
+                        task_id,
+                        "output_cleanup",
+                        "Непрошедший проверку результат удалён: ",
+                        exc,
+                    )
+                else:
+                    self._record_error(
+                        task_id,
+                        "output_cleanup_skipped",
+                        (
+                            "Результат не удалён: файл отсутствует, "
+                            "изменён или его идентичность не подтверждена. "
+                            "Причина ошибки: "
+                        ),
+                        exc,
+                    )
+
             self._fail_if_possible(
                 task_id,
                 "Выполнение или проверка завершились ошибкой.",

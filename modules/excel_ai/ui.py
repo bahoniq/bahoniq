@@ -2,6 +2,7 @@
 import json
 import os
 import tkinter as tk
+from .comparison import ExcelComparisonWindow
 from pathlib import Path
 from tkinter import ttk, filedialog, messagebox
 
@@ -54,11 +55,24 @@ class ExcelAIWindow(tk.Toplevel):
         self._build_ui()
         self._refresh_history()
 
+        def _open_comparison(self):
+            """Открывает окно сопоставления двух Excel-файлов."""
+            window = ExcelComparisonWindow(self)
+            window.transient(self)
+            window.focus_set()
+
     # ========================================================
     # UI
     # ========================================================
 
-    
+    def _open_comparison(self):
+        """Открывает окно сопоставления двух Excel-файлов."""
+        from .comparison import ExcelComparisonWindow
+
+        window = ExcelComparisonWindow(self)
+        window.transient(self)
+        window.focus_set()
+
     def _build_ui(self):
         outer = ttk.Frame(self, padding=12)
         outer.pack(fill="both", expand=True)
@@ -217,7 +231,7 @@ class ExcelAIWindow(tk.Toplevel):
             undo=True,
         )
         self._enable_text_clipboard(self.instruction_text)
-        
+
         self.instruction_text.grid(
             row=2,
             column=0,
@@ -269,6 +283,12 @@ class ExcelAIWindow(tk.Toplevel):
             command=lambda: self.instruction_text.delete(
                 "1.0", "end"
             ),
+        ).pack(side="left", padx=8)
+
+        ttk.Button(
+            buttons,
+            text="Сопоставить два Excel-файла",
+            command=self._open_comparison,
         ).pack(side="left", padx=8)
 
         ttk.Label(
@@ -728,6 +748,10 @@ class ExcelAIWindow(tk.Toplevel):
             "highlight_empty": (
                 f"{sheet}: выделить пустые ячейки в столбцах {columns}"
             ),
+            "split_to_sheets": (
+                f"{sheet}: создать отдельный лист для каждого значения "
+                f"столбца {operation.get('column', '?')}"
+            ),
         }
 
         return labels.get(kind, f"{sheet}: {kind}")
@@ -855,8 +879,8 @@ class ExcelAIWindow(tk.Toplevel):
                 )
             else:
                 self.status_var.set(
-                    "Использованы локальные правила. Для гибкого разбора "
-                    "настрой OPENAI_API_KEY."
+                    "Использованы локальные правила. Для сложных команд "
+                    "запусти Ollama и установи рекомендуемую модель qwen2.5:7b."
                 )
 
             return True

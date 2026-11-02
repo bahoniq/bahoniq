@@ -1,0 +1,431 @@
+Структура папок
+Серийный номер тома: ACCE-C594
+C:.
+|   .gitignore
+|   architecture.txt
+|   BahonIQ_error.log
+|   BahonIQ_launcher_error.log
+|   bootstrap.py
+|   config.py
+|   launcher.pyw
+|   main.py
+|   organize_project.py
+|   patch_duplicate_rows.py
+|   patch_duplicate_rows_v2.py
+|   patch_duplicate_rows_v3.py
+|   README.md
+|   state.py
+|   VERSION
+|
++---app
+|   |   main_window.py
+|   |   main_window.py.bak
+|   |   main_window.py.before_excel_ai.bak
+|   |   main_window.py.before_library_removal.bak
+|   |   main_window.py.before_new_report_studio.bak
+|   |   main_window.py.before_version_about.bak
+|   |   __init__.py
+|   |
+|   \---__pycache__
+|           main_window.cpython-314.pyc
+|           __init__.cpython-314.pyc
+|
++---BahonIQ Backups
+|   +---Backup_2026-10-08_16-33-15
+|   |   |   install_launcher.py
+|   |   |   manage_bahoniq.py
+|   |   |   __init__.py
+|   |   |
+|   |   \---__pycache__
+|   |           install_launcher.cpython-314.pyc
+|   |           manage_bahoniq.cpython-314.pyc
+|   |           __init__.cpython-314.pyc
+|   |
+|   +---Backup_2026-10-09_08-56-10
+|   |   |   install_launcher.py
+|   |   |   manage_bahoniq.py
+|   |   |   __init__.py
+|   |   |
+|   |   \---__pycache__
+|   |           install_launcher.cpython-314.pyc
+|   |           manage_bahoniq.cpython-314.pyc
+|   |           __init__.cpython-314.pyc
+|   |
+|   +---Backup_2026-10-09_15-50-25
+|   |   |   install_launcher.py
+|   |   |   manage_bahoniq.py
+|   |   |   __init__.py
+|   |   |
+|   |   \---__pycache__
+|   |           install_launcher.cpython-314.pyc
+|   |           manage_bahoniq.cpython-314.pyc
+|   |           __init__.cpython-314.pyc
+|   |
+|   +---Backup_2026-10-27_16-40-26
+|   |       install_launcher.py
+|   |       manage_bahoniq.py
+|   |       __init__.py
+|   |
+|   +---Backup_2026-10-27_16-42-19
+|   |   |   .gitignore
+|   |   |   bootstrap.py
+|   |   |   config.py
+|   |   |   launcher.pyw
+|   |   |   main.py
+|   |   |   organize_project.py
+|   |   |   patch_duplicate_rows.py
+|   |   |   patch_duplicate_rows_v2.py
+|   |   |   patch_duplicate_rows_v3.py
+|   |   |   README.md
+|   |   |   state.py
+|   |   |
+|   |   +---app
+|   |   |       main_window.py
+|   |   |       main_window.py.bak
+|   |   |       main_window.py.before_excel_ai.bak
+|   |   |       main_window.py.before_library_removal.bak
+|   |   |       __init__.py
+|   |   |
+|   |   +---backups
+|   |   +---data
+|   |   |   +---cache
+|   |   |   +---excel_ai
+|   |   |   |       tasks.sqlite3
+|   |   |   |
+|   |   |   +---logs
+|   |   |   \---settings
+|   |   +---modules
+|   |   |   |   browser.py
+|   |   |   |   duplicate_window.py
+|   |   |   |   notes.py
+|   |   |   |   pdf_center.py
+|   |   |   |   __init__.py
+|   |   |   |
+|   |   |   \---excel_ai
+|   |   |       |   ai_interpreter.py
+|   |   |       |   ai_interpreter.py.bak
+|   |   |       |   ai_interpreter.py.before_duplicate_rows.bak
+|   |   |       |   ai_interpreter.py.v3_backup
+|   |   |       |   analyzer.py
+|   |   |       |   database.py
+|   |   |       |   engine.py
+|   |   |       |   models.py
+|   |   |       |   operations.py
+|   |   |       |   operations.py.bak
+|   |   |       |   operations.py.before_duplicate_rows.bak
+|   |   |       |   operations.py.v3_backup
+|   |   |       |   ui.py
+|   |   |       |   workflow.py
+|   |   |       |   __init__.py
+|   |   |       |
+|   |   |       \---tests
+|   |   |               test_analyzer.py
+|   |   |               test_engine.py
+|   |   |               test_operations.py
+|   |   |               test_operations.py.bak
+|   |   |               test_operations.py.before_duplicate_rows.bak
+|   |   |               test_operations.py.v3_backup
+|   |   |               test_split_by_column.py
+|   |   |               test_workflow.py
+|   |   |               __init__.py
+|   |   |
+|   |   +---scripts
+|   |   |       install_launcher.py
+|   |   |       manage_bahoniq.py
+|   |   |       __init__.py
+|   |   |
+|   |   +---script_manager
+|   |   |   |   manager.py
+|   |   |   |   manager.py.before_cyrillic_restore.bak
+|   |   |   |   manager.py.before_fix_summary.bak
+|   |   |   |   manager.py.before_restore_v2.bak
+|   |   |   |   manager.py.before_rollback_20261009.bak
+|   |   |   |   settings.json
+|   |   |   |   __init__.py
+|   |   |   |
+|   |   |   +---logs
+|   |   |   +---results
+|   |   |   \---scripts
+|   |   |           version.py
+|   |   |
+|   |   +---services
+|   |   |       anydesk_service.py
+|   |   |       cleanup.py
+|   |   |       duplicate_service.py
+|   |   |       settings_service.py
+|   |   |       __init__.py
+|   |   |
+|   |   \---ui
+|   |           rgb.py
+|   |           __init__.py
+|   |
+|   \---Backup_2026-10-28_10-47-38
+|       |   .gitignore
+|       |   bootstrap.py
+|       |   config.py
+|       |   launcher.pyw
+|       |   main.py
+|       |   organize_project.py
+|       |   patch_duplicate_rows.py
+|       |   patch_duplicate_rows_v2.py
+|       |   patch_duplicate_rows_v3.py
+|       |   README.md
+|       |   state.py
+|       |   VERSION
+|       |
+|       +---app
+|       |       main_window.py
+|       |       main_window.py.bak
+|       |       main_window.py.before_excel_ai.bak
+|       |       main_window.py.before_library_removal.bak
+|       |       main_window.py.before_version_about.bak
+|       |       __init__.py
+|       |
+|       +---backups
+|       +---data
+|       |   +---cache
+|       |   +---excel_ai
+|       |   |       tasks.sqlite3
+|       |   |
+|       |   +---logs
+|       |   \---settings
+|       +---modules
+|       |   |   browser.py
+|       |   |   duplicate_window.py
+|       |   |   notes.py
+|       |   |   pdf_center.py
+|       |   |   __init__.py
+|       |   |
+|       |   \---excel_ai
+|       |       |   ai_interpreter.py
+|       |       |   ai_interpreter.py.bak
+|       |       |   ai_interpreter.py.before_duplicate_rows.bak
+|       |       |   ai_interpreter.py.v3_backup
+|       |       |   analyzer.py
+|       |       |   comparison.py
+|       |       |   database.py
+|       |       |   engine.py
+|       |       |   models.py
+|       |       |   operations.py
+|       |       |   operations.py.bak
+|       |       |   operations.py.before_compare.bak
+|       |       |   operations.py.before_duplicate_rows.bak
+|       |       |   operations.py.v3_backup
+|       |       |   ui.py
+|       |       |   ui.py.before_compare.bak
+|       |       |   workflow.py
+|       |       |   __init__.py
+|       |       |
+|       |       \---tests
+|       |               test_analyzer.py
+|       |               test_engine.py
+|       |               test_operations.py
+|       |               test_operations.py.bak
+|       |               test_operations.py.before_duplicate_rows.bak
+|       |               test_operations.py.v3_backup
+|       |               test_split_by_column.py
+|       |               test_workflow.py
+|       |               __init__.py
+|       |
+|       +---scripts
+|       |       install_launcher.py
+|       |       manage_bahoniq.py
+|       |       __init__.py
+|       |
+|       +---script_manager
+|       |   |   manager.py
+|       |   |   manager.py.before_cyrillic_restore.bak
+|       |   |   manager.py.before_fix_summary.bak
+|       |   |   manager.py.before_restore_v2.bak
+|       |   |   manager.py.before_rollback_20261009.bak
+|       |   |   settings.json
+|       |   |   __init__.py
+|       |   |
+|       |   +---logs
+|       |   +---results
+|       |   \---scripts
+|       |           version.py
+|       |
+|       +---services
+|       |       anydesk_service.py
+|       |       cleanup.py
+|       |       duplicate_service.py
+|       |       settings_service.py
+|       |       __init__.py
+|       |
+|       \---ui
+|               rgb.py
+|               __init__.py
+|
++---data
+|   +---cache
+|   +---excel_ai
+|   |       tasks.sqlite3
+|   |
+|   +---logs
+|   \---settings
++---modules
+|   |   browser.py
+|   |   duplicate_window.py
+|   |   notes.py
+|   |   pdf_center.py
+|   |   report_studio.py
+|   |   __init__.py
+|   |
+|   +---excel_ai
+|   |   |   ai_interpreter.py
+|   |   |   ai_interpreter.py.bak
+|   |   |   ai_interpreter.py.before_duplicate_rows.bak
+|   |   |   ai_interpreter.py.v3_backup
+|   |   |   analyzer.py
+|   |   |   comparison.py
+|   |   |   database.py
+|   |   |   engine.py
+|   |   |   models.py
+|   |   |   operations.py
+|   |   |   operations.py.bak
+|   |   |   operations.py.before_compare.bak
+|   |   |   operations.py.before_duplicate_rows.bak
+|   |   |   operations.py.v3_backup
+|   |   |   ui.py
+|   |   |   ui.py.before_compare.bak
+|   |   |   workflow.py
+|   |   |   __init__.py
+|   |   |
+|   |   +---tests
+|   |   |   |   test_analyzer.py
+|   |   |   |   test_engine.py
+|   |   |   |   test_operations.py
+|   |   |   |   test_operations.py.bak
+|   |   |   |   test_operations.py.before_duplicate_rows.bak
+|   |   |   |   test_operations.py.v3_backup
+|   |   |   |   test_split_by_column.py
+|   |   |   |   test_workflow.py
+|   |   |   |   __init__.py
+|   |   |   |
+|   |   |   \---__pycache__
+|   |   |           test_analyzer.cpython-314.pyc
+|   |   |           test_engine.cpython-314.pyc
+|   |   |           test_operations.cpython-314.pyc
+|   |   |           test_split_by_column.cpython-314.pyc
+|   |   |           test_workflow.cpython-314.pyc
+|   |   |           __init__.cpython-314.pyc
+|   |   |
+|   |   \---__pycache__
+|   |           ai_interpreter.cpython-314.pyc
+|   |           analyzer.cpython-314.pyc
+|   |           comparison.cpython-314.pyc
+|   |           database.cpython-314.pyc
+|   |           engine.cpython-314.pyc
+|   |           models.cpython-314.pyc
+|   |           operations.cpython-314.pyc
+|   |           ui.cpython-314.pyc
+|   |           workflow.cpython-314.pyc
+|   |           __init__.cpython-314.pyc
+|   |
+|   +---report_studio
+|   |   |   ai_interpreter.py
+|   |   |   analytics.py
+|   |   |   config.py
+|   |   |   excel_reader.py
+|   |   |   history.py
+|   |   |   launcher.py
+|   |   |   pdf_builder.py
+|   |   |   test_report_studio.py
+|   |   |   ui.py
+|   |   |   __init__.py
+|   |   |
+|   |   +---backup_ai_20261028_145711
+|   |   |       analytics.py
+|   |   |       launcher.py
+|   |   |       pdf_builder.py
+|   |   |
+|   |   \---__pycache__
+|   |           ai_interpreter.cpython-314.pyc
+|   |           analytics.cpython-314.pyc
+|   |           config.cpython-314.pyc
+|   |           excel_reader.cpython-314.pyc
+|   |           history.cpython-314.pyc
+|   |           launcher.cpython-314.pyc
+|   |           pdf_builder.cpython-314.pyc
+|   |           test_report_studio.cpython-314.pyc
+|   |           ui.cpython-314.pyc
+|   |           __init__.cpython-314.pyc
+|   |
+|   \---__pycache__
+|           browser.cpython-314.pyc
+|           duplicate_window.cpython-314.pyc
+|           notes.cpython-314.pyc
+|           pdf_center.cpython-314.pyc
+|           report_studio.cpython-314.pyc
+|           __init__.cpython-314.pyc
+|
++---scripts
+|   |   install_launcher.py
+|   |   manage_bahoniq.py
+|   |   __init__.py
+|   |
+|   \---__pycache__
+|           install_launcher.cpython-314.pyc
+|           manage_bahoniq.cpython-314.pyc
+|           __init__.cpython-314.pyc
+|
++---script_manager
+|   |   manager.py
+|   |   manager.py.before_cyrillic_restore.bak
+|   |   manager.py.before_fix_summary.bak
+|   |   manager.py.before_restore_v2.bak
+|   |   manager.py.before_rollback_20261009.bak
+|   |   settings.json
+|   |   __init__.py
+|   |
+|   +---logs
+|   +---results
+|   +---scripts
+|   |   |   version.py
+|   |   |
+|   |   \---__pycache__
+|   |           version.cpython-314.pyc
+|   |
+|   \---__pycache__
+|           manager.cpython-314.pyc
+|           __init__.cpython-314.pyc
+|
++---services
+|   |   anydesk_service.py
+|   |   cleanup.py
+|   |   duplicate_service.py
+|   |   settings_service.py
+|   |   __init__.py
+|   |
+|   \---__pycache__
+|           anydesk_service.cpython-314.pyc
+|           cleanup.cpython-314.pyc
+|           duplicate_service.cpython-314.pyc
+|           settings_service.cpython-314.pyc
+|           __init__.cpython-314.pyc
+|
++---ui
+|   |   rgb.py
+|   |   __init__.py
+|   |
+|   \---__pycache__
+|           rgb.cpython-314.pyc
+|           __init__.cpython-314.pyc
+|
+\---__pycache__
+        anydesk_service.cpython-314.pyc
+        bootstrap.cpython-314.pyc
+        cleanup.cpython-314.pyc
+        config.cpython-314.pyc
+        duplicate_service.cpython-314.pyc
+        duplicate_window.cpython-314.pyc
+        main.cpython-314.pyc
+        main_window.cpython-314.pyc
+        notes.cpython-314.pyc
+        organize_project.cpython-314.pyc
+        pdf_center.cpython-314.pyc
+        rgb.cpython-314.pyc
+        settings_service.cpython-314.pyc
+        state.cpython-314.pyc
+        version.cpython-314.pyc

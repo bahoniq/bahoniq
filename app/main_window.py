@@ -1,6 +1,8 @@
 
 import tkinter as tk
+from pathlib import Path
 from datetime import datetime
+from script_manager.scripts.version import VERSION
 
 from config import (
     APP_NAME,
@@ -33,6 +35,8 @@ from services.cleanup import open_cleanup
 from services.anydesk_service import open_anydesk
 from modules.duplicate_window import open_duplicates
 from modules.pdf_center import open_pdf_center
+from modules.report_studio import open_report_studio
+from modules.ticket_writer import open_ticket_writer
 
 
 # ============================================================
@@ -51,6 +55,13 @@ ITALY_RED_LIGHT = "#F9E8EA"
 
 ITALY_BORDER = "#D9E2DC"
 
+SURFACE = "#FFFFFF"
+SURFACE_SOFT = "#F6F8F7"
+TEXT_PRIMARY = "#17352A"
+TEXT_MUTED = "#66756D"
+CARD_BORDER = "#DDE5E1"
+CARD_HOVER = "#F0F7F3"
+
 
 # ============================================================
 # MAIN WINDOW
@@ -61,11 +72,26 @@ class MainWindow:
     def __init__(self, root):
         self.root = root
         state.root = root
+        self.tool_cards = []
+        self.system_buttons = []
+
+        self.apply_window_branding()
 
         self.build()
         self.update_clock()
         self.apply_theme()
         rgb_initialize()
+
+    def apply_window_branding(self):
+        """Подключает фирменную иконку окна и панели задач."""
+        try:
+            project_dir = Path(__file__).resolve().parent.parent
+            icon_path = project_dir / "assets" / "bahoniq_italy.ico"
+            if icon_path.is_file():
+                self.root.iconbitmap(default=str(icon_path))
+        except (OSError, tk.TclError):
+            # Иконка не должна мешать запуску приложения.
+            pass
 
     # ========================================================
     # BUILD
@@ -87,7 +113,7 @@ class MainWindow:
     def create_italy_header_flag(self):
         self.italy_flag = tk.Frame(
             self.root,
-            height=8,
+            height=4,
             bd=0,
         )
 
@@ -119,7 +145,7 @@ class MainWindow:
     def create_rgb_canvases(self):
         self.rgb_canvas = tk.Canvas(
             self.root,
-            height=15,
+            height=7,
             bd=0,
             highlightthickness=0,
         )
@@ -142,13 +168,13 @@ class MainWindow:
     def create_header(self):
         self.header = tk.Frame(
             self.root,
-            height=78,
+            height=68,
             bd=0,
         )
         self.header.pack(
             fill="x",
             padx=20,
-            pady=(10, 12),
+            pady=(8, 10),
         )
         self.header.pack_propagate(False)
 
@@ -171,7 +197,7 @@ class MainWindow:
         self.logo = tk.Label(
             self.brand_frame,
             text="BahonIQ",
-            font=("Segoe UI", 25, "bold"),
+            font=("Segoe UI", 23, "bold"),
             fg=ITALY_GREEN_DARK,
             bd=0,
         )
@@ -184,16 +210,24 @@ class MainWindow:
             fg=ITALY_RED,
             bd=0,
         )
-        self.logo_accent.pack(side="left", padx=(0, 4), pady=(12, 0))
+        self.logo_accent.pack(
+            side="left",
+            padx=(0, 4),
+            pady=(12, 0),
+        )
 
         self.logo_subtitle = tk.Label(
             self.brand_frame,
             text="WORK CENTER",
-            font=("Segoe UI", 9, "bold"),
+            font=("Segoe UI", 8, "bold"),
             fg="#6E7772",
             bd=0,
         )
-        self.logo_subtitle.pack(side="left", padx=5, pady=(18, 0))
+        self.logo_subtitle.pack(
+            side="left",
+            padx=5,
+            pady=(18, 0),
+        )
 
         # RIGHT CONTROLS
         self.controls = tk.Frame(self.header, bd=0)
@@ -274,7 +308,7 @@ class MainWindow:
     # MAIN AREA
     # ========================================================
 
-    def create_main_area(self):
+    def _create_main_area_legacy(self):
         self.main = tk.Frame(self.root, bd=0)
         self.main.pack(
             fill="both",
@@ -285,8 +319,16 @@ class MainWindow:
         state.main = self.main
 
         # LEFT
-        left = tk.Frame(self.main, width=350, bd=0)
-        left.pack(side="left", fill="y", padx=(0, 10))
+        left = tk.Frame(
+            self.main,
+            width=350,
+            bd=0,
+        )
+        left.pack(
+            side="left",
+            fill="y",
+            padx=(0, 10),
+        )
         left.pack_propagate(False)
 
         # SYSTEMS CARD
@@ -321,7 +363,10 @@ class MainWindow:
         state.systems_header = self.systems_header
 
         # SYSTEM BUTTONS
-        systems_frame = tk.Frame(self.systems_card, bd=0)
+        systems_frame = tk.Frame(
+            self.systems_card,
+            bd=0,
+        )
         systems_frame.pack(
             fill="both",
             expand=True,
@@ -373,7 +418,11 @@ class MainWindow:
 
         # RIGHT
         self.right = tk.Frame(self.main, bd=0)
-        self.right.pack(side="left", fill="both", expand=True)
+        self.right.pack(
+            side="left",
+            fill="both",
+            expand=True,
+        )
         state.right = self.right
 
         # WELCOME CARD
@@ -383,11 +432,21 @@ class MainWindow:
             relief="solid",
             highlightthickness=0,
         )
-        self.welcome_card.pack(fill="x", pady=(0, 12))
+        self.welcome_card.pack(
+            fill="x",
+            pady=(0, 12),
+        )
         state.welcome_card = self.welcome_card
 
-        self.welcome_inner = tk.Frame(self.welcome_card, bd=0)
-        self.welcome_inner.pack(fill="x", padx=25, pady=22)
+        self.welcome_inner = tk.Frame(
+            self.welcome_card,
+            bd=0,
+        )
+        self.welcome_inner.pack(
+            fill="x",
+            padx=25,
+            pady=22,
+        )
         state.welcome_inner = self.welcome_inner
 
         self.welcome_title = tk.Label(
@@ -414,7 +473,10 @@ class MainWindow:
             height=4,
             bd=0,
         )
-        self.welcome_flag.pack(fill="x", pady=(18, 0))
+        self.welcome_flag.pack(
+            fill="x",
+            pady=(18, 0),
+        )
         self.welcome_flag.pack_propagate(False)
 
         tk.Frame(
@@ -436,7 +498,10 @@ class MainWindow:
 
         # TOOLS
         self.tools_frame = tk.Frame(self.right, bd=0)
-        self.tools_frame.pack(fill="both", expand=True)
+        self.tools_frame.pack(
+            fill="both",
+            expand=True,
+        )
         state.tools_frame = self.tools_frame
 
         self.tools_title = tk.Label(
@@ -453,15 +518,15 @@ class MainWindow:
         tools_grid = tk.Frame(self.tools_frame, bd=0)
         tools_grid.pack(fill="both", expand=True)
 
-        # Библиотека заменена на Excel AI
         tools = [
-            ("📁", "Проводник"),
+            ("✦", "Ticket Writer AI"),
             ("📝", "Заметки"),
             ("📊", "Excel AI"),
             ("🧹", "Очистка"),
             ("🔍", "Дубликаты"),
             ("🖥", "AnyDesk"),
             ("📄", "PDF Center"),
+            ("📑", "ANALYTICS AI"),
         ]
 
         for index, (icon, name) in enumerate(tools):
@@ -508,14 +573,309 @@ class MainWindow:
         for column in range(3):
             tools_grid.grid_columnconfigure(column, weight=1)
 
-        for row in range(3):
+        for row in range((len(tools) + 2) // 3):
             tools_grid.grid_rowconfigure(row, weight=1)
+
+    # ========================================================
+    # MODERN MAIN AREA (v2)
+    # ========================================================
+
+    def create_main_area(self):
+        """Компактная главная панель с информативными карточками модулей."""
+        theme = get_theme()
+
+        self.main = tk.Frame(self.root, bd=0, bg=theme["bg"])
+        self.main.pack(fill="both", expand=True, padx=20, pady=(0, 10))
+        state.main = self.main
+
+        # LEFT SIDEBAR
+        left = tk.Frame(self.main, width=286, bd=0, bg=theme["bg"])
+        left.pack(side="left", fill="y", padx=(0, 14))
+        left.pack_propagate(False)
+
+        self.systems_card = tk.Frame(
+            left,
+            bd=0,
+            bg=theme["card"],
+            highlightthickness=1,
+            highlightbackground=theme["border"],
+        )
+        self.systems_card.pack(fill="both", expand=True)
+        state.systems_card = self.systems_card
+
+        self.systems_accent = tk.Frame(self.systems_card, height=4, bg=ITALY_GREEN, bd=0)
+        self.systems_accent.pack(fill="x")
+
+        self.systems_header = tk.Label(
+            self.systems_card,
+            text="СИСТЕМЫ",
+            font=("Segoe UI", 9, "bold"),
+            anchor="w",
+            padx=18,
+            pady=16,
+            bg=theme["card"],
+            fg=ITALY_GREEN_DARK,
+            bd=0,
+        )
+        self.systems_header.pack(fill="x")
+        state.systems_header = self.systems_header
+
+        systems_frame = tk.Frame(self.systems_card, bd=0, bg=theme["card"])
+        systems_frame.pack(fill="both", expand=True, padx=10, pady=(0, 8))
+
+        self.system_buttons = []
+        for icon, name, url in SYSTEMS:
+            button = tk.Button(
+                systems_frame,
+                text=f"{icon}   {name}",
+                anchor="w",
+                font=("Segoe UI", 10, "bold"),
+                relief="flat",
+                bd=0,
+                cursor="hand2",
+                padx=12,
+                pady=10,
+                bg=theme["card"],
+                fg=theme["text"],
+                activebackground=theme["hover"],
+                activeforeground=ITALY_GREEN_DARK,
+                command=lambda u=url: self.open_url(u),
+            )
+            button.pack(fill="x", pady=2)
+            button.italy_system_button = True
+            button.italy_accent = ITALY_GREEN
+            self.system_buttons.append(button)
+
+        self.quick_launch_button = tk.Button(
+            self.systems_card,
+            text="↗  Открыть все системы",
+            command=self.open_all_systems,
+            font=("Segoe UI", 10, "bold"),
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=15,
+            pady=12,
+            bg=ITALY_RED,
+            fg=ITALY_WHITE,
+            activebackground=ITALY_RED_DARK,
+            activeforeground=ITALY_WHITE,
+        )
+        self.quick_launch_button.pack(fill="x", padx=12, pady=(8, 12))
+
+        # RIGHT CONTENT
+        self.right = tk.Frame(self.main, bd=0, bg=theme["bg"])
+        self.right.pack(side="left", fill="both", expand=True)
+        state.right = self.right
+
+        self.welcome_card = tk.Frame(
+            self.right,
+            bd=0,
+            bg=theme["card"],
+            highlightthickness=1,
+            highlightbackground=theme["border"],
+            height=104,
+        )
+        self.welcome_card.pack(fill="x", pady=(0, 12))
+        self.welcome_card.pack_propagate(False)
+        state.welcome_card = self.welcome_card
+
+        self.welcome_accent = tk.Frame(self.welcome_card, width=6, bg=ITALY_GREEN, bd=0)
+        self.welcome_accent.pack(side="left", fill="y")
+
+        self.welcome_inner = tk.Frame(self.welcome_card, bd=0, bg=theme["card"])
+        self.welcome_inner.pack(side="left", fill="both", expand=True, padx=22, pady=16)
+        state.welcome_inner = self.welcome_inner
+
+        self.welcome_title = tk.Label(
+            self.welcome_inner,
+            text="Добро пожаловать в BahonIQ",
+            font=("Segoe UI", 19, "bold"),
+            anchor="w",
+            bg=theme["card"],
+            fg=ITALY_GREEN_DARK,
+            bd=0,
+        )
+        self.welcome_title.pack(anchor="w")
+
+        self.welcome_text = tk.Label(
+            self.welcome_inner,
+            text="Все рабочие инструменты и системы в одном центре.",
+            font=("Segoe UI", 10),
+            anchor="w",
+            bg=theme["card"],
+            fg=theme["gray"],
+            bd=0,
+        )
+        self.welcome_text.pack(anchor="w", pady=(5, 0))
+
+        self.welcome_status = tk.Label(
+            self.welcome_card,
+            text="●  СИСТЕМА ГОТОВА",
+            font=("Segoe UI", 9, "bold"),
+            bg=theme["card"],
+            fg=ITALY_GREEN,
+            padx=22,
+        )
+        self.welcome_status.pack(side="right", fill="y")
+
+        # TOOL SECTION
+        self.tools_frame = tk.Frame(self.right, bd=0, bg=theme["bg"])
+        self.tools_frame.pack(fill="both", expand=True)
+        state.tools_frame = self.tools_frame
+
+        self.tools_heading = tk.Frame(self.tools_frame, bd=0, bg=theme["bg"])
+        self.tools_heading.pack(fill="x", pady=(2, 9))
+        self.tools_title = tk.Label(
+            self.tools_heading,
+            text="Рабочие инструменты",
+            font=("Segoe UI", 14, "bold"),
+            anchor="w",
+            bg=theme["bg"],
+            fg=theme["text"],
+            bd=0,
+        )
+        self.tools_title.pack(side="left")
+        self.tools_hint = tk.Label(
+            self.tools_heading,
+            text="Выберите модуль для запуска",
+            font=("Segoe UI", 9),
+            bg=theme["bg"],
+            fg=theme["gray"],
+            bd=0,
+        )
+        self.tools_hint.pack(side="right")
+        state.tools_title = self.tools_title
+
+        self.tools_grid = tk.Frame(self.tools_frame, bd=0, bg=theme["bg"])
+        self.tools_grid.pack(fill="both", expand=True)
+
+        tools = [
+            ("✦", "Ticket Writer AI", "Название и описание обращения", ITALY_GREEN),
+            ("✎", "Заметки", "Быстрые записи и идеи", "#597A91"),
+            ("▤", "Excel AI", "Умная обработка таблиц", ITALY_RED),
+            ("⌁", "Очистка", "Освобождение места и обслуживание", "#D29A18"),
+            ("⌕", "Дубликаты", "Поиск повторяющихся файлов", "#6F63A8"),
+            ("◉", "AnyDesk", "Удалённая техническая поддержка", "#D14B56"),
+            ("▧", "PDF Center", "Объединение и обработка PDF", "#2D7F79"),
+            ("▥", "ANALYTICS AI", "Отчёты, аналитика и презентации", "#245E8A"),
+        ]
+
+        self.tool_cards = []
+        for index, (icon, name, description, accent) in enumerate(tools):
+            row, column = divmod(index, 2)
+            self.create_tool_card(
+                self.tools_grid, row, column, icon, name, description, accent,
+                command=lambda n=name: self.open_tool(n),
+            )
+
+        for column in range(2):
+            self.tools_grid.grid_columnconfigure(column, weight=1, uniform="tool")
+        for row in range(4):
+            self.tools_grid.grid_rowconfigure(row, weight=1, uniform="toolrow")
+
+    def create_tool_card(self, parent, row, column, icon, name, description, accent, command):
+        theme = get_theme()
+        frame = tk.Frame(
+            parent,
+            bd=0,
+            bg=theme["card"],
+            highlightthickness=1,
+            highlightbackground=theme["border"],
+            cursor="hand2",
+        )
+        frame.grid(row=row, column=column, sticky="nsew", padx=5, pady=5)
+
+        accent_bar = tk.Frame(frame, width=5, bg=accent, bd=0, cursor="hand2")
+        accent_bar.pack(side="left", fill="y")
+
+        icon_box = tk.Label(
+            frame,
+            text=icon,
+            font=("Segoe UI Symbol", 24, "bold"),
+            width=3,
+            bg=theme["card"],
+            fg=accent,
+            bd=0,
+            cursor="hand2",
+        )
+        icon_box.pack(side="left", fill="y", padx=(14, 8))
+
+        text_box = tk.Frame(frame, bd=0, bg=theme["card"], cursor="hand2")
+        text_box.pack(side="left", fill="both", expand=True, pady=15)
+
+        title = tk.Label(
+            text_box,
+            text=name,
+            font=("Segoe UI", 12, "bold"),
+            anchor="w",
+            bg=theme["card"],
+            fg=theme["text"],
+            bd=0,
+            cursor="hand2",
+        )
+        title.pack(fill="x")
+
+        subtitle = tk.Label(
+            text_box,
+            text=description,
+            font=("Segoe UI", 9),
+            anchor="w",
+            bg=theme["card"],
+            fg=theme["gray"],
+            bd=0,
+            cursor="hand2",
+        )
+        subtitle.pack(fill="x", pady=(5, 0))
+
+        arrow = tk.Label(
+            frame,
+            text="›",
+            font=("Segoe UI", 20),
+            bg=theme["card"],
+            fg=theme["gray"],
+            padx=15,
+            bd=0,
+            cursor="hand2",
+        )
+        arrow.pack(side="right", fill="y")
+
+        card = {
+            "frame": frame,
+            "accent": accent_bar,
+            "widgets": [frame, icon_box, text_box, title, subtitle, arrow],
+            "title": title,
+            "subtitle": subtitle,
+            "icon": icon_box,
+            "arrow": arrow,
+            "accent_color": accent,
+            "command": command,
+        }
+        self.tool_cards.append(card)
+
+        for widget in card["widgets"] + [accent_bar]:
+            widget.bind("<Button-1>", lambda event, c=command: c())
+            widget.bind("<Enter>", lambda event, item=card: self.set_tool_card_hover(item, True))
+            widget.bind("<Leave>", lambda event, item=card: self.set_tool_card_hover(item, False))
+
+    def set_tool_card_hover(self, card, active):
+        theme = get_theme()
+        background = theme["hover"] if active else theme["card"]
+        for widget in card["widgets"]:
+            try:
+                widget.configure(bg=background)
+            except tk.TclError:
+                pass
+        card["frame"].configure(
+            highlightbackground=card["accent_color"] if active else theme["border"]
+        )
+        card["arrow"].configure(fg=card["accent_color"] if active else theme["gray"])
 
     # ========================================================
     # FOOTER
     # ========================================================
 
-    def create_footer(self):
+    def _create_footer_legacy(self):
         self.footer = tk.Frame(
             self.root,
             height=38,
@@ -556,15 +916,168 @@ class MainWindow:
 
         state.footer_flag = self.footer_flag
 
-        # FOOTER TEXT
+        # FOOTER TEXT WITH CENTRALIZED VERSION
         self.footer_text = tk.Label(
             self.footer,
-            text="BahonIQ — Work Center   •   Ready",
+            text=f"BahonIQ — Work Center   •   Version {VERSION}   •   Ready",
             font=("Segoe UI", 9, "bold"),
             fg="#68716C",
             bd=0,
         )
         self.footer_text.pack(side="left", padx=10)
+
+        # ABOUT BUTTON
+        self.about_button = tk.Button(
+            self.footer,
+            text="О программе",
+            command=self.show_about,
+            font=("Segoe UI", 9, "bold"),
+            bg=ITALY_GREEN,
+            fg=ITALY_WHITE,
+            activebackground=ITALY_GREEN_DARK,
+            activeforeground=ITALY_WHITE,
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=12,
+        )
+        self.about_button.pack(side="right", padx=(5, 0))
+
+    def create_footer(self):
+        """Компактная строка состояния без декоративных пустых блоков."""
+        theme = get_theme()
+        self.footer = tk.Frame(self.root, height=34, bd=0, bg=theme["bg"])
+        self.footer.pack(fill="x", padx=20, pady=(0, 8))
+        self.footer.pack_propagate(False)
+        state.footer = self.footer
+
+        self.footer_status_dot = tk.Label(
+            self.footer,
+            text="●",
+            font=("Segoe UI", 8),
+            bg=theme["bg"],
+            fg=ITALY_GREEN,
+            bd=0,
+        )
+        self.footer_status_dot.pack(side="left")
+
+        self.footer_text = tk.Label(
+            self.footer,
+            text=f"BahonIQ Work Center   ·   Версия {VERSION}   ·   Готов к работе",
+            font=("Segoe UI", 9),
+            bg=theme["bg"],
+            fg=theme["gray"],
+            bd=0,
+        )
+        self.footer_text.pack(side="left", padx=7)
+
+        self.about_button = tk.Button(
+            self.footer,
+            text="О программе",
+            command=self.show_about,
+            font=("Segoe UI", 9, "bold"),
+            bg=theme["bg"],
+            fg=ITALY_GREEN_DARK,
+            activebackground=theme["hover"],
+            activeforeground=ITALY_GREEN_DARK,
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=12,
+        )
+        self.about_button.pack(side="right")
+
+    # ========================================================
+    # ABOUT
+    # ========================================================
+
+    def show_about(self):
+        about = tk.Toplevel(self.root)
+        about.title("О программе — BahonIQ")
+        about.transient(self.root)
+        about.resizable(False, False)
+
+        theme = get_theme()
+        bg = theme["bg"]
+        fg = theme.get("text", "#26352C")
+
+        about.configure(bg=bg)
+
+        width = 420
+        height = 290
+
+        self.root.update_idletasks()
+        x = self.root.winfo_rootx() + (
+            self.root.winfo_width() - width
+        ) // 2
+        y = self.root.winfo_rooty() + (
+            self.root.winfo_height() - height
+        ) // 2
+
+        about.geometry(f"{width}x{height}+{x}+{y}")
+
+        # ITALIAN FLAG
+        flag = tk.Frame(about, height=10, bd=0)
+        flag.pack(fill="x")
+        flag.pack_propagate(False)
+
+        tk.Frame(flag, bg=ITALY_GREEN).pack(
+            side="left", fill="both", expand=True
+        )
+        tk.Frame(flag, bg=ITALY_WHITE).pack(
+            side="left", fill="both", expand=True
+        )
+        tk.Frame(flag, bg=ITALY_RED).pack(
+            side="left", fill="both", expand=True
+        )
+
+        tk.Label(
+            about,
+            text="BahonIQ",
+            font=("Segoe UI", 23, "bold"),
+            bg=bg,
+            fg=ITALY_GREEN,
+        ).pack(pady=(25, 3))
+
+        tk.Label(
+            about,
+            text="Work Center",
+            font=("Segoe UI", 12, "bold"),
+            bg=bg,
+            fg=fg,
+        ).pack()
+
+        tk.Label(
+            about,
+            text=f"Версия {VERSION}",
+            font=("Segoe UI", 11),
+            bg=bg,
+            fg=fg,
+        ).pack(pady=(15, 5))
+
+        tk.Label(
+            about,
+            text="Рабочий центр для повседневных задач",
+            font=("Segoe UI", 9),
+            bg=bg,
+            fg=fg,
+        ).pack(pady=(0, 15))
+
+        tk.Button(
+            about,
+            text="Закрыть",
+            command=about.destroy,
+            font=("Segoe UI", 10, "bold"),
+            bg=ITALY_GREEN,
+            fg=ITALY_WHITE,
+            activebackground=ITALY_GREEN_DARK,
+            activeforeground=ITALY_WHITE,
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=24,
+            pady=6,
+        ).pack()
 
     # ========================================================
     # CLOCK
@@ -658,6 +1171,13 @@ class MainWindow:
                 fg=theme["gray"],
             )
 
+            self.about_button.configure(
+                bg=ITALY_GREEN,
+                fg=ITALY_WHITE,
+                activebackground=ITALY_GREEN_DARK,
+                activeforeground=ITALY_WHITE,
+            )
+
             # QUICK LAUNCH
             self.quick_launch_button.configure(
                 bg=ITALY_RED,
@@ -694,6 +1214,59 @@ class MainWindow:
         except Exception:
             pass
 
+        # MODERN LAYOUT COLORS
+        try:
+            self.main.configure(bg=theme["bg"])
+            self.right.configure(bg=theme["bg"])
+            self.tools_frame.configure(bg=theme["bg"])
+            self.tools_heading.configure(bg=theme["bg"])
+            self.tools_grid.configure(bg=theme["bg"])
+            self.tools_title.configure(bg=theme["bg"], fg=theme["text"])
+            self.tools_hint.configure(bg=theme["bg"], fg=theme["gray"])
+
+            self.systems_card.configure(
+                bg=theme["card"],
+                highlightbackground=theme["border"],
+            )
+            self.systems_header.configure(bg=theme["card"], fg=ITALY_GREEN_DARK)
+            self.welcome_card.configure(
+                bg=theme["card"],
+                highlightbackground=theme["border"],
+            )
+            self.welcome_inner.configure(bg=theme["card"])
+            self.welcome_title.configure(bg=theme["card"], fg=ITALY_GREEN_DARK)
+            self.welcome_text.configure(bg=theme["card"], fg=theme["gray"])
+            self.welcome_status.configure(bg=theme["card"], fg=ITALY_GREEN)
+
+            for button in self.system_buttons:
+                button.configure(
+                    bg=theme["card"],
+                    fg=theme["text"],
+                    activebackground=theme["hover"],
+                    activeforeground=ITALY_GREEN_DARK,
+                )
+
+            for card in self.tool_cards:
+                for widget in card["widgets"]:
+                    widget.configure(bg=theme["card"])
+                card["frame"].configure(highlightbackground=theme["border"])
+                card["title"].configure(fg=theme["text"])
+                card["subtitle"].configure(fg=theme["gray"])
+                card["icon"].configure(fg=card["accent_color"])
+                card["arrow"].configure(fg=theme["gray"])
+
+            self.footer.configure(bg=theme["bg"])
+            self.footer_status_dot.configure(bg=theme["bg"], fg=ITALY_GREEN)
+            self.footer_text.configure(bg=theme["bg"], fg=theme["gray"])
+            self.about_button.configure(
+                bg=theme["bg"],
+                fg=ITALY_GREEN_DARK,
+                activebackground=theme["hover"],
+                activeforeground=ITALY_GREEN_DARK,
+            )
+        except (AttributeError, tk.TclError):
+            pass
+
     # ========================================================
     # UPDATE WIDGET COLORS
     # ========================================================
@@ -716,6 +1289,8 @@ class MainWindow:
                 elif hasattr(widget, "italy_system_button"):
                     pass
                 elif widget == self.quick_launch_button:
+                    pass
+                elif widget == self.about_button:
                     pass
                 else:
                     widget.configure(
@@ -773,15 +1348,13 @@ class MainWindow:
     # OPEN TOOL
     # ========================================================
 
-    
     def open_tool(self, name):
         if name == "Заметки":
             open_notes(self.root)
             return
 
-        if name == "Проводник":
-            import os
-            os.startfile(os.path.expanduser("~"))
+        if name == "Ticket Writer AI":
+            open_ticket_writer(self.root)
             return
 
         if name == "Очистка":
@@ -798,6 +1371,10 @@ class MainWindow:
 
         if name == "PDF Center":
             open_pdf_center(self.root)
+            return
+
+        if name == "ANALYTICS AI":
+            open_report_studio(self.root)
             return
 
         if name == "Excel AI":
@@ -820,7 +1397,6 @@ class MainWindow:
             return
 
         self.tool_placeholder(name)
-
 
     # ========================================================
     # TOOL PLACEHOLDER

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320">
+  <rect width="1200" height="320" rx="30" fill="#ffffff"/>
+  <circle cx="70" cy="160" r="20" fill="#009246"/>
+  <text x="125" y="205" font-family="DejaVu Sans, Arial, sans-serif" font-size="150" font-weight="700" fill="#007a3d">BahonIQ</text>
+  <circle cx="720" cy="190" r="14" fill="#ce2b37"/>
+  <text x="770" y="204" font-family="DejaVu Sans, Arial, sans-serif" font-size="48" font-weight="700" fill="#405478">WORK CENTER</text>
+</svg>

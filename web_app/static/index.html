@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BahonIQ Work Center</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="brand">BAHONIQ</div>
+      <div class="tagline">ANALYTICS AI&nbsp;&nbsp;•&nbsp;&nbsp;EXCEL AI&nbsp;&nbsp;•&nbsp;&nbsp;PDF CENTER</div>
+    </div>
+    <div class="model-status"><span class="version">Версия 4.2.0</span><span id="statusDot"></span><span id="serverStatus">Проверка сервера…</span></div>
+  </header>
+
+  <main class="shell">
+    <nav class="module-nav" aria-label="Модули BahonIQ">
+      <button class="module-card active" data-module="analytics"><b>ANALYTICS AI</b><span>Отчёты, графики и интерпретация Ollama</span></button>
+      <button class="module-card" data-module="excel"><b>EXCEL AI</b><span>Планирование и выполнение операций</span></button>
+      <button class="module-card" data-module="pdf"><b>PDF CENTER</b><span>Конвертация и обработка документов</span></button>
+    </nav>
+
+    <section id="analytics" class="module-page active">
+      <div class="page-heading"><div><span class="eyebrow">МОДУЛЬ 01</span><h1>ANALYTICS AI</h1><p>Профессиональная аналитика Excel с PDF и PowerPoint.</p></div><span class="badge">OLLAMA</span></div>
+      <form id="analyticsForm">
+        <div class="upload-panel">
+          <label class="file-drop"><input id="analyticsFile" type="file" accept=".xls,.xlsx,.xlsm" required><span class="file-title">Выберите исходный Excel-файл</span><small id="analyticsFileName">.xls, .xlsx или .xlsm, до 50 МБ</small></label>
+          <button type="button" id="inspectButton" class="button secondary">Загрузить и просмотреть</button>
+        </div>
+        <div class="analytics-grid">
+          <aside class="settings-card">
+            <h2>Настройки отчёта</h2>
+            <label>Лист Excel<select id="sheetName" required><option value="">Сначала загрузите файл</option></select></label>
+            <label>Название отчёта<input id="reportTitle" value="Аналитический отчёт"></label>
+            <label>Профиль анализа<select id="reportProfile"><option>Автоматически</option><option>Управленческий</option><option>Сравнительный</option><option>Статистический</option><option>Аудиторский</option></select></label>
+            <label>Целевая аудитория<select id="audience"><option>Руководство</option><option>Аналитики</option><option>Специалисты</option><option>Широкая аудитория</option></select></label>
+            <label>Ориентация<select id="orientation"><option value="auto">Автоматически</option><option value="landscape">Альбомная</option><option value="portrait">Книжная</option></select></label>
+            <label>Формат результата<select id="outputFormat"><option value="both">PDF + PowerPoint</option><option value="pdf">Только PDF</option><option value="pptx">Только PowerPoint</option></select></label>
+            <label class="check"><input id="includeSource" type="checkbox"> Добавить образец исходных данных</label>
+            <label>Задача для аналитика<textarea id="analyticsTask" rows="7" placeholder="Опишите требуемый анализ простыми словами…"></textarea></label>
+            <button class="button primary wide" type="submit">Сформировать отчёт</button>
+          </aside>
+          <div class="preview-card">
+            <div class="card-title"><div><h2>Предпросмотр данных</h2><span id="previewMeta">Файл не загружен</span></div></div>
+            <div class="table-wrap"><table id="previewTable"><tbody><tr><td class="empty">После загрузки здесь появятся данные выбранного листа.</td></tr></tbody></table></div>
+            <div id="analyticsProgress" class="progress-panel hidden"><div class="progress-copy"><b id="progressLabel">OLLAMA анализирует данные</b><span id="progressPercent">0%</span></div><div class="progress-track"><span id="progressBar"></span></div></div>
+            <div id="analyticsResult" class="result-panel hidden"></div>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <section id="excel" class="module-page">
+      <div class="page-heading"><div><span class="eyebrow">МОДУЛЬ 02</span><h1>EXCEL AI</h1><p>Опишите задачу — ИИ подготовит план и выполнит его после подтверждения.</p></div><span class="badge">PLAN → CONFIRM → RESULT</span></div>
+      <div class="tabs"><button class="tab active" data-tab="excelTask">Задание</button><button class="tab" data-tab="excelPlan">План и результат</button><button class="tab" data-tab="excelHistory">История</button></div>
+      <div id="excelTask" class="tab-page active card">
+        <form id="excelForm">
+          <label>Excel-файл<input id="excelFile" type="file" accept=".xls,.xlsx,.xlsm" required></label>
+          <label>Опишите задачу своими словами<textarea id="excelInstruction" rows="12" required placeholder="Например: найди дубликаты, убери пробелы и выдели пустые ячейки…"></textarea></label>
+          <p class="helper">Сначала будет показан план. Исходный файл не изменяется.</p>
+          <button class="button primary" type="submit">Разобрать задачу и подготовить план</button>
+        </form>
+      </div>
+      <div id="excelPlan" class="tab-page card"><div id="planContent" class="empty-state">План ещё не сформирован.</div></div>
+      <div id="excelHistory" class="tab-page card"><div id="historyContent" class="empty-state">В этой сессии операций пока нет.</div></div>
+    </section>
+
+    <section id="pdf" class="module-page">
+      <div class="page-heading"><div><span class="eyebrow">МОДУЛЬ 03</span><h1>PDF CENTER</h1><p>Конвертация, объединение, разделение и оптимизация PDF.</p></div><span class="badge">8 ИНСТРУМЕНТОВ</span></div>
+      <div class="pdf-layout">
+        <div id="pdfTools" class="tool-list"></div>
+        <form id="pdfForm" class="card pdf-workspace">
+          <div><span class="eyebrow">ВЫБРАННАЯ ОПЕРАЦИЯ</span><h2 id="pdfTitle">PDF → Word</h2><p id="pdfHint">Преобразование PDF в редактируемый DOCX.</p></div>
+          <label class="file-drop large"><input id="pdfFiles" type="file" multiple required><span class="file-title">Добавьте исходные файлы</span><small id="pdfFileNames">Формат зависит от выбранной операции</small></label>
+          <div id="pdfQueue" class="file-queue"><span>Файлы не выбраны</span></div>
+          <button class="button primary" type="submit">Выполнить операцию</button>
+          <div id="pdfResult" class="result-panel hidden"></div>
+        </form>
+      </div>
+    </section>
+  </main>
+  <footer>BAHONIQ Work Center · локальная веб-версия · файлы автоматически удаляются через 1 час</footer>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

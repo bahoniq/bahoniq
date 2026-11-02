@@ -1,13 +1,46 @@
+# Python cache and local environments
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
 
+# Logs, crash dumps and local runtime state
 *.log
+*.tmp
+*.temp
+data/
+script_manager/results/
 
-data/cache/
-data/logs/
-
+# Local databases and generated reports
 *.db
 *.sqlite
 *.sqlite3
+*.pdf
+*.pptx
 
+# Build and packaging output
+build/
+dist/
+*.spec
+*.zip
+*.rar
+*.7z
+
+# Local backups and one-off migration files
+BahonIQ Backups/
 backups/
+backup_*/
+*.bak
+*.before_*
+*_backup
+patch_*.py
+modules/report_studio.py
+
+# IDE and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
