@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>BahonIQ | WORK CENTER</title>
   <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/assets/app.css?v=20261112_01">
+  <link rel="stylesheet" href="/assets/app.css?v=20261112_02">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
@@ -56,12 +56,8 @@
 
       <div class="sidebar-brand-showcase">
         <div class="sidebar-emblem-wrap">
-          <img src="/assets/logo.png" alt="BahonIQ Emblem" class="sidebar-emblem-large" width="76" height="76" style="width:76px;height:76px;max-width:76px;max-height:76px;object-fit:contain;border-radius:16px;display:block;">
-          <div class="emblem-pulse-ring"></div>
-        </div>
-        <div class="sidebar-brand-meta">
-          <div class="sidebar-brand-title">BahonIQ</div>
-          <div class="sidebar-brand-subtitle">WORK CENTER</div>
+          <img src="/assets/logo.png" alt="BahonIQ Emblem" class="sidebar-emblem-large" width="80" height="80" style="width:80px;height:80px;max-width:80px;max-height:80px;object-fit:contain;border-radius:18px;display:block;">
+          <div class="emblem-ambient-glow"></div>
         </div>
       </div>
 
@@ -98,123 +94,234 @@
         <!-- Главный дашборд с плитками -->
         <section id="dashboardView" class="dashboard-view">
           <div class="welcome-banner">
-            <h1>Добро пожаловать в BahonIQ</h1>
-            <p>Все рабочие инструменты и системы в одном центре.</p>
+            <div class="broadcast-tag">
+              <span class="live-pulse-dot"></span>
+              <span class="broadcast-tag-text">BAHONIQ BROADCAST WORKSPACE • V2.0.0</span>
+            </div>
+            <h1 class="welcome-title">Центр управления системами и рабочими инструментами</h1>
+            <p class="welcome-subtitle">Единая технологическая платформа: нейросетевые сервисы, автоматизация отчётов, утилиты и быстрый доступ.</p>
           </div>
 
           <div class="section-heading">
-            <h2>Рабочие инструменты</h2>
+            <div class="heading-left">
+              <h2>Рабочие инструменты</h2>
+              <span class="heading-counter">10 доступных модулей</span>
+            </div>
+            <div class="heading-right">
+              <span class="status-chip ready">● Все сервисы активны</span>
+            </div>
           </div>
 
-          <!-- Сетка 2 колонки со всеми 10 инструментами -->
+          <!-- Сетка 2 колонки с расширенными broadcast-карточками -->
           <div class="tools-grid">
             <!-- 1. Ticket Writer AI -->
             <div class="tool-tile" data-open="tickets">
-              <div class="tool-icon icon-teal">✦</div>
-              <div class="tool-meta">
-                <div class="tool-name">Ticket Writer AI</div>
-                <div class="tool-desc">Название и описание обращения</div>
+              <div class="tile-accent-line accent-teal"></div>
+              <div class="tile-icon-box icon-teal">
+                <span class="tile-glyph">✦</span>
               </div>
-              <div class="tool-arrow">›</div>
+              <div class="tile-content">
+                <div class="tile-header">
+                  <h3 class="tool-name tile-title">Ticket Writer AI</h3>
+                  <span class="tile-tag tag-teal">ИИ-Ассистент</span>
+                </div>
+                <p class="tool-desc tile-description">Умное составление заявок в HelpDesk и Platonus на базе ИИ без лишней переписки.</p>
+                <div class="tile-chips">
+                  <span class="chip">Форматирование заявки</span>
+                  <span class="chip">Снятие логов</span>
+                  <span class="chip chip-status ready">● В сети</span>
+                </div>
+              </div>
+              <div class="tile-arrow">›</div>
             </div>
 
             <!-- 2. Заметки -->
             <div class="tool-tile" data-open="notes">
-              <div class="tool-icon icon-cyan">✎</div>
-              <div class="tool-meta">
-                <div class="tool-name">Заметки</div>
-                <div class="tool-desc">Быстрые записи и идеи</div>
+              <div class="tile-accent-line accent-cyan"></div>
+              <div class="tile-icon-box icon-cyan">
+                <span class="tile-glyph">✎</span>
               </div>
-              <div class="tool-arrow">›</div>
+              <div class="tile-content">
+                <div class="tile-header">
+                  <h3 class="tool-name tile-title">Заметки</h3>
+                  <span class="tile-tag tag-cyan">Блокнот</span>
+                </div>
+                <p class="tool-desc tile-description">Оперативные черновики, задачи и быстрые записи с моментальной автосинхронизацией.</p>
+                <div class="tile-chips">
+                  <span class="chip">Автосохранение</span>
+                  <span class="chip">Счётчик символов</span>
+                  <span class="chip chip-status ready">● Синхронизировано</span>
+                </div>
+              </div>
+              <div class="tile-arrow">›</div>
             </div>
 
             <!-- 3. Excel AI -->
             <div class="tool-tile" data-open="excel">
-              <div class="tool-icon icon-red">▦</div>
-              <div class="tool-meta">
-                <div class="tool-name">Excel AI</div>
-                <div class="tool-desc">Умная обработка таблиц</div>
+              <div class="tile-accent-line accent-red"></div>
+              <div class="tile-icon-box icon-red">
+                <span class="tile-glyph">▦</span>
               </div>
-              <div class="tool-arrow">›</div>
+              <div class="tile-content">
+                <div class="tile-header">
+                  <h3 class="tool-name tile-title">Excel AI</h3>
+                  <span class="tile-tag tag-red">Автономный агент</span>
+                </div>
+                <p class="tool-desc tile-description">Интеллектуальная трансформация таблиц, поиск расхождений и выполнение задач на естественном языке.</p>
+                <div class="tile-chips">
+                  <span class="chip">Smart Merge</span>
+                  <span class="chip">Безопасный план</span>
+                  <span class="chip chip-status ready">● AI Engine 3.0</span>
+                </div>
+              </div>
+              <div class="tile-arrow">›</div>
             </div>
 
             <!-- 4. Очистка (Только на рабочем столе) -->
             <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="Очистка" data-desc="Освобождение дискового пространства, очистка системных кэшей и временных файлов Windows. Требует прямого доступа к файловой системе ОС.">
-              <div class="tool-icon icon-amber">⚡</div>
-              <div class="tool-meta">
-                <div class="tool-name-wrap">
-                  <span class="tool-name">Очистка</span>
-                  <span class="desktop-pill">Только на рабочем столе</span>
-                </div>
-                <div class="tool-desc">Освобождение места и обслуживание</div>
+              <div class="tile-accent-line accent-amber"></div>
+              <div class="tile-icon-box icon-amber">
+                <span class="tile-glyph">⚡</span>
               </div>
-              <div class="tool-arrow">🔒</div>
+              <div class="tile-content">
+                <div class="tile-header">
+                  <h3 class="tool-name tile-title">Очистка</h3>
+                  <span class="tile-tag tag-desktop">Только на ПК 🔒</span>
+                </div>
+                <p class="tool-desc tile-description">Глубокое освобождение места на дисках ПК, очистка кэшей приложений и корзины Windows.</p>
+                <div class="tile-chips">
+                  <span class="chip">Кэш системы</span>
+                  <span class="chip">Корзина Windows</span>
+                  <span class="chip chip-status locked">🔒 Локальный запуск</span>
+                </div>
+              </div>
+              <div class="tile-arrow">🔒</div>
             </div>
 
             <!-- 5. Дубликаты (Только на рабочем столе) -->
             <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="Дубликаты" data-desc="Глубокое сканирование дисков компьютера на повторяющиеся файлы по контрольным суммам. Доступно в установленном приложении BahonIQ.">
-              <div class="tool-icon icon-purple">🔍</div>
-              <div class="tool-meta">
-                <div class="tool-name-wrap">
-                  <span class="tool-name">Дубликаты</span>
-                  <span class="desktop-pill">Только на рабочем столе</span>
-                </div>
-                <div class="tool-desc">Поиск повторяющихся файлов</div>
+              <div class="tile-accent-line accent-purple"></div>
+              <div class="tile-icon-box icon-purple">
+                <span class="tile-glyph">🔍</span>
               </div>
-              <div class="tool-arrow">🔒</div>
+              <div class="tile-content">
+                <div class="tile-header">
+                  <h3 class="tool-name tile-title">Дубликаты</h3>
+                  <span class="tile-tag tag-desktop">Только на ПК 🔒</span>
+                </div>
+                <p class="tool-desc tile-description">Побайтовое сканирование накопителей компьютера и поиск одинаковых тяжёлых файлов.</p>
+                <div class="tile-chips">
+                  <span class="chip">Хэширование MD5</span>
+                  <span class="chip">Аудит накопителей</span>
+                  <span class="chip chip-status locked">🔒 Локальный запуск</span>
+                </div>
+              </div>
+              <div class="tile-arrow">🔒</div>
             </div>
 
             <!-- 6. AnyDesk (Только на рабочем столе) -->
             <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="AnyDesk" data-desc="Быстрый запуск AnyDesk для удалённого подключения и технической поддержки рабочих станций через локальный клиент AnyDesk.exe.">
-              <div class="tool-icon icon-rose">◉</div>
-              <div class="tool-meta">
-                <div class="tool-name-wrap">
-                  <span class="tool-name">AnyDesk</span>
-                  <span class="desktop-pill">Только на рабочем столе</span>
-                </div>
-                <div class="tool-desc">Удаленная техническая поддержка</div>
+              <div class="tile-accent-line accent-rose"></div>
+              <div class="tile-icon-box icon-rose">
+                <span class="tile-glyph">◉</span>
               </div>
-              <div class="tool-arrow">🔒</div>
+              <div class="tile-content">
+                <div class="tile-header">
+                  <h3 class="tool-name tile-title">AnyDesk</h3>
+                  <span class="tile-tag tag-desktop">Только на ПК 🔒</span>
+                </div>
+                <p class="tool-desc tile-description">Быстрый запуск клиента AnyDesk для дистанционного подключения и оперативной технической поддержки.</p>
+                <div class="tile-chips">
+                  <span class="chip">Прямой туннель</span>
+                  <span class="chip">Удаленная помощь</span>
+                  <span class="chip chip-status locked">🔒 Локальный запуск</span>
+                </div>
+              </div>
+              <div class="tile-arrow">🔒</div>
             </div>
 
             <!-- 7. PDF Center -->
             <div class="tool-tile" data-open="pdf">
-              <div class="tool-icon icon-teal">▤</div>
-              <div class="tool-meta">
-                <div class="tool-name">PDF Center</div>
-                <div class="tool-desc">Объединение и обработка PDF</div>
+              <div class="tile-accent-line accent-teal"></div>
+              <div class="tile-icon-box icon-teal">
+                <span class="tile-glyph">▤</span>
               </div>
-              <div class="tool-arrow">›</div>
+              <div class="tile-content">
+                <div class="tile-header">
+                  <h3 class="tool-name tile-title">PDF Center</h3>
+                  <span class="tile-tag tag-teal">8 инструментов</span>
+                </div>
+                <p class="tool-desc tile-description">Универсальный комбайн: конвертация PDF в Word, объединение, разделение и оптимизация веса.</p>
+                <div class="tile-chips">
+                  <span class="chip">PDF → Word</span>
+                  <span class="chip">Склейка документов</span>
+                  <span class="chip chip-status ready">● В сети</span>
+                </div>
+              </div>
+              <div class="tile-arrow">›</div>
             </div>
 
             <!-- 8. ANALYTICS AI -->
             <div class="tool-tile" data-open="analytics">
-              <div class="tool-icon icon-blue">▥</div>
-              <div class="tool-meta">
-                <div class="tool-name">ANALYTICS AI</div>
-                <div class="tool-desc">Отчёты, аналитика и презентации</div>
+              <div class="tile-accent-line accent-blue"></div>
+              <div class="tile-icon-box icon-blue">
+                <span class="tile-glyph">▥</span>
               </div>
-              <div class="tool-arrow">›</div>
+              <div class="tile-content">
+                <div class="tile-header">
+                  <h3 class="tool-name tile-title">ANALYTICS AI</h3>
+                  <span class="tile-tag tag-blue">Executive BI</span>
+                </div>
+                <p class="tool-desc tile-description">Глубокий управленческий экспресс-анализ таблиц с генерацией отчётов PDF и слайдов PowerPoint.</p>
+                <div class="tile-chips">
+                  <span class="chip">PDF-буклет</span>
+                  <span class="chip">Презентация PPTX</span>
+                  <span class="chip chip-status ready">● Fast Core</span>
+                </div>
+              </div>
+              <div class="tile-arrow">›</div>
             </div>
 
             <!-- 9. Телефонный справочник -->
             <div class="tool-tile" data-open="phonebook">
-              <div class="tool-icon icon-teal">☎</div>
-              <div class="tool-meta">
-                <div class="tool-name">Телефонный справочник</div>
-                <div class="tool-desc">Внутренние номера и контакты</div>
+              <div class="tile-accent-line accent-teal"></div>
+              <div class="tile-icon-box icon-teal">
+                <span class="tile-glyph">☎</span>
               </div>
-              <div class="tool-arrow">›</div>
+              <div class="tile-content">
+                <div class="tile-header">
+                  <h3 class="tool-name tile-title">Телефонный справочник</h3>
+                  <span class="tile-tag tag-teal">База контактов</span>
+                </div>
+                <p class="tool-desc tile-description">Быстрый поиск сотрудников организации по ФИО, подразделениям, внутренним номерам и кабинетам.</p>
+                <div class="tile-chips">
+                  <span class="chip">Внутренние номера</span>
+                  <span class="chip">Поиск по ФИО</span>
+                  <span class="chip chip-status ready">● База активна</span>
+                </div>
+              </div>
+              <div class="tile-arrow">›</div>
             </div>
 
             <!-- 10. Code Academy -->
             <div class="tool-tile" data-open="academy">
-              <div class="tool-icon icon-purple">⌘</div>
-              <div class="tool-meta">
-                <div class="tool-name">Code Academy</div>
-                <div class="tool-desc">Python, SQL и архитектура BahonIQ</div>
+              <div class="tile-accent-line accent-purple"></div>
+              <div class="tile-icon-box icon-purple">
+                <span class="tile-glyph">⌘</span>
               </div>
-              <div class="tool-arrow">›</div>
+              <div class="tile-content">
+                <div class="tile-header">
+                  <h3 class="tool-name tile-title">Code Academy</h3>
+                  <span class="tile-tag tag-purple">Среда разработки</span>
+                </div>
+                <p class="tool-desc tile-description">Интерактивный учебный полигон: программирование на Python, SQL-запросы и архитектурный конструктор.</p>
+                <div class="tile-chips">
+                  <span class="chip">Python Sandbox</span>
+                  <span class="chip">SQL Playground</span>
+                  <span class="chip chip-status ready">● Открытый доступ</span>
+                </div>
+              </div>
+              <div class="tile-arrow">›</div>
             </div>
           </div>
         </section>
@@ -412,6 +519,6 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261112_01"></script>
+  <script src="/assets/app.js?v=20261112_02"></script>
 </body>
 </html>
