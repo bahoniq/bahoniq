@@ -32,6 +32,8 @@ def start_app():
         pass
 
     root = tk.Tk()
+    # Скрываем окно до полной отрисовки интерфейса, чтобы не мелькал чёрный экран с белым квадратом
+    root.withdraw()
 
     state.root = root
 
@@ -82,16 +84,6 @@ def start_app():
     # MAXIMIZE
     # --------------------------------------------------------
 
-    try:
-
-        root.state(
-            "zoomed"
-        )
-
-    except Exception:
-
-        pass
-
 
     # --------------------------------------------------------
     # LOAD SETTINGS
@@ -110,6 +102,17 @@ def start_app():
     MainWindow(
         root
     )
+
+    # Дорисовываем все виджеты в скрытом окне и только затем показываем его развёрнутым
+    root.update_idletasks()
+    try:
+        root.state("zoomed")
+    except Exception:
+        pass
+    root.update_idletasks()
+    root.deiconify()
+    root.lift()
+    root.update()
 
 
     # --------------------------------------------------------
