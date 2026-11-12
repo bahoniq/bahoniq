@@ -1,0 +1,55 @@
+BAHONIQ EXCEL AI — AUTONOMOUS MODERNIZATION
+Date: 2026-11-10
+
+PURPOSE
+The user describes what result is needed. Excel AI studies the workbook,
+selects the sheet and columns, builds a complete ordered plan, validates it,
+executes it on a copy, and verifies the saved result.
+
+MAIN CHANGES
+1. Added automatic detection of multi-row/non-standard headers.
+2. Added header_row and data_start_row to workbook analysis.
+3. Added workbook-grounded autonomous planning using headers, inferred types,
+   representative values, and category examples.
+4. Added value-based column inference. Example: words "paid/free" can resolve
+   to a payment-type column without requiring its exact header.
+5. Added full preservation of ordered multi-step requests.
+6. Fixed dependent operations on newly created sheets.
+7. Fixed column-scoped trim, replace, and fill operations.
+8. Added safe support for custom extraction delimiters and start rows.
+9. Added formula-injection protection for extracted text values.
+10. Restored UI/helper compatibility and safe stale-plan invalidation.
+11. Added planning previews and compatibility plan fields.
+12. Added 30 conversational autonomous-planning scenarios.
+
+REAL WORKBOOK VERIFICATION
+- all_countries_world_statistics(2).xlsx:
+  detected header row 4; selected Continent/Region and GDP per capita;
+  created split sheets, count summary, and average summary.
+- report-_3_.xlsx (14,180 rows):
+  inferred Payment Form from paid/free values; created program counts and a
+  program-by-payment comparison; copied Last name/First name/Patronymic to a
+  separate result sheet without asking for a technical target name.
+
+TEST RESULTS
+- Bundled regression suite: all modules passed.
+- Autonomous conversational scenarios: 30/30 passed.
+- Real workbook end-to-end executions: 3/3 passed.
+- Python compilation: passed.
+
+KNOWN LIMITATIONS
+- Truly ambiguous destructive requests still require confirmation.
+- Semantic inference is intentionally conservative when several sheets or
+  columns have equal evidence.
+- Ollama remains the fallback for unsupported novel operations; standard
+  cleaning, grouping, sorting, splitting, comparison, and summaries work
+  locally when sufficiently grounded in the workbook.
+
+RUNNING
+Keep the excel_ai folder in the existing BahonIQ project structure and launch
+the application through its existing launcher. No new external dependencies
+were added. Ollama/Qwen settings remain unchanged.
+
+TESTING
+From the project directory:
+    python -m excel_ai.run_tests

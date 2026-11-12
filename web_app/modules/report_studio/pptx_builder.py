@@ -657,10 +657,20 @@ def _v51_bar(slide, column, x, y, w, h, limit=8) -> None:
     chart=slide.shapes.add_chart(XL_CHART_TYPE.BAR_CLUSTERED,Inches(x),Inches(y),Inches(w),Inches(h),data).chart
     chart.has_legend=False; chart.category_axis.reverse_order=True; chart.value_axis.has_major_gridlines=True
     chart.value_axis.major_gridlines.format.line.color.rgb=RGBColor(230,234,239)
+    largest=max((abs(float(item.get("count",0) or 0)) for item in top),default=0)
+    number_format=(
+        '0.0,,," млрд"' if largest>=1_000_000_000 else
+        '0.0,," млн"' if largest>=1_000_000 else
+        '0.0," тыс."' if largest>=10_000 else '#,##0'
+    )
+    chart.value_axis.tick_labels.number_format=number_format
+    chart.value_axis.tick_labels.number_format_is_linked=False
     chart.plots[0].series[0].format.fill.solid(); chart.plots[0].series[0].format.fill.fore_color.rgb=TEAL
     for i,p in enumerate(chart.plots[0].series[0].points):
         p.format.fill.solid(); p.format.fill.fore_color.rgb=V51_COLORS[i%4]
     chart.plots[0].has_data_labels=True; chart.plots[0].data_labels.font.size=Pt(9)
+    chart.plots[0].data_labels.number_format=number_format
+    chart.plots[0].data_labels.number_format_is_linked=False
 
 
 def _v51_donut(slide, column, x, y, w, h, limit=6) -> None:
@@ -850,6 +860,31 @@ def _v53_story(
     return {}
 
 
+def _v53_numeric_ranked(analysis: dict, column: dict, limit: int = 9):
+    labels = [
+        item for item in analysis.get("categorical_columns", [])
+        if item.get("role") not in {"sensitive", "identifier"}
+        and int(item.get("unique_count", 0) or 0) >= 2
+    ]
+    labels.sort(key=lambda item: (
+        0 if any(marker in str(item.get("name", "")).casefold() for marker in
+                 ("страна", "назван", "наимен", "регион", "город", "товар")) else 1,
+        -int(item.get("unique_count", 0) or 0),
+    ))
+    label = labels[0] if labels else None
+    n_index = int(column.get("index", -1)); l_index = int(label.get("index", -1)) if label else -1
+    multiplier = float((column.get("display", {}) or {}).get("multiplier", 1) or 1)
+    pairs=[]
+    for row_no,row in enumerate(analysis.get("rows", []) or [],1):
+        if not (0 <= n_index < len(row)): continue
+        try: value=float(row[n_index]) * multiplier
+        except (TypeError,ValueError): continue
+        shown=_safe(row[l_index],70) if 0 <= l_index < len(row) else f"Запись {row_no}"
+        pairs.append((shown or f"Запись {row_no}",value))
+    pairs.sort(key=lambda item:item[1],reverse=True)
+    return pairs[:limit]
+
+
 def build_analytics_pptx_v52(
     matrix:list[list],title:str,output_dir:str|Path|None=None,description:str="",
     ai_analysis:dict|None=None,report_profile:str="Автоматически",audience:str="Руководство",
@@ -872,7 +907,8 @@ def build_analytics_pptx_v52(
     _v50_text(slide,f"{report_profile} • {audience}",1.37,6.25,10.2,.35,11,RGBColor(175,201,255))
 
     # Dashboard
-    slide=prs.slides.add_slide(blank);_v51_header(slide,"Обзор набора данных",f"Проанализировано {total:,} строк, {len(analysis.get('headers',[]))} столбцов и {len(dimensions)} категориальных разрезов.".replace(","," "),2)
+    analyzed_columns=int(analysis.get('analyzed_column_count',len(analysis.get('headers',[]))) or 0)
+    slide=prs.slides.add_slide(blank);_v51_header(slide,"Обзор набора данных",f"Проанализировано {total:,} строк, {analyzed_columns} содержательных столбцов и {len(dimensions)} категориальных разрезов.".replace(","," "),2)
     numeric=len([c for c in analysis.get("numeric_columns",[]) if c.get("reportable")])
     _v51_kpi(slide,.7,1.55,2.6,f"{total:,}".replace(","," "),"строк данных",TEAL)
     _v51_kpi(slide,3.45,1.55,2.6,str(len(analysis.get("headers",[]))),"столбцов",NAVY)
@@ -902,6 +938,26 @@ def build_analytics_pptx_v52(
         _v51_note(slide,9.05,3.18,3.55,1.65,"Интерпретация Qwen","Что означает результат",interpretation,NAVY)
         if action:_v51_note(slide,9.05,5.0,3.55,1.9,"Обоснованное действие","Следующий шаг",action,YELLOW)
         decisions.append((_safe(column.get("name"),70),f"{share:.1f}%",headline,interpretation));slide_no+=1
+
+    numeric=[c for c in analysis.get("numeric_columns",[]) if c.get("reportable") and not c.get("identifier_like")][:6]
+    for column in numeric:
+        ranked=_v53_numeric_ranked(analysis,column,9)
+        if not ranked: continue
+        stats=column.get("statistics",{}) or {};display=column.get("display",{}) or {}
+        multiplier=float(display.get("multiplier",1) or 1);unit=str(display.get("unit") or "")
+        def shown(value):
+            try: text=f"{float(value)*multiplier:,.2f}".replace(","," ").replace(".",",")
+            except (TypeError,ValueError): text="—"
+            return text+(unit if unit=="%" else (f" {unit}" if unit else ""))
+        slide=prs.slides.add_slide(blank)
+        _v51_header(slide,_safe(column.get("name"),120),f"Медиана {shown(stats.get('median'))}; диапазон от {shown(stats.get('min'))} до {shown(stats.get('max'))}.",slide_no)
+        _v51_panel(slide,.7,1.55,8.1,5.35,"Крупнейшие значения")
+        temp={"statistics":{"top_values":[{"value":label,"count":value} for label,value in ranked]}}
+        _v51_bar(slide,temp,.95,2.0,7.6,4.55,9)
+        _v51_note(slide,9.05,1.55,3.55,1.45,"Медиана",shown(stats.get("median")),"Центр распределения",TEAL)
+        _v51_note(slide,9.05,3.18,3.55,1.65,"Максимум",shown(stats.get("max")),"Крупнейшее значение в текущем срезе",NAVY)
+        _v51_note(slide,9.05,5.0,3.55,1.9,"Ограничение","Один срез","Показатель не подтверждает динамику или причины различий.",YELLOW)
+        slide_no+=1
 
     slide=prs.slides.add_slide(blank);_v51_header(slide,"Итоги исследования",_safe((ai_analysis or {}).get("summary"),220),slide_no)
     if decisions:

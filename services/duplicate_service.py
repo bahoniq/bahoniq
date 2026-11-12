@@ -10,6 +10,7 @@ from pathlib import Path
 
 CHUNK_SIZE = 4 * 1024 * 1024
 NAME_GROUP_PREFIX = "NAME::"
+NUMBERED_GROUP_PREFIX = "NUMBERED::"
 
 
 def format_size(size):
@@ -85,7 +86,7 @@ def has_copy_suffix(path):
 
 
 def is_name_group(group_key):
-    return str(group_key).startswith(NAME_GROUP_PREFIX)
+    return str(group_key).startswith((NAME_GROUP_PREFIX, NUMBERED_GROUP_PREFIX))
 
 
 def collect_files(folder, stop_event=None, progress_callback=None):
@@ -197,6 +198,7 @@ def find_duplicates(folder, stop_event=None, progress_callback=None):
         if normalized:
             by_name[normalized].append(item)
 
+    grouped_paths = set(exact_paths)
     for normalized, items in by_name.items():
         if len(items) < 2:
             continue
@@ -232,8 +234,22 @@ def find_duplicates(folder, stop_event=None, progress_callback=None):
         )
 
         duplicates[NAME_GROUP_PREFIX + normalized] = remaining
+        grouped_paths.update(item["path"] for item in remaining)
+
+    # Файлы с номером (1), (2), ... считаются кандидатами на копии,
+    # даже когда исходный файл отсутствует или содержимое различается.
+    # Не включаем их повторно, если они уже находятся в другой группе.
+    for item in files:
+        path = item["path"]
+        if path in grouped_paths or not has_numbered_suffix(path):
+            continue
+        duplicates[NUMBERED_GROUP_PREFIX + str(path)] = [item]
 
     return duplicates
+
+
+def has_numbered_suffix(path):
+    return bool(re.search(r"\(\s*\d+\s*\)\s*$", Path(path).stem))
 
 
 def count_duplicates(duplicates):
@@ -255,10 +271,17 @@ def duplicate_size(duplicates):
 def get_removable_files(duplicates):
     removable = []
 
-    for items in duplicates.values():
-        if len(items) > 1:
-            # Оставляем первый файл в каждой группе.
-            removable.extend(item["path"] for item in items[1:])
+    for key, items in duplicates.items():
+        if str(key).startswith(NUMBERED_GROUP_PREFIX):
+            removable.extend(item["path"] for item in items)
+        elif str(key).startswith(NAME_GROUP_PREFIX):
+            # В группах похожих имён выбираем только явно помеченные копии.
+            removable.extend(item["path"] for item in items if has_copy_suffix(item["path"]))
+        elif len(items) > 1:
+            # При совпадении содержимого сначала сохраняем файл без
+            # числового суффикса, даже если обход нашёл его позже.
+            ordered = sorted(items, key=lambda item: (has_numbered_suffix(item["path"]), has_copy_suffix(item["path"]), str(item["path"]).casefold()))
+            removable.extend(item["path"] for item in ordered[1:])
 
     # Защита от повторного добавления одного пути.
     return list(dict.fromkeys(removable))
@@ -340,7 +363,7 @@ def delete_files(paths):
         path = Path(original_path)
 
         try:
-            if not path.exists():
+            if not path.is_file() or path.is_symlink():
                 failed.append({
                     "path": path,
                     "error": "Файл уже отсутствует.",

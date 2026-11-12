@@ -240,6 +240,49 @@ def _numeric_statistics(values: list[float]) -> dict[str, Any]:
     }
 
 
+def _numeric_display_metadata(
+    header: str, values: list[float], stats: dict[str, Any],
+) -> dict[str, Any]:
+    """Определяет масштаб и единицы без передачи этой задачи языковой модели."""
+    normalized = header.casefold().replace("ё", "е")
+    minimum = stats.get("min")
+    maximum = stats.get("max")
+    percent_marker = any(marker in normalized for marker in (
+        "%", "процент", "доля", "урбанизац", "rate", "share", "ratio",
+    ))
+    if (
+        percent_marker and minimum is not None and maximum is not None
+        and 0 <= float(minimum) and float(maximum) <= 1.000001
+    ):
+        return {
+            "scale": "ratio", "display_as": "percent", "unit": "%",
+            "multiplier": 100.0,
+            "note": "Значения хранятся как доли единицы; 0.63 отображается как 63%.",
+        }
+    if percent_marker:
+        return {
+            "scale": "percent", "display_as": "percent", "unit": "%",
+            "multiplier": 1.0,
+        }
+
+    largest = max((abs(float(value)) for value in values), default=0.0)
+    if largest >= 1_000_000_000_000:
+        divisor, suffix = 1_000_000_000_000.0, "трлн"
+    elif largest >= 1_000_000_000:
+        divisor, suffix = 1_000_000_000.0, "млрд"
+    elif largest >= 1_000_000:
+        divisor, suffix = 1_000_000.0, "млн"
+    elif largest >= 10_000:
+        divisor, suffix = 1_000.0, "тыс."
+    else:
+        divisor, suffix = 1.0, ""
+    return {
+        "scale": "number", "display_as": "number", "unit": "",
+        "multiplier": 1.0, "chart_divisor": divisor,
+        "chart_suffix": suffix,
+    }
+
+
 def _severity_rank(severity: str) -> int:
     return {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(severity, 4)
 
@@ -593,6 +636,7 @@ def analyze_matrix(matrix: list[list[Any]]) -> dict[str, Any]:
     rankings: list[dict[str, Any]] = []
     distributions: list[dict[str, Any]] = []
     constant_columns: list[str] = []
+    empty_columns: list[str] = []
     total_outliers = 0
 
     for index, header in enumerate(headers):
@@ -607,6 +651,10 @@ def analyze_matrix(matrix: list[list[Any]]) -> dict[str, Any]:
 
         kind = _column_kind(values)
         distinct = {_display(value, 1000) for value in nonempty_values}
+
+        if kind == "empty":
+            empty_columns.append(header)
+            continue
 
         if len(distinct) <= 1 and nonempty_values:
             constant_columns.append(header)
@@ -649,6 +697,9 @@ def analyze_matrix(matrix: list[list[Any]]) -> dict[str, Any]:
                 ),
                 "identifier_like": identifier_like,
                 "statistics": stats,
+                "display": _numeric_display_metadata(
+                    header, numeric_values, stats,
+                ),
             }
             numeric_columns.append(item)
 
@@ -699,8 +750,10 @@ def analyze_matrix(matrix: list[list[Any]]) -> dict[str, Any]:
 
     kpis = {
         "records": row_count,
-        "columns": column_count,
-        "numeric_columns": len(numeric_columns),
+        "columns": column_count - len(empty_columns),
+        "numeric_columns": sum(
+            bool(column.get("reportable")) for column in numeric_columns
+        ),
         "empty_cells": empty_cells,
         "fill_percent": round(
             100 - quality["empty_percent"], 2
@@ -741,6 +794,8 @@ def analyze_matrix(matrix: list[list[Any]]) -> dict[str, Any]:
         "rows": normalized_rows,
         "row_count": row_count,
         "column_count": column_count,
+        "analyzed_column_count": column_count - len(empty_columns),
+        "empty_columns": empty_columns,
         "numeric_columns": numeric_columns,
         "categorical_columns": categorical_columns,
         "date_columns": date_columns,

@@ -4,10 +4,12 @@ import os
 import secrets
 import shutil
 import socket
+import sqlite3
 import tempfile
 import threading
 import time
 import zipfile
+from dataclasses import asdict
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -20,6 +22,13 @@ from .modules.excel_ai.ai_interpreter import interpret_task
 from .modules.excel_ai.analyzer import analyze_workbook
 from .modules.excel_ai.operations import execute_operations, plan_operations
 from .modules.report_studio.launcher import generate_report, inspect_excel
+from .modules.ticket_writer import generate_ticket
+from .modules.phonebook import SEED_CONTACTS
+from .modules.code_academy.professional_curriculum import lessons as academy_lessons
+from .modules.code_academy.architecture_book import CHAPTERS, chapter_reading, chapter_source
+from .modules.code_academy.builder import TEMPLATES
+from .modules.code_academy.python_runtime import execute_python
+from .modules.code_academy.pathway import run_sql
 
 
 ROOT = Path(__file__).resolve().parent
@@ -27,16 +36,56 @@ STATIC = ROOT / "static"
 MAX_UPLOAD = 50 * 1024 * 1024
 SESSION_TTL = 60 * 60
 EXCEL_EXTENSIONS = {".xls", ".xlsx", ".xlsm"}
+from fastapi.middleware.cors import CORSMiddleware
+
 PDF_OPERATIONS = {
     "pdf_word", "word_pdf", "pdf_png", "pdf_jpg", "images_pdf",
-    "merge_pdf", "split_pdf", "compress_pdf",
+    "merge_pdf", "split_pdf", "compress_pdf", "pdf_txt",
 }
 
-app = FastAPI(title="BahonIQ Work Center", docs_url=None, redoc_url=None)
+app = FastAPI(
+    title="BahonIQ Work Center",
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.mount("/assets", StaticFiles(directory=STATIC), name="assets")
 
 _sessions: dict[str, dict] = {}
 _lock = threading.RLock()
+DATA = ROOT / "data"
+DATA.mkdir(parents=True, exist_ok=True)
+NOTES_PATH = DATA / "notes.txt"
+PHONEBOOK_PATH = DATA / "phonebook.db"
+
+
+def _phonebook() -> sqlite3.Connection:
+    connection = sqlite3.connect(PHONEBOOK_PATH)
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            department TEXT NOT NULL DEFAULT '', position TEXT NOT NULL DEFAULT '',
+            name TEXT NOT NULL DEFAULT '', location TEXT NOT NULL DEFAULT '',
+            city_phone TEXT NOT NULL DEFAULT '', extension TEXT NOT NULL DEFAULT '',
+            mobile TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT ''
+        )
+    """)
+    if connection.execute("SELECT COUNT(*) FROM contacts").fetchone()[0] == 0:
+        connection.executemany(
+            "INSERT INTO contacts (department,position,name,location,city_phone,extension,mobile,email) VALUES (?,?,?,?,?,?,?,?)",
+            SEED_CONTACTS,
+        )
+        connection.commit()
+    return connection
 
 
 def _network_ip() -> str:
@@ -125,8 +174,119 @@ def status():
             {"icon": icon, "name": name, "url": url}
             for icon, name, url in SYSTEMS
         ],
-        "modules": ["analytics", "excel", "pdf"],
+        "modules": ["analytics", "excel", "pdf", "tickets", "notes", "phonebook", "academy"],
     }
+
+
+@app.post("/api/writer")
+@app.post("/api/tickets/generate")
+async def tickets_generate(problem: str = Form(...)):
+    problem = problem.strip()
+    if not problem:
+        raise HTTPException(400, "Опишите проблему.")
+    try:
+        return await run_in_threadpool(generate_ticket, problem)
+    except Exception as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/notes")
+def notes_get():
+    return {"text": NOTES_PATH.read_text(encoding="utf-8") if NOTES_PATH.exists() else ""}
+
+
+@app.post("/api/notes")
+def notes_save(text: str = Form("")):
+    NOTES_PATH.write_text(text, encoding="utf-8")
+    return {"status": "saved", "characters": len(text)}
+
+
+@app.get("/api/phonebook")
+def phonebook_list(q: str = ""):
+    query = q.strip().casefold()
+    with _phonebook() as db:
+        rows = db.execute("SELECT id,department,position,name,location,city_phone,extension,mobile,email FROM contacts ORDER BY department,name").fetchall()
+    fields = ("id", "department", "position", "name", "location", "city_phone", "extension", "mobile", "email")
+    contacts = [dict(zip(fields, row)) for row in rows]
+    if query:
+        contacts = [item for item in contacts if query in " ".join(str(value) for value in item.values()).casefold()]
+    return {"contacts": contacts, "total": len(rows), "shown": len(contacts)}
+
+
+@app.post("/api/phonebook/save")
+def phonebook_save(
+    contact_id: int = Form(0), department: str = Form(""), position: str = Form(""),
+    name: str = Form(""), location: str = Form(""), city_phone: str = Form(""),
+    extension: str = Form(""), mobile: str = Form(""), email: str = Form(""),
+):
+    values = tuple(value.strip() for value in (department, position, name, location, city_phone, extension, mobile, email))
+    if not values[2]:
+        raise HTTPException(400, "Укажите ФИО сотрудника.")
+    with _phonebook() as db:
+        if contact_id:
+            db.execute("UPDATE contacts SET department=?,position=?,name=?,location=?,city_phone=?,extension=?,mobile=?,email=? WHERE id=?", (*values, contact_id))
+        else:
+            cursor = db.execute("INSERT INTO contacts (department,position,name,location,city_phone,extension,mobile,email) VALUES (?,?,?,?,?,?,?,?)", values)
+            contact_id = cursor.lastrowid
+        db.commit()
+    return {"status": "saved", "id": contact_id}
+
+
+@app.post("/api/phonebook/delete")
+def phonebook_delete(contact_id: int = Form(...)):
+    with _phonebook() as db:
+        cursor = db.execute("DELETE FROM contacts WHERE id=?", (contact_id,))
+        db.commit()
+    if not cursor.rowcount:
+        raise HTTPException(404, "Контакт не найден.")
+    return {"status": "deleted"}
+
+
+@app.get("/api/academy/catalog")
+def academy_catalog():
+    def serialize(items):
+        return [asdict(item) for item in items]
+    return {
+        "python": serialize(academy_lessons("python")),
+        "sql": serialize(academy_lessons("sql")),
+        "book": [{"index": index, "title": item.title, "section": item.section, "file": item.file} for index, item in enumerate(CHAPTERS)],
+        "builder_files": sorted(TEMPLATES),
+        "access": "open",
+    }
+
+
+@app.get("/api/academy/book/{chapter_index}")
+def academy_book(chapter_index: int):
+    if not 0 <= chapter_index < len(CHAPTERS):
+        raise HTTPException(404, "Глава не найдена.")
+    chapter = CHAPTERS[chapter_index]
+    source, line, warning = chapter_source(chapter)
+    return {"title": chapter.title, "section": chapter.section, "reading": chapter_reading(chapter), "source": source, "line": line, "warning": warning}
+
+
+@app.get("/api/academy/builder")
+def academy_builder_file(name: str):
+    if name not in TEMPLATES:
+        raise HTTPException(404, "Файл конструктора не найден.")
+    return {"name": name, "source": TEMPLATES[name]}
+
+
+@app.post("/api/academy/run")
+async def academy_run(language: str = Form(...), code: str = Form(...)):
+    if len(code) > 100_000:
+        raise HTTPException(413, "Код превышает 100 КБ.")
+    try:
+        if language == "python":
+            result = await run_in_threadpool(execute_python, code, "", 3, 50_000)
+            return {"output": result.stdout, "error": result.stderr, "returncode": result.returncode}
+        if language == "sql":
+            output = await run_in_threadpool(run_sql, code)
+            return {"output": output, "error": "", "returncode": 0}
+        raise HTTPException(400, "Неизвестный язык.")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @app.post("/api/excel/plan")
@@ -240,6 +400,7 @@ async def analytics_inspect(workbook: UploadFile = File(...)):
         raise HTTPException(400, str(exc)) from exc
 
 
+@app.post("/api/analytics/report")
 @app.post("/api/analytics/generate")
 async def analytics_generate(
     session_id: str = Form(...),
@@ -414,6 +575,24 @@ def _pdf_process(operation: str, sources: list[Path], directory: Path) -> Path:
             word.Quit()
         return outputs[0] if len(outputs) == 1 else _zip_outputs(outputs, directory / "Word_to_PDF.zip")
 
+    if operation == "pdf_txt":
+        import fitz
+        outputs = []
+        for source in sources:
+            document = fitz.open(str(source))
+            try:
+                parts = []
+                for num, page in enumerate(document, 1):
+                    t = page.get_text()
+                    if t.strip():
+                        parts.append(f"--- Страница {num} ---\n{t.strip()}")
+                output = directory / f"{source.stem}.txt"
+                output.write_text("\n\n".join(parts), encoding="utf-8")
+                outputs.append(output)
+            finally:
+                document.close()
+        return outputs[0] if len(outputs) == 1 else _zip_outputs(outputs, directory / "PDF_to_TXT.zip")
+
     raise ValueError("Неизвестная операция PDF Center.")
 
 
@@ -463,3 +642,195 @@ def download(session_id: str, kind: str):
         "pdf_result": path.name if path else "PDF_Center_result",
     }
     return FileResponse(path, filename=names.get(kind, path.name))
+
+
+# ============================================================
+# ДОПОЛНИТЕЛЬНЫЕ ЭНДПОИНТЫ v2.0.0
+# ============================================================
+
+@app.post("/api/excel/process")
+async def excel_process(
+    workbook: UploadFile = File(...),
+    instruction: str = Form(...),
+):
+    """Единая обработка таблиц через Excel AI: анализ, план и выполнение."""
+    token, directory = _new_session("excel")
+    try:
+        source = await _receive(workbook, directory)
+        analysis = await run_in_threadpool(analyze_workbook, source, 5, 5)
+        interpretation = await run_in_threadpool(interpret_task, instruction, analysis)
+        operations = interpretation.get("operations", [])
+        output = directory / ("Excel_AI_result" + source.suffix.lower())
+        plan = await run_in_threadpool(plan_operations, source, output, operations)
+        result = await run_in_threadpool(execute_operations, plan, True)
+        with _lock:
+            _sessions[token] = {
+                "kind": "excel", "created": time.time(), "directory": directory,
+                "output": output, "plan": plan, "complete": True,
+            }
+        return {
+            "status": "completed",
+            "session_id": token,
+            "download_url": f"/api/download/{token}/excel",
+            "changes": result.get("changes", []),
+            "operations_count": len(operations),
+            "explanation": interpretation.get("explanation", ""),
+        }
+    except HTTPException:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
+    except Exception as exc:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/pdf/merge")
+async def pdf_merge(files: list[UploadFile] = File(...)):
+    """Объединение нескольких PDF-файлов в один."""
+    return await pdf_process("merge_pdf", files)
+
+
+@app.post("/api/pdf/split")
+async def pdf_split(
+    file: UploadFile = File(...),
+    pages: str = Form(""),
+):
+    """Разделение PDF по диапазону страниц или постранично."""
+    token, directory = _new_session("pdf")
+    try:
+        source = await _receive_any(file, directory, 1)
+        from pypdf import PdfReader, PdfWriter
+        reader = PdfReader(str(source))
+        total = len(reader.pages)
+        pages_str = pages.strip()
+        if pages_str:
+            target_indices = []
+            for part in pages_str.split(","):
+                part = part.strip()
+                if not part:
+                    continue
+                if "-" in part:
+                    s, e = part.split("-", 1)
+                    target_indices.extend(range(int(s)-1, int(e)))
+                else:
+                    target_indices.append(int(part)-1)
+            target_indices = [idx for idx in target_indices if 0 <= idx < total]
+            if not target_indices:
+                target_indices = list(range(total))
+            writer = PdfWriter()
+            for idx in target_indices:
+                writer.add_page(reader.pages[idx])
+            output = directory / f"{source.stem}_split.pdf"
+            with output.open("wb") as f_out:
+                writer.write(f_out)
+        else:
+            outputs = []
+            for num, page in enumerate(reader.pages, 1):
+                w = PdfWriter()
+                w.add_page(page)
+                out = directory / f"{source.stem}_{num:03d}.pdf"
+                with out.open("wb") as stream:
+                    w.write(stream)
+                outputs.append(out)
+            output = _zip_outputs(outputs, directory / "Split_Pages.zip")
+
+        with _lock:
+            _sessions[token] = {
+                "kind": "pdf", "created": time.time(), "directory": directory,
+                "output": output, "complete": True,
+            }
+        return {
+            "status": "completed",
+            "download_url": f"/api/download/{token}/pdf_result",
+            "filename": output.name
+        }
+    except Exception as exc:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/pdf/ask")
+async def pdf_ask(
+    file: UploadFile = File(...),
+    question: str = Form("Сделай краткую выжимку, выдели ключевые факты, даты, суммы и условия."),
+):
+    """ИИ-Анализ PDF документа через Google Gemini с автоматическим fallback."""
+    from ai_service import generate_text
+    import fitz
+
+    suffix = Path(file.filename or "doc.pdf").suffix.lower()
+    if suffix != ".pdf":
+        raise HTTPException(400, "Поддерживаются только файлы формата .pdf.")
+
+    token, directory = _new_session("pdf")
+    target = directory / "uploaded.pdf"
+    content = await file.read()
+    target.write_bytes(content)
+
+    document = fitz.open(str(target))
+    try:
+        pages_text = []
+        for num, page in enumerate(document, 1):
+            t = page.get_text()
+            if t.strip():
+                pages_text.append(f"[Страница {num}]\n{t.strip()}")
+        extracted_text = "\n\n".join(pages_text)
+    finally:
+        document.close()
+        shutil.rmtree(directory, ignore_errors=True)
+
+    if not extracted_text.strip():
+        raise HTTPException(400, "Не удалось извлечь текст из PDF (возможно, документ содержит только изображения).")
+
+    system_prompt = (
+        "Ты — ведущий ИИ-ассистент по анализу документов. Пользователь загрузил PDF и задал вопрос.\n"
+        "Твоя задача — дать точный, структурированный, исчерпывающий ответ строго на основе текста документа.\n"
+        "Выдели ключевые факты, даты, суммы, условия и риски. Если нужной информации нет в тексте, честно укажи это."
+    )
+    user_prompt = (
+        f"Документ: {file.filename}\n\n"
+        f"Вопрос пользователя: {question}\n\n"
+        f"Текст документа (первые 40 000 символов):\n{extracted_text[:40000]}"
+    )
+
+    answer, provider = await run_in_threadpool(
+        generate_text,
+        prompt=user_prompt,
+        system_prompt=system_prompt,
+        temperature=0.2,
+        return_provider=True,
+    )
+
+    return {
+        "status": "completed",
+        "question": question,
+        "filename": file.filename,
+        "answer": answer,
+        "provider": provider,
+    }
+
+
+@app.post("/api/academy/ask")
+async def academy_ask(
+    question: str = Form(...),
+    mode: str = Form("hint"),
+    code: str = Form(""),
+    chapter: str = Form(""),
+):
+    """ИИ-Ментор Code Academy по архитектуре, коду BahonIQ и SOLID."""
+    from .modules.code_academy.ai_tutor import ask_tutor
+    try:
+        answer = await run_in_threadpool(
+            ask_tutor,
+            question=question,
+            mode=mode,
+            context={"code": code, "lesson": chapter, "area": "Code Academy"},
+        )
+        return {"status": "completed", "answer": answer}
+    except Exception as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("web_app.server:app", host="0.0.0.0", port=8000, reload=False)

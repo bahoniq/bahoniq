@@ -1,40 +1,476 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 let analyticsSession=null, excelSession=null, history=[];
-const pdfOps={
-  pdf_word:["PDF → Word","Преобразование PDF в редактируемый DOCX",".pdf"],
-  word_pdf:["Word → PDF","Экспорт Word в PDF через Microsoft Word",".doc,.docx"],
-  pdf_png:["PDF → PNG","Каждая страница сохраняется отдельным PNG",".pdf"],
-  pdf_jpg:["PDF → JPG","Каждая страница сохраняется отдельным JPG",".pdf"],
-  images_pdf:["Изображения → PDF","Изображения объединяются в один PDF",".jpg,.jpeg,.png,.bmp,.tif,.tiff,.webp"],
-  merge_pdf:["Объединить PDF","PDF объединяются в указанном порядке",".pdf"],
-  split_pdf:["Разделить PDF","Каждая страница становится отдельным PDF",".pdf"],
-  compress_pdf:["Оптимизировать PDF","Очистка структуры и сжатие потоков",".pdf"]
+
+// Web Splash Screen Fade-Out (3s для веба)
+window.addEventListener('DOMContentLoaded', () => {
+  const splash = $('#webSplash');
+  if (splash) {
+    setTimeout(() => {
+      splash.classList.add('fade-out');
+      setTimeout(() => splash.remove(), 600);
+    }, 2800);
+  }
+
+  // Часы реального времени
+  const clock = $('#liveClock');
+  if (clock) {
+    const updateTime = () => {
+      const d = new Date();
+      clock.textContent = d.toTimeString().split(' ')[0];
+    };
+    updateTime();
+    setInterval(updateTime, 1000);
+  }
+});
+
+// Навигация между Дашбордом и Модулями
+const dashView = $('#dashboardView');
+const modHost = $('#moduleHost');
+const currentLabel = $('#currentModuleLabel');
+
+function openModule(modId, label) {
+  dashView.classList.add('hidden');
+  modHost.classList.remove('hidden');
+  $$('.module-page').forEach(p => p.classList.remove('active'));
+  const target = $('#' + modId);
+  if (target) {
+    target.classList.add('active');
+    currentLabel.textContent = label || modId.toUpperCase();
+    location.hash = modId;
+  }
+}
+
+function returnToDashboard() {
+  modHost.classList.add('hidden');
+  dashView.classList.remove('hidden');
+  $$('.module-page').forEach(p => p.classList.remove('active'));
+  history.replaceState(null, null, ' ');
+}
+
+$('#backToDash')?.addEventListener('click', returnToDashboard);
+
+$$('.tool-tile').forEach(tile => {
+  tile.addEventListener('click', () => {
+    const modId = tile.dataset.open;
+    const name = tile.querySelector('.tool-name')?.textContent || '';
+    openModule(modId, name);
+  });
+});
+
+// Кнопка "Открыть все системы"
+$('#openAllSystems')?.addEventListener('click', () => {
+  const urls = [
+    "https://platonus.kaznmu.edu.kz/",
+    "https://support.platonus.kz/",
+    "https://web.telegram.org/",
+    "https://web.whatsapp.com/",
+    "https://mail.google.com/mail/u/0/#inbox",
+    "https://salemoffice.kaznmu.edu.kz/sign-in"
+  ];
+  urls.forEach(u => window.open(u, '_blank'));
+});
+
+// Проверка прямого хэша в URL (например #tickets)
+if (location.hash) {
+  const hash = location.hash.slice(1);
+  const matchedTile = document.querySelector(`[data-open="${hash}"]`);
+  if (matchedTile) {
+    const name = matchedTile.querySelector('.tool-name')?.textContent || '';
+    openModule(hash, name);
+  }
+}
+
+// Табы внутри модулей
+$$('.tab').forEach(b => b.onclick = () => {
+  const scope = b.closest('.module-page');
+  scope.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  scope.querySelectorAll('.tab-page').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  $('#' + b.dataset.tab).classList.add('active');
+});
+
+const pdfOps = {
+  pdf_word: ["PDF → Word", "Преобразование PDF в редактируемый DOCX", ".pdf"],
+  word_pdf: ["Word → PDF", "Экспорт Word в PDF через Microsoft Word", ".doc,.docx"],
+  pdf_png: ["PDF → PNG", "Каждая страница сохраняется отдельным PNG", ".pdf"],
+  pdf_jpg: ["PDF → JPG", "Каждая страница сохраняется отдельным JPG", ".pdf"],
+  images_pdf: ["Изображения → PDF", "Изображения объединяются в один PDF", ".jpg,.jpeg,.png,.bmp,.tif,.tiff,.webp"],
+  merge_pdf: ["Объединить PDF", "PDF объединяются в указанном порядке", ".pdf"],
+  split_pdf: ["Разделить PDF", "Каждая страница становится отдельным PDF", ".pdf"],
+  compress_pdf: ["Оптимизировать PDF", "Очистка структуры и сжатие потоков", ".pdf"],
+  pdf_txt: ["PDF → TXT", "Извлечение текстового слоя документа", ".pdf"]
 };
-let pdfOperation="pdf_word";
+let pdfOperation = "pdf_word";
 
-async function api(url,options={}){const r=await fetch(url,options);let data={};try{data=await r.json()}catch{}if(!r.ok)throw new Error(data.detail||"Ошибка сервера");return data}
-function showResult(node,html,error=false){node.classList.remove("hidden");node.classList.toggle("error",error);node.innerHTML=html}
-function setBusy(button,busy,text="Выполняется…"){if(!button)return;button.disabled=busy;if(!button.dataset.label)button.dataset.label=button.textContent;button.textContent=busy?text:button.dataset.label}
+async function api(url, options = {}) {
+  const r = await fetch(url, options);
+  let data = {};
+  try { data = await r.json(); } catch {}
+  if (!r.ok) throw new Error(data.detail || "Ошибка сервера");
+  return data;
+}
 
-$$('.module-card').forEach(b=>b.onclick=()=>{$$('.module-card').forEach(x=>x.classList.remove('active'));$$('.module-page').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#'+b.dataset.module).classList.add('active');location.hash=b.dataset.module});
-$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));$$('.tab-page').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#'+b.dataset.tab).classList.add('active')});
+function showResult(node, html, error = false) {
+  node.classList.remove("hidden");
+  node.classList.toggle("error", error);
+  node.innerHTML = html;
+}
 
-api('/api/status').then(x=>{$('#statusDot').classList.add('ready');$('#serverStatus').textContent='Сервер готов · '+x.network_url}).catch(()=>$('#serverStatus').textContent='Сервер недоступен');
-if(location.hash){const b=document.querySelector(`[data-module="${location.hash.slice(1)}"]`);if(b)b.click()}
+function setBusy(button, busy, text = "Выполняется…") {
+  if (!button) return;
+  button.disabled = busy;
+  if (!button.dataset.label) button.dataset.label = button.textContent;
+  button.textContent = busy ? text : button.dataset.label;
+}
 
-$('#analyticsFile').onchange=e=>$('#analyticsFileName').textContent=e.target.files[0]?.name||'.xls, .xlsx или .xlsm';
-$('#inspectButton').onclick=async()=>{const file=$('#analyticsFile').files[0];if(!file)return alert('Выберите Excel-файл.');const b=$('#inspectButton');setBusy(b,true,'Чтение файла…');const fd=new FormData();fd.append('workbook',file);try{const data=await api('/api/analytics/inspect',{method:'POST',body:fd});analyticsSession=data.session_id;const select=$('#sheetName');select.innerHTML=data.sheets.map((s,i)=>`<option value="${esc(s.name)}" data-index="${i}">${esc(s.name)} · ${s.rows} строк</option>`).join('');select._sheets=data.sheets;select.onchange=renderPreview;renderPreview()}catch(e){alert(e.message)}finally{setBusy(b,false)}};
-function renderPreview(){const select=$('#sheetName'),sheet=select._sheets?.[select.selectedIndex];if(!sheet)return;$('#previewMeta').textContent=`${sheet.rows} записей · ${sheet.columns} столбцов`;const heads=sheet.headers||[],rows=sheet.preview||[];$('#previewTable').innerHTML=`<thead><tr>${heads.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody>`}
-$('#analyticsForm').onsubmit=async e=>{e.preventDefault();if(!analyticsSession)return alert('Сначала загрузите и просмотрите Excel-файл.');const button=e.submitter,set=$('#analyticsProgress');set.classList.remove('hidden');setBusy(button,true);let p=8;$('#progressLabel').textContent='Подготовка данных';$('#progressBar').style.width=p+'%';$('#progressPercent').textContent=p+'%';const timer=setInterval(()=>{p=Math.min(92,p+Math.max(1,Math.round((94-p)/12)));$('#progressLabel').textContent=p<45?'Анализ структуры Excel':p<75?'OLLAMA анализирует данные':'Верстка PDF и PowerPoint';$('#progressBar').style.width=p+'%';$('#progressPercent').textContent=p+'%'},1100);const format=$('#outputFormat').value,fd=new FormData();[['session_id',analyticsSession],['sheet_name',$('#sheetName').value],['title',$('#reportTitle').value],['description',$('#analyticsTask').value],['pdf',format!=='pptx'],['pptx',format!=='pdf'],['include_source_table',$('#includeSource').checked],['orientation',$('#orientation').value],['report_profile',$('#reportProfile').value],['audience',$('#audience').value]].forEach(([k,v])=>fd.append(k,v));try{const data=await api('/api/analytics/generate',{method:'POST',body:fd});p=100;$('#progressBar').style.width='100%';$('#progressPercent').textContent='100%';$('#progressLabel').textContent='Отчёт готов';const links=Object.entries(data.downloads).map(([k,u])=>`<a href="${u}">Скачать ${k.toUpperCase()}</a>`).join('');showResult($('#analyticsResult'),`<b>Профессиональный отчёт сформирован.</b><div>${links}</div>${data.warnings?.length?`<small>${esc(data.warnings.join(' · '))}</small>`:''}`)}catch(err){showResult($('#analyticsResult'),esc(err.message),true)}finally{clearInterval(timer);setBusy(button,false)}};
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
-$('#excelForm').onsubmit=async e=>{e.preventDefault();const button=e.submitter,fd=new FormData();fd.append('workbook',$('#excelFile').files[0]);fd.append('instruction',$('#excelInstruction').value);setBusy(button,true,'ИИ готовит план…');try{const data=await api('/api/excel/plan',{method:'POST',body:fd});if(data.status==='questions'){showPlan(`<h2>Нужно уточнение</h2><ul>${data.questions.map(q=>`<li>${esc(q)}</li>`).join('')}</ul>`)}else{excelSession=data.session_id;showPlan(`<h2>План изменений</h2><p>${esc(data.explanation||'План подготовлен.')}</p><ol class="plan-list">${(data.operations||[]).map(o=>`<li><b>${esc(o.type||'Операция')}</b> ${esc(JSON.stringify(o))}</li>`).join('')}</ol><button id="executePlan" class="button primary">Подтвердить и выполнить</button>`);$('#executePlan').onclick=executeExcel}}catch(err){showPlan(`<div class="result-panel error">${esc(err.message)}</div>`)}finally{setBusy(button,false)}};
-function showPlan(html){$('#planContent').className='';$('#planContent').innerHTML=html;document.querySelector('[data-tab="excelPlan"]').click()}
-async function executeExcel(){const b=$('#executePlan'),fd=new FormData();fd.append('session_id',excelSession);fd.append('confirmed','true');setBusy(b,true);try{const data=await api('/api/excel/execute',{method:'POST',body:fd});const item={time:new Date().toLocaleTimeString(),text:$('#excelInstruction').value};history.unshift(item);showPlan(`<h2>Готово</h2><p>Изменения выполнены после подтверждения.</p><ul>${(data.changes||[]).map(x=>`<li>${esc(typeof x==='string'?x:JSON.stringify(x))}</li>`).join('')}</ul><a class="button primary" href="${data.download_url}">Скачать готовый Excel</a>`);renderHistory()}catch(e){showResult($('#planContent'),esc(e.message),true)}finally{setBusy(b,false)}}
-function renderHistory(){$('#historyContent').className='';$('#historyContent').innerHTML=history.map(x=>`<div class="queue-item"><b>${esc(x.text)}</b><small>${x.time}</small></div>`).join('')}
+function formatBytes(n) {
+  if (n < 1024) return n + ' Б';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' КБ';
+  return (n / 1048576).toFixed(1) + ' МБ';
+}
 
-const toolList=$('#pdfTools');Object.entries(pdfOps).forEach(([key,v])=>{const b=document.createElement('button');b.type='button';b.className='tool-button'+(key===pdfOperation?' active':'');b.textContent=v[0];b.onclick=()=>selectPdf(key);toolList.appendChild(b)});
-function selectPdf(key){pdfOperation=key;$$('.tool-button').forEach((b,i)=>b.classList.toggle('active',Object.keys(pdfOps)[i]===key));const v=pdfOps[key];$('#pdfTitle').textContent=v[0];$('#pdfHint').textContent=v[1];$('#pdfFiles').accept=v[2];$('#pdfFiles').value='';renderQueue([]);$('#pdfResult').classList.add('hidden')}
-$('#pdfFiles').onchange=e=>renderQueue([...e.target.files]);
-function renderQueue(files){$('#pdfFileNames').textContent=files.length?`${files.length} файл(ов) выбрано`:'Формат зависит от выбранной операции';$('#pdfQueue').innerHTML=files.length?files.map((f,i)=>`<div class="queue-item"><b>${String(i+1).padStart(2,'0')}. ${esc(f.name)}</b><small>${formatBytes(f.size)}</small></div>`).join(''):'<span>Файлы не выбраны</span>'}
-$('#pdfForm').onsubmit=async e=>{e.preventDefault();const files=[...$('#pdfFiles').files];if(!files.length)return alert('Добавьте файлы.');const button=e.submitter,fd=new FormData();fd.append('operation',pdfOperation);files.forEach(f=>fd.append('files',f));setBusy(button,true);try{const data=await api('/api/pdf/process',{method:'POST',body:fd});showResult($('#pdfResult'),`<b>Операция завершена.</b><div><a href="${data.download_url}">Скачать ${esc(data.filename)}</a></div>`)}catch(err){showResult($('#pdfResult'),esc(err.message),true)}finally{setBusy(button,false)}};
-function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}function formatBytes(n){if(n<1024)return n+' Б';if(n<1048576)return(n/1024).toFixed(1)+' КБ';return(n/1048576).toFixed(1)+' МБ'}
+// ----------------- ANALYTICS AI -----------------
+$('#analyticsFile')?.addEventListener('change', e => {
+  $('#analyticsFileName').textContent = e.target.files[0]?.name || '.xls, .xlsx или .xlsm';
+});
+
+$('#inspectButton')?.addEventListener('click', async () => {
+  const file = $('#analyticsFile').files[0];
+  if (!file) return alert('Выберите Excel-файл.');
+  const b = $('#inspectButton');
+  setBusy(b, true, 'Чтение файла…');
+  const fd = new FormData();
+  fd.append('workbook', file);
+  try {
+    const data = await api('/api/analytics/inspect', { method: 'POST', body: fd });
+    analyticsSession = data.session_id;
+    const select = $('#sheetName');
+    select.innerHTML = data.sheets.map((s, i) => `<option value="${esc(s.name)}" data-index="${i}">${esc(s.name)} · ${s.rows} строк</option>`).join('');
+    select._sheets = data.sheets;
+    select.onchange = renderPreview;
+    renderPreview();
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    setBusy(b, false);
+  }
+});
+
+function renderPreview() {
+  const select = $('#sheetName'), sheet = select._sheets?.[select.selectedIndex];
+  if (!sheet) return;
+  $('#previewMeta').textContent = `${sheet.rows} записей · ${sheet.columns} столбцов`;
+  const heads = sheet.headers || [], rows = sheet.preview || [];
+  $('#previewTable').innerHTML = `<thead><tr>${heads.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(v => `<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody>`;
+}
+
+$('#analyticsForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!analyticsSession) return alert('Сначала загрузите и просмотрите Excel-файл.');
+  const button = e.submitter, pPanel = $('#analyticsProgress');
+  pPanel.classList.remove('hidden');
+  setBusy(button, true);
+  let p = 12;
+  $('#progressLabel').textContent = 'Подготовка данных и структуры';
+  $('#progressBar').style.width = p + '%';
+  $('#progressPercent').textContent = p + '%';
+
+  const timer = setInterval(() => {
+    p = Math.min(94, p + Math.max(1, Math.round((96 - p) / 10)));
+    $('#progressLabel').textContent = p < 45 ? 'Анализ разрезов таблицы' : p < 75 ? 'BahonIQ AI формирует стратегические выводы' : 'Верстка отчёта';
+    $('#progressBar').style.width = p + '%';
+    $('#progressPercent').textContent = p + '%';
+  }, 900);
+
+  const format = $('#outputFormat').value;
+  const fd = new FormData();
+  [
+    ['session_id', analyticsSession],
+    ['sheet_name', $('#sheetName').value],
+    ['title', $('#reportTitle').value],
+    ['description', $('#analyticsTask').value],
+    ['pdf', format !== 'pptx'],
+    ['pptx', format !== 'pdf'],
+    ['include_source_table', $('#includeSource').checked],
+    ['report_profile', $('#reportProfile').value],
+    ['report_depth', $('#reportDepth').value]
+  ].forEach(([k, v]) => fd.append(k, v));
+
+  try {
+    const data = await api('/api/analytics/generate', { method: 'POST', body: fd });
+    p = 100;
+    $('#progressBar').style.width = '100%';
+    $('#progressPercent').textContent = '100%';
+    $('#progressLabel').textContent = 'Отчёт готов';
+    const links = Object.entries(data.downloads).map(([k, u]) => `<a class="button primary" href="${u}" style="margin-right:8px">Скачать ${k.toUpperCase()}</a>`).join('');
+    showResult($('#analyticsResult'), `<b>Аналитический отчёт успешно сформирован BahonIQ AI.</b><div style="margin-top:12px">${links}</div>${data.warnings?.length ? `<small style="display:block;margin-top:8px">${esc(data.warnings.join(' · '))}</small>` : ''}`);
+  } catch (err) {
+    showResult($('#analyticsResult'), esc(err.message), true);
+  } finally {
+    clearInterval(timer);
+    setBusy(button, false);
+  }
+});
+
+// ----------------- EXCEL AI -----------------
+$('#excelForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const button = e.submitter, fd = new FormData();
+  fd.append('workbook', $('#excelFile').files[0]);
+  fd.append('instruction', $('#excelInstruction').value);
+  setBusy(button, true, 'BahonIQ AI готовит план…');
+  try {
+    const data = await api('/api/excel/plan', { method: 'POST', body: fd });
+    if (data.status === 'questions') {
+      showPlan(`<h2>Нужно уточнение</h2><ul>${data.questions.map(q => `<li>${esc(q)}</li>`).join('')}</ul>`);
+    } else {
+      excelSession = data.session_id;
+      showPlan(`<h2>План изменений</h2><p>${esc(data.explanation || 'План подготовлен.')}</p><ol class="plan-list">${(data.operations || []).map(o => `<li><b>${esc(o.type || 'Операция')}</b> ${esc(JSON.stringify(o))}</li>`).join('')}</ol><button id="executePlan" class="button primary" style="margin-top:14px">Подтвердить и выполнить</button>`);
+      $('#executePlan').onclick = executeExcel;
+    }
+  } catch (err) {
+    showPlan(`<div class="result-panel error">${esc(err.message)}</div>`);
+  } finally {
+    setBusy(button, false);
+  }
+});
+
+function showPlan(html) {
+  $('#planContent').className = '';
+  $('#planContent').innerHTML = html;
+  document.querySelector('[data-tab="excelPlan"]').click();
+}
+
+async function executeExcel() {
+  const b = $('#executePlan'), fd = new FormData();
+  fd.append('session_id', excelSession);
+  fd.append('confirmed', 'true');
+  setBusy(b, true);
+  try {
+    const data = await api('/api/excel/execute', { method: 'POST', body: fd });
+    const item = { time: new Date().toLocaleTimeString(), text: $('#excelInstruction').value };
+    history.unshift(item);
+    showPlan(`<h2>Готово</h2><p>Изменения выполнены после подтверждения.</p><ul>${(data.changes || []).map(x => `<li>${esc(typeof x === 'string' ? x : JSON.stringify(x))}</li>`).join('')}</ul><a class="button primary" style="display:inline-block;margin-top:12px" href="${data.download_url}">Скачать готовый Excel</a>`);
+    renderHistory();
+  } catch (e) {
+    showResult($('#planContent'), esc(e.message), true);
+  } finally {
+    setBusy(b, false);
+  }
+}
+
+function renderHistory() {
+  $('#historyContent').className = '';
+  $('#historyContent').innerHTML = history.map(x => `<div class="queue-item" style="padding:10px;border-bottom:1px solid var(--border)"><b>${esc(x.text)}</b><small style="display:block;color:var(--text-sub)">${x.time}</small></div>`).join('');
+}
+
+// ----------------- PDF CENTER -----------------
+const toolList = $('#pdfTools');
+if (toolList) {
+  Object.entries(pdfOps).forEach(([key, v]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'button secondary' + (key === pdfOperation ? ' active' : '');
+    b.style.margin = '0 6px 6px 0';
+    b.textContent = v[0];
+    b.onclick = () => selectPdf(key);
+    toolList.appendChild(b);
+  });
+}
+
+function selectPdf(key) {
+  pdfOperation = key;
+  $$('#pdfTools button').forEach((b, i) => b.classList.toggle('active', Object.keys(pdfOps)[i] === key));
+  const v = pdfOps[key];
+  $('#pdfTitle').textContent = v[0];
+  $('#pdfHint').textContent = v[1];
+  $('#pdfFiles').accept = v[2];
+  $('#pdfFiles').value = '';
+  renderQueue([]);
+  $('#pdfResult').classList.add('hidden');
+}
+
+$('#pdfFiles')?.addEventListener('change', e => renderQueue([...e.target.files]));
+
+function renderQueue(files) {
+  $('#pdfFileNames').textContent = files.length ? `${files.length} файл(ов) выбрано` : 'Формат зависит от выбранной операции';
+  $('#pdfQueue').innerHTML = files.length ? files.map((f, i) => `<div class="queue-item" style="padding:4px 0"><b>${String(i + 1).padStart(2, '0')}. ${esc(f.name)}</b> <small style="color:var(--text-sub)">(${formatBytes(f.size)})</small></div>`).join('') : '<span>Файлы не выбраны</span>';
+}
+
+$('#pdfForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const files = [...$('#pdfFiles').files];
+  if (!files.length) return alert('Добавьте файлы.');
+  const button = e.submitter, fd = new FormData();
+  fd.append('operation', pdfOperation);
+  files.forEach(f => fd.append('files', f));
+  setBusy(button, true);
+  try {
+    const data = await api('/api/pdf/process', { method: 'POST', body: fd });
+    showResult($('#pdfResult'), `<b>Операция завершена.</b><div style="margin-top:10px"><a class="button primary" href="${data.download_url}">Скачать ${esc(data.filename)}</a></div>`);
+  } catch (err) {
+    showResult($('#pdfResult'), esc(err.message), true);
+  } finally {
+    setBusy(button, false);
+  }
+});
+
+// ----------------- TICKET WRITER AI -----------------
+$('#ticketForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const b = e.submitter, fd = new FormData();
+  fd.append('problem', $('#ticketProblem').value);
+  setBusy(b, true, 'BahonIQ AI структурирует заявку…');
+  try {
+    const data = await api('/api/tickets/generate', { method: 'POST', body: fd });
+    $('#ticketTitle').value = data.title || '';
+    $('#ticketDescription').value = data.description || '';
+    showResult($('#ticketResult'), 'Заявка сформирована BahonIQ AI без лишних слов.');
+  } catch (err) {
+    showResult($('#ticketResult'), esc(err.message), true);
+  } finally {
+    setBusy(b, false);
+  }
+});
+
+$('#copyTicket')?.addEventListener('click', async () => {
+  const text = `${$('#ticketTitle').value}\n\n${$('#ticketDescription').value}`.trim();
+  if (text) {
+    await navigator.clipboard.writeText(text);
+    alert('Заявка скопирована в буфер обмена!');
+  }
+});
+
+// ----------------- PHONEBOOK -----------------
+let contacts = [];
+async function loadPhonebook() {
+  const input = $('#phoneSearch');
+  if (!input) return;
+  const data = await api('/api/phonebook?q=' + encodeURIComponent(input.value));
+  contacts = data.contacts;
+  $('#phoneCount').textContent = `${data.shown} ИЗ ${data.total}`;
+  $('#phoneRows').innerHTML = contacts.map(c => `<tr><td>${esc(c.department)}</td><td>${esc(c.position)}</td><td><b>${esc(c.name)}</b></td><td>${esc(c.location)}</td><td>${esc(c.city_phone)}</td><td>${esc(c.extension)}</td><td>${esc(c.mobile)}</td><td>${c.email ? `<a href="mailto:${esc(c.email)}" style="color:var(--green-neon)">${esc(c.email)}</a>` : ''}</td><td><button class="button secondary" style="padding:4px 8px;font-size:11px" data-edit="${c.id}">Изменить</button></td></tr>`).join('');
+  $$('[data-edit]').forEach(b => b.onclick = () => openContact(Number(b.dataset.edit)));
+}
+
+let phoneTimer = null;
+$('#phoneSearch')?.addEventListener('input', () => {
+  clearTimeout(phoneTimer);
+  phoneTimer = setTimeout(loadPhonebook, 250);
+});
+
+function openContact(id = 0) {
+  const c = contacts.find(x => x.id === id) || {};
+  $('#contactHeading').textContent = id ? 'Изменение контакта' : 'Новый контакт';
+  $('#contactId').value = id;
+  ['department', 'position', 'name', 'location', 'city_phone', 'extension', 'mobile', 'email'].forEach(k => $('#contactForm').elements[k].value = c[k] || '');
+  $('#contactDialog').showModal();
+}
+
+$('#newContact')?.addEventListener('click', () => openContact());
+$('#contactForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  if (e.submitter?.value === 'cancel') {
+    $('#contactDialog').close();
+    return;
+  }
+  const fd = new FormData(e.currentTarget);
+  fd.append('contact_id', $('#contactId').value || '0');
+  try {
+    await api('/api/phonebook/save', { method: 'POST', body: fd });
+    $('#contactDialog').close();
+    await loadPhonebook();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+// ----------------- CODE ACADEMY -----------------
+let academy = { python: [], sql: [], book: [], builder_files: [] };
+async function loadAcademy() {
+  try {
+    academy = await api('/api/academy/catalog');
+    renderLessons('python');
+    renderLessons('sql');
+    renderBook();
+    renderBuilder();
+    selectLesson('python', 0);
+    selectLesson('sql', 0);
+    if (academy.book.length) openBook(0);
+    if (academy.builder_files.length) openBuilder(academy.builder_files[0]);
+  } catch (e) {}
+}
+
+function renderLessons(kind) {
+  const query = (document.querySelector(`.academy-search[data-kind="${kind}"]`)?.value || '').toLowerCase();
+  const target = $('#' + kind + 'Lessons');
+  if (!target) return;
+  target.innerHTML = academy[kind].map((x, i) => ({ x, i })).filter(o => !query || (`${o.x.title} ${o.x.theory}`).toLowerCase().includes(query)).map(o => `<button class="button secondary" style="display:block;width:100%;text-align:left;margin-bottom:6px" type="button" data-lesson="${kind}:${o.i}">${esc(o.x.title)}</button>`).join('');
+  target.querySelectorAll('button').forEach(b => b.onclick = () => {
+    const [k, i] = b.dataset.lesson.split(':');
+    selectLesson(k, Number(i));
+  });
+}
+
+function selectLesson(kind, index) {
+  const item = academy[kind][index];
+  if (!item) return;
+  $('#' + kind + 'Title').textContent = item.title;
+  $('#' + kind + 'Theory').textContent = item.theory;
+  $('#' + kind + 'Code').value = item.code;
+  $('#' + kind + 'Challenge').textContent = 'Практика: ' + item.challenge;
+}
+
+$$('.academy-search').forEach(i => i.oninput = () => renderLessons(i.dataset.kind));
+$$('.academy-run').forEach(b => b.onclick = async () => {
+  const lang = b.dataset.language, fd = new FormData();
+  fd.append('language', lang);
+  fd.append('code', $('#' + lang + 'Code').value);
+  setBusy(b, true);
+  try {
+    const data = await api('/api/academy/run', { method: 'POST', body: fd });
+    $('#' + lang + 'Output').textContent = (Array.isArray(data.output) ? data.output.join('\n') : data.output || '') + (data.error ? '\n' + data.error : '');
+  } catch (e) {
+    $('#' + lang + 'Output').textContent = e.message;
+  } finally {
+    setBusy(b, false);
+  }
+});
+
+function renderBook() {
+  const q = ($('#bookSearch')?.value || '').toLowerCase();
+  const container = $('#bookChapters');
+  if (!container) return;
+  container.innerHTML = academy.book.filter(x => !q || (`${x.section} ${x.title} ${x.file}`).toLowerCase().includes(q)).map(x => `<button class="button secondary" style="display:block;width:100%;text-align:left;margin-bottom:6px" type="button" data-chapter="${x.index}">${esc(x.section)} · ${esc(x.title)}</button>`).join('');
+  $$('[data-chapter]').forEach(b => b.onclick = () => openBook(Number(b.dataset.chapter)));
+}
+
+$('#bookSearch')?.addEventListener('input', renderBook);
+async function openBook(index) {
+  const data = await api('/api/academy/book/' + index);
+  $('#bookTitle').textContent = data.title;
+  $('#bookReading').textContent = data.reading;
+  $('#bookSource').value = data.source || '';
+}
+
+function renderBuilder() {
+  const container = $('#builderFiles');
+  if (!container) return;
+  container.innerHTML = academy.builder_files.map(name => `<button class="button secondary" style="display:block;width:100%;text-align:left;margin-bottom:6px" type="button" data-builder="${esc(name)}">${esc(name)}</button>`).join('');
+  $$('[data-builder]').forEach(b => b.onclick = () => openBuilder(b.dataset.builder));
+}
+
+async function openBuilder(name) {
+  const data = await api('/api/academy/builder?name=' + encodeURIComponent(name));
+  $('#builderTitle').textContent = data.name;
+  $('#builderSource').value = data.source;
+}
+
+$('#copyBuilder')?.addEventListener('click', () => navigator.clipboard.writeText($('#builderSource').value));
+
+loadPhonebook();
+loadAcademy();

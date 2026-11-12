@@ -25,9 +25,35 @@ def start_app():
     # ROOT
     # --------------------------------------------------------
 
+    import ctypes
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("bahoniq.workcenter.v2")
+    except Exception:
+        pass
+
     root = tk.Tk()
 
     state.root = root
+
+    from pathlib import Path
+    assets_dir = Path(__file__).resolve().parent / "assets"
+    ico_p = assets_dir / "icon.ico"
+    png_p = assets_dir / "logo.png"
+
+    if ico_p.is_file():
+        try:
+            root.iconbitmap(str(ico_p))
+        except Exception:
+            pass
+
+    if png_p.is_file():
+        try:
+            from PIL import Image, ImageTk
+            p_img = ImageTk.PhotoImage(Image.open(png_p).resize((32, 32)))
+            root.iconphoto(True, p_img)
+            root._app_icon_ref = p_img
+        except Exception:
+            pass
 
 
     # --------------------------------------------------------

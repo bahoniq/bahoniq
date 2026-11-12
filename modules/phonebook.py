@@ -1,0 +1,387 @@
+"""Локальный телефонный справочник BahonIQ Work Center."""
+
+from __future__ import annotations
+
+import sqlite3
+import tkinter as tk
+from pathlib import Path
+from tkinter import messagebox, ttk
+
+from services.settings_service import get_theme
+
+
+GREEN = "#009246"
+GREEN_DARK = "#007A3D"
+RED = "#CE2B37"
+NAVY = "#183153"
+
+
+SEED_CONTACTS = [
+    ("Учебно-методический отдел", "Руководитель", "Кутышева Айза Тлеубаевна", "1 учебный корпус, 2 этаж, кабинет 243", "338-70-90", "75-18", "", "karibzhan.m@kaznmu.kz"),
+    ("Учебно-методический отдел", "Старший методист", "Асанова Меруерт Нурлановна", "1 учебный корпус, 2 этаж, кабинет 243", "338-70-90", "71-35", "8-701-153-55-85", "asanova.meruert@kaznmu.kz"),
+    ("Учебно-методический отдел", "Методист", "Еркебай Айдана Канбаркызы", "1 учебный корпус, 2 этаж, кабинет 243", "338-70-90", "73-54", "8-778-284-11-36", "erkebay.a@kaznmu.kz"),
+    ("Учебно-методический отдел", "Старший методист", "Корганбаева Алима Аширбековна", "1 учебный корпус, 2 этаж, кабинет 243", "338-70-90", "75-03", "8-777-603-97-61", "korganbaeva.a@kaznmu.kz"),
+    ("Учебно-методический отдел", "Старший методист", "Кентаева Индира Тулегеновна", "1 учебный корпус, 2 этаж, кабинет 221", "338-70-90", "79-02", "8-775-783-77-83", "kentaeva.i@kaznmu.kz"),
+    ("Учебно-методический отдел", "Старший методист", "Кусаинова Анар Егинбаевна", "1 учебный корпус, 2 этаж, кабинет 221", "338-70-90", "71-43", "8-777-161-12-25", "kusainova.anar@kaznmu.kz"),
+    ("Учебно-методический отдел", "Старший методист", "Жанабаева Жансая Амантелдиевна", "1 учебный корпус, 2 этаж, кабинет 243", "338-70-90", "70-33", "8-747-230-28-29", "zhanabaeva.zh@kaznmu.kz"),
+    ("Учебно-методический отдел", "Методист", "Турсын Мадина Ауезбековна", "1 учебный корпус, 2 этаж, кабинет 221", "338-70-90", "75-85", "8-771-981-95-95", "tursun.m@kaznmu.kz"),
+    ("Отдел планирования и контроля учебного процесса", "Руководитель", "Туманбаева Анар Ериковна", "УК №1 (Ректорат), 2 этаж, кабинет 247", "338-70-36", "75-06", "", "tumanbayeva.a@kaznmu.kz"),
+    ("Отдел планирования и контроля учебного процесса", "Главный специалист-координатор", "Омиралиева Назым Ансабековна", "УК №1 (Ректорат), 2 этаж, кабинет 247", "338-70-36", "75-09", "", "dzharlepesova.n@kaznmu.kz"),
+    ("Отдел планирования и контроля учебного процесса", "Старший методист-эксперт", "Айтбай Ботакоз Нурланкызы", "УК №1 (Ректорат), 2 этаж, кабинет 247", "338-70-36", "70-08", "", "aytbay.b@kaznmu.kz"),
+    ("Отдел планирования и контроля учебного процесса", "Специалист-координатор", "Даулбаева Светлана Мухтаровна", "УК №1 (Ректорат), 2 этаж, кабинет 247", "338-70-36", "75-05", "", "daulbaevna.s@kaznmu.kz"),
+    ("Отдел планирования и контроля учебного процесса", "Методист-эксперт", "Акимбекова Бакыткуль Мырзахановна", "УК №1 (Ректорат), 2 этаж, кабинет 247", "338-70-36", "75-93", "", "akimbekova.b@kaznmu.kz"),
+    ("Офис регистратор", "Специалист-координатор", "Медеуова Жадыра Алимбаевна", "7 учебный корпус, 1 этаж, кабинет 103", "", "75-12", "", "medeouva.zh@kaznmu.kz"),
+    ("Офис регистратор", "Специалист-координатор", "Мукамбетбаева Гульнара Избасаровна", "7 учебный корпус, 1 этаж, кабинет 103", "", "75-12", "", "mukametbayeva.g@kaznmu.kz"),
+    ("Офис регистратор", "Специалист-координатор", "Нурдилданова Балауса Ерденовна", "7 учебный корпус, 1 этаж, кабинет 103", "", "75-12", "", "nurdildanova.b@kaznmu.kz"),
+    ("Офис регистратор", "Специалист-координатор", "Джанбауова Динара Батырбековна", "7 учебный корпус, 1 этаж, кабинет 103", "", "79-54", "", "dzhanbauova.d@kaznmu.kz"),
+    ("Офис регистратор", "Специалист-координатор", "Тунгатарова Айгерим Жанайбековна", "7 учебный корпус, 1 этаж, кабинет 103", "", "79-54", "", "a.tungatarova@kaznmu.kz"),
+    ("Офис регистратор", "Специалист-координатор", "Турарова Гульнур Нурмуханбетовна", "7 учебный корпус, 1 этаж, кабинет 103", "", "79-54", "", "turarova.g@kaznmu.kz"),
+    ("Офис регистратор", "Специалист-координатор", "Илан Сымбат Канияткызы", "7 учебный корпус, 1 этаж, кабинет 103", "", "79-54", "", "ilan.s@kaznmu.kz"),
+    ("Офис регистратор", "Специалист-координатор", "Мырзагалиева Бахытнур Кайырбековна", "7 учебный корпус, 1 этаж, кабинет 103", "", "75-12", "", "myrzagalieva.b@kaznmu.kz"),
+    ("Подразделение уточняется", "Специалист", "Узбекова Асель Досымжановна", "7 корпус, кабинет 107", "338-70-90", "70-66", "", ""),
+    ("Подразделение уточняется", "Специалист", "Латипкызы Маржан", "7 корпус, кабинет 107", "338-70-90", "70-65", "", ""),
+    ("Подразделение уточняется", "Специалист", "Омарбекова Ляйла Абдилкызы", "7 корпус, кабинет 107", "338-70-90", "73-55", "", ""),
+    ("Подразделение уточняется", "Специалист", "Ашикеева Динара Сериковна", "7 корпус, кабинет 107", "338-70-90", "70-65", "", ""),
+    ("Подразделение уточняется", "Специалист", "Садуева Аида Сериккызы", "7 корпус, кабинет 107", "338-70-90", "70-66", "", ""),
+    ("Подразделение уточняется", "Специалист", "Аженева Назым Кенжебеккызы", "7 корпус, кабинет 107", "338-70-90", "70-66", "", ""),
+    ("Подразделение уточняется", "Главный специалист", "Мукушова Жанар Омирзаковна", "ИНТРО Ш, 1 учебный корпус, 1 этаж, кабинет 137", "338-79-26", "72-81", "", ""),
+    ("Подразделение уточняется", "Специалист-координатор", "Ахметханова Сания Халелхановна", "ИНТРО Ш, 1 учебный корпус, 1 этаж, кабинет 137", "338-79-26", "70-68", "", ""),
+    ("Подразделение уточняется", "Главный специалист", "Кунанбаева Мадина Мухаметовна", "7 учебный корпус, 1 этаж, кабинет 103", "", "73-55", "", ""),
+    ("Подразделение уточняется", "Специалист-координатор", "Елеуканова Жадыра Адиловна", "ИНТРО Ш, 1 учебный корпус, 1 этаж, кабинет 137", "338-79-26", "70-68", "", ""),
+    ("Центр цифровых услуг", "Руководитель", "Жумахан Айбол Амангелдиулы", "2 учебный корпус, 3 этаж, кабинет 302", "338-70-59", "75-77", "", ""),
+    ("Центр цифровых услуг", "Системный администратор", "Хали Нурбакыт", "2 учебный корпус, 3 этаж, кабинет 309", "338-70-59", "77-84", "", ""),
+    ("Центр цифровых услуг", "Инженер-программист", "Жумахажи Молдир Бауыржанкызы", "2 учебный корпус, 3 этаж, кабинет 302", "338-70-59", "77-78", "", ""),
+    ("Центр цифровых услуг", "Инженер-программист", "Алиаскарова Алтынай Ержанкызы", "2 учебный корпус, 3 этаж, кабинет 302", "338-70-59", "77-98", "", ""),
+    ("Тестовый центр", "Руководитель", "Маймакова Айгерим Мейрбековна", "Тестовый центр", "337-70-90", "70-32", "", ""),
+    ("Тестовый центр", "Специалист-координатор", "Амантелдиева Ардак Амангелдиевна", "Тестовый центр", "337-70-90", "72-83", "", ""),
+    ("Тестовый центр", "Специалист-координатор", "Аймуратова Аружан Шорабайкызы", "Тестовый центр", "337-70-90", "72-83", "", ""),
+    ("Тестовый центр", "Специалист-координатор", "Алимбекова Айнура Бекмаханкызы", "Тестовый центр", "337-70-90", "72-83", "", ""),
+    ("Тестовый центр", "Специалист-координатор", "Касымбеков Арман Орынбасарулы", "Тестовый центр", "337-70-90", "72-83", "", ""),
+    ("Тестовый центр", "Специалист-координатор", "Ахметова Асел Умитбековна", "Тестовый центр", "337-70-90", "72-83", "", ""),
+    ("Управление программного обеспечения", "Руководитель", "Сыдыкова Толкын Дуйсенгаликызы", "2 учебный корпус, 3 этаж, кабинет 307", "338-70-59", "77-80", "", "sydykova.t@kaznmu.kz"),
+    ("Управление программного обеспечения", "Системный администратор", "Енбекшилова Молдир Толеугазыкызы", "2 учебный корпус, 3 этаж, кабинет 307", "338-70-59", "74-59", "", "enbekshilova.m@kaznmu.kz"),
+    ("Управление программного обеспечения", "Главный специалист", "Даулетулы Мадияр", "2 учебный корпус, 3 этаж, кабинет 309", "338-70-59", "77-84", "", "dauletuly.m@kaznmu.kz"),
+    ("Управление программного обеспечения", "Инженер-программист", "Жапарбаева Венера Омаровна", "2 учебный корпус, 3 этаж, кабинет 302", "338-70-59", "77-97", "", "zhaparbayeva.v@kaznmu.kz"),
+    ("Управление программного обеспечения", "Инженер-программист", "Айдархан Жарас Нурдангалиулы", "2 учебный корпус, 3 этаж, кабинет 302", "338-70-59", "77-83", "", "aidarhan.j@kaznmu.kz"),
+    ("Управление программного обеспечения", "Инженер-программист", "Есимбеков Баглан Ержигитович", "2 учебный корпус, 3 этаж, кабинет 307", "337-70-59", "73-59", "", "esimbekov.b@kaznmu.kz"),
+    ("Отдел дистанционных образовательных технологий", "Руководитель", "Жайлау Эльмира", "2 учебный корпус, 3 этаж, кабинет 303", "338-79-76", "77-76", "", ""),
+    ("Отдел дистанционных образовательных технологий", "Специалист", "Балханай Тилеужан", "2 учебный корпус, 3 этаж, кабинет 309", "338-70-59", "70-73", "", "tileuzhan.b@kaznmu.kz"),
+    ("Отдел дистанционных образовательных технологий", "Специалист", "Бахытбек Алмас", "2 учебный корпус, 3 этаж, кабинет 303", "338-79-76", "70-75", "", "bakhytbek.a@kaznmu.kz"),
+    ("Отдел дистанционных образовательных технологий", "Специалист", "Тасболат Елнур Жанболатулы", "2 учебный корпус, 3 этаж, кабинет 303", "338-79-76", "70-75", "", "tasbolat.el@kaznmu.kz"),
+    ("Центр карьеры и трудоустройства", "Руководитель", "Кашаганова Жамила Тулеубаевна", "2 учебный корпус, 4 этаж, кабинет 418а", "338-70-90", "71-01", "", "j.kashaganova@kaznmu.kz"),
+    ("Центр карьеры и трудоустройства", "Главный специалист", "Жаримбетова Зауре Уракбаевна", "2 учебный корпус, 4 этаж, кабинет 418а", "338-70-90", "75-31", "", "zharimbetova.z@kaznmu.kz"),
+    ("Центр карьеры и трудоустройства", "Главный специалист", "Абжанова Кулимхан Курмантаевна", "2 учебный корпус, 4 этаж, кабинет 418а", "338-70-90", "75-32", "", "abzhanova.k@kaznmu.kz"),
+    ("Центр карьеры и трудоустройства", "Главный специалист", "Болекбай Айгерим Кайраткызы", "2 учебный корпус, 4 этаж, кабинет 418а", "338-70-90", "75-31", "", "bolekbai.a@kaznmu.kz"),
+    ("Центр карьеры и трудоустройства", "Специалист", "Сулейманова Джамиля Исабальевна", "2 учебный корпус, 4 этаж, кабинет 418а", "338-70-90", "", "", "suleimanova.j@kaznmu.kz"),
+    ("Управление по учету персонала", "Руководитель", "Сапакова Мадина Мухтаровна", "1 учебный корпус, 1 этаж, кабинет 105", "338-70-58", "70-83", "", "sapakova.m@kaznmu.kz"),
+    ("Управление по учету персонала", "Менеджер (ППС)", "Кусаинова Акмарал Толкыновна", "1 учебный корпус, 1 этаж, кабинет 105", "", "74-50", "", "ak.kusainova@kaznmu.kz"),
+    ("Управление по учету персонала", "Менеджер (ППС)", "Дербесова Гульнур Халмурзаевна", "1 учебный корпус, 1 этаж, кабинет 105", "", "73-33", "", "derbesova.g@kaznmu.kz"),
+    ("Управление по учету персонала", "Менеджер (АУП)", "Бердикулова Жанат Кенжебековна", "1 учебный корпус, 1 этаж, кабинет 105", "", "73-77", "", "zhanat.berdikkulova@kaznmu.kz"),
+    ("Управление по учету персонала", "Менеджер (ППС)", "Баешева Гульшат", "1 учебный корпус, 1 этаж, кабинет 105", "", "70-81", "", "bayesheva.g@kaznmu.kz"),
+    ("Управление по учету персонала", "Менеджер (ППС)", "Ерманова Фариза", "1 учебный корпус, 1 этаж, кабинет 101", "", "74-58", "", "yermanova.f@kaznmu.kz"),
+    ("Управление по учету персонала", "Менеджер (ДЭР, по командировкам)", "Утебаева Айсулу Зинельмаксутовна", "1 учебный корпус, 1 этаж, кабинет 101", "", "70-17", "", "utebayeva.a@kaznmu.kz"),
+    ("Школа общественного здравоохранения им. Х. Досмухамедова", "Декан", "Кожекенова Жанат Асетовна", "5 учебный корпус, 1 этаж, кабинет 107", "338-70-90", "71-62", "", "kozhekenova.z@kaznmu.kz"),
+    ("Школа общественного здравоохранения им. Х. Досмухамедова", "Заместитель декана", "Авгамбаева Нагима Нурсеитовна", "5 учебный корпус, 1 этаж, кабинет 118", "", "71-07", "", "avgambaeva.n@kaznmu.kz"),
+    ("Школа общественного здравоохранения им. Х. Досмухамедова", "Главный специалист", "Успанова Эльмира Ержановна", "5 учебный корпус, 1 этаж, кабинет 118", "338-70-90", "70-38", "", "uspanova.e@kaznmu.kz"),
+    ("Школа общественного здравоохранения им. Х. Досмухамедова", "Главный специалист", "Аскаров Нурбек Маратулы", "5 учебный корпус, 1 этаж, кабинет 118", "338-70-90", "71-33", "", "n.askarov@kaznmu.kz"),
+    ("Школа общественного здравоохранения им. Х. Досмухамедова", "Секретарь", "Сихимбаева Алия Изтлеуовна", "5 учебный корпус, 1 этаж, кабинет 118", "", "71-33", "", "sihimbayeva.a@kaznmu.kz"),
+    ("Школа Фармации", "Декан", "Сакипова Зуриятда Бектемировна", "Корпус №5, кабинет 111", "", "73-61", "", "sakipova.z@kaznmu.kz"),
+    ("Школа Фармации", "Заместитель декана", "Жуматай Жазира Жуматайкызы", "Корпус №5, кабинет 120", "", "77-71", "8-705-453-78-62", "zhumatay.z@kaznmu.kz"),
+    ("Школа Фармации", "Заместитель декана", "Кузембаева Айжан Саденовна", "Корпус №5, кабинет 120", "", "77-71", "8-747-355-16-45", "kuzembaeva.a@kaznmu.kz"),
+    ("Школа Фармации", "И.о. заместителя декана", "Исабекова Асел Серикболкызы", "Корпус №5, кабинет 120", "", "77-71", "8-701-971-73-99", "issabekova.a@kaznmu.kz"),
+    ("Школа Фармации", "Главный специалист", "Байтаева Айнур Козыевна", "Корпус №5, кабинет 119", "", "77-72", "8-702-380-56-57", "baitayeva.a@kaznmu.kz"),
+    ("Школа Фармации", "Главный специалист", "Даутова Жадыра Багдаулетовна", "Корпус №5, кабинет 119", "", "77-72", "8-747-076-09-19", "dautova.zh@kaznmu.kz"),
+    ("Школа Фармации", "Главный специалист", "Аймаханова Айгуль Шалхаровна", "Корпус №5, кабинет 119", "", "77-72", "8-747-940-51-28", "a.aimakhanova@kaznmu.kz"),
+    ("Школа Фармации", "Секретарь", "Сихымбаева Мариям Изтелеуовна", "Корпус №5, кабинет 120", "", "77-71", "8-778-100-68-76", "sikhymbaeva.m@kaznmu.kz"),
+    ("Школа Стоматологии", "Декан Школы стоматологии", "Есембаева Сауле Сериковна", "3 учебный корпус, 4 этаж, кабинет 401", "", "73-30", "", ""),
+    ("Школа Стоматологии", "Секретарь", "Идрышова Динара Нурлановна", "3 учебный корпус, 1 этаж, кабинет 102", "", "78-26", "", ""),
+    ("Школа Стоматологии", "Заместитель декана по социально-воспитательной работе", "Сайпудинкызы Алмагуль", "3 учебный корпус, 4 этаж, кабинет 404", "", "78-01", "", ""),
+    ("Школа Стоматологии", "Заместитель декана", "Есиркепов Асылбек Абдрасилович", "3 учебный корпус, 4 этаж, кабинет 417", "", "73-63", "", ""),
+    ("Школа Стоматологии", "Главный специалист", "Серикказина Еркежан Ардаккызы", "3 учебный корпус, 4 этаж, кабинет 401", "", "", "", ""),
+    ("Школа Стоматологии", "Главный специалист", "Идрышова Динара Нурлановна", "3 учебный корпус, 4 этаж, кабинет 402", "", "78-02", "", ""),
+    ("Школа Стоматологии", "Главный специалист", "Алсейтова Назира Амантаевна", "3 учебный корпус, 4 этаж, кабинет 402", "", "73-26", "", ""),
+    ("Департамент по работе с иностранными обучающимися", "Директор", "Джардемалиева Нуржамал Женисовна", "5 учебный корпус, 1 этаж, кабинет 103", "", "70-72", "", ""),
+    ("Департамент по работе с иностранными обучающимися", "Заместитель директора", "Тулегенова Бекзат Мыктыбайкызы", "5 учебный корпус, 2 этаж, кабинет 209", "", "73-45", "8-702-844-57-85", ""),
+    ("Департамент по работе с иностранными обучающимися", "Заместитель директора", "Телегенова Шаттык Мыктыбайкызы", "5 учебный корпус, 1 этаж, кабинет 110", "338-70-90", "74-55", "8-707-761-60-94", ""),
+    ("Департамент по работе с иностранными обучающимися", "Главный специалист", "Сапарова Замзагуль Турлыбековна", "5 учебный корпус, 1 этаж, кабинет 110", "338-70-90", "73-44", "8-707-161-26-01", ""),
+    ("Департамент по работе с иностранными обучающимися", "Главный специалист", "Елтай Аружан Нурланкызы", "5 учебный корпус, 1 этаж, кабинет 110", "338-70-90", "70-49", "8-778-108-45-53", ""),
+    ("Департамент по работе с иностранными обучающимися", "Главный специалист", "Мырзакулова Балжан Майжанкызы", "5 учебный корпус, 1 этаж, кабинет 110", "338-70-90", "70-39", "8-775-452-60-27", ""),
+    ("Департамент по работе с иностранными обучающимися", "Главный специалист", "Курманжанова Молдир Кайратханкызы", "5 учебный корпус, 1 этаж, кабинет 103а", "338-70-90", "72-70", "8-708-126-69-83", ""),
+    ("Школа Педиатрии", "Декан", "Аипов Расулбек Рахманбердиевич", "5 учебный корпус, кабинет 116А", "", "71-65", "", "aipov.r@kaznmu.kz"),
+    ("Школа Педиатрии", "Заместитель декана", "Кегенбаева Гульжан Бактыкерейкызы", "5 учебный корпус, кабинет 105", "", "77-55", "8-777-370-66-98", "kegenbaeva.g@kaznmu.kz"),
+    ("Школа Педиатрии", "Заместитель декана", "Алибекова Вильнара Нурлаулетовна", "5 учебный корпус, кабинет 116", "", "75-02", "8-701-996-47-67", "alibekova.v@kaznmu.kz"),
+    ("Школа Педиатрии", "Главный специалист", "Даукенова Арайлым Ермуратовна", "5 учебный корпус, кабинет 105", "", "77-55", "8-707-828-54-54", "daukenova.a@kaznmu.kz"),
+    ("Школа Педиатрии", "Главный специалист", "Ескелдиева Самал Жомартовна", "5 учебный корпус, кабинет 116", "", "75-07", "8-701-848-30-27", "eskeldieva.s@kaznmu.kz"),
+    ("Школа Педиатрии", "Секретарь", "Тустикбаев Мирас Ерболулы", "5 учебный корпус, кабинет 105", "", "77-55", "8-707-563-07-83", "tustikbayev.m@kaznmu.kz"),
+    ("Школа общей медицины-2", "Декан", "Шопаева Гульжан Амангельдиевна", "Корпус №5, кабинет 114", "338-70-40", "70-40", "", "shopaeva.g@kaznmu.kz"),
+    ("Школа общей медицины-2", "Заместитель декана", "Елгондина Гулден Базарбаевна", "Корпус №5, кабинет 114", "338-75-40", "75-40", "8-701-577-40-58", "elgondina.g@kaznmu.kz"),
+    ("Школа общей медицины-2", "Заместитель декана", "Илиясова Аяулы Даулетовна", "Корпус №5, кабинет 114", "338-73-74", "73-74", "8-771-491-36-22", "iliasova.a@kaznmu.kz"),
+    ("Школа общей медицины-2", "Главный специалист", "Курмангалиева Жания Жанбосовна", "Корпус №5, кабинет 114", "338-75-46", "75-46", "8-707-312-56-94", "zh.kurmangaliyeva@kaznmu.kz"),
+    ("Школа общей медицины-2", "Главный специалист", "Исаева Меруерт Нуртайкызы", "Корпус №5, кабинет 114", "338-75-45", "75-45", "8-747-715-09-95", "isaeva.m@kaznmu.kz"),
+    ("Школа общей медицины-2", "Главный специалист", "Оспанова Хафиза", "Корпус №5, кабинет 114", "338-75-43", "75-43", "8-747-586-88-56", "ospanova.kh@kaznmu.kz"),
+    ("Школа общей медицины-2", "Главный специалист", "Серикбаева Айгерим Токтаровна", "Корпус №5, кабинет 114", "338-75-40", "75-40", "8-775-045-45-45", "serikbaeva.aigerim@kaznmu.kz"),
+    ("Школа общей медицины-2", "Главный специалист", "Тусупбекова Эльвира Каримтаева", "Корпус №5, кабинет 114", "338-75-45", "75-45", "8-775-772-81-08", "tussupbekova.e@kaznmu.kz"),
+    ("Школа общей медицины-2", "Секретарь", "Сматильдаева Улжан Абдиханкызы", "Корпус №5, кабинет 114", "338-75-41", "75-41", "8-705-914-26-11", "smatildayeva.u@kaznmu.kz"),
+    ("Школа общей медицины-1", "Директор департамента фундаментальных дисциплин", "Измайлова Слу Хабибиевна", "Анатомический корпус, кабинет 102", "", "73-52", "", "izmailova.s@kaznmu.kz"),
+    ("Школа общей медицины-1", "Заместитель директора", "Тагирова Рима Телеухановна", "Анатомический корпус, кабинет 101", "", "75-01", "8-700-489-89-96", "tagirova.r@kaznmu.kz"),
+    ("Школа общей медицины-1", "Заместитель директора", "Амантаев Куаныш Фаритович", "Анатомический корпус, кабинет 202", "", "73-22", "8-701-777-78-09", "amantayev.k@kaznmu.kz"),
+    ("Школа общей медицины-1", "Заместитель директора", "Алдабергенова А.Ж.", "Анатомический корпус, кабинет 101", "", "75-01", "8-775-345-45-05", "aldabergenova.a@kaznmu.kz"),
+    ("Школа общей медицины-1", "Главный специалист", "Мукашева Марал Сакеновна", "Анатомический корпус, кабинет 202", "", "74-78", "8-777-548-58-46", "mukasheva.m@kaznmu.kz"),
+    ("Школа общей медицины-1", "Главный специалист", "Мухашева Динара Касымбеккызы", "Анатомический корпус, кабинет 202", "", "73-71", "8-700-755-51-69", "mukhasheva.d@kaznmu.kz"),
+    ("Школа общей медицины-1", "Главный специалист", "Кайролданова Назым Жуматалиевна", "Анатомический корпус, кабинет 202", "", "75-42", "8-747-326-65-98", "kairoldanova.n@kaznmu.kz"),
+    ("Школа общей медицины-1", "Главный специалист", "Есдаулетова Макпал Аманкельдиевна", "Анатомический корпус, кабинет 202", "", "73-22", "8-701-500-08-09", "yesdauletova.m@kaznmu.kz"),
+]
+
+
+class PhonebookWindow:
+    FIELDS = ("department", "position", "name", "location", "city_phone", "extension", "mobile", "email")
+    LABELS = ("Подразделение", "Должность", "ФИО", "Расположение", "Городской номер", "Внутренний номер", "Мобильный", "Email")
+
+    def __init__(self, parent: tk.Misc):
+        self.parent = parent
+        self.theme = get_theme()
+        self.window = tk.Toplevel(parent)
+        self.window.title("Телефонный справочник")
+        self.window.geometry("1320x760")
+        self.window.minsize(980, 600)
+        self.window.configure(bg=self.theme["bg"])
+        self.db = self._open_database()
+        self._build()
+        self.refresh()
+        self.window.protocol("WM_DELETE_WINDOW", self.close)
+
+    def _open_database(self):
+        project_dir = Path(__file__).resolve().parent.parent
+        data_dir = project_dir / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        connection = sqlite3.connect(data_dir / "phonebook.db")
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS contacts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                department TEXT NOT NULL DEFAULT '', position TEXT NOT NULL DEFAULT '',
+                name TEXT NOT NULL DEFAULT '', location TEXT NOT NULL DEFAULT '',
+                city_phone TEXT NOT NULL DEFAULT '', extension TEXT NOT NULL DEFAULT '',
+                mobile TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT ''
+            )
+        """)
+        connection.execute("CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        current_version = int((connection.execute("SELECT value FROM app_meta WHERE key='seed_version'").fetchone() or ("0",))[0])
+        if current_version < 3:
+            for contact in SEED_CONTACTS:
+                same_name = connection.execute(
+                    "SELECT id, department, position FROM contacts WHERE lower(name)=lower(?)",
+                    (contact[2],),
+                ).fetchall()
+                exact = next(
+                    (row for row in same_name if row[1].casefold() == contact[0].casefold() and row[2].casefold() == contact[1].casefold()),
+                    None,
+                )
+                if exact is not None:
+                    continue
+                if len(same_name) == 1 and same_name[0][1] == "Подразделение уточняется":
+                    connection.execute("UPDATE contacts SET department=? WHERE id=?", (contact[0], same_name[0][0]))
+                else:
+                    connection.execute(
+                        "INSERT INTO contacts (department, position, name, location, city_phone, extension, mobile, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        contact,
+                    )
+            connection.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('seed_version', '3')")
+            connection.commit()
+        return connection
+
+    def _build(self):
+        header = tk.Frame(self.window, bg=NAVY, height=76)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+        tk.Frame(header, bg=GREEN, width=7).pack(side="left", fill="y")
+        title = tk.Frame(header, bg=NAVY)
+        title.pack(side="left", fill="both", expand=True, padx=20, pady=11)
+        tk.Label(title, text="ТЕЛЕФОННЫЙ СПРАВОЧНИК", font=("Segoe UI", 17, "bold"), bg=NAVY, fg="white", anchor="w").pack(anchor="w")
+        tk.Label(title, text="Внутренние номера и контакты сотрудников", font=("Segoe UI", 9), bg=NAVY, fg="#DCE8F8", anchor="w").pack(anchor="w", pady=(3, 0))
+
+        body = tk.Frame(self.window, bg=self.theme["bg"])
+        body.pack(fill="both", expand=True, padx=18, pady=16)
+        controls = tk.Frame(body, bg=self.theme["bg"])
+        controls.pack(fill="x", pady=(0, 10))
+        self.search_var = tk.StringVar()
+        search = tk.Entry(controls, textvariable=self.search_var, font=("Segoe UI", 11), relief="flat", bd=0, bg=self.theme["input"], fg=self.theme["text"], insertbackground=self.theme["text"], highlightthickness=1, highlightbackground=self.theme["border"])
+        search.pack(side="left", fill="x", expand=True, ipady=9)
+        search.bind("<KeyRelease>", lambda _event: self.refresh())
+        self._button(controls, "＋ Добавить", self.add_contact, GREEN).pack(side="left", padx=(10, 0))
+        self._button(controls, "Изменить", self.edit_contact, "#245E8A").pack(side="left", padx=(7, 0))
+        self._button(controls, "Удалить", self.delete_contact, RED).pack(side="left", padx=(7, 0))
+
+        table_frame = tk.Frame(body, bg=self.theme["card"], highlightthickness=1, highlightbackground=self.theme["border"])
+        table_frame.pack(fill="both", expand=True)
+        columns = ("department", "position", "name", "location", "city", "extension", "mobile", "email")
+        self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", selectmode="browse")
+        headings = ("Подразделение", "Должность", "ФИО", "Расположение", "Городской", "Внутренний", "Мобильный", "Email")
+        widths = (180, 150, 230, 230, 100, 90, 125, 210)
+        for col, heading, width in zip(columns, headings, widths):
+            self.tree.heading(col, text=heading, command=lambda c=col: self.sort_by(c, False))
+            self.tree.column(col, width=width, minwidth=70, anchor="w")
+        ybar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
+        xbar = ttk.Scrollbar(table_frame, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=ybar.set, xscrollcommand=xbar.set)
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        ybar.grid(row=0, column=1, sticky="ns")
+        xbar.grid(row=1, column=0, sticky="ew")
+        table_frame.grid_rowconfigure(0, weight=1)
+        table_frame.grid_columnconfigure(0, weight=1)
+        self.tree.bind("<Double-1>", lambda _event: self.edit_contact())
+
+        bottom = tk.Frame(body, bg=self.theme["bg"])
+        bottom.pack(fill="x", pady=(10, 0))
+        self.count_label = tk.Label(bottom, text="", font=("Segoe UI", 9), bg=self.theme["bg"], fg=self.theme["gray"])
+        self.count_label.pack(side="left")
+        self._button(bottom, "Копировать внутренний", lambda: self.copy_field(6), GREEN_DARK).pack(side="right")
+        self._button(bottom, "Копировать Email", lambda: self.copy_field(8), "#597A91").pack(side="right", padx=(0, 7))
+
+    def _button(self, parent, text, command, color):
+        return tk.Button(parent, text=text, command=command, font=("Segoe UI", 9, "bold"), relief="flat", bd=0, padx=14, pady=9, cursor="hand2", bg=color, fg="white", activebackground=color, activeforeground="white")
+
+    def refresh(self):
+        query = self.search_var.get().strip().casefold()
+        rows = self.db.execute("SELECT id, department, position, name, location, city_phone, extension, mobile, email FROM contacts ORDER BY department, name").fetchall()
+        self.tree.delete(*self.tree.get_children())
+        shown = 0
+        for row in rows:
+            if query and query not in " ".join(str(value) for value in row[1:]).casefold():
+                continue
+            self.tree.insert("", "end", iid=str(row[0]), values=row[1:])
+            shown += 1
+        self.count_label.configure(text=f"Показано контактов: {shown} из {len(rows)}")
+
+    def selected_id(self):
+        selected = self.tree.selection()
+        return int(selected[0]) if selected else None
+
+    def add_contact(self):
+        self.contact_dialog()
+
+    def edit_contact(self):
+        contact_id = self.selected_id()
+        if contact_id is None:
+            messagebox.showinfo("Телефонный справочник", "Сначала выберите сотрудника.", parent=self.window)
+            return
+        values = self.db.execute("SELECT department, position, name, location, city_phone, extension, mobile, email FROM contacts WHERE id=?", (contact_id,)).fetchone()
+        self.contact_dialog(contact_id, values)
+
+    def contact_dialog(self, contact_id=None, values=None):
+        dialog = tk.Toplevel(self.window)
+        dialog.title("Новый контакт" if contact_id is None else "Редактирование контакта")
+        dialog.geometry("820x440")
+        dialog.resizable(False, False)
+        dialog.transient(self.window)
+        dialog.grab_set()
+        dialog.configure(bg=self.theme["bg"])
+
+        heading = tk.Label(
+            dialog,
+            text="Добавление контакта" if contact_id is None else "Изменение контакта",
+            font=("Segoe UI", 15, "bold"),
+            bg=self.theme["bg"],
+            fg=self.theme["text"],
+            anchor="w",
+        )
+        heading.pack(fill="x", padx=22, pady=(18, 8))
+
+        form = tk.Frame(dialog, bg=self.theme["bg"])
+        form.pack(fill="both", expand=True, padx=14)
+        form.grid_columnconfigure(0, weight=1, uniform="field")
+        form.grid_columnconfigure(1, weight=1, uniform="field")
+
+        entries = []
+        for index, label in enumerate(self.LABELS):
+            row, column = divmod(index, 2)
+            field = tk.Frame(form, bg=self.theme["bg"])
+            field.grid(row=row, column=column, sticky="ew", padx=8, pady=7)
+            tk.Label(
+                field,
+                text=label,
+                font=("Segoe UI", 9, "bold"),
+                bg=self.theme["bg"],
+                fg=self.theme["text"],
+                anchor="w",
+            ).pack(fill="x", pady=(0, 4))
+            entry = tk.Entry(
+                field,
+                font=("Segoe UI", 10),
+                bg=self.theme["input"],
+                fg=self.theme["text"],
+                insertbackground=self.theme["text"],
+                relief="flat",
+                highlightthickness=1,
+                highlightbackground=self.theme["border"],
+            )
+            entry.pack(fill="x", ipady=7)
+            if values:
+                entry.insert(0, values[index] or "")
+            entries.append(entry)
+
+        def save():
+            data = tuple(entry.get().strip() for entry in entries)
+            if not data[2]:
+                messagebox.showwarning("Телефонный справочник", "Укажите ФИО сотрудника.", parent=dialog)
+                return
+            if contact_id is None:
+                self.db.execute("INSERT INTO contacts (department, position, name, location, city_phone, extension, mobile, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", data)
+            else:
+                self.db.execute("UPDATE contacts SET department=?, position=?, name=?, location=?, city_phone=?, extension=?, mobile=?, email=? WHERE id=?", data + (contact_id,))
+            self.db.commit()
+            dialog.destroy()
+            self.refresh()
+
+        actions = tk.Frame(dialog, bg=self.theme["bg"])
+        actions.pack(fill="x", padx=22, pady=(8, 18))
+        self._button(
+            actions,
+            "Добавить контакт" if contact_id is None else "Сохранить изменения",
+            save,
+            GREEN,
+        ).pack(side="right")
+        self._button(actions, "Отмена", dialog.destroy, "#597A91").pack(
+            side="right", padx=(0, 8)
+        )
+
+        entries[0].focus_set()
+        dialog.bind("<Return>", lambda _event: save())
+        dialog.bind("<Escape>", lambda _event: dialog.destroy())
+
+    def delete_contact(self):
+        contact_id = self.selected_id()
+        if contact_id is None:
+            messagebox.showinfo("Телефонный справочник", "Сначала выберите сотрудника.", parent=self.window)
+            return
+        name = self.tree.item(str(contact_id), "values")[2]
+        if messagebox.askyesno("Удаление контакта", f"Удалить контакт «{name}»?", parent=self.window):
+            self.db.execute("DELETE FROM contacts WHERE id=?", (contact_id,))
+            self.db.commit()
+            self.refresh()
+
+    def copy_field(self, tuple_index):
+        contact_id = self.selected_id()
+        if contact_id is None:
+            messagebox.showinfo("Телефонный справочник", "Сначала выберите сотрудника.", parent=self.window)
+            return
+        value = self.db.execute("SELECT id, department, position, name, location, city_phone, extension, mobile, email FROM contacts WHERE id=?", (contact_id,)).fetchone()[tuple_index]
+        if not value:
+            messagebox.showinfo("Телефонный справочник", "У выбранного сотрудника это поле не заполнено.", parent=self.window)
+            return
+        self.window.clipboard_clear()
+        self.window.clipboard_append(value)
+
+    def sort_by(self, column, descending):
+        items = [(self.tree.set(item, column).casefold(), item) for item in self.tree.get_children("")]
+        items.sort(reverse=descending)
+        for index, (_, item) in enumerate(items):
+            self.tree.move(item, "", index)
+        self.tree.heading(column, command=lambda: self.sort_by(column, not descending))
+
+    def close(self):
+        self.db.close()
+        self.window.destroy()
+
+
+def open_phonebook(parent: tk.Misc):
+    return PhonebookWindow(parent)

@@ -39,12 +39,12 @@ class PDFCenter:
         )
 
         self.window.geometry(
-            "1050x650"
+            "1050x720"
         )
 
         self.window.minsize(
             900,
-            600
+            650
         )
 
         self.window.configure(
@@ -54,6 +54,13 @@ class PDFCenter:
         self.window.transient(
             self.parent
         )
+
+        icon_path = Path(__file__).resolve().parent.parent / "assets" / "icon.ico"
+        if icon_path.exists():
+            try:
+                self.window.iconbitmap(str(icon_path))
+            except Exception:
+                pass
 
         # ====================================================
         # HEADER
@@ -181,6 +188,10 @@ class PDFCenter:
 
             ("🗜  Сжать PDF", "compress_pdf"),
 
+            ("📑  PDF → TXT", "pdf_txt"),
+
+            ("🤖  Спроси PDF (ИИ)", "ask_pdf"),
+
         ]
 
         for index, (text, command) in enumerate(
@@ -212,7 +223,7 @@ class PDFCenter:
                 weight=1
             )
 
-        for row in range(3):
+        for row in range((len(operations) + 2) // 3):
 
             actions.rowconfigure(
                 row,
@@ -279,6 +290,8 @@ class PDFCenter:
         # ----------------------------------------------------
 
         self.files = []
+        self.ask_question = ""
+        self.split_range_str = ""
 
         # ----------------------------------------------------
         # ВЫБОР ИСХОДНЫХ ФАЙЛОВ
@@ -300,6 +313,49 @@ class PDFCenter:
             Path(file)
             for file in files
         ]
+
+        # ----------------------------------------------------
+        # СПРОСИ PDF (ИИ) — СПЕЦИАЛЬНЫЙ РЕЖИМ
+        # ----------------------------------------------------
+
+        if operation == "ask_pdf":
+            from tkinter import simpledialog
+
+            question = simpledialog.askstring(
+                "BahonIQ AI — Спроси PDF",
+                "Задайте вопрос к документу\n(краткая выжимка, условия договора, ключевые даты/суммы):",
+                parent=self.window,
+                initialvalue="Сделай краткую выжимку, выдели ключевые факты, даты, суммы и условия."
+            )
+
+            if not question or not question.strip():
+                self.status.configure(text="Вопрос не задан.")
+                return
+
+            self.ask_question = question.strip()
+            self.status.configure(text="⏳ ИИ анализирует документ...")
+
+            thread = threading.Thread(
+                target=self.operation_worker,
+                args=(operation,),
+                daemon=True
+            )
+            thread.start()
+            return
+
+        # ----------------------------------------------------
+        # РАЗДЕЛЕНИЕ PDF (ДИАПАЗОН СТРАНИЦ)
+        # ----------------------------------------------------
+
+        if operation == "split_pdf":
+            from tkinter import simpledialog
+
+            range_val = simpledialog.askstring(
+                "Разделение PDF",
+                "Введите диапазон страниц (например: 1-3, 5, 8-10)\nили оставьте пустым для разделения по отдельным страницам:",
+                parent=self.window
+            )
+            self.split_range_str = (range_val or "").strip()
 
         # ----------------------------------------------------
         # ВЫБОР ПАПКИ РЕЗУЛЬТАТА
@@ -419,7 +475,9 @@ class PDFCenter:
             "pdf_png",
             "merge_pdf",
             "split_pdf",
-            "compress_pdf"
+            "compress_pdf",
+            "pdf_txt",
+            "ask_pdf"
         }:
 
             return filedialog.askopenfilenames(
@@ -526,6 +584,14 @@ class PDFCenter:
             elif operation == "compress_pdf":
 
                 self.compress_pdf()
+
+            elif operation == "pdf_txt":
+
+                self.pdf_to_txt()
+
+            elif operation == "ask_pdf":
+
+                self.ask_pdf()
 
         except Exception as error:
 
@@ -876,63 +942,280 @@ class PDFCenter:
         )
 
         count = 0
-
         last_folder = self.output_folder
+
+        range_text = getattr(self, "split_range_str", "").strip()
 
         for path in self.files:
 
             if path.suffix.lower() != ".pdf":
-
                 continue
 
-            reader = PdfReader(
-                str(path)
-            )
+            reader = PdfReader(str(path))
+            total_pages = len(reader.pages)
 
-            folder = (
-                self.output_folder /
-                path.stem
-            )
+            if total_pages == 0:
+                continue
 
-            folder.mkdir(
-                parents=True,
-                exist_ok=True
-            )
-
+            folder = self.output_folder / path.stem
+            folder.mkdir(parents=True, exist_ok=True)
             last_folder = folder
 
-            for number, page in enumerate(
-                reader.pages,
-                start=1
-            ):
+            # Если пользователь указал конкретный диапазон (например, "1-3, 5")
+            if range_text:
+                target_pages = set()
+                for part in range_text.split(","):
+                    part = part.strip()
+                    if not part:
+                        continue
+                    if "-" in part:
+                        sub = part.split("-", 1)
+                        try:
+                            s = max(1, int(sub[0].strip()))
+                            e = min(total_pages, int(sub[1].strip()))
+                            for i in range(s, e + 1):
+                                target_pages.add(i - 1)
+                        except ValueError:
+                            pass
+                    else:
+                        try:
+                            val = int(part)
+                            if 1 <= val <= total_pages:
+                                target_pages.add(val - 1)
+                        except ValueError:
+                            pass
+
+                sorted_pages = sorted(target_pages)
+                if not sorted_pages:
+                    sorted_pages = list(range(total_pages))
 
                 writer = PdfWriter()
+                for p_idx in sorted_pages:
+                    writer.add_page(reader.pages[p_idx])
 
-                writer.add_page(
-                    page
-                )
+                clean_tag = range_text.replace(" ", "").replace(",", "_").replace("-", "to")
+                output = folder / f"{path.stem}_pages_{clean_tag}.pdf"
+                with open(output, "wb") as f_out:
+                    writer.write(f_out)
+                count += len(sorted_pages)
 
-                output = (
-                    folder /
-                    f"{path.stem}_{number}.pdf"
-                )
-
-                with open(
-                    output,
-                    "wb"
-                ) as file:
-
-                    writer.write(
-                        file
-                    )
-
-                count += 1
+            else:
+                # Постраничное разделение всех страниц
+                for number, page in enumerate(reader.pages, start=1):
+                    writer = PdfWriter()
+                    writer.add_page(page)
+                    output = folder / f"{path.stem}_{number}.pdf"
+                    with open(output, "wb") as f_out:
+                        writer.write(f_out)
+                    count += 1
 
         self.finished(
             f"PDF разделены.\n"
-            f"Создано страниц: {count}",
+            f"Обработано страниц: {count}",
             last_folder
         )
+
+    # ========================================================
+    # PDF → TXT
+    # ========================================================
+
+    def pdf_to_txt(self):
+
+        import fitz
+
+        count = 0
+
+        for path in self.files:
+
+            if path.suffix.lower() != ".pdf":
+                continue
+
+            document = fitz.open(str(path))
+
+            try:
+                text_parts = []
+                for num, page in enumerate(document, 1):
+                    p_text = page.get_text()
+                    if p_text.strip():
+                        text_parts.append(f"--- Страница {num} ---\n{p_text.strip()}")
+
+                output = self.output_folder / f"{path.stem}.txt"
+                output.write_text("\n\n".join(text_parts), encoding="utf-8")
+                count += 1
+
+            finally:
+                document.close()
+
+        self.finished(
+            f"PDF → TXT завершено.\n"
+            f"Файлов: {count}",
+            self.output_folder
+        )
+
+    # ========================================================
+    # ASK PDF (ИИ-АССИСТЕНТ)
+    # ========================================================
+
+    def ask_pdf(self):
+
+        import fitz
+        from ai_service import generate_text
+
+        path = self.files[0]
+        document = fitz.open(str(path))
+        extracted_text = ""
+
+        try:
+            pages_text = []
+            for num, page in enumerate(document, 1):
+                t = page.get_text()
+                if t.strip():
+                    pages_text.append(f"[Страница {num}]\n{t.strip()}")
+            extracted_text = "\n\n".join(pages_text)
+
+        finally:
+            document.close()
+
+        if not extracted_text.strip():
+            raise ValueError(
+                "Не удалось извлечь текст из PDF документа.\n"
+                "Возможно, документ состоит только из сканов без текстового слоя."
+            )
+
+        system_prompt = (
+            "Ты — ведущий ИИ-ассистент по анализу документов. Пользователь загрузил PDF и задал вопрос.\n"
+            "Твоя задача — дать точный, структурированный, исчерпывающий ответ строго на основе текста документа.\n"
+            "Выдели ключевые факты, даты, суммы, условия и риски. Если нужной информации нет в тексте, честно укажи это."
+        )
+
+        user_prompt = (
+            f"Документ: {path.name}\n\n"
+            f"Вопрос пользователя: {self.ask_question}\n\n"
+            f"Текст документа (первые 40 000 символов):\n{extracted_text[:40000]}"
+        )
+
+        result_text, provider = generate_text(
+            prompt=user_prompt,
+            system_prompt=system_prompt,
+            temperature=0.2
+        )
+
+        self.window.after(
+            0,
+            lambda: self.show_ai_result(
+                path.name,
+                self.ask_question,
+                result_text,
+                provider
+            )
+        )
+
+    def show_ai_result(self, doc_name, question, text, provider):
+
+        self.status.configure(
+            text=f"✓ Ответ ИИ получен ({provider})"
+        )
+
+        dialog = tk.Toplevel(self.window)
+        dialog.title(f"BahonIQ AI — {doc_name}")
+        dialog.geometry("780x580")
+        dialog.configure(bg=self.theme["bg"])
+        dialog.transient(self.window)
+
+        icon_path = Path(__file__).resolve().parent.parent / "assets" / "icon.ico"
+        if icon_path.exists():
+            try:
+                dialog.iconbitmap(str(icon_path))
+            except Exception:
+                pass
+
+        # Верхняя плашка вопроса
+        top_frame = tk.Frame(dialog, bg=self.theme["card"], height=65)
+        top_frame.pack(fill="x", padx=14, pady=10)
+        top_frame.pack_propagate(False)
+
+        q_label = tk.Label(
+            top_frame,
+            text=f"Вопрос: {question}",
+            font=("Segoe UI", 10, "bold"),
+            bg=self.theme["card"],
+            fg=self.theme["text"],
+            wraplength=640,
+            justify="left"
+        )
+        q_label.pack(side="left", padx=15, pady=8)
+
+        badge_color = "#00D26A" if provider == "gemini" else "#E5A93C"
+        badge = tk.Label(
+            top_frame,
+            text=f"[{provider.upper()}]",
+            font=("Segoe UI", 9, "bold"),
+            bg=self.theme["card"],
+            fg=badge_color
+        )
+        badge.pack(side="right", padx=15)
+
+        # Область ответа
+        content_frame = tk.Frame(dialog, bg=self.theme["bg"])
+        content_frame.pack(fill="both", expand=True, padx=14, pady=(0, 10))
+
+        scrollbar = tk.Scrollbar(content_frame)
+        scrollbar.pack(side="right", fill="y")
+
+        text_area = tk.Text(
+            content_frame,
+            wrap="word",
+            font=("Segoe UI", 10),
+            bg=self.theme["card"],
+            fg=self.theme["text"],
+            bd=0,
+            padx=14,
+            pady=14,
+            yscrollcommand=scrollbar.set
+        )
+        text_area.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=text_area.yview)
+
+        text_area.insert("1.0", text)
+        text_area.config(state="disabled")
+
+        # Нижняя панель с кнопками
+        btn_frame = tk.Frame(dialog, bg=self.theme["bg"])
+        btn_frame.pack(fill="x", padx=14, pady=(0, 14))
+
+        def copy_to_clipboard():
+            dialog.clipboard_clear()
+            dialog.clipboard_append(text)
+            copy_btn.config(text="✓ Скопировано в буфер!", bg="#00D26A")
+            dialog.after(2000, lambda: copy_btn.config(text="Копировать ответ", bg=self.theme["hover"]))
+
+        copy_btn = tk.Button(
+            btn_frame,
+            text="Копировать ответ",
+            command=copy_to_clipboard,
+            font=("Segoe UI", 10, "bold"),
+            bg=self.theme["hover"],
+            fg=self.theme["text"],
+            relief="flat",
+            padx=16,
+            pady=8,
+            cursor="hand2"
+        )
+        copy_btn.pack(side="left")
+
+        close_btn = tk.Button(
+            btn_frame,
+            text="Закрыть",
+            command=dialog.destroy,
+            font=("Segoe UI", 10),
+            bg=self.theme["card"],
+            fg=self.theme["gray"],
+            relief="flat",
+            padx=16,
+            pady=8,
+            cursor="hand2"
+        )
+        close_btn.pack(side="right")
 
     # ========================================================
     # COMPRESS PDF

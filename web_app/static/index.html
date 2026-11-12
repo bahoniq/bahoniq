@@ -3,85 +3,287 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>BahonIQ Work Center</title>
+  <title>BahonIQ | WORK CENTER</title>
+  <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
   <link rel="stylesheet" href="/assets/app.css">
 </head>
-<body>
-  <header class="topbar">
-    <div>
-      <div class="brand">BAHONIQ</div>
-      <div class="tagline">ANALYTICS AI&nbsp;&nbsp;•&nbsp;&nbsp;EXCEL AI&nbsp;&nbsp;•&nbsp;&nbsp;PDF CENTER</div>
+<body class="theme-night">
+  <div id="webSplash" class="web-splash">
+    <div class="web-splash-card">
+      <img src="/assets/logo.png" alt="BahonIQ" class="web-splash-logo">
+      <div class="web-splash-title">BahonIQ Work Center</div>
+      <div class="web-splash-sub">v2.0.0 • Local Node</div>
+      <div class="web-splash-bar"><div class="web-splash-fill"></div></div>
+      <div class="web-splash-status">Инициализация систем и ИИ-модулей...</div>
     </div>
-    <div class="model-status"><span class="version">Версия 4.2.0</span><span id="statusDot"></span><span id="serverStatus">Проверка сервера…</span></div>
-  </header>
+  </div>
 
-  <main class="shell">
-    <nav class="module-nav" aria-label="Модули BahonIQ">
-      <button class="module-card active" data-module="analytics"><b>ANALYTICS AI</b><span>Отчёты, графики и интерпретация Ollama</span></button>
-      <button class="module-card" data-module="excel"><b>EXCEL AI</b><span>Планирование и выполнение операций</span></button>
-      <button class="module-card" data-module="pdf"><b>PDF CENTER</b><span>Конвертация и обработка документов</span></button>
-    </nav>
+  <div class="app-layout">
+    <!-- Левый сайдбар (СИСТЕМЫ) как на десктопе -->
+    <aside class="sidebar">
+      <div class="sidebar-section-title">СИСТЕМЫ</div>
+      <nav class="systems-nav">
+        <a href="https://platonus.kaznmu.edu.kz/" target="_blank" rel="noopener" class="system-item">
+          <span class="sys-icon">🎓</span><span class="sys-name">Platonus</span>
+        </a>
+        <a href="https://support.platonus.kz/" target="_blank" rel="noopener" class="system-item">
+          <span class="sys-icon">🛠</span><span class="sys-name">Поддержка</span>
+        </a>
+        <a href="https://web.telegram.org/" target="_blank" rel="noopener" class="system-item">
+          <span class="sys-icon">✈</span><span class="sys-name">Telegram</span>
+        </a>
+        <a href="https://web.whatsapp.com/" target="_blank" rel="noopener" class="system-item">
+          <span class="sys-icon">💬</span><span class="sys-name">WhatsApp</span>
+        </a>
+        <a href="https://mail.google.com/mail/u/0/#inbox" target="_blank" rel="noopener" class="system-item">
+          <span class="sys-icon">✉</span><span class="sys-name">Gmail</span>
+        </a>
+        <a href="https://salemoffice.kaznmu.edu.kz/sign-in" target="_blank" rel="noopener" class="system-item">
+          <span class="sys-icon">🏢</span><span class="sys-name">Salem Office</span>
+        </a>
+      </nav>
 
-    <section id="analytics" class="module-page active">
-      <div class="page-heading"><div><span class="eyebrow">МОДУЛЬ 01</span><h1>ANALYTICS AI</h1><p>Профессиональная аналитика Excel с PDF и PowerPoint.</p></div><span class="badge">OLLAMA</span></div>
-      <form id="analyticsForm">
-        <div class="upload-panel">
-          <label class="file-drop"><input id="analyticsFile" type="file" accept=".xls,.xlsx,.xlsm" required><span class="file-title">Выберите исходный Excel-файл</span><small id="analyticsFileName">.xls, .xlsx или .xlsm, до 50 МБ</small></label>
-          <button type="button" id="inspectButton" class="button secondary">Загрузить и просмотреть</button>
+      <div class="sidebar-footer">
+        <button id="openAllSystems" class="open-all-btn" type="button">
+          <span>⚡</span> Открыть все системы
+        </button>
+        <div class="sidebar-watermark">
+          <img src="/assets/logo.png" alt="BahonIQ Emblem">
         </div>
-        <div class="analytics-grid">
-          <aside class="settings-card">
-            <h2>Настройки отчёта</h2>
-            <label>Лист Excel<select id="sheetName" required><option value="">Сначала загрузите файл</option></select></label>
-            <label>Название отчёта<input id="reportTitle" value="Аналитический отчёт"></label>
-            <label>Профиль анализа<select id="reportProfile"><option>Автоматически</option><option>Управленческий</option><option>Сравнительный</option><option>Статистический</option><option>Аудиторский</option></select></label>
-            <label>Целевая аудитория<select id="audience"><option>Руководство</option><option>Аналитики</option><option>Специалисты</option><option>Широкая аудитория</option></select></label>
-            <label>Ориентация<select id="orientation"><option value="auto">Автоматически</option><option value="landscape">Альбомная</option><option value="portrait">Книжная</option></select></label>
-            <label>Формат результата<select id="outputFormat"><option value="both">PDF + PowerPoint</option><option value="pdf">Только PDF</option><option value="pptx">Только PowerPoint</option></select></label>
-            <label class="check"><input id="includeSource" type="checkbox"> Добавить образец исходных данных</label>
-            <label>Задача для аналитика<textarea id="analyticsTask" rows="7" placeholder="Опишите требуемый анализ простыми словами…"></textarea></label>
-            <button class="button primary wide" type="submit">Сформировать отчёт</button>
-          </aside>
-          <div class="preview-card">
-            <div class="card-title"><div><h2>Предпросмотр данных</h2><span id="previewMeta">Файл не загружен</span></div></div>
-            <div class="table-wrap"><table id="previewTable"><tbody><tr><td class="empty">После загрузки здесь появятся данные выбранного листа.</td></tr></tbody></table></div>
-            <div id="analyticsProgress" class="progress-panel hidden"><div class="progress-copy"><b id="progressLabel">OLLAMA анализирует данные</b><span id="progressPercent">0%</span></div><div class="progress-track"><span id="progressBar"></span></div></div>
-            <div id="analyticsResult" class="result-panel hidden"></div>
+      </div>
+    </aside>
+
+    <!-- Основная рабочая область -->
+    <div class="main-area">
+      <!-- Верхний TopBar как на десктопе -->
+      <header class="topbar">
+        <div class="brand-group">
+          <div class="brand"><span class="brand-green">BahonIQ</span> <span class="brand-sep">|</span> <span class="brand-sub">WORK CENTER</span></div>
+        </div>
+        <div class="topbar-right">
+          <div id="liveClock" class="clock">15:00:00</div>
+          <div class="status-indicator">
+            <span class="dot-live"></span>
+            <span class="status-text">СИСТЕМА ГОТОВА</span>
           </div>
+          <div class="ai-badge">BahonIQ AI</div>
         </div>
-      </form>
-    </section>
+      </header>
 
-    <section id="excel" class="module-page">
-      <div class="page-heading"><div><span class="eyebrow">МОДУЛЬ 02</span><h1>EXCEL AI</h1><p>Опишите задачу — ИИ подготовит план и выполнит его после подтверждения.</p></div><span class="badge">PLAN → CONFIRM → RESULT</span></div>
-      <div class="tabs"><button class="tab active" data-tab="excelTask">Задание</button><button class="tab" data-tab="excelPlan">План и результат</button><button class="tab" data-tab="excelHistory">История</button></div>
-      <div id="excelTask" class="tab-page active card">
-        <form id="excelForm">
-          <label>Excel-файл<input id="excelFile" type="file" accept=".xls,.xlsx,.xlsm" required></label>
-          <label>Опишите задачу своими словами<textarea id="excelInstruction" rows="12" required placeholder="Например: найди дубликаты, убери пробелы и выдели пустые ячейки…"></textarea></label>
-          <p class="helper">Сначала будет показан план. Исходный файл не изменяется.</p>
-          <button class="button primary" type="submit">Разобрать задачу и подготовить план</button>
-        </form>
-      </div>
-      <div id="excelPlan" class="tab-page card"><div id="planContent" class="empty-state">План ещё не сформирован.</div></div>
-      <div id="excelHistory" class="tab-page card"><div id="historyContent" class="empty-state">В этой сессии операций пока нет.</div></div>
-    </section>
+      <!-- Контентная зона -->
+      <main class="content-body">
+        <!-- Главный дашборд с плитками -->
+        <section id="dashboardView" class="dashboard-view">
+          <div class="welcome-banner">
+            <h1>Добро пожаловать в BahonIQ</h1>
+            <p>Все рабочие инструменты и системы в одном центре.</p>
+          </div>
 
-    <section id="pdf" class="module-page">
-      <div class="page-heading"><div><span class="eyebrow">МОДУЛЬ 03</span><h1>PDF CENTER</h1><p>Конвертация, объединение, разделение и оптимизация PDF.</p></div><span class="badge">8 ИНСТРУМЕНТОВ</span></div>
-      <div class="pdf-layout">
-        <div id="pdfTools" class="tool-list"></div>
-        <form id="pdfForm" class="card pdf-workspace">
-          <div><span class="eyebrow">ВЫБРАННАЯ ОПЕРАЦИЯ</span><h2 id="pdfTitle">PDF → Word</h2><p id="pdfHint">Преобразование PDF в редактируемый DOCX.</p></div>
-          <label class="file-drop large"><input id="pdfFiles" type="file" multiple required><span class="file-title">Добавьте исходные файлы</span><small id="pdfFileNames">Формат зависит от выбранной операции</small></label>
-          <div id="pdfQueue" class="file-queue"><span>Файлы не выбраны</span></div>
-          <button class="button primary" type="submit">Выполнить операцию</button>
-          <div id="pdfResult" class="result-panel hidden"></div>
-        </form>
-      </div>
-    </section>
-  </main>
-  <footer>BAHONIQ Work Center · локальная веб-версия · файлы автоматически удаляются через 1 час</footer>
+          <div class="section-heading">
+            <h2>Рабочие инструменты</h2>
+          </div>
+
+          <!-- Сетка 2 колонки строго без лишних утилит (только рабочие инструменты) -->
+          <div class="tools-grid">
+            <!-- 1. Ticket Writer AI -->
+            <div class="tool-tile" data-open="tickets">
+              <div class="tool-icon icon-teal">✦</div>
+              <div class="tool-meta">
+                <div class="tool-name">Ticket Writer AI</div>
+                <div class="tool-desc">Название и описание обращения</div>
+              </div>
+              <div class="tool-arrow">›</div>
+            </div>
+
+            <!-- 2. Excel AI -->
+            <div class="tool-tile" data-open="excel">
+              <div class="tool-icon icon-red">▦</div>
+              <div class="tool-meta">
+                <div class="tool-name">Excel AI</div>
+                <div class="tool-desc">Умная обработка таблиц</div>
+              </div>
+              <div class="tool-arrow">›</div>
+            </div>
+
+            <!-- 3. PDF Center -->
+            <div class="tool-tile" data-open="pdf">
+              <div class="tool-icon icon-teal">▤</div>
+              <div class="tool-meta">
+                <div class="tool-name">PDF Center</div>
+                <div class="tool-desc">Объединение и обработка PDF</div>
+              </div>
+              <div class="tool-arrow">›</div>
+            </div>
+
+            <!-- 4. ANALYTICS AI -->
+            <div class="tool-tile" data-open="analytics">
+              <div class="tool-icon icon-blue">▥</div>
+              <div class="tool-meta">
+                <div class="tool-name">ANALYTICS AI</div>
+                <div class="tool-desc">Отчёты, аналитика и презентации</div>
+              </div>
+              <div class="tool-arrow">›</div>
+            </div>
+
+            <!-- 5. Телефонный справочник -->
+            <div class="tool-tile" data-open="phonebook">
+              <div class="tool-icon icon-teal">☎</div>
+              <div class="tool-meta">
+                <div class="tool-name">Телефонный справочник</div>
+                <div class="tool-desc">Внутренние номера и контакты</div>
+              </div>
+              <div class="tool-arrow">›</div>
+            </div>
+
+            <!-- 6. Code Academy -->
+            <div class="tool-tile" data-open="academy">
+              <div class="tool-icon icon-purple">⌘</div>
+              <div class="tool-meta">
+                <div class="tool-name">Code Academy</div>
+                <div class="tool-desc">Python, SQL и архитектура BahonIQ</div>
+              </div>
+              <div class="tool-arrow">›</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Страницы модулей (открываются при клике на плитку) -->
+        <div id="moduleHost" class="module-host hidden">
+          <div class="module-top-nav">
+            <button id="backToDash" class="back-btn" type="button">‹ Назад на главную</button>
+            <div id="currentModuleLabel" class="current-mod-name">ИНСТРУМЕНТ</div>
+          </div>
+
+          <!-- ANALYTICS AI -->
+          <section id="analytics" class="module-page">
+            <div class="page-heading">
+              <div><span class="eyebrow">МОДУЛЬ 01</span><h1>ANALYTICS AI</h1><p>Профессиональная управленческая аналитика Excel с PDF и PowerPoint.</p></div>
+              <span class="badge">BahonIQ AI • FAST CORE</span>
+            </div>
+            <form id="analyticsForm">
+              <div class="upload-panel">
+                <label class="file-drop"><input id="analyticsFile" type="file" accept=".xls,.xlsx,.xlsm" required><span class="file-title">Выберите исходный Excel-файл</span><small id="analyticsFileName">.xls, .xlsx или .xlsm, до 50 МБ</small></label>
+                <button type="button" id="inspectButton" class="button secondary">Загрузить и просмотреть</button>
+              </div>
+              <div class="analytics-grid">
+                <aside class="settings-card">
+                  <h2>Настройки отчёта</h2>
+                  <label>Лист Excel<select id="sheetName" required><option value="">Сначала загрузите файл</option></select></label>
+                  <label>Название отчёта<input id="reportTitle" value="Аналитический отчёт"></label>
+                  <label>Глубина отчёта<select id="reportDepth"><option>Краткий (C-Level, 3-4 стр)</option><option selected>Стандартный (Управленческий, 5-6 стр)</option><option>Полный аудит (Все категории, 8+ стр)</option></select></label>
+                  <label>Профиль анализа<select id="reportProfile"><option>Автоматически</option><option>Управленческий</option><option>Образование и деканат</option><option>Финансовый</option><option>HR и персонал</option></select></label>
+                  <label>Формат результата<select id="outputFormat"><option value="both">PDF + PowerPoint</option><option value="pdf" selected>Только PDF</option><option value="pptx">Только PowerPoint</option></select></label>
+                  <label class="check"><input id="includeSource" type="checkbox"> Добавить образец исходных данных</label>
+                  <label>Задача / фокус анализа<textarea id="analyticsTask" rows="5" placeholder="Опишите задачу (например: выявить лидеров, дисбалансы оплат и аномалии)…"></textarea></label>
+                  <button class="button primary wide" type="submit">Сформировать отчёт</button>
+                </aside>
+                <div class="preview-card">
+                  <div class="card-title"><div><h2>Предпросмотр данных</h2><span id="previewMeta">Файл не загружен</span></div></div>
+                  <div class="table-wrap"><table id="previewTable"><tbody><tr><td class="empty">После загрузки здесь появятся данные выбранного листа.</td></tr></tbody></table></div>
+                  <div id="analyticsProgress" class="progress-panel hidden"><div class="progress-copy"><b id="progressLabel">BahonIQ AI анализирует данные</b><span id="progressPercent">0%</span></div><div class="progress-track"><span id="progressBar"></span></div></div>
+                  <div id="analyticsResult" class="result-panel hidden"></div>
+                </div>
+              </div>
+            </form>
+          </section>
+
+          <!-- EXCEL AI -->
+          <section id="excel" class="module-page">
+            <div class="page-heading">
+              <div><span class="eyebrow">МОДУЛЬ 02</span><h1>EXCEL AI</h1><p>Опишите задачу — BahonIQ AI составит план и выполнит его после подтверждения.</p></div>
+              <span class="badge">BahonIQ AI ENGINE</span>
+            </div>
+            <div class="tabs"><button class="tab active" data-tab="excelTask">Задание</button><button class="tab" data-tab="excelPlan">План и результат</button><button class="tab" data-tab="excelHistory">История</button></div>
+            <div id="excelTask" class="tab-page active card">
+              <form id="excelForm">
+                <label>Excel-файл<input id="excelFile" type="file" accept=".xls,.xlsx,.xlsm" required></label>
+                <label>Опишите задачу своими словами<textarea id="excelInstruction" rows="10" required placeholder="Например: выведи ФИО на отдельный лист, отсортируй по специальности…"></textarea></label>
+                <p class="helper">Сначала строится безопасный план. Исходный файл не изменяется.</p>
+                <button class="button primary" type="submit">Разобрать задачу и подготовить план</button>
+              </form>
+            </div>
+            <div id="excelPlan" class="tab-page card"><div id="planContent" class="empty-state">План ещё не сформирован.</div></div>
+            <div id="excelHistory" class="tab-page card"><div id="historyContent" class="empty-state">В этой сессии операций пока нет.</div></div>
+          </section>
+
+          <!-- PDF CENTER -->
+          <section id="pdf" class="module-page">
+            <div class="page-heading">
+              <div><span class="eyebrow">МОДУЛЬ 03</span><h1>PDF CENTER</h1><p>Конвертация, объединение, разделение и оптимизация документов.</p></div>
+              <span class="badge">8 ИНСТРУМЕНТОВ</span>
+            </div>
+            <div class="pdf-layout">
+              <div id="pdfTools" class="tool-list"></div>
+              <form id="pdfForm" class="card pdf-workspace">
+                <div><span class="eyebrow">ВЫБРАННАЯ ОПЕРАЦИЯ</span><h2 id="pdfTitle">PDF → Word</h2><p id="pdfHint">Преобразование PDF в редактируемый DOCX.</p></div>
+                <label class="file-drop large"><input id="pdfFiles" type="file" multiple required><span class="file-title">Добавьте исходные файлы</span><small id="pdfFileNames">Формат зависит от выбранной операции</small></label>
+                <div id="pdfQueue" class="file-queue"><span>Файлы не выбраны</span></div>
+                <button class="button primary" type="submit">Выполнить операцию</button>
+                <div id="pdfResult" class="result-panel hidden"></div>
+              </form>
+            </div>
+          </section>
+
+          <!-- TICKET WRITER AI -->
+          <section id="tickets" class="module-page">
+            <div class="page-heading">
+              <div><span class="eyebrow">МОДУЛЬ 04</span><h1>TICKET WRITER AI</h1><p>Четкие заявки в HelpDesk / Platonus без этикетного мусора и без лишних слов.</p></div>
+              <span class="badge">BahonIQ AI • FAST</span>
+            </div>
+            <div class="two-column">
+              <form id="ticketForm" class="card">
+                <label>Опишите задачу или проблему своими словами<textarea id="ticketProblem" rows="14" required placeholder="Пишите обычным языком. Скрины и файлы закинете потом…"></textarea></label>
+                <button class="button primary" type="submit">Сформировать заявку</button>
+              </form>
+              <div class="card">
+                <label>Название заявки (Тема)<input id="ticketTitle" readonly></label>
+                <label>Описание заявки<textarea id="ticketDescription" rows="12" readonly></textarea></label>
+                <div class="button-row"><button id="copyTicket" class="button secondary" type="button">Копировать всё</button></div>
+                <div id="ticketResult" class="result-panel hidden"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ТЕЛЕФОННЫЙ СПРАВОЧНИК -->
+          <section id="phonebook" class="module-page">
+            <div class="page-heading">
+              <div><span class="eyebrow">МОДУЛЬ 05</span><h1>ТЕЛЕФОННЫЙ СПРАВОЧНИК</h1><p>Поиск сотрудников, внутренних номеров и расположения.</p></div>
+              <span id="phoneCount" class="badge">0 КОНТАКТОВ</span>
+            </div>
+            <div class="card">
+              <div class="toolbar"><input id="phoneSearch" placeholder="Поиск по ФИО, подразделению, номеру или email"><button id="newContact" class="button primary" type="button">Добавить</button></div>
+              <div class="table-wrap phone-table">
+                <table>
+                  <thead><tr><th>Подразделение</th><th>Должность</th><th>ФИО</th><th>Расположение</th><th>Городской</th><th>Внутренний</th><th>Мобильный</th><th>Email</th><th></th></tr></thead>
+                  <tbody id="phoneRows"></tbody>
+                </table>
+              </div>
+            </div>
+            <dialog id="contactDialog"><form id="contactForm" method="dialog"><h2 id="contactHeading">Контакт</h2><input id="contactId" type="hidden"><div class="contact-grid"><label>Подразделение<input name="department"></label><label>Должность<input name="position"></label><label>ФИО<input name="name" required></label><label>Расположение<input name="location"></label><label>Городской номер<input name="city_phone"></label><label>Внутренний номер<input name="extension"></label><label>Мобильный<input name="mobile"></label><label>Email<input name="email" type="email"></label></div><div class="button-row"><button class="button secondary" value="cancel">Отмена</button><button id="saveContact" class="button primary" value="default">Сохранить</button></div></form></dialog>
+          </section>
+
+          <!-- CODE ACADEMY -->
+          <section id="academy" class="module-page">
+            <div class="page-heading">
+              <div><span class="eyebrow">МОДУЛЬ 06</span><h1>CODE ACADEMY</h1><p>Python, SQL, архитектура и учебный проект BahonIQ.</p></div>
+              <span class="badge">СВОБОДНЫЙ ДОСТУП</span>
+            </div>
+            <div class="tabs academy-tabs"><button class="tab active" data-tab="academyPython">Python</button><button class="tab" data-tab="academySql">SQL</button><button class="tab" data-tab="academyBook">Книга и код</button><button class="tab" data-tab="academyBuilder">Конструктор</button></div>
+            <div id="academyPython" class="tab-page active academy-workspace"><aside class="card"><input class="academy-search" data-kind="python" placeholder="Поиск урока"><div id="pythonLessons" class="lesson-list"></div></aside><div class="card lesson-content"><h2 id="pythonTitle"></h2><p id="pythonTheory"></p><textarea id="pythonCode" class="code-editor"></textarea><p id="pythonChallenge" class="helper"></p><button class="button primary academy-run" data-language="python" type="button">Запустить Python</button><pre id="pythonOutput" class="code-output"></pre></div></div>
+            <div id="academySql" class="tab-page academy-workspace"><aside class="card"><input class="academy-search" data-kind="sql" placeholder="Поиск урока"><div id="sqlLessons" class="lesson-list"></div></aside><div class="card lesson-content"><h2 id="sqlTitle"></h2><p id="sqlTheory"></p><textarea id="sqlCode" class="code-editor"></textarea><p id="sqlChallenge" class="helper"></p><button class="button primary academy-run" data-language="sql" type="button">Выполнить SQL</button><pre id="sqlOutput" class="code-output"></pre></div></div>
+            <div id="academyBook" class="tab-page academy-workspace"><aside class="card"><input id="bookSearch" placeholder="Поиск главы"><div id="bookChapters" class="lesson-list"></div></aside><div class="card lesson-content"><h2 id="bookTitle"></h2><div id="bookReading" class="book-reading"></div><textarea id="bookSource" class="code-editor" readonly></textarea></div></div>
+            <div id="academyBuilder" class="tab-page academy-workspace"><aside class="card"><div id="builderFiles" class="lesson-list"></div></aside><div class="card lesson-content"><h2 id="builderTitle">Учебный проект</h2><textarea id="builderSource" class="code-editor"></textarea><button id="copyBuilder" class="button secondary" type="button">Копировать код</button></div></div>
+          </section>
+        </div>
+      </main>
+
+      <footer class="app-footer">
+        <span>BahonIQ Work Center • Версия 2.0.0 • Готов к работе</span>
+        <span class="footer-right">Локальная веб-нода • BahonIQ AI</span>
+      </footer>
+    </div>
+  </div>
+
   <script src="/assets/app.js"></script>
 </body>
 </html>

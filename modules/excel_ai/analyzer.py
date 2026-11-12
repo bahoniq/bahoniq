@@ -2,6 +2,7 @@
 from collections import Counter
 from pathlib import Path
 from datetime import date, datetime
+from itertools import chain
 import math
 
 from .intelligence import enrich_analysis
@@ -46,6 +47,47 @@ def _column_letter(number):
     return result
 
 
+def _header_score(rows, index):
+    """Score a row as a likely table header without using domain keywords."""
+    values = [_normalise(value) for value in rows[index][0]]
+    populated = [value for value in values if value is not None]
+    if not populated:
+        return float("-inf")
+
+    text_values = [value for value in populated if isinstance(value, str)]
+    formulas = [value for value in text_values if value.startswith("=")]
+    unique = len({_key(value) for value in populated})
+    score = len(populated) * 2.0 + len(text_values) * 1.5 + unique * 0.5
+
+    # A document title or note commonly occupies only one or two cells.
+    if len(populated) == 1:
+        score -= 8.0
+    elif len(populated) == 2:
+        score -= 3.0
+    if formulas:
+        score -= len(formulas) * 4.0
+
+    # Real headers are normally followed by rows using several of the same
+    # columns. This also prevents a long title above the table from winning.
+    following = rows[index + 1:index + 5]
+    compatible = 0
+    for raw, _ in following:
+        next_values = [_normalise(value) for value in raw]
+        next_count = sum(value is not None for value in next_values)
+        if next_count >= max(1, min(len(populated), 3)):
+            compatible += 1
+    score += compatible * 2.0
+    return score
+
+
+def _detect_header(rows):
+    """Return the zero-based index of the most plausible header row."""
+    candidates = [i for i, (raw, _) in enumerate(rows) if _is_nonempty(raw)]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda i: (_header_score(rows, i), -i))
+
+
 def _xls_cell_value(book, sheet, row_index, col_index):
     import xlrd
 
@@ -88,7 +130,24 @@ def _analyse_sheet(
     cell_count = max_row * max_col if max_row and max_col else 0
 
     headers = []
-    header_found = False
+
+    # Inspect a small prefix once. The rest of a large sheet remains streamed.
+    prefix = []
+    iterator = iter(row_reader)
+    for _ in range(min(max_row, 30)):
+        try:
+            prefix.append(next(iterator))
+        except StopIteration:
+            break
+    header_index = _detect_header(prefix)
+    header_row = header_index + 1 if header_index is not None else None
+    if header_index is not None:
+        header_values = [_normalise(value) for value in prefix[header_index][0]]
+        headers = [
+            str(value).strip() if value is not None and str(value).strip()
+            else f"Column {col_index}"
+            for col_index, value in enumerate(header_values, start=1)
+        ]
 
     nonempty_rows = 0
     blank_rows = 0
@@ -104,7 +163,7 @@ def _analyse_sheet(
 
     # row_reader теперь читает строки из одного последовательного
     # итератора, а не создаёт итератор заново для каждой строки.
-    for row_index, (raw_values, formulas) in enumerate(row_reader):
+    for row_index, (raw_values, formulas) in enumerate(chain(prefix, iterator)):
         values = [_normalise(value) for value in raw_values]
         row_has_data = _is_nonempty(values)
 
@@ -126,12 +185,9 @@ def _analyse_sheet(
                     "formula": formula,
                 })
 
-        if row_has_data and not header_found:
-            header_found = True
-            headers = [
-                str(value) if value is not None else f"Column {col_index}"
-                for col_index, value in enumerate(values, start=1)
-            ]
+        # Titles, notes and blank spacer rows above the detected header are
+        # workbook context, not table records.
+        if header_index is not None and row_index <= header_index:
             continue
 
         if not row_has_data:
@@ -208,6 +264,8 @@ def _analyse_sheet(
         "nonempty_cells": nonempty_cells,
         "blank_cells": blank_cells,
         "headers": headers,
+        "header_row": header_row,
+        "data_start_row": header_row + 1 if header_row else None,
         "duplicate_rows": duplicate_row_count,
         "duplicate_columns": duplicate_columns,
         "formula_count": formula_count,
@@ -311,6 +369,22 @@ def _analyse_openpyxl(file_path, sample_rows, max_examples):
         for ws in workbook.worksheets:
             max_row = ws.max_row or 0
             max_col = ws.max_column or 0
+
+            # Some valid XLSX producers (including openpyxl write-only mode)
+            # leave the worksheet dimension as A1:A1 even when the sheet has
+            # many rows and columns.  Recalculate only for this suspicious
+            # minimal dimension; doing it for every sheet would add a second
+            # full scan to normal workbooks.
+            if max_row <= 1 and max_col <= 1:
+                ws.reset_dimensions()
+                try:
+                    ws.calculate_dimension(force=True)
+                    max_row = ws.max_row or 0
+                    max_col = ws.max_column or 0
+                except UnboundLocalError:
+                    # openpyxl raises this for a genuinely empty read-only
+                    # worksheet. An empty target sheet is valid Excel data.
+                    max_row = max_col = 0
 
             def row_reader(current_sheet=ws, columns=max_col):
                 if not columns:

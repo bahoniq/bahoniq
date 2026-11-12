@@ -9,6 +9,20 @@ from modules.excel_ai.analyzer import analyze_workbook
 
 
 class WorkbookAnalyzerTests(unittest.TestCase):
+
+    def test_streamed_workbook_with_missing_dimensions_is_analyzed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "streamed.xlsx"
+            book = Workbook(write_only=True)
+            sheet = book.create_sheet("Data")
+            sheet.append(["ID", "Факультет", "Сумма"])
+            sheet.append(["0001", "Медицина", 10])
+            book.save(path)
+
+            report = analyze_workbook(path)
+            self.assertEqual(report["sheets"][0]["headers"], ["ID", "Факультет", "Сумма"])
+            self.assertEqual(report["sheets"][0]["rows"], 2)
+            self.assertEqual(report["sheets"][0]["columns"], 3)
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.path = Path(self.temp_dir.name) / "sample.xlsx"

@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import tempfile
+from copy import copy
 from collections import Counter
 from pathlib import Path
 from datetime import datetime
@@ -13,6 +14,26 @@ from datetime import datetime
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.chart import BarChart, Reference
+from openpyxl.chart.label import DataLabelList
+try:
+    from .sheet_names import resolve_sheet_name
+except ImportError:  # direct module loading used by legacy regression tests
+    def resolve_sheet_name(value, names):
+        names = list(names)
+        if value in names:
+            return value
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("Не указан исходный лист.")
+        key = lambda item: re.sub(r"\s+", " ", item.strip()).casefold()
+        matches = [name for name in names if key(name) == key(value)]
+        if not matches:
+            matches = [
+                name for name in names if len(name) == 31 and value.startswith(name)
+                and re.fullmatch(r"[)\]}\s]+", value[len(name):])
+            ]
+        if len(matches) == 1:
+            return matches[0]
+        raise ValueError(f"Лист {value!r} не найден.")
 
 
 # ============================================================
@@ -35,6 +56,9 @@ SUPPORTED_TYPES = {
     "sort_rows",
     "reorder_columns",
     "select_columns",
+    "copy_columns_to_sheet",
+    "copy_sheet",
+    "filter_rows",
     "split_by_column",
     "split_to_sheets",
     "merge_sheets",
@@ -43,8 +67,12 @@ SUPPORTED_TYPES = {
     "compare_columns",
     "student_data_audit",
     "group_by_aggregate",
+    "pivot_count",
     "apply_formula",
     "smart_summary",
+    "distinct_count",
+    "split_cell_values_to_rows",
+    "extract_split_values_to_sheet",
 }
 
 TYPE_ALIASES = {
@@ -65,6 +93,12 @@ TYPE_ALIASES = {
     "remove_blank_rows": "remove_empty_rows",
     "choose_columns": "select_columns",
     "keep_columns": "select_columns",
+    "copy_columns": "copy_columns_to_sheet",
+    "copy_selected_columns": "copy_columns_to_sheet",
+    "move_columns_to_sheet": "copy_columns_to_sheet",
+    "duplicate_sheet": "copy_sheet",
+    "copy_worksheet": "copy_sheet",
+    "filter": "filter_rows",
     "reorder": "reorder_columns",
     "merge": "merge_sheets",
     "count": "summary_count",
@@ -72,6 +106,9 @@ TYPE_ALIASES = {
     "compare": "compare_columns",
     "summary": "smart_summary",
     "dashboard": "smart_summary",
+    "split_cell_to_rows": "split_cell_values_to_rows",
+    "split_cells_to_rows": "split_cell_values_to_rows",
+    "explode_cell": "split_cell_values_to_rows",
 }
 
 
@@ -115,7 +152,7 @@ def _norm(value):
 
 def _safe_sheet_name(value, existing_names):
     name = re.sub(r'[\\/*?:\[\]]', "_", str(value)).strip()
-    name = (name or "Лист")[:31]
+    name = (name or "Результат")[:31]
     existing = {str(n).casefold() for n in existing_names}
 
     if name.casefold() not in existing:
@@ -141,7 +178,6 @@ def _header_map(ws, header_row=1):
 
 
 def _auto_dimensions(ws, header_row=1, limit=8):
-    """Выбирает полезные категориальные разрезы без отраслевых шаблонов."""
     blocked = (
         "фио", "фамил", "имя", "отчеств", "телефон", "email", "адрес",
         "паспорт", "иин", "идентификатор", "номер записи", " id", "id ",
@@ -158,9 +194,8 @@ def _auto_dimensions(ws, header_row=1, limit=8):
             if not _empty(ws.cell(row, column).value)
         ]
         unique = len({(type(value).__name__, str(value).strip()) for value in values})
-        if unique < 2 or not values:
+        if unique < 1 or not values:
             continue
-        # Идентификаторы и свободный текст почти уникальны — это не разрезы.
         if row_count >= 20 and unique / max(1, len(values)) > .55:
             continue
         if unique > 100:
@@ -194,14 +229,33 @@ def _style_summary_sheet(ws):
 def _add_bar_chart(ws, data_rows, title):
     if data_rows < 1:
         return
+    last_row = min(ws.max_row - 1, data_rows + 1)
+    if last_row < 2:
+        return
+
     chart = BarChart()
-    chart.type = "bar"; chart.style = 10; chart.title = title
-    chart.y_axis.title = "Категория"; chart.x_axis.title = "Количество"
-    chart.height = 7; chart.width = 13
-    data = Reference(ws, min_col=2, min_row=1, max_row=min(ws.max_row, data_rows + 1))
-    cats = Reference(ws, min_col=1, min_row=2, max_row=min(ws.max_row, data_rows + 1))
-    chart.add_data(data, titles_from_data=True); chart.set_categories(cats)
+    chart.type = "bar"
+    chart.grouping = "clustered"
+    chart.overlap = 0
+    chart.varyColors = False
+    chart.style = 10
+    chart.title = title
+    chart.y_axis.title = "Категория"
+    chart.x_axis.title = "Количество"
+    chart.height = max(7, min(12, data_rows * 0.55 + 3))
+    chart.width = 16
+
+    # Ровно одна серия: столбец «Количество». Названия факультетов и
+    # других групп являются категориями, а не отдельными рядами данных.
+    data = Reference(ws, min_col=2, min_row=1, max_row=last_row)
+    cats = Reference(ws, min_col=1, min_row=2, max_row=last_row)
+    chart.add_data(data, titles_from_data=True, from_rows=False)
+    chart.set_categories(cats)
+    chart.legend = None
+    chart.dLbls = DataLabelList()
+    chart.dLbls.showVal = True
     ws.add_chart(chart, "F2")
+
 
 def _validate_paths(source, output):
     src = Path(source).expanduser().resolve()
@@ -241,7 +295,6 @@ def _validate_paths(source, output):
 
 
 def _xls_values_workbook(path):
-    """Читает XLS через xlrd, когда автоматическая конвертация Excel недоступна."""
     try:
         import xlrd
     except ImportError as exc:
@@ -295,7 +348,6 @@ def _xls_values_workbook(path):
 
 
 def _load_source_workbook(path):
-    """Открывает современный Excel или безопасно преобразует старый XLS."""
     path = Path(path)
 
     if path.suffix.lower() != ".xls":
@@ -305,8 +357,6 @@ def _load_source_workbook(path):
             data_only=False,
         )
 
-    # На Windows сначала используем установленный Microsoft Excel. Этот путь
-    # сохраняет формулы, оформление, объединения и размеры значительно точнее.
     converted_path = None
     excel = None
     document = None
@@ -334,8 +384,6 @@ def _load_source_workbook(path):
         workbook = load_workbook(converted_path, data_only=False)
         return workbook
     except Exception:
-        # xlrd остаётся кроссплатформенным резервным способом. Он сохраняет
-        # значения, даты, логические значения, листы и объединённые диапазоны.
         return _xls_values_workbook(path)
     finally:
         if document is not None:
@@ -367,14 +415,42 @@ def _headers(ws, header_rows=1):
     }
 
 
+def _detect_header_row(ws, scan_limit=30):
+    """Detect a table header in sheets that start with titles or notes."""
+    best_row, best_score = 1, float("-inf")
+    last = min(ws.max_row, scan_limit)
+    for row in range(1, last + 1):
+        values = [ws.cell(row, c).value for c in range(1, ws.max_column + 1)]
+        populated = [v for v in values if not _empty(v)]
+        if not populated:
+            continue
+        text = [v for v in populated if isinstance(v, str) and not v.startswith("=")]
+        unique = len({str(v).strip().casefold() for v in populated})
+        score = len(populated) * 2.0 + len(text) * 1.5 + unique * 0.5
+        if len(populated) == 1:
+            score -= 8.0
+        elif len(populated) == 2:
+            score -= 3.0
+        compatible = 0
+        for next_row in range(row + 1, min(last, row + 4) + 1):
+            count = sum(
+                not _empty(ws.cell(next_row, c).value)
+                for c in range(1, ws.max_column + 1)
+            )
+            if count >= max(1, min(len(populated), 3)):
+                compatible += 1
+        score += compatible * 2.0
+        if score > best_score:
+            best_row, best_score = row, score
+    return best_row
+
+
 def _resolve_column(
     ws,
     value,
     header_rows=1,
     operation_name="операция",
 ):
-    """Принимает номер столбца или название заголовка."""
-
     if isinstance(value, int) and not isinstance(value, bool):
         if 1 <= value <= ws.max_column:
             return value
@@ -541,7 +617,7 @@ def _validate_ops(ops, wb):
     for index, raw in enumerate(ops, start=1):
         if not isinstance(raw, dict):
             raise ValueError(
-                f"Операция {index}: ожидался объект."
+                f"Операция {index} должна быть объектом."
             )
 
         op = _canonicalize_operation(raw)
@@ -555,13 +631,24 @@ def _validate_ops(ops, wb):
         sheet = op.get("sheet")
 
         if kind not in {"merge_sheets", "student_data_audit"}:
-            if not isinstance(sheet, str) or sheet not in wb.sheetnames:
+            try:
+                sheet = resolve_sheet_name(sheet, wb.sheetnames)
+                op["sheet"] = sheet
+            except ValueError:
                 raise ValueError(
                     f"Операция {index}: лист {sheet!r} не найден. "
                     f"Доступные листы: {', '.join(wb.sheetnames)}"
                 )
 
-        op.setdefault("header_rows", 1)
+        if "header_rows" not in op:
+            target_sheet = sheet
+            if kind == "merge_sheets":
+                candidates = op.get("sheets") or []
+                target_sheet = candidates[0] if candidates else None
+            op["header_rows"] = (
+                _detect_header_row(wb[target_sheet])
+                if target_sheet in wb.sheetnames else 1
+            )
         hr = op["header_rows"]
 
         if not isinstance(hr, int) or isinstance(hr, bool) or hr < 0:
@@ -586,7 +673,6 @@ def _validate_ops(ops, wb):
 
             column_types = {
                 "find_repeated_values",
-                "find_blank_cells",
                 "sort_rows",
                 "split_by_column",
                 "split_to_sheets",
@@ -595,10 +681,23 @@ def _validate_ops(ops, wb):
                 "compare_columns",
                 "group_by_aggregate",
                 "apply_formula",
+                "split_cell_values_to_rows",
+                "extract_split_values_to_sheet",
+                "filter_rows",
             }
 
-            # Для составной группировки разрешаем несколько полей.
-            # Старые планы с одним полем продолжают работать без изменений.
+            if kind == "pivot_count":
+                op["row_column"] = _resolve_column(
+                    ws, op.get("row_column"), hr,
+                    f"Операция {index} (pivot_count, строки)",
+                )
+                op["column_column"] = _resolve_column(
+                    ws, op.get("column_column"), hr,
+                    f"Операция {index} (pivot_count, столбцы)",
+                )
+                if op["row_column"] == op["column_column"]:
+                    raise ValueError("Для перекрёстной таблицы нужны два разных столбца.")
+
             if kind in {"split_to_sheets", "group_by_aggregate"} and op.get("columns"):
                 op["columns"] = _resolve_columns(
                     ws,
@@ -607,6 +706,7 @@ def _validate_ops(ops, wb):
                     f"Операция {index} ({kind})",
                 )
                 op["column"] = op["columns"][0]
+
             elif kind in column_types:
                 op["column"] = _resolve_column(
                     ws,
@@ -614,6 +714,67 @@ def _validate_ops(ops, wb):
                     hr,
                     f"Операция {index} ({kind})",
                 )
+
+            if kind == "find_blank_cells":
+                if op.get("all_columns") is True:
+                    op["columns"] = list(range(1, ws.max_column + 1))
+                    op["column"] = None
+                elif op.get("columns"):
+                    op["columns"] = _resolve_columns(
+                        ws,
+                        op["columns"],
+                        hr,
+                        f"Операция {index} ({kind})",
+                    )
+                    op["column"] = (
+                        op["columns"][0]
+                        if len(op["columns"]) == 1
+                        else None
+                    )
+                else:
+                    op["column"] = _resolve_column(
+                        ws,
+                        op.get("column"),
+                        hr,
+                        f"Операция {index} ({kind})",
+                    )
+                    op["columns"] = [op["column"]]
+
+            if kind == "extract_split_values_to_sheet":
+                output_sheet = op.get("output_sheet", "Результат")
+
+                if not isinstance(output_sheet, str) or not output_sheet.strip():
+                    raise ValueError(
+                        f"Операция {index}: output_sheet должен быть непустой строкой."
+                    )
+
+                op["output_sheet"] = output_sheet.strip()
+
+            if kind in {"copy_sheet", "filter_rows"}:
+                output_sheet = op.get(
+                    "output_sheet",
+                    "Копия" if kind == "copy_sheet" else "Отбор",
+                )
+                if not isinstance(output_sheet, str) or not output_sheet.strip():
+                    raise ValueError(
+                        f"Операция {index}: output_sheet должен быть непустой строкой."
+                    )
+                op["output_sheet"] = output_sheet.strip()
+
+            if kind == "filter_rows":
+                operator = str(op.get("operator", "")).strip().lower()
+                if operator not in {
+                    "eq", "ne", "gt", "ge", "lt", "le",
+                    "contains", "blank", "not_blank",
+                }:
+                    raise ValueError(
+                        f"Операция {index}: неизвестное условие фильтра {operator!r}."
+                    )
+                if operator not in {"blank", "not_blank"} and "value" not in op:
+                    raise ValueError(
+                        f"Операция {index}: для фильтра {operator!r} нужно значение."
+                    )
+                op["operator"] = operator
 
             if kind == "compare_columns":
                 op["other_column"] = _resolve_column(
@@ -648,6 +809,13 @@ def _validate_ops(ops, wb):
                         f"Операция {index}: output_sheet должен быть строкой."
                     )
 
+            if kind == "distinct_count":
+                op["id_column"] = _resolve_column(ws, op.get("id_column"), hr, "distinct_count ID")
+                raw_groups = op.get("columns") or []
+                op["columns"] = _resolve_columns(ws, raw_groups, hr, "distinct_count groups") if raw_groups else []
+                if op["id_column"] in op["columns"]:
+                    raise ValueError("ID не может одновременно быть полем группировки.")
+
             if kind == "smart_summary":
                 if op.get("columns"):
                     op["columns"] = _resolve_columns(
@@ -656,6 +824,9 @@ def _validate_ops(ops, wb):
                     )
                 else:
                     op["columns"] = _auto_dimensions(ws, hr, limit=8)
+                if op.get("include_other_dimensions"):
+                    additional = _auto_dimensions(ws, hr, limit=12)
+                    op["columns"] = (op["columns"] + [c for c in additional if c not in op["columns"]])[:8]
                 if not op["columns"]:
                     raise ValueError(
                         "Не найдены пригодные категориальные столбцы для сводки. "
@@ -683,7 +854,7 @@ def _validate_ops(ops, wb):
                     ) from exc
                 op["formula"] = formula.strip()
 
-            if kind in {"select_columns", "reorder_columns"}:
+            if kind in {"select_columns", "reorder_columns", "copy_columns_to_sheet"}:
                 op["columns"] = _resolve_columns(
                     ws,
                     op.get("columns"),
@@ -706,6 +877,18 @@ def _validate_ops(ops, wb):
                         "reorder_columns требует каждый столбец ровно один раз."
                     )
 
+                if kind == "copy_columns_to_sheet":
+                    output_sheet = op.get("output_sheet")
+                    if not isinstance(output_sheet, str) or not output_sheet.strip():
+                        raise ValueError(
+                            f"Операция {index}: укажите непустой output_sheet."
+                        )
+                    if output_sheet.strip().casefold() == sheet.casefold():
+                        raise ValueError(
+                            f"Операция {index}: исходный и целевой листы должны различаться."
+                        )
+                    op["output_sheet"] = output_sheet.strip()
+
             if (
                 kind == "remove_duplicates"
                 and op.get("columns") is not None
@@ -723,13 +906,14 @@ def _validate_ops(ops, wb):
                         "fill_empty требует поле value."
                     )
 
-                if op.get("column") is not None:
-                    op["column"] = _resolve_column(
-                        ws,
-                        op["column"],
-                        hr,
-                        f"Операция {index} (fill_empty)",
+                raw_columns = op.get("columns") or (
+                    [op["column"]] if op.get("column") is not None else []
+                )
+                if raw_columns:
+                    op["columns"] = _resolve_columns(
+                        ws, raw_columns, hr, f"Операция {index} (fill_empty)"
                     )
+                    op["column"] = op["columns"][0] if len(op["columns"]) == 1 else None
 
             if kind == "replace_values":
                 if not isinstance(op.get("old"), str) or not isinstance(
@@ -739,13 +923,19 @@ def _validate_ops(ops, wb):
                         "replace_values требует строковые поля old и new."
                     )
 
-                if op.get("column") is not None:
-                    op["column"] = _resolve_column(
-                        ws,
-                        op["column"],
-                        hr,
-                        f"Операция {index} (replace_values)",
+                raw_columns = op.get("columns") or (
+                    [op["column"]] if op.get("column") is not None else []
+                )
+                if raw_columns:
+                    op["columns"] = _resolve_columns(
+                        ws, raw_columns, hr, f"Операция {index} (replace_values)"
                     )
+                    op["column"] = op["columns"][0] if len(op["columns"]) == 1 else None
+
+            if kind == "trim_text" and op.get("columns"):
+                op["columns"] = _resolve_columns(
+                    ws, op["columns"], hr, f"Операция {index} (trim_text)"
+                )
 
             if kind == "split_by_column":
                 if (
@@ -789,6 +979,48 @@ def _validate_ops(ops, wb):
 
         result.append(op)
 
+        # Validate dependent steps against sheets created by earlier steps.
+        # This is a planning-only workbook, so lightweight placeholder sheets
+        # are safe and prevent false "лист не найден" errors.
+        output_name = op.get("output_sheet")
+        if output_name and kind in {
+            "copy_sheet", "filter_rows", "copy_columns_to_sheet",
+            "extract_split_values_to_sheet", "group_by_aggregate",
+        }:
+            if output_name in wb.sheetnames:
+                preview_ws = wb[output_name]
+            else:
+                preview_ws = wb.create_sheet(output_name)
+            if preview_ws.max_row == 1 and preview_ws.max_column == 1 and preview_ws["A1"].value is None:
+                if kind == "copy_columns_to_sheet":
+                    preview_headers = [ws.cell(hr, col).value for col in op["columns"]]
+                elif kind == "extract_split_values_to_sheet":
+                    preview_headers = [
+                        op.get("output_header") or ws.cell(hr, op["column"]).value
+                    ]
+                elif kind == "group_by_aggregate":
+                    preview_headers = [
+                        ws.cell(hr, col).value for col in op.get("columns", [])
+                    ] + [
+                        "Количество" if op.get("function") == "count" else {
+                            "sum": "Сумма", "avg": "Среднее",
+                            "min": "Минимум", "max": "Максимум",
+                        }.get(op.get("function"), "Значение")
+                    ]
+                else:
+                    preview_headers = [
+                        ws.cell(hr, col).value for col in range(1, ws.max_column + 1)
+                    ]
+                for preview_col, preview_value in enumerate(preview_headers, 1):
+                    preview_ws.cell(hr, preview_col).value = preview_value
+
+        if kind == "select_columns":
+            selected_headers = [ws.cell(hr, col).value for col in op["columns"]]
+            for col, value in enumerate(selected_headers, 1):
+                ws.cell(hr, col).value = value
+            for col in range(len(selected_headers) + 1, ws.max_column + 1):
+                ws.cell(hr, col).value = None
+
     return result
 
 
@@ -804,11 +1036,42 @@ def plan_operations(source, output, operations):
     try:
         normalized = _validate_ops(operations, wb)
 
+        previews = []
+        for op in normalized:
+            preview = {
+                "type": op["type"],
+                "sheet": op.get("sheet"),
+                "output_sheet": op.get("output_sheet"),
+            }
+            if op["type"] == "extract_split_values_to_sheet" and op.get("sheet") in wb.sheetnames:
+                source_ws = wb[op["sheet"]]
+                delimiter = op.get("delimiter")
+                split_pattern = re.escape(str(delimiter)) if delimiter else r"[,;\n\r]+"
+                output_rows = 0
+                non_formula_sources = 0
+                for row_num in range(op.get("header_rows", 1) + 1, source_ws.max_row + 1):
+                    value = source_ws.cell(row_num, op["column"]).value
+                    if _empty(value):
+                        continue
+                    raw = str(value).strip().strip("{}[]")
+                    parts = [p for p in re.split(split_pattern, raw) if p.strip()]
+                    output_rows += len(parts)
+                    if not str(value).strip().startswith("="):
+                        non_formula_sources += 1
+                if output_rows == 0 or non_formula_sources == 0:
+                    raise ValueError(
+                        "В выбранном столбце нет обычных значений для извлечения."
+                    )
+                preview["output_rows"] = output_rows
+            previews.append(preview)
+
         plan = {
             "source": str(src),
             "output": str(dst),
             "source_sha256": _sha(src),
             "operations": normalized,
+            "display_operations": normalized,
+            "previews": previews,
             "steps": [
                 f"{op['type']} — {op.get('sheet', '')}"
                 for op in normalized
@@ -831,16 +1094,9 @@ def plan_operations(source, output, operations):
 # ============================================================
 
 def _do(wb, op, changes, reports, created_side_effect_files=None):
-    """
-    Выполняет одну операцию.
-
-    created_side_effect_files отслеживает файлы, созданные
-    split_by_column, чтобы удалить их, если общий процесс упадёт.
-    """
     if created_side_effect_files is None:
         created_side_effect_files = []
 
-    # В исходном присланном коде эти три переменные отсутствовали.
     kind = op["type"]
     sheet = op.get("sheet")
     hr = op.get("header_rows", 1)
@@ -871,8 +1127,171 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
 
     ws = wb[sheet]
 
-    if kind == "student_data_audit":
-        # Read-only source audit: only new report sheets are added.
+    if kind == "extract_split_values_to_sheet":
+        col = op["column"]
+
+        source_header = (
+            ws.cell(hr, col).value
+            if hr >= 1 and not _empty(ws.cell(hr, col).value)
+            else "Значение"
+        )
+
+        output_name = _safe_sheet_name(
+            op.get("output_sheet", "Результат"),
+            wb.sheetnames,
+        )
+
+        extracted_values = []
+        source_cells = 0
+        multi_value_cells = 0
+
+        # Обрабатываем только выбранный столбец.
+        # Исходный лист не изменяем.
+        for row_num in range(hr + 1, ws.max_row + 1):
+            value = ws.cell(row_num, col).value
+
+            if _empty(value):
+                continue
+
+            source_cells += 1
+            raw_value = str(value).strip().strip("{}[]")
+
+            delimiter = op.get("delimiter")
+            split_pattern = re.escape(str(delimiter)) if delimiter else r"[,;\n\r]+"
+            parts = [
+                part.strip()
+                for part in re.split(split_pattern, raw_value)
+                if part.strip()
+            ]
+
+            if len(parts) > 1:
+                multi_value_cells += 1
+
+            extracted_values.extend(parts)
+
+        if not extracted_values:
+            raise ValueError(
+                f"В столбце {source_header!r} на листе {sheet!r} "
+                "не найдено значений для извлечения."
+            )
+
+        expected_values = Counter(extracted_values)
+
+        target = wb.create_sheet(output_name)
+        start_row = max(2, int(op.get("start_row", 2)))
+        target.cell(start_row - 1, 1).value = source_header
+        target.column_dimensions["A"].width = 25
+        target.freeze_panes = f"A{start_row}"
+
+        for row_num, value in enumerate(extracted_values, start=start_row):
+            cell = target.cell(row_num, 1)
+            cell.number_format = "@"
+            cell.value = value
+            if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
+                cell.data_type = "s"
+
+        target.auto_filter.ref = f"A{start_row - 1}:A{start_row + len(extracted_values) - 1}"
+
+        actual_values = [
+            target.cell(row_num, 1).value
+            for row_num in range(start_row, target.max_row + 1)
+        ]
+
+        if actual_values != extracted_values:
+            raise RuntimeError(
+                "Проверка результата не пройдена: порядок или значения изменены."
+            )
+
+        if Counter(actual_values) != expected_values:
+            raise RuntimeError(
+                "Проверка результата не пройдена: обнаружена потеря или дублирование значений."
+            )
+
+        changes.append({
+            "type": kind,
+            "source_sheet": sheet,
+            "source_column": col,
+            "source_header": source_header,
+            "output_sheet": output_name,
+            "source_cells": source_cells,
+            "multi_value_cells": multi_value_cells,
+            "extracted_values": len(extracted_values),
+            "source_modified": False,
+            "validation_passed": True,
+        })
+
+        reports["extract_split_values_to_sheet"] = {
+            "source_sheet": sheet,
+            "source_column": col,
+            "source_header": source_header,
+            "output_sheet": output_name,
+            "extracted_values": len(extracted_values),
+            "validation_passed": True,
+        }
+
+    elif kind == "split_cell_values_to_rows":
+        col = op["column"]
+        max_col = ws.max_column
+        new_rows = []
+        expanded_cells = 0
+
+        for row_num in range(1, hr + 1):
+            new_rows.append([
+                ws.cell(row_num, c).value
+                for c in range(1, max_col + 1)
+            ])
+
+        for row_num in range(hr + 1, ws.max_row + 1):
+            row_values = [
+                ws.cell(row_num, c).value
+                for c in range(1, max_col + 1)
+            ]
+
+            target_cell_value = row_values[col - 1]
+
+            if _empty(target_cell_value):
+                new_rows.append(row_values)
+                continue
+
+            raw_str = str(target_cell_value).strip().strip("{}[]")
+            parts = [
+                p.strip()
+                for p in re.split(r"[,;\n\r]+", raw_str)
+                if p.strip()
+            ]
+
+            if len(parts) <= 1:
+                new_rows.append(row_values)
+            else:
+                expanded_cells += 1
+
+                for part in parts:
+                    if part.isdigit() and not (
+                        len(part) > 1 and part.startswith("0")
+                    ):
+                        part_val = int(part)
+                    else:
+                        part_val = part
+
+                    cloned_row = list(row_values)
+                    cloned_row[col - 1] = part_val
+                    new_rows.append(cloned_row)
+
+        ws.delete_rows(1, ws.max_row)
+
+        for row_idx, row_vals in enumerate(new_rows, 1):
+            for col_idx, val in enumerate(row_vals, 1):
+                ws.cell(row_idx, col_idx, val)
+
+        changes.append({
+            "type": kind,
+            "sheet": sheet,
+            "column": col,
+            "expanded_cells": expanded_cells,
+            "total_rows_after": len(new_rows),
+        })
+
+    elif kind == "student_data_audit":
         if hr < 1:
             raise ValueError("student_data_audit требует строку заголовков (header_rows >= 1).")
         if ws.max_column < 1:
@@ -880,7 +1299,6 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
 
         max_col = ws.max_column
         raw_headers = {col: ws.cell(hr, col).value for col in range(1, max_col + 1)}
-        # Preserve column positions but never emit blank report headers.
         headers = {
             col: (str(label).strip() if not _empty(label) and str(label).strip()
                   else f"Столбец {col} (заголовок пуст)")
@@ -902,12 +1320,10 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             return _empty(value) or (isinstance(value, str) and not value.strip())
 
         def typed_key(values):
-            # Stable, type-aware key; dates and other Excel values serialize safely.
             return json.dumps([[type(v).__name__, v.isoformat() if hasattr(v, "isoformat") else v]
                                for v in values], ensure_ascii=False, default=str,
                               separators=(",", ":"))
 
-        # Exclude wholly empty rows (including formatting-only tail rows) from statistics.
         rows, source_row_numbers = [], []
         for row_num in range(hr + 1, ws.max_row + 1):
             values = [ws.cell(row_num, col).value for col in range(1, max_col + 1)]
@@ -947,7 +1363,6 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             for row_num in source_row_numbers:
                 value = ws.cell(row_num, id_col).value
                 if not is_blank(value):
-                    # Normalize whitespace around IDs, but retain case and leading zeros.
                     key = str(value).strip()
                     repeated_ids.setdefault(key, []).append(row_num)
             repeated_ids = {v: rr for v, rr in repeated_ids.items() if len(rr) > 1}
@@ -1036,7 +1451,13 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
         }
         return
 
-    if kind == "remove_empty_rows":
+    elif kind == "remove_empty_rows":
+        output_sheet = op.get("output_sheet")
+        if output_sheet:
+            output_name = _safe_sheet_name(output_sheet, wb.sheetnames)
+            ws = wb.copy_worksheet(ws)
+            ws.title = output_name
+
         removed = 0
 
         for row_num in range(ws.max_row, hr, -1):
@@ -1050,7 +1471,62 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
         changes.append({
             "type": kind,
             "sheet": sheet,
+            "output_sheet": ws.title,
             "removed_rows": removed,
+        })
+
+    elif kind == "pivot_count":
+        row_col = op["row_column"]
+        column_col = op["column_column"]
+        include_empty = bool(op.get("include_empty", False))
+        row_header = ws.cell(hr, row_col).value or f"Столбец {row_col}"
+        column_header = ws.cell(hr, column_col).value or f"Столбец {column_col}"
+
+        counts = {}
+        row_values = []
+        column_values = []
+        for row_num in range(hr + 1, ws.max_row + 1):
+            row_value = ws.cell(row_num, row_col).value
+            column_value = ws.cell(row_num, column_col).value
+            if not include_empty and (_empty(row_value) or _empty(column_value)):
+                continue
+            row_value = "(пусто)" if _empty(row_value) else row_value
+            column_value = "(пусто)" if _empty(column_value) else column_value
+            row_key = (type(row_value).__name__, str(row_value))
+            column_key = (type(column_value).__name__, str(column_value))
+            if row_key not in [item[0] for item in row_values]:
+                row_values.append((row_key, row_value))
+            if column_key not in [item[0] for item in column_values]:
+                column_values.append((column_key, column_value))
+            counts[(row_key, column_key)] = counts.get((row_key, column_key), 0) + 1
+
+        output_name = _safe_sheet_name(
+            op.get("output_sheet", "Перекрёстная таблица"), wb.sheetnames
+        )
+        target = wb.create_sheet(output_name)
+        target.append([f"{row_header} / {column_header}",
+                       *[value for _, value in column_values], "Всего"])
+        column_totals = [0] * len(column_values)
+        grand_total = 0
+        for row_key, row_value in row_values:
+            values = []
+            for index, (column_key, _) in enumerate(column_values):
+                value = counts.get((row_key, column_key), 0)
+                values.append(value)
+                column_totals[index] += value
+            row_total = sum(values)
+            grand_total += row_total
+            target.append([row_value, *values, row_total])
+        target.append(["Всего", *column_totals, grand_total])
+        _auto_dimensions(target)
+        target.freeze_panes = "B2"
+        changes.append({
+            "type": kind,
+            "sheet": sheet,
+            "output_sheet": output_name,
+            "row_column": row_header,
+            "column_column": column_header,
+            "data_rows": grand_total,
         })
 
     elif kind == "remove_duplicates":
@@ -1091,8 +1567,9 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
         })
 
     elif kind == "fill_empty":
-        col = op.get("column")
-        columns = [col] if col else range(1, ws.max_column + 1)
+        columns = op.get("columns") or (
+            [op["column"]] if op.get("column") else range(1, ws.max_column + 1)
+        )
         count = 0
 
         for row_num in range(hr + 1, ws.max_row + 1):
@@ -1112,9 +1589,10 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
 
     elif kind == "trim_text":
         count = 0
-
-        for row in ws.iter_rows(min_row=hr + 1):
-            for cell in row:
+        columns = op.get("columns") or range(1, ws.max_column + 1)
+        for row_num in range(hr + 1, ws.max_row + 1):
+            for column in columns:
+                cell = ws.cell(row_num, column)
                 if (
                     isinstance(cell.value, str)
                     and cell.value != cell.value.strip()
@@ -1130,8 +1608,9 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
 
     elif kind == "replace_values":
         count = 0
-        col = op.get("column")
-        columns = [col] if col else range(1, ws.max_column + 1)
+        columns = op.get("columns") or (
+            [op["column"]] if op.get("column") else range(1, ws.max_column + 1)
+        )
 
         for row_num in range(hr + 1, ws.max_row + 1):
             for column in columns:
@@ -1181,12 +1660,9 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
                 for col in range(1, ws.max_column + 1)
             )
 
-            # Не считаем пустые строки дубликатами.
             if all(_empty(value) for value in values):
                 continue
 
-            # Сохраняем типы значений, чтобы число 1 и текст "1"
-            # не считались одинаковыми автоматически.
             key = json.dumps(
                 [
                     [type(value).__name__, value]
@@ -1265,36 +1741,53 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             "repeated_values": len(repeated),
         })
 
+    elif kind == "find_blank_cells":
+        columns = op.get("columns") or [op["column"]]
+        blanks = []
+        matching_rows = set()
+        for row_num in range(hr + 1, ws.max_row + 1):
+            row_values = [ws.cell(row_num, c).value for c in range(1, ws.max_column + 1)]
+            if all(_empty(value) for value in row_values):
+                continue
+            for col in columns:
+                if _empty(row_values[col - 1]):
+                    blanks.append({
+                        "row": row_num,
+                        "column": col,
+                        "header": ws.cell(hr, col).value if hr >= 1 else None,
+                        "cell": ws.cell(row_num, col).coordinate,
+                    })
+                    matching_rows.add(row_num)
 
+        matching_rows = sorted(matching_rows)
 
-    # Создаём отдельный лист с отчетом о найденных записях
         output_sheet = _safe_sheet_name(
             op.get("output_sheet", "Найденные записи"),
             wb.sheetnames,
         )
         target = wb.create_sheet(output_sheet)
 
-        # 1. Формируем заголовок сводки
-        col_name = ws.cell(hr, col).value if hr >= 1 else f"Столбец {col}"
+        column_names = [
+            str(ws.cell(hr, col).value or f"Столбец {col}")
+            for col in columns
+        ]
         target.append(["ОТЧЕТ ПО ПУСТЫМ ЗНАЧЕНИЯМ"])
         target.append([f"Исходный лист:", sheet])
-        target.append([f"Проверяемый столбец:", f"{col_name} (№{col})"])
+        target.append(["Проверяемые столбцы:", ", ".join(column_names)])
         target.append([f"Всего пропущенных записей:", len(blanks)])
-        target.append([])  # Пустая строка для отступа
+        target.append([])
 
-        # 2. Сохраняем заголовки исходной таблицы
-        header_row = [ws.cell(row_num, c).value for c in range(1, ws.max_column + 1)]
+        header_row = [ws.cell(hr, c).value for c in range(1, ws.max_column + 1)]
         target.append(["№ строки Excel"] + header_row)
 
-        # 3. Переносим каждую подходящую строку целиком с указанием номера строки
         for row_num in matching_rows:
             row_values = [ws.cell(row_num, c).value for c in range(1, ws.max_column + 1)]
             target.append([row_num] + row_values)
 
-        # Отчеты и логирование
         reports.setdefault("blank_cells", []).append({
             "sheet": sheet,
-            "column": col,
+            "column": columns[0] if len(columns) == 1 else None,
+            "columns": columns,
             "cells": blanks,
             "blank_cells_count": len(blanks),
             "matching_rows": matching_rows,
@@ -1305,12 +1798,12 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
         changes.append({
             "type": kind,
             "sheet": sheet,
-            "column": col,
+            "column": columns[0] if len(columns) == 1 else None,
+            "columns": columns,
             "blank_cells": len(blanks),
             "matching_rows": len(matching_rows),
             "output_sheet": output_sheet,
         })
-
 
     elif kind == "sort_rows":
         col = op["column"]
@@ -1352,6 +1845,115 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             "column": col,
         })
 
+    elif kind == "copy_sheet":
+        target = wb.copy_worksheet(ws)
+        target.title = _safe_sheet_name(op.get("output_sheet", f"Копия {sheet}"), wb.sheetnames)
+        changes.append({
+            "type": kind,
+            "sheet": sheet,
+            "output_sheet": target.title,
+            "rows_copied": ws.max_row,
+        })
+
+    elif kind == "filter_rows":
+        column = op["column"]
+        operator = op["operator"]
+        expected = op.get("value")
+        target = wb.create_sheet(
+            _safe_sheet_name(op.get("output_sheet", "Отбор"), wb.sheetnames)
+        )
+
+        def matches_filter(actual):
+            if operator == "blank":
+                return _empty(actual)
+            if operator == "not_blank":
+                return not _empty(actual)
+            if operator == "contains":
+                return str(expected).casefold() in str(actual or "").casefold()
+            if operator == "eq":
+                return actual == expected
+            if operator == "ne":
+                return actual != expected
+            try:
+                return {
+                    "gt": actual > expected,
+                    "ge": actual >= expected,
+                    "lt": actual < expected,
+                    "le": actual <= expected,
+                }[operator]
+            except (TypeError, KeyError):
+                return False
+
+        selected_rows = list(range(1, hr + 1))
+        selected_rows.extend(
+            row_num for row_num in range(hr + 1, ws.max_row + 1)
+            if matches_filter(ws.cell(row_num, column).value)
+        )
+        for target_row, source_row in enumerate(selected_rows, start=1):
+            for col_num in range(1, ws.max_column + 1):
+                source_cell = ws.cell(source_row, col_num)
+                target_cell = target.cell(target_row, col_num)
+                target_cell.value = source_cell.value
+                if source_cell.has_style:
+                    target_cell._style = copy(source_cell._style)
+                target_cell.number_format = source_cell.number_format
+                target_cell.alignment = copy(source_cell.alignment)
+                target_cell.protection = copy(source_cell.protection)
+        for col_num in range(1, ws.max_column + 1):
+            source_letter = ws.cell(1, col_num).column_letter
+            target_letter = target.cell(1, col_num).column_letter
+            target.column_dimensions[target_letter].width = ws.column_dimensions[source_letter].width
+        target.freeze_panes = ws.freeze_panes
+        if target.max_row and target.max_column:
+            target.auto_filter.ref = target.dimensions
+        changes.append({
+            "type": kind,
+            "sheet": sheet,
+            "output_sheet": target.title,
+            "rows_selected": max(0, len(selected_rows) - hr),
+        })
+
+    elif kind == "copy_columns_to_sheet":
+        cols = op["columns"]
+        requested_name = op["output_sheet"]
+        if requested_name in wb.sheetnames:
+            existing = wb[requested_name]
+            is_blank = (
+                existing.max_row == 1
+                and existing.max_column == 1
+                and existing["A1"].value is None
+            )
+            target = existing if is_blank else wb.create_sheet(
+                _safe_sheet_name(requested_name, wb.sheetnames)
+            )
+        else:
+            target = wb.create_sheet(_safe_sheet_name(requested_name, wb.sheetnames))
+
+        for target_col, source_col in enumerate(cols, start=1):
+            source_letter = ws.cell(1, source_col).column_letter
+            target_letter = target.cell(1, target_col).column_letter
+            target.column_dimensions[target_letter].width = ws.column_dimensions[source_letter].width
+            for row_num in range(1, ws.max_row + 1):
+                source_cell = ws.cell(row_num, source_col)
+                target_cell = target.cell(row_num, target_col)
+                target_cell.value = source_cell.value
+                if source_cell.has_style:
+                    target_cell._style = copy(source_cell._style)
+                target_cell.number_format = source_cell.number_format
+                target_cell.alignment = copy(source_cell.alignment)
+                target_cell.protection = copy(source_cell.protection)
+        target.freeze_panes = ws.freeze_panes
+        if target.max_row >= hr and target.max_column:
+            target.auto_filter.ref = target.dimensions
+        changes.append({
+            "type": kind,
+            "sheet": sheet,
+            "output_sheet": target.title,
+            "columns": cols,
+            "rows_copied": ws.max_row,
+            "source_unchanged": True,
+        })
+
     elif kind in {"select_columns", "reorder_columns"}:
         cols = op["columns"]
         old_max = ws.max_column
@@ -1378,9 +1980,6 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
         grouping_columns = op.get("columns") or [op["column"]]
         groups = {}
 
-        # Составной ключ учитывает ВСЕ выбранные признаки одновременно.
-        # Пустые значения сохраняются как отдельная категория, чтобы строки
-        # не терялись при распределении.
         source_data_rows = 0
         for values in ws.iter_rows(
             min_row=hr + 1,
@@ -1430,7 +2029,7 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             ]
 
             for group_values, rows in groups.items():
-                group_name = " — ".join(group_values)
+                group_name = " — ".join(str(value) for value in group_values)
                 if sort_column is not None:
                     rows.sort(
                         key=group_sort_key,
@@ -1503,7 +2102,6 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
 
                 staged_files = []
 
-                # Сначала создаём и проверяем все файлы во временной папке.
                 for group_values, rows in groups.items():
                     group_name = " — ".join(str(value) for value in group_values)
                     safe = re.sub(
@@ -1574,7 +2172,6 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
                         "rows": len(rows),
                     })
 
-                # Повторная проверка перед публикацией.
                 for item in staged_files:
                     if item["final_path"].exists():
                         raise FileExistsError(
@@ -1582,8 +2179,6 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
                             f"{item['final_path']}"
                         )
 
-                # Публикуем через hard link: существующий файл
-                # не перезаписывается даже при гонке процессов.
                 for item in staged_files:
                     os.link(
                         item["staged_path"],
@@ -1592,8 +2187,6 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
 
                     created_files.append(item["final_path"])
 
-                    # Внешний список нужен для отката всего процесса,
-                    # если позднее упадёт сохранение основного Excel.
                     created_side_effect_files.append(
                         item["final_path"]
                     )
@@ -1604,7 +2197,6 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
                 ]
 
             except Exception:
-                # Удаляем только файлы, созданные этой операцией.
                 for created_path in reversed(created_files):
                     try:
                         created_path.unlink(missing_ok=True)
@@ -1663,6 +2255,19 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
         overview.append(["Показатель", "Значение"])
         overview.append(["Исходный лист", sheet])
         overview.append(["Строк данных", total])
+        id_columns = [col for col in range(1, ws.max_column + 1)
+                      if _norm(ws.cell(hr, col).value) in {
+                          "id обучающегося", "ид обучающегося", "id студента",
+                          "student id", "student_id", "employee id", "id сотрудника",
+                          "customer id", "id клиента", "id записи"}]
+        unique_id_count = None
+        if len(id_columns) == 1:
+            id_col = id_columns[0]
+            identifiers = {str(row[id_col - 1]).strip() for row in rows
+                           if not _empty(row[id_col - 1])}
+            unique_id_count = len(identifiers)
+            overview.append(["Уникальных ID (непустых)", unique_id_count])
+            overview.append(["Строк с пустым ID", sum(_empty(row[id_col - 1]) for row in rows)])
         overview.append(["Проанализировано разрезов", len(dimensions)])
         overview.append(["Разрезы", ", ".join(headers[c] for c in dimensions)])
 
@@ -1694,30 +2299,48 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
 
         cross_sheets = []
         if op.get("include_cross_tables") and len(dimensions) >= 2:
-            # Создаём попарные матрицы для первых четырёх информативных разрезов.
-            cross_dimensions = dimensions[:4]
-            for left_index in range(len(cross_dimensions)):
-                for right_index in range(left_index + 1, len(cross_dimensions)):
-                    left = cross_dimensions[left_index]; right = cross_dimensions[right_index]
-                    pair_counts = Counter()
-                    left_values = Counter(); right_values = Counter()
-                    for row in rows:
-                        lv = str(row[left - 1]).strip() if not _empty(row[left - 1]) else "Не указано"
-                        rv = str(row[right - 1]).strip() if not _empty(row[right - 1]) else "Не указано"
-                        pair_counts[(lv, rv)] += 1; left_values[lv] += 1; right_values[rv] += 1
-                    top_left = [x for x, _ in left_values.most_common(20)]
-                    top_right = [x for x, _ in right_values.most_common(20)]
-                    cross_name = _safe_sheet_name(
-                        f"{headers[left]} × {headers[right]}", wb.sheetnames
-                    )
-                    cross_ws = wb.create_sheet(cross_name)
-                    cross_ws.append([headers[left]] + top_right + ["ИТОГО"])
-                    for lv in top_left:
-                        values = [pair_counts[(lv, rv)] for rv in top_right]
-                        cross_ws.append([lv] + values + [sum(values)])
-                    cross_ws.append(["ИТОГО"] + [sum(pair_counts[(lv, rv)] for lv in top_left) for rv in top_right] + [sum(pair_counts.values())])
-                    _style_summary_sheet(cross_ws)
-                    created_sheets.append(cross_name); cross_sheets.append(cross_name)
+            cross_dimensions = dimensions[:8]
+            cross_pairs = [(cross_dimensions[0], right) for right in cross_dimensions[1:]]
+            cross_pairs.extend((cross_dimensions[i], cross_dimensions[j])
+                               for i in range(1, min(4, len(cross_dimensions)))
+                               for j in range(i + 1, min(4, len(cross_dimensions))))
+            for left, right in cross_pairs:
+                pair_counts = Counter()
+                left_values = Counter(); right_values = Counter()
+                for row in rows:
+                    lv = str(row[left - 1]).strip() if not _empty(row[left - 1]) else "Не указано"
+                    rv = str(row[right - 1]).strip() if not _empty(row[right - 1]) else "Не указано"
+                    pair_counts[(lv, rv)] += 1; left_values[lv] += 1; right_values[rv] += 1
+                other_label = "Прочие (сгруппировано)"
+                while other_label in left_values or other_label in right_values:
+                    other_label += "*"
+                left_top = [x for x, _ in left_values.most_common(20)]
+                right_top = [x for x, _ in right_values.most_common(20)]
+                left_other = len(left_values) > 20
+                right_other = len(right_values) > 20
+                left_labels = left_top + ([other_label] if left_other else [])
+                right_labels = right_top + ([other_label] if right_other else [])
+                left_set, right_set = set(left_top), set(right_top)
+                matrix = Counter()
+                for (lv, rv), count in pair_counts.items():
+                    display_left = lv if lv in left_set else other_label
+                    display_right = rv if rv in right_set else other_label
+                    matrix[(display_left, display_right)] += count
+                cross_name = _safe_sheet_name(
+                    f"{headers[left]} × {headers[right]}", wb.sheetnames
+                )
+                cross_ws = wb.create_sheet(cross_name)
+                cross_ws.append([headers[left]] + right_labels + ["ИТОГО"])
+                for lv in left_labels:
+                    values = [matrix[(lv, rv)] for rv in right_labels]
+                    cross_ws.append([lv] + values + [sum(values)])
+                column_totals = [sum(matrix[(lv, rv)] for lv in left_labels)
+                                 for rv in right_labels]
+                cross_ws.append(["ИТОГО"] + column_totals + [sum(column_totals)])
+                if sum(column_totals) != total:
+                    raise RuntimeError("Перекрёстная таблица не прошла проверку итогов.")
+                _style_summary_sheet(cross_ws)
+                created_sheets.append(cross_name); cross_sheets.append(cross_name)
 
         changes.append({
             "type": kind, "sheet": sheet, "rows": total,
@@ -1727,8 +2350,52 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
         reports["smart_summary"] = {
             "source_sheet": sheet, "rows": total,
             "dimensions": [headers[c] for c in dimensions],
+            "unique_id_count": unique_id_count,
             "output_sheets": created_sheets,
         }
+
+    elif kind == "distinct_count":
+        id_col = op["id_column"]
+        grouping = op.get("columns", [])
+        group_ids = {}
+        all_ids = set()
+        blank_ids = 0
+        rows_total = 0
+        conflicting = {}
+        for values in ws.iter_rows(min_row=hr + 1, max_row=ws.max_row, values_only=True):
+            if all(_empty(value) for value in values):
+                continue
+            rows_total += 1
+            identifier = values[id_col - 1]
+            if _empty(identifier):
+                blank_ids += 1
+                continue
+            identifier = str(identifier).strip()
+            key = tuple(str(values[c-1]).strip() if not _empty(values[c-1]) else "Не указано" for c in grouping)
+            group_ids.setdefault(key, set()).add(identifier)
+            conflicting.setdefault(identifier, set()).add(key)
+            all_ids.add(identifier)
+        ambiguous = sum(len(keys) > 1 for keys in conflicting.values())
+        out_name = _safe_sheet_name(op.get("output_sheet", "Уникальные ID"), wb.sheetnames)
+        out = wb.create_sheet(out_name)
+        out.append(["Показатель", "Значение"])
+        out.append(["Строк данных", rows_total])
+        out.append(["Уникальных непустых ID", len(all_ids)])
+        out.append(["Разница строк и уникальных ID", rows_total - len(all_ids)])
+        out.append(["Строк с пустым ID", blank_ids])
+        out.append(["ID в нескольких группах", ambiguous])
+        if grouping:
+            out.append([])
+            out.append([*[str(ws.cell(hr,c).value) for c in grouping], "Уникальных ID"])
+            for key, ids in sorted(group_ids.items()):
+                out.append([*key, len(ids)])
+        _style_summary_sheet(out)
+        changes.append({"type": kind, "sheet": sheet, "id_column": id_col,
+                        "group_columns": grouping, "unique_ids": len(all_ids),
+                        "rows": rows_total, "blank_ids": blank_ids,
+                        "cross_group_ids": ambiguous, "output_sheet": out_name})
+        reports["distinct_count"] = {"unique_ids": len(all_ids), "rows": rows_total,
+                                      "cross_group_ids": ambiguous}
 
     elif kind == "group_by_aggregate":
         grouping_columns = op.get("columns") or [op["column"]]
@@ -1744,7 +2411,6 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             max_col=ws.max_column,
             values_only=True,
         ):
-            # Не считаем пустые строки Excel, но сохраняем неполные записи.
             if all(_empty(value) for value in values):
                 continue
 
@@ -1838,8 +2504,6 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
         count = 0
 
         for row_num in range(hr + 1, ws.max_row + 1):
-            # Formula templates are validated before execution; only the row
-            # placeholder is substituted here.
             try:
                 cell_formula = formula_template.format(row=row_num)
             except (KeyError, IndexError, ValueError) as exc:
@@ -2013,14 +2677,11 @@ def execute_operations(plan, confirmed=False):
         dst.suffix + ".report.json"
     )
 
-    # Не перезаписываем существующий отчёт.
     if report_path.exists():
         raise FileExistsError(
             f"Файл отчёта уже существует: {report_path}"
         )
 
-    # Создаём проверяемую резервную копию рядом с результатом. Это особенно
-    # важно для рабочих книг, которые пользователь может заменить после запуска.
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup = dst.parent / f"{src.stem}.backup_{stamp}{src.suffix}"
     counter = 2
@@ -2039,7 +2700,6 @@ def execute_operations(plan, confirmed=False):
     os.close(fd)
     temp = Path(temp_name)
 
-    # Отчёт также создаётся во временном файле.
     report_fd, report_temp_name = tempfile.mkstemp(
         prefix=".bahoniq_report_",
         suffix=".tmp",
@@ -2057,17 +2717,24 @@ def execute_operations(plan, confirmed=False):
     report_published = False
 
     try:
-        wb = _load_source_workbook(src)
-
-        normalized = _validate_ops(
-            plan["operations"],
-            wb,
-        )
+        validation_wb = _load_source_workbook(src)
+        try:
+            normalized = _validate_ops(
+                plan["operations"],
+                validation_wb,
+            )
+        finally:
+            validation_wb.close()
 
         if normalized != plan["operations"]:
             raise ValueError(
                 "Операции изменились после утверждения плана."
             )
+
+        # Validation may create lightweight placeholder sheets for dependent
+        # steps. Execute against a fresh workbook so placeholders never reach
+        # the user's result.
+        wb = _load_source_workbook(src)
 
         for op in normalized:
             _do(
@@ -2089,7 +2756,6 @@ def execute_operations(plan, confirmed=False):
         wb.close()
         wb = None
 
-        # Проверяем, что итоговая книга читается.
         check = load_workbook(
             temp,
             read_only=True,
@@ -2122,9 +2788,6 @@ def execute_operations(plan, confirmed=False):
                 f"Файл отчёта уже существует: {report_path}"
             )
 
-        # A readable workbook is not sufficient evidence of task completion.
-        # For the audit operation, verify the required report sheets exist before
-        # publishing a "completed" report or output file.
         audit_ops = [op for op in plan.get("operations", []) if op.get("type") == "student_data_audit"]
         if audit_ops:
             required_audit_sheets = {
@@ -2157,7 +2820,6 @@ def execute_operations(plan, confirmed=False):
             "reports": reports,
         }
 
-        # Сначала записываем полный JSON во временный файл.
         report_temp.write_text(
             json.dumps(
                 report,
@@ -2169,36 +2831,27 @@ def execute_operations(plan, confirmed=False):
             encoding="utf-8",
         )
 
-        # Атомарно публикуем итоговую книгу без перезаписи.
-        # os.link не заменит файл, появившийся после проверки.
         os.link(temp, dst)
         output_published = True
 
-        # Отчёт публикуется только после успешной записи.
-        # Если путь занят, существующий файл не будет перезаписан.
         os.link(report_temp, report_path)
         report_published = True
 
         return report
 
     except Exception:
-        # Откатываем только файлы групп, созданные текущим запуском.
         for created_path in reversed(created_side_effect_files):
             try:
                 Path(created_path).unlink(missing_ok=True)
             except OSError:
                 pass
 
-        # Удаляем итоговую книгу только если именно этот запуск
-        # создал её и публикация отчёта не завершилась.
         if output_published and not report_published:
             try:
                 dst.unlink(missing_ok=True)
             except OSError:
                 pass
 
-        # Удаляем отчёт только если именно этот запуск его создал,
-        # а последующая операция завершилась ошибкой.
         if report_published:
             try:
                 report_path.unlink(missing_ok=True)

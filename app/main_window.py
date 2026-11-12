@@ -2,7 +2,7 @@
 import tkinter as tk
 from pathlib import Path
 from datetime import datetime
-from script_manager.scripts.version import VERSION
+from scripts.version import VERSION
 
 from config import (
     APP_NAME,
@@ -37,6 +37,7 @@ from modules.duplicate_window import open_duplicates
 from modules.pdf_center import open_pdf_center
 from modules.report_studio import open_report_studio
 from modules.ticket_writer import open_ticket_writer
+from modules.phonebook import open_phonebook
 
 
 # ============================================================
@@ -85,12 +86,30 @@ class MainWindow:
     def apply_window_branding(self):
         """Подключает фирменную иконку окна и панели задач."""
         try:
+            import ctypes
+            try:
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("bahoniq.workcenter.v2")
+            except Exception:
+                pass
+
             project_dir = Path(__file__).resolve().parent.parent
-            icon_path = project_dir / "assets" / "bahoniq_italy.ico"
+            icon_path = project_dir / "assets" / "icon.ico"
             if icon_path.is_file():
-                self.root.iconbitmap(default=str(icon_path))
-        except (OSError, tk.TclError):
-            # Иконка не должна мешать запуску приложения.
+                try:
+                    self.root.iconbitmap(str(icon_path))
+                except Exception:
+                    pass
+
+            logo_path = project_dir / "assets" / "logo.png"
+            if logo_path.is_file():
+                try:
+                    from PIL import Image, ImageTk
+                    p_img = ImageTk.PhotoImage(Image.open(logo_path).resize((32, 32), Image.Resampling.LANCZOS))
+                    self.root.iconphoto(True, p_img)
+                    self._app_icon_ref = p_img
+                except Exception:
+                    pass
+        except Exception:
             pass
 
     # ========================================================
@@ -166,10 +185,13 @@ class MainWindow:
     # ========================================================
 
     def create_header(self):
+        theme = get_theme()
+
         self.header = tk.Frame(
             self.root,
-            height=68,
+            height=72,
             bd=0,
+            bg=theme["bg"],
         )
         self.header.pack(
             fill="x",
@@ -181,70 +203,47 @@ class MainWindow:
         state.header = self.header
 
         # BRAND
-        self.brand_frame = tk.Frame(self.header, bd=0)
+        self.brand_frame = tk.Frame(self.header, bd=0, bg=theme["bg"])
         self.brand_frame.pack(side="left", fill="y")
         state.brand_frame = self.brand_frame
-
-        self.logo_dot = tk.Label(
-            self.brand_frame,
-            text="●",
-            font=("Segoe UI", 17, "bold"),
-            fg=ITALY_GREEN,
-            bd=0,
-        )
-        self.logo_dot.pack(side="left", padx=(0, 6))
 
         self.logo = tk.Label(
             self.brand_frame,
             text="BahonIQ",
-            font=("Segoe UI", 23, "bold"),
+            font=("Segoe UI", 22, "bold"),
+            bg=theme["bg"],
             fg=ITALY_GREEN_DARK,
             bd=0,
         )
-        self.logo.pack(side="left", padx=(0, 5))
-
-        self.logo_accent = tk.Label(
-            self.brand_frame,
-            text="●",
-            font=("Segoe UI", 10, "bold"),
-            fg=ITALY_RED,
-            bd=0,
-        )
-        self.logo_accent.pack(
-            side="left",
-            padx=(0, 4),
-            pady=(12, 0),
-        )
+        self.logo.pack(side="left", padx=(0, 4), pady=(6, 0))
 
         self.logo_subtitle = tk.Label(
             self.brand_frame,
-            text="WORK CENTER",
-            font=("Segoe UI", 8, "bold"),
-            fg="#6E7772",
+            text="|  WORK CENTER",
+            font=("Segoe UI", 11, "bold"),
+            bg=theme["bg"],
+            fg=theme.get("gray", "#7E90A2"),
             bd=0,
         )
-        self.logo_subtitle.pack(
-            side="left",
-            padx=5,
-            pady=(18, 0),
-        )
+        self.logo_subtitle.pack(side="left", padx=4, pady=(10, 0))
 
         # RIGHT CONTROLS
-        self.controls = tk.Frame(self.header, bd=0)
+        self.controls = tk.Frame(self.header, bd=0, bg=theme["bg"])
         self.controls.pack(side="right", fill="y")
 
-        # CLOCK
+        # ЧАСЫ
         self.clock_label = tk.Label(
             self.controls,
             text="00:00:00",
             font=("Segoe UI", 11, "bold"),
+            bg=theme["bg"],
             fg="#68716C",
             bd=0,
         )
-        self.clock_label.pack(side="left", padx=10)
+        self.clock_label.pack(side="left", padx=(0, 10), pady=(8, 0))
         state.clock_label = self.clock_label
 
-        # THEME
+        # КНОПКА ТЕМЫ (☀ / 🌙)
         self.theme_button = tk.Button(
             self.controls,
             text="☀ Тема",
@@ -255,11 +254,15 @@ class MainWindow:
             cursor="hand2",
             padx=12,
             pady=8,
+            bg=theme.get("card", "#183153"),
+            fg=theme.get("text", "#ffffff"),
+            activebackground=theme.get("hover", "#29415f"),
+            activeforeground=theme.get("text", "#ffffff"),
         )
-        self.theme_button.pack(side="left", padx=4)
+        self.theme_button.pack(side="left", padx=4, pady=(4, 0))
         state.theme_button = self.theme_button
 
-        # RGB
+        # RGB КНОПКИ
         self.rgb_button = tk.Button(
             self.controls,
             text="🇮🇹 RGB: OFF",
@@ -270,11 +273,14 @@ class MainWindow:
             cursor="hand2",
             padx=12,
             pady=8,
+            bg=theme.get("card", "#183153"),
+            fg=theme.get("text", "#ffffff"),
+            activebackground=theme.get("hover", "#29415f"),
+            activeforeground=theme.get("text", "#ffffff"),
         )
-        self.rgb_button.pack(side="left", padx=4)
+        self.rgb_button.pack(side="left", padx=4, pady=(4, 0))
         state.rgb_button = self.rgb_button
 
-        # SPEED
         self.rgb_speed_button = tk.Button(
             self.controls,
             text="⚡ Нормально",
@@ -285,11 +291,14 @@ class MainWindow:
             cursor="hand2",
             padx=10,
             pady=8,
+            bg=theme.get("card", "#183153"),
+            fg=theme.get("text", "#ffffff"),
+            activebackground=theme.get("hover", "#29415f"),
+            activeforeground=theme.get("text", "#ffffff"),
         )
-        self.rgb_speed_button.pack(side="left", padx=4)
+        self.rgb_speed_button.pack(side="left", padx=4, pady=(4, 0))
         state.rgb_speed_button = self.rgb_speed_button
 
-        # MODE
         self.rgb_mode_button = tk.Button(
             self.controls,
             text="🎨 Rainbow",
@@ -300,8 +309,12 @@ class MainWindow:
             cursor="hand2",
             padx=10,
             pady=8,
+            bg=theme.get("card", "#183153"),
+            fg=theme.get("text", "#ffffff"),
+            activebackground=theme.get("hover", "#29415f"),
+            activeforeground=theme.get("text", "#ffffff"),
         )
-        self.rgb_mode_button.pack(side="left", padx=4)
+        self.rgb_mode_button.pack(side="left", padx=4, pady=(4, 0))
         state.rgb_mode_button = self.rgb_mode_button
 
     # ========================================================
@@ -621,7 +634,7 @@ class MainWindow:
         state.systems_header = self.systems_header
 
         systems_frame = tk.Frame(self.systems_card, bd=0, bg=theme["card"])
-        systems_frame.pack(fill="both", expand=True, padx=10, pady=(0, 8))
+        systems_frame.pack(fill="x", expand=False, padx=10, pady=(0, 4))
 
         self.system_buttons = []
         for icon, name, url in SYSTEMS:
@@ -646,6 +659,7 @@ class MainWindow:
             button.italy_accent = ITALY_GREEN
             self.system_buttons.append(button)
 
+        # КНОПКА ЗАПУСКА СИСТЕМ (ПРИЖАТА К НИЗУ САЙДБАРА)
         self.quick_launch_button = tk.Button(
             self.systems_card,
             text="↗  Открыть все системы",
@@ -661,7 +675,24 @@ class MainWindow:
             activebackground=ITALY_RED_DARK,
             activeforeground=ITALY_WHITE,
         )
-        self.quick_launch_button.pack(fill="x", padx=12, pady=(8, 12))
+        self.quick_launch_button.pack(
+            side="bottom",
+            fill="x",
+            padx=12,
+            pady=(8, 12),
+        )
+
+        # ПОЛУПРОЗРАЧНЫЙ СИЛУЭТ ИКОНКИ (ВОДЯНОЙ ЗНАК 10-15%, ЗАПОЛНЯЕТ ВСЮ ОБЛАСТЬ)
+        self.watermark_frame = tk.Frame(self.systems_card, bd=0, bg=theme["card"])
+        self.watermark_frame.pack(fill="both", expand=True, padx=8, pady=(4, 4))
+
+        self.sidebar_watermark_lbl = tk.Label(
+            self.watermark_frame,
+            bg=theme["card"],
+            bd=0,
+        )
+        self.sidebar_watermark_lbl.pack(expand=True)
+        self.update_sidebar_watermark(theme["card"])
 
         # RIGHT CONTENT
         self.right = tk.Frame(self.main, bd=0, bg=theme["bg"])
@@ -736,15 +767,6 @@ class MainWindow:
             bd=0,
         )
         self.tools_title.pack(side="left")
-        self.tools_hint = tk.Label(
-            self.tools_heading,
-            text="Выберите модуль для запуска",
-            font=("Segoe UI", 9),
-            bg=theme["bg"],
-            fg=theme["gray"],
-            bd=0,
-        )
-        self.tools_hint.pack(side="right")
         state.tools_title = self.tools_title
 
         self.tools_grid = tk.Frame(self.tools_frame, bd=0, bg=theme["bg"])
@@ -759,6 +781,8 @@ class MainWindow:
             ("◉", "AnyDesk", "Удалённая техническая поддержка", "#D14B56"),
             ("▧", "PDF Center", "Объединение и обработка PDF", "#2D7F79"),
             ("▥", "ANALYTICS AI", "Отчёты, аналитика и презентации", "#245E8A"),
+            ("☎", "Телефонный справочник", "Внутренние номера и контакты", "#3A8D7C"),
+            ("⌘", "Code Academy", "Python, SQL и архитектура BahonIQ", "#7354A5"),
         ]
 
         self.tool_cards = []
@@ -771,7 +795,7 @@ class MainWindow:
 
         for column in range(2):
             self.tools_grid.grid_columnconfigure(column, weight=1, uniform="tool")
-        for row in range(4):
+        for row in range((len(tools) + 1) // 2):
             self.tools_grid.grid_rowconfigure(row, weight=1, uniform="toolrow")
 
     def create_tool_card(self, parent, row, column, icon, name, description, accent, command):
@@ -1222,7 +1246,6 @@ class MainWindow:
             self.tools_heading.configure(bg=theme["bg"])
             self.tools_grid.configure(bg=theme["bg"])
             self.tools_title.configure(bg=theme["bg"], fg=theme["text"])
-            self.tools_hint.configure(bg=theme["bg"], fg=theme["gray"])
 
             self.systems_card.configure(
                 bg=theme["card"],
@@ -1264,7 +1287,64 @@ class MainWindow:
                 activebackground=theme["hover"],
                 activeforeground=ITALY_GREEN_DARK,
             )
+
+            # Обновление фонового водяного знака
+            self.update_sidebar_watermark(theme["card"])
         except (AttributeError, tk.TclError):
+            pass
+
+    def update_sidebar_watermark(self, bg_hex=None):
+        """Создает бесшовный полупрозрачный водяной знак (силуэт фирменной иконки BahonIQ 10-15%)."""
+        try:
+            from PIL import Image, ImageTk
+            theme = get_theme()
+            if not bg_hex:
+                bg_hex = theme.get("card", "#183153")
+
+            assets_dir = Path(__file__).resolve().parent.parent / "assets"
+            emblem_path = assets_dir / "user_emblem.png"
+            mask_path = assets_dir / "user_emblem_mask.png"
+
+            if not (emblem_path.is_file() and mask_path.is_file()):
+                return
+
+            rgb_img = Image.open(emblem_path).convert("RGB")
+            mask_img = Image.open(mask_path).convert("L")
+
+            # Размер, полностью заполняющий свободное пространство сайдбара
+            target_w = 220
+            target_h = int(rgb_img.height * (target_w / rgb_img.width))
+
+            rgb_res = rgb_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+            mask_res = mask_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+
+            # 13.5% непрозрачности (строго диапазон 10-15%)
+            alpha_mask = mask_res.point(lambda p: int(p * 0.135))
+
+            # Парсим hex цвет карточки
+            hex_clean = bg_hex.lstrip("#")
+            bg_rgb = tuple(int(hex_clean[i:i+2], 16) for i in (0, 2, 4))
+            bg_img = Image.new("RGB", (target_w, target_h), bg_rgb)
+
+            is_dark = (0.299 * bg_rgb[0] + 0.587 * bg_rgb[1] + 0.114 * bg_rgb[2]) < 128
+            if is_dark:
+                # В темной теме композируем с легким изумрудным свечением иконки
+                comp = Image.composite(rgb_res, bg_img, alpha_mask)
+            else:
+                # В светлой теме - мягкий темный силуэт
+                fg_img = Image.new("RGB", (target_w, target_h), (35, 75, 95))
+                comp = Image.composite(fg_img, bg_img, alpha_mask)
+
+            self.sidebar_watermark_img = ImageTk.PhotoImage(comp)
+
+            if hasattr(self, "sidebar_watermark_lbl") and self.sidebar_watermark_lbl.winfo_exists():
+                self.sidebar_watermark_lbl.configure(
+                    image=self.sidebar_watermark_img,
+                    bg=bg_hex,
+                )
+            if hasattr(self, "watermark_frame") and self.watermark_frame.winfo_exists():
+                self.watermark_frame.configure(bg=bg_hex)
+        except Exception as exc:
             pass
 
     # ========================================================
@@ -1277,10 +1357,13 @@ class MainWindow:
                 widget.configure(bg=theme["card"])
 
             elif isinstance(widget, tk.Label):
-                widget.configure(
-                    bg=theme["card"],
-                    fg=theme["text"],
-                )
+                if hasattr(self, "sidebar_watermark_lbl") and widget == self.sidebar_watermark_lbl:
+                    pass
+                else:
+                    widget.configure(
+                        bg=theme["card"],
+                        fg=theme["text"],
+                    )
 
             elif isinstance(widget, tk.Button):
                 # Do not overwrite special Italian buttons
@@ -1355,6 +1438,15 @@ class MainWindow:
 
         if name == "Ticket Writer AI":
             open_ticket_writer(self.root)
+            return
+
+        if name == "Code Academy":
+            from modules.code_academy import open_code_academy
+            open_code_academy(self.root)
+            return
+
+        if name == "Телефонный справочник":
+            open_phonebook(self.root)
             return
 
         if name == "Очистка":

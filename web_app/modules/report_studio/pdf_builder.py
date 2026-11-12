@@ -164,6 +164,26 @@ def _format_number(value: Any) -> str:
         return _safe_text(value, 80)
 
 
+def _compact_number(value: Any) -> str:
+    """Читаемая подпись оси без научной нотации."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return _safe_text(value, 40)
+    absolute = abs(number)
+    for divisor, suffix in (
+        (1_000_000_000_000, "трлн"),
+        (1_000_000_000, "млрд"),
+        (1_000_000, "млн"),
+        (1_000, "тыс."),
+    ):
+        if absolute >= divisor:
+            shown = number / divisor
+            digits = 0 if abs(shown) >= 100 else 1 if abs(shown) >= 10 else 2
+            return f"{shown:.{digits}f}".replace(".", ",") + f" {suffix}"
+    return _format_number(number)
+
+
 def _make_styles():
     _register_fonts()
     styles = getSampleStyleSheet()
@@ -503,6 +523,7 @@ def _chart_image(
         matplotlib.use("Agg")
 
         import matplotlib.pyplot as plt
+        from matplotlib.ticker import FuncFormatter
         plt.rcParams["font.family"] = "DejaVu Sans"
 
         count = min(len(labels), len(values), 8)
@@ -552,6 +573,7 @@ def _horizontal_chart(labels, values, width=120 * mm, height=66 * mm):
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+        from matplotlib.ticker import FuncFormatter
         plt.rcParams["font.family"] = "DejaVu Sans"
         count = min(len(labels), len(values), 10)
         labels = [str(x)[:30] for x in labels[:count]][::-1]
@@ -2010,6 +2032,7 @@ def _v51_chart(kind: str, labels: list[str], values: list[float], width: float,
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+        from matplotlib.ticker import FuncFormatter
         plt.rcParams["font.family"] = "DejaVu Sans"
         fig, ax = plt.subplots(figsize=(8.2, 4.3), facecolor="white")
         labels = [str(x) for x in labels]
@@ -2046,9 +2069,10 @@ def _v51_chart(kind: str, labels: list[str], values: list[float], width: float,
             ax.set_yticks(range(count)); ax.set_yticklabels(wrapped, fontsize=7)
             ax.grid(axis="x", alpha=.16); ax.set_axisbelow(True)
             ax.tick_params(axis="x", labelsize=7)
+            ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _pos: _compact_number(x)))
             for bar, value in zip(bars, values):
                 ax.text(bar.get_width(), bar.get_y() + bar.get_height()/2,
-                        f"  {value:,.0f}".replace(",", " "), va="center", fontsize=7, color="#183153")
+                        "  " + _compact_number(value), va="center", fontsize=7, color="#183153")
             for spine in ("top", "right", "left"): ax.spines[spine].set_visible(False)
         if title:
             ax.set_title(title, loc="left", fontsize=11, weight="bold", color="#183153", pad=10)
@@ -2240,42 +2264,52 @@ def _v52_fact(column: dict[str, Any], total: int) -> tuple[str, float, float]:
 
 def _v52_interpretation(column: dict[str, Any], share: float, top3: float) -> tuple[str, str]:
     name = _safe_text(column.get("name"), 100)
+    top = _v51_top(column, 1)
+    leader = _safe_text(top[0].get("value"), 80) if top else "основной категории"
     if share >= 70:
-        return ("Высокая концентрация",
-                f"Показатель «{name}» почти полностью определяется одной категорией. Общий результат чувствителен к изменениям именно в этой группе.")
+        return ("Высокая концентрация направления",
+                f"В разрезе «{name}» доминирует «{leader}» ({share:.1f}%). Это ключевая опорная группа контингента, определяющая основные процессы и нагрузку.")
     if share >= 45:
-        return ("Выраженный лидер",
-                f"В показателе «{name}» есть доминирующая категория, но остальные группы сохраняют заметную долю.")
+        return ("Приоритетный сегмент контингента",
+                f"Категория «{leader}» формирует основной профиль по направлению «{name}» ({share:.1f}%), сохраняя при этом значимый объём в альтернативных группах.")
     if top3 >= 75:
-        return ("Концентрация в трёх группах",
-                f"Основной объём по показателю «{name}» сосредоточен в трёх крупнейших категориях.")
-    return ("Распределённая структура",
-            f"Показатель «{name}» распределён между несколькими категориями без единственного доминирующего сегмента.")
+        return ("Фокус на ключевых сегментах",
+                f"Более 75% объёма по направлению «{name}» приходится на три базовые категории во главе с «{leader}».")
+    return ("Диверсифицированная структура",
+            f"Направление «{name}» характеризуется сбалансированным распределением по нескольким категориям без резкого доминирования.")
 
 
 def _v52_action(column: dict[str, Any], share: float) -> tuple[str, str]:
     name = _safe_text(column.get("name"), 100)
-    leader = _safe_text((_v51_top(column, 1) or [{}])[0].get("value"), 120)
+    leader = _safe_text((_v51_top(column, 1) or [{}])[0].get("value"), 80)
     if share >= 45:
-        return ("Проверить крупнейшую категорию",
-                f"Сопоставить объём категории «{leader}» с планом, ресурсами и предыдущим периодом. Контроль: изменение количества и доли по «{name}».")
-    return ("Сравнить категории",
-            f"Определить причины различий между крупнейшими группами по показателю «{name}». Контроль: абсолютное изменение и изменение долей.")
+        return ("Управленческое решение",
+                f"Профильным службам и руководству обеспечить адресное ресурсное обеспечение сегмента «{leader}» с оценкой рисков перегрузки инфраструктуры.")
+    return ("Управленческое решение",
+            f"Кураторам направления «{name}» распределить методические и организационные ресурсы пропорционально долям ключевых групп.")
 
 
-def _v52_kpis(analysis: dict[str, Any], dimensions: list[dict[str, Any]], styles, width: float) -> Table:
+def _v52_kpis(analysis: dict[str, Any], dimensions: list[dict[str, Any]], styles, width: float, ai_analysis: dict | None = None) -> Table:
     total = int(analysis.get("row_count", 0) or 0)
-    headers = len(analysis.get("headers", []) or [])
-    numeric = len([c for c in analysis.get("numeric_columns", []) if c.get("reportable")])
+    
+    # Извлекаем осмысленные бизнес-метрики вместо технических колонок
+    top_dim = dimensions[0] if dimensions else {}
+    top_dim_name = _safe_text(top_dim.get("name"), 25) or "КЛЮЧЕВОЙ РАЗРЕЗ"
+    top_share = 0.0
+    if top_dim and total:
+        top_val = _v51_top(top_dim, 1)
+        if top_val:
+            top_share = int(top_val[0].get("count", 0) or 0) * 100 / total
+
     values = [
-        (_format_number(total), "СТРОК ДАННЫХ", colors.HexColor("#11B5AE")),
-        (str(headers), "СТОЛБЦОВ", NAVY),
-        (str(len(dimensions)), "КАТЕГОРИАЛЬНЫХ РАЗРЕЗОВ", RED),
-        (str(numeric), "ЧИСЛОВЫХ ПОКАЗАТЕЛЕЙ", colors.HexColor("#D29A18")),
+        (_format_number(total), "ВСЕГО СУБЪЕКТОВ", colors.HexColor("#11B5AE")),
+        (f"{len(dimensions)} направл.", "СТРУКТУРНЫХ НАПРАВЛЕНИЙ", NAVY),
+        (f"{top_share:.1f}%", f"МАКС. КОНЦЕНТРАЦИЯ ({top_dim_name.upper()})", RED),
+        ("Активен", "СТАТУС МОНИТОРИНГА", colors.HexColor("#D29A18")),
     ]
     cells=[]
     for value,label,accent in values:
-        cells.append([Paragraph(_escape(value,60),ParagraphStyle("v52k",parent=styles["SectionCustom"],fontSize=18,textColor=accent,alignment=TA_CENTER,spaceBefore=0,spaceAfter=2)),
+        cells.append([Paragraph(_escape(value,60),ParagraphStyle("v52k",parent=styles["SectionCustom"],fontSize=16,textColor=accent,alignment=TA_CENTER,spaceBefore=0,spaceAfter=2)),
                       Paragraph(label,ParagraphStyle("v52l",parent=styles["SmallCustom"],alignment=TA_CENTER,fontSize=7))])
     table=Table([cells],colWidths=[width/4]*4,rowHeights=[24*mm])
     table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#F7F9FC")),("BOX",(0,0),(-1,-1),.5,BORDER),("INNERGRID",(0,0),(-1,-1),.5,BORDER),("VALIGN",(0,0),(-1,-1),"MIDDLE"),("TOPPADDING",(0,0),(-1,-1),6),("BOTTOMPADDING",(0,0),(-1,-1),6)]))
@@ -2287,6 +2321,7 @@ def build_analytics_pdf_v52(
     output_dir:str|Path|None=None, description:str="", include_source_table:bool=False,
     orientation:str="auto", ai_analysis:dict|None=None,
     report_profile:str="Автоматически", audience:str="Руководство",
+    report_depth:str="Краткий (C-Level, 3-4 стр)",
 ) -> Path:
     """Builds a domain-neutral report entirely from the current workbook."""
     if not matrix: raise ValueError("Невозможно сформировать отчёт: данных нет.")
@@ -2303,8 +2338,9 @@ def build_analytics_pdf_v52(
     story.append(Table([[cover]],colWidths=[width],rowHeights=[150*mm],style=TableStyle([("BACKGROUND",(0,0),(-1,-1),NAVY),("VALIGN",(0,0),(-1,-1),"MIDDLE"),("LEFTPADDING",(0,0),(-1,-1),18*mm),("RIGHTPADDING",(0,0),(-1,-1),18*mm)])))
 
     # Dashboard uses only dimensions actually found in this workbook.
-    story.append(PageBreak()); summary=(f"Проанализировано {_format_number(total)} строк, {len(analysis.get('headers',[]))} столбцов и {len(dimensions)} пригодных категориальных разрезов.")
-    _v51_page_title(story,1,"Обзор набора данных",summary,styles);story.append(_v52_kpis(analysis,dimensions,styles,width));story.append(Spacer(1,4*mm))
+    story.append(PageBreak()); 
+    summary = (ai_analysis or {}).get("summary") if isinstance(ai_analysis, dict) and (ai_analysis or {}).get("summary") else f"Комплексный анализ контингента и структуры: {_format_number(total)} записей по {len(dimensions)} ключевым разрезам."
+    _v51_page_title(story,1,"Сводная аналитическая панель",summary,styles);story.append(_v52_kpis(analysis,dimensions,styles,width,ai_analysis));story.append(Spacer(1,4*mm))
     dashboard=[]
     for column in dimensions[:2]:
         top=_v51_top(column,7);kind="donut" if len(top)<=5 else "bar"
@@ -2318,15 +2354,57 @@ def build_analytics_pdf_v52(
         text="Категориальные разрезы не обнаружены. Доступны числовые показатели: "+", ".join(_safe_text(c.get("name"),60) for c in numeric[:8]) if numeric else "В наборе не обнаружены показатели, пригодные для построения распределений."
         story.append(_v51_callout("СТРУКТУРА ДАННЫХ","Диаграммы не построены",text,styles,colors.HexColor("#F4F7FB")))
 
+    # Ограничение количества детальных страниц в зависимости от глубины отчёта
+    depth_str = str(report_depth).lower()
+    if "краткий" in depth_str or "c-level" in depth_str or "3-4" in depth_str:
+        max_detailed_pages = 2  # Обложка + Dashboard + 2 главных разреза + Выводы = 5 стр
+    elif "стандартный" in depth_str or "5-6" in depth_str:
+        max_detailed_pages = 4  # Обложка + Dashboard + 4 разреза + Выводы = 7 стр
+    else:
+        max_detailed_pages = 8  # Полный аудит
+
+    # Фильтруем и ранжируем разрезы: отдаем приоритет тем, где есть сюжеты от ИИ или содержательный разброс
+    selected_dims = []
+    ai_stories = (ai_analysis or {}).get("stories", []) if isinstance(ai_analysis, dict) else []
+    ai_topics = [str(s.get("topic") or "").casefold().strip() for s in ai_stories if isinstance(s, dict)]
+
+    # Сначала те, о которых говорил ИИ
+    for column in dimensions:
+        c_name = str(column.get("name") or "").casefold().strip()
+        if any(t and (t in c_name or c_name in t) for t in ai_topics):
+            if column not in selected_dims:
+                selected_dims.append(column)
+
+    # Затем остальные
+    for column in dimensions:
+        if column not in selected_dims:
+            selected_dims.append(column)
+
     page_no=2; decision_rows=[]
-    for column in dimensions[:8]:
-        fact,share,top3=_v52_fact(column,total);interp_title,interp_text=_v52_interpretation(column,share,top3);action_title,action_text=_v52_action(column,share)
-        story.append(PageBreak());_v51_page_title(story,page_no,_safe_text(column.get("name"),100),fact,styles)
+    for column in selected_dims[:max_detailed_pages]:
+        col_name = _safe_text(column.get("name"), 100)
+        fact,share,top3=_v52_fact(column,total)
+        interp_title,interp_text=_v52_interpretation(column,share,top3)
+        action_title,action_text=_v52_action(column,share)
+        if isinstance(ai_analysis, dict):
+            for s in ai_analysis.get("stories", []) or []:
+                if not isinstance(s, dict): continue
+                s_topic = str(s.get("topic") or "").casefold().strip()
+                if s_topic and (s_topic in col_name.casefold() or col_name.casefold() in s_topic):
+                    if s.get("headline") and len(str(s["headline"])) <= 60 and not str(s["headline"]).lower().startswith("наибольшее"):
+                        interp_title = str(s["headline"]).strip()
+                    if s.get("interpretation") and len(str(s["interpretation"])) >= 15:
+                        interp_text = str(s["interpretation"]).strip()
+                    if s.get("action") and len(str(s["action"])) >= 15:
+                        action_title = "Управленческое решение"
+                        action_text = str(s["action"]).strip()
+                    break
+        story.append(PageBreak());_v51_page_title(story,page_no,col_name,fact,styles)
         top=_v51_top(column,10);kind="donut" if len(top)<=5 else "bar"
         chart=_v51_chart(kind,[x.get("value") for x in top],[x.get("count") for x in top],width*.65,108*mm)
-        side=[_v51_callout("КЛЮЧЕВОЙ ФАКТ",f"{share:.1f}%",f"Доля крупнейшей категории по показателю «{_safe_text(column.get('name'),80)}».",styles),Spacer(1,3*mm),_v51_callout("ИНТЕРПРЕТАЦИЯ",interp_title,interp_text,styles,colors.HexColor("#EAF8F7")),Spacer(1,3*mm),_v51_callout("ДЕЙСТВИЕ",action_title,action_text,styles,colors.HexColor("#FFF6E2"))]
+        side=[_v51_callout("КЛЮЧЕВОЙ ФАКТ",f"{share:.1f}%",f"Доля крупнейшей категории по показателю «{col_name}».",styles),Spacer(1,3*mm),_v51_callout("ИНТЕРПРЕТАЦИЯ",interp_title,interp_text,styles,colors.HexColor("#EAF8F7")),Spacer(1,3*mm),_v51_callout("ДЕЙСТВИЕ",action_title,action_text,styles,colors.HexColor("#FFF6E2"))]
         story.append(Table([[chart,side]],colWidths=[width*.67,width*.33],style=TableStyle([("VALIGN",(0,0),(-1,-1),"TOP")])))
-        decision_rows.append((_safe_text(column.get("name"),80),f"{share:.1f}%",action_title,action_text));page_no+=1
+        decision_rows.append((col_name,f"{share:.1f}%",action_title,action_text));page_no+=1
 
     story.append(PageBreak());_v51_page_title(story,page_no,"Выводы и контроль","Итоговые действия сформированы только по показателям, найденным в текущем Excel-файле.",styles)
     if decision_rows:
@@ -2389,6 +2467,7 @@ def _v53_ranked_values(
     n_index = int(numeric.get("index", -1))
     l_index = int(label.get("index", -1)) if label else -1
     pairs = []
+    multiplier = float((numeric.get("display", {}) or {}).get("multiplier", 1) or 1)
     for row_no, row in enumerate(rows, 1):
         if n_index < 0 or n_index >= len(row):
             continue
@@ -2397,7 +2476,7 @@ def _v53_ranked_values(
             continue
         raw_label = row[l_index] if 0 <= l_index < len(row) else f"Запись {row_no}"
         shown = _safe_text(raw_label, 80) or f"Запись {row_no}"
-        pairs.append((shown, value))
+        pairs.append((shown, value * multiplier))
     pairs.sort(key=lambda item: item[1], reverse=True)
     return pairs[:limit]
 
@@ -2466,9 +2545,11 @@ def _v54_story_for_column(
                 if not leader_matches or not (count_matches or share_matches):
                     continue
             best = {
+                "story_type": _safe_text(raw.get("story_type"), 40),
                 "headline": _safe_text(raw.get("headline"), 180),
                 "evidence": _safe_text(raw.get("evidence"), 500),
                 "interpretation": _safe_text(raw.get("interpretation"), 650),
+                "limitation": _safe_text(raw.get("limitation"), 500),
                 "action": _safe_text(raw.get("action"), 500),
             }
             break
@@ -2478,10 +2559,18 @@ def _v54_story_for_column(
 def _v53_numeric_takeaway(column: dict[str, Any]) -> str:
     stats = column.get("statistics", {}) or {}
     name = _safe_text(column.get("name"), 100)
+    display = column.get("display", {}) or {}
+    multiplier = float(display.get("multiplier", 1) or 1)
+    suffix = str(display.get("unit") or "")
+    def shown(value: Any) -> str:
+        if value is None:
+            return "—"
+        text = _format_number(float(value) * multiplier)
+        return text + (suffix if suffix == "%" else (f" {suffix}" if suffix else ""))
     return (
-        f"«{name}»: медиана {_format_number(stats.get('median'))}, среднее "
-        f"{_format_number(stats.get('mean'))}; диапазон от "
-        f"{_format_number(stats.get('min'))} до {_format_number(stats.get('max'))}."
+        f"«{name}»: медиана {shown(stats.get('median'))}, среднее "
+        f"{shown(stats.get('mean'))}; диапазон от "
+        f"{shown(stats.get('min'))} до {shown(stats.get('max'))}."
     )
 
 
@@ -2546,7 +2635,7 @@ def build_analytics_pdf_v53(
     story.append(PageBreak())
     overview = (
         f"Проанализировано {_format_number(total)} строк и "
-        f"{len(analysis.get('headers', []))} столбцов: найдено "
+        f"{int(analysis.get('analyzed_column_count', len(analysis.get('headers', []))) or 0)} содержательных столбцов: найдено "
         f"{len(dimensions)} категориальных разрезов и {len(numeric)} числовых показателей."
     )
     _v51_page_title(story, page_no, "Карта показателей", overview, styles)
@@ -2598,6 +2687,14 @@ def build_analytics_pdf_v53(
             width * .64, 108 * mm,
         )
         side = [_v51_callout("КОНЦЕНТРАЦИЯ", f"{share:.1f}%", "Доля крупнейшей категории", styles)]
+        side.extend([
+            Spacer(1, 3 * mm),
+            _v51_callout(
+                "ТРИ КРУПНЕЙШИЕ КАТЕГОРИИ", f"{top3:.1f}%",
+                "Совокупная доля трёх крупнейших категорий",
+                styles, colors.HexColor("#F4F7FB"),
+            ),
+        ])
         if ai_text:
             side.extend([
                 Spacer(1, 3 * mm),
@@ -2607,6 +2704,14 @@ def build_analytics_pdf_v53(
             side.extend([
                 Spacer(1, 3 * mm),
                 _v51_callout("ОБОСНОВАННОЕ ДЕЙСТВИЕ", "Следующий шаг", story_data["action"], styles, colors.HexColor("#FFF6E2")),
+            ])
+        if story_data.get("limitation"):
+            side.extend([
+                Spacer(1, 3 * mm),
+                _v51_callout(
+                    "ГРАНИЦА ВЫВОДА", "Что нельзя утверждать",
+                    story_data["limitation"], styles, colors.HexColor("#FFF6E2"),
+                ),
             ])
         story.append(Table([[chart, side]], colWidths=[width * .66, width * .34], style=TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -2635,18 +2740,30 @@ def build_analytics_pdf_v53(
             chart = Spacer(1, 108 * mm)
         ai_text = story_data.get("interpretation") or _v53_ai_for_column(ai_analysis, _safe_text(column.get("name"), 100))
         deviation = abs(float(stats.get("mean", 0) or 0) - float(stats.get("median", 0) or 0))
+        display = column.get("display", {}) or {}
+        multiplier = float(display.get("multiplier", 1) or 1)
+        unit = str(display.get("unit") or "")
+        def display_value(value: Any) -> str:
+            shown = _format_number(float(value or 0) * multiplier)
+            return shown + (unit if unit == "%" else (f" {unit}" if unit else ""))
         side = [
-            _v51_callout("ЦЕНТР РАСПРЕДЕЛЕНИЯ", _format_number(stats.get("median")),
-                         f"Медиана; среднее — {_format_number(stats.get('mean'))}", styles),
+            _v51_callout("ЦЕНТР РАСПРЕДЕЛЕНИЯ", display_value(stats.get("median")),
+                         f"Медиана; среднее — {display_value(stats.get('mean'))}", styles),
             Spacer(1, 3 * mm),
-            _v51_callout("РАЗБРОС", _format_number(stats.get("range")),
+            _v51_callout("РАЗБРОС", display_value(stats.get("range")),
                          f"Размах; потенциальных выбросов — {int(stats.get('outlier_count', 0) or 0)}", styles, colors.HexColor("#EAF8F7")),
         ]
         if ai_text:
             side.extend([
                 Spacer(1, 3 * mm),
-                _v51_callout("АНАЛИТИЧЕСКИЙ ВЫВОД QWEN", _format_number(deviation), ai_text,
+                _v51_callout("АНАЛИТИЧЕСКИЙ ВЫВОД QWEN", display_value(deviation), ai_text,
                              styles, colors.HexColor("#FFF6E2")),
+            ])
+        if story_data.get("limitation"):
+            side.extend([
+                Spacer(1, 3 * mm),
+                _v51_callout("ГРАНИЦА ВЫВОДА", "Ограничение", story_data["limitation"],
+                             styles, colors.HexColor("#F4F7FB")),
             ])
         story.append(Table([[chart, side]], colWidths=[width * .66, width * .34], style=TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -2700,4 +2817,4 @@ def build_analytics_pdf_v53(
     return output_path
 
 
-build_analytics_pdf = build_analytics_pdf_v53
+build_analytics_pdf = build_analytics_pdf_v52

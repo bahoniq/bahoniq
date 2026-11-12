@@ -2,6 +2,9 @@
 import os
 import sys
 import shutil
+import hashlib
+import json
+import tempfile
 import subprocess
 import traceback
 from pathlib import Path
@@ -247,59 +250,68 @@ def find_pythonw_314():
 # BACKUP
 # ============================================================
 
-def create_backup(label=None):
-    """Создаёт копию проекта внутри Work center/BahonIQ Backups."""
+def _manifest(folder):
+    """Контрольные суммы всех файлов резервной копии."""
+    result = {}
+    for root, dirs, files in os.walk(folder):
+        dirs[:] = [d for d in dirs if d not in IGNORED_NAMES and not (Path(root) / d).is_symlink()]
+        for filename in files:
+            path = Path(root) / filename
+            if path.is_symlink() or filename == ".bahoniq_manifest.json":
+                continue
+            digest = hashlib.sha256()
+            with path.open("rb") as stream:
+                for block in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(block)
+            result[path.relative_to(folder).as_posix()] = digest.hexdigest()
+    return result
 
+
+def verify_backup(folder):
+    manifest_file = Path(folder) / ".bahoniq_manifest.json"
+    if not manifest_file.is_file():
+        return (Path(folder) / "main.py").is_file()  # Старые копии без манифеста.
+    try:
+        expected = json.loads(manifest_file.read_text(encoding="utf-8"))
+        return expected == _manifest(Path(folder)) and "main.py" in expected
+    except (OSError, ValueError):
+        return False
+
+
+def create_backup(label=None):
+    """Создаёт проверенную копию, не публикуя незавершённую."""
+    staging = None
     try:
         ensure_backup_root()
-
-        timestamp = get_timestamp()
-        suffix = f"_{label}" if label else ""
-        backup_dir = BACKUP_ROOT / f"{BACKUP_PREFIX}{timestamp}{suffix}"
-
-        # Не допускаем перезапись существующей копии.
-        counter = 2
-        while backup_dir.exists():
-            backup_dir = (
-                BACKUP_ROOT
-                / f"{BACKUP_PREFIX}{timestamp}{suffix}_{counter}"
-            )
-            counter += 1
-
-        print("Создание резервной копии")
-        print()
-        print(f"Проект: {APP_DIR}")
-        print(f"Копия:  {backup_dir}")
-        print()
-
         if not (APP_DIR / "main.py").is_file():
-            print("ОШИБКА: в папке проекта не найден main.py.")
-            print("Проверьте расположение Backup Manager.")
+            print("ОШИБКА: main.py не найден.")
             return None
-
-        shutil.copytree(
-            APP_DIR,
-            backup_dir,
-            ignore=ignore_project_item
+        timestamp = get_timestamp()
+        safe_label = "" if not label else "_" + "".join(c for c in str(label) if c.isalnum() or c in "_- ").strip()
+        base = f"{BACKUP_PREFIX}{timestamp}{safe_label}"
+        destination = BACKUP_ROOT / base
+        counter = 2
+        while destination.exists():
+            destination = BACKUP_ROOT / f"{base}_{counter}"
+            counter += 1
+        staging = Path(tempfile.mkdtemp(prefix=".creating_", dir=BACKUP_ROOT))
+        shutil.copytree(APP_DIR, staging, dirs_exist_ok=True, ignore=ignore_project_item)
+        manifest = _manifest(staging)
+        (staging / ".bahoniq_manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-
-        # Проверяем, что в копии есть главный файл проекта.
-        if not (backup_dir / "main.py").is_file():
-            print("ОШИБКА: копия не прошла проверку.")
-            return None
-
-        print("✓ Резервная копия создана.")
-        print(f"Путь: {backup_dir}")
-        print(f"Размер: {format_size(get_folder_size(backup_dir))}")
-
-        # Удаление старых копий не выполняется автоматически.
-        return backup_dir
-
+        if not verify_backup(staging):
+            raise RuntimeError("Проверка контрольных сумм не пройдена")
+        staging.rename(destination)
+        staging = None
+        print(f"✓ Резервная копия проверена: {destination}")
+        return destination
     except Exception as error:
-        print()
-        print("✗ Не удалось создать резервную копию.")
-        print(str(error))
+        print(f"✗ Не удалось создать резервную копию: {error}")
         return None
+    finally:
+        if staging is not None:
+            shutil.rmtree(staging, ignore_errors=True)
 
 
 def get_backups():
@@ -415,8 +427,8 @@ def restore_backup():
         pause()
         return
 
-    if not (selected_backup / "main.py").is_file():
-        print("ОШИБКА: в выбранной копии не найден main.py.")
+    if not verify_backup(selected_backup):
+        print("ОШИБКА: резервная копия повреждена или отсутствует main.py.")
         print("Восстановление отменено.")
         pause()
         return
@@ -454,7 +466,7 @@ def restore_backup():
             raise RuntimeError("Путь резервной копии не прошёл проверку.")
 
         for item in selected_backup.iterdir():
-            if item.name in IGNORED_NAMES or item.name in IGNORED_FILES:
+            if item.name in IGNORED_NAMES or item.name in IGNORED_FILES or item.name == ".bahoniq_manifest.json" or item.is_symlink():
                 continue
 
             destination = APP_DIR / item.name

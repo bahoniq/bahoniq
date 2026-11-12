@@ -1,4 +1,3 @@
-
 import json
 import re
 import urllib.error
@@ -46,10 +45,17 @@ SUPPORTED_TYPES = {
     "validate_values",
     "compare_columns",
     "select_columns",
+    "copy_columns_to_sheet",
+    "copy_sheet",
+    "filter_rows",
     "student_data_audit",
     "group_by_aggregate",
+    "pivot_count",
     "smart_summary",
+    "distinct_count",
     "apply_formula",
+    "split_cell_values_to_rows",
+    "extract_split_values_to_sheet",
 }
 
 
@@ -92,6 +98,12 @@ TYPE_ALIASES = {
     "move_columns": "reorder_columns",
     "choose_columns": "select_columns",
     "keep_columns": "select_columns",
+    "copy_columns": "copy_columns_to_sheet",
+    "copy_selected_columns": "copy_columns_to_sheet",
+    "move_columns_to_sheet": "copy_columns_to_sheet",
+    "duplicate_sheet": "copy_sheet",
+    "copy_worksheet": "copy_sheet",
+    "filter": "filter_rows",
 
     "split": "split_by_column",
     "split_column": "split_by_column",
@@ -126,6 +138,14 @@ TYPE_ALIASES = {
     "formula": "apply_formula",
     "insert_formula": "apply_formula",
     "calculate_column": "apply_formula",
+
+    "split_cell_to_rows": "split_cell_values_to_rows",
+    "split_cells_to_rows": "split_cell_values_to_rows",
+    "explode_cell": "split_cell_values_to_rows",
+    "extract_values_to_sheet": "extract_split_values_to_sheet",
+    "extract_split_values": "extract_split_values_to_sheet",
+    "split_values_to_new_sheet": "extract_split_values_to_sheet",
+    "extract_cell_values": "extract_split_values_to_sheet",
 }
 
 
@@ -281,7 +301,6 @@ def _extract_sheets(analysis: Any) -> list[dict]:
 
             return result
 
-    # Анализ иногда содержит информацию об одном листе.
     if any(key in analysis for key in ("headers", "columns", "preview")):
         return [{
             **analysis,
@@ -340,7 +359,6 @@ def _extract_headers(sheet_info: dict) -> list[str]:
             if result:
                 return result
 
-    # Иногда заголовки присутствуют в первой строке preview.
     preview = sheet_info.get("preview")
 
     if isinstance(preview, list) and preview:
@@ -365,58 +383,320 @@ def _get_sheet_name(sheet_info: dict) -> str:
 
 
 # ============================================================
-# DETERMINISTIC INTENT ROUTING
+# FAST ROUTING — EXTRACT VALUES TO A NEW SHEET
+# ============================================================
+
+def _route_extract_split_values_to_sheet(
+    task: str,
+    analysis: Any,
+    selected_sheet: Any = None,
+) -> dict | None:
+    """
+    Универсальное извлечение нескольких значений из ячеек
+    выбранного столбца на отдельный лист.
+
+    Исходный лист не изменяется.
+    Не привязано к ID, ИИН или конкретному типу данных.
+    """
+
+    normalized_task = _normalize_task_text(task)
+    text = _normalize_header_text(normalized_task)
+
+    has_extract_intent = bool(re.search(
+        r"\b(?:извлеки|вытащи|выгрузи|вынеси|"
+        r"перенеси|раздели|разбей|разложи|"
+        r"выдели|собери)\b",
+        text,
+    ))
+
+    has_multiple_values_intent = bool(re.search(
+        r"\b(?:кажд\w*\s+(?:значени\w*|элемент\w*|"
+        r"номер\w*|запис\w*)|"
+        r"все\s+значени\w*|"
+        r"нескольк\w*\s+значени\w*|"
+        r"значени\w*\s+из\s+ячеек|"
+        r"содержим\w*\s+ячеек)\b",
+        text,
+    ))
+
+    has_separate_row_intent = bool(re.search(
+        r"\b(?:отдельн\w*\s+строк\w*|"
+        r"нов\w*\s+строк\w*|"
+        r"кажд\w*\s+строк\w*|"
+        r"по\s+одному\s+на\s+строк\w*)\b",
+        text,
+    ))
+
+    has_new_sheet_intent = bool(re.search(
+        r"\b(?:нов\w*\s+лист\w*|"
+        r"отдельн\w*\s+лист\w*|"
+        r"друг\w*\s+лист\w*|"
+        r"создай\s+лист\w*|"
+        r"на\s+отдельн\w*\s+лист\w*)\b",
+        text,
+    ))
+
+    if not (
+        has_extract_intent
+        and (
+            has_multiple_values_intent
+            or has_separate_row_intent
+        )
+        and has_new_sheet_intent
+    ):
+        return None
+
+    sheets = _extract_sheets(analysis)
+
+    if not sheets:
+        return None
+
+    if selected_sheet:
+        selected_name = str(selected_sheet).strip()
+
+        matching_sheets = [
+            item for item in sheets
+            if _get_sheet_name(item) == selected_name
+        ]
+
+        if matching_sheets:
+            sheets = matching_sheets
+
+    candidates = []
+
+    for sheet_info in sheets:
+        sheet_name = _get_sheet_name(sheet_info)
+        headers = _extract_headers(sheet_info)
+
+        for header in headers:
+            normalized_header = _normalize_header_text(header)
+
+            if not normalized_header:
+                continue
+
+            pattern = (
+                r"(?<!\w)"
+                + re.escape(normalized_header)
+                + r"(?!\w)"
+            )
+
+            if re.search(pattern, text):
+                candidates.append({
+                    "sheet": sheet_name,
+                    "column": header,
+                })
+
+    if not candidates:
+        return {
+            "questions": [
+                "Из какого именно столбца извлечь значения? "
+                "Укажи точное название заголовка Excel."
+            ],
+            "operations": [],
+            "explanation": (
+                "Не удалось однозначно определить исходный столбец."
+            ),
+            "mode": "questions",
+            "original_task": task,
+            "normalized_task": normalized_task,
+            "deterministic_route": True,
+        }
+
+    if len(candidates) > 1:
+        options = [
+            f"Лист «{item['sheet']}», столбец «{item['column']}»"
+            for item in candidates
+        ]
+
+        return {
+            "questions": [
+                "Найдено несколько подходящих столбцов:\n"
+                + "\n".join(options)
+                + "\nУкажи нужный лист и столбец."
+            ],
+            "operations": [],
+            "explanation": (
+                "Требуется уточнить источник данных."
+            ),
+            "mode": "questions",
+            "original_task": task,
+            "normalized_task": normalized_task,
+            "deterministic_route": True,
+        }
+
+    match = candidates[0]
+
+    operation = {
+        "type": "extract_split_values_to_sheet",
+        "sheet": match["sheet"],
+        "column": match["column"],
+        "output_sheet": "Результат",
+        "header_rows": 1,
+    }
+
+    return {
+        "questions": [],
+        "operations": [operation],
+        "explanation": (
+            f"Значения из столбца «{match['column']}» "
+            f"на листе «{match['sheet']}» будут разделены "
+            "по разделителям и размещены по одному значению "
+            "в строке нового листа «Результат». "
+            "Исходный лист останется без изменений."
+        ),
+        "mode": "operations",
+        "original_task": task,
+        "normalized_task": normalized_task,
+        "deterministic_route": True,
+    }
+
+
+# ============================================================
+# DETERMINISTIC INTENT ROUTING — MISSING VALUES
 # ============================================================
 
 def _detect_missing_field_request(task: str) -> bool:
     """
-    Определяет просьбы найти записи, где отсутствует поле.
-
-    Не считает обычный запрос об удалении пустых строк
-    запросом о пропущенном значении конкретного поля.
+    Определяет запросы на поиск пустых или незаполненных значений.
+    Поддерживает проверку всей таблицы и отдельных полей.
     """
+
     text = _normalize_header_text(task)
 
-    field_terms = (
-        r"отчеств\w*",
-        r"фамили\w*",
-        r"имен\w*",
-        r"иин",
-        r"email",
-        r"e mail",
-        r"почт\w*",
-        r"телефон\w*",
-        r"номер\w*",
-        r"дат\w*",
-        r"курс\w*",
-        r"специальност\w*",
-        r"факультет\w*",
-        r"групп\w*",
+    if re.search(
+        r"\bне\s+(?:ищи|искать|проверяй|проверить|выполняй)\b.*"
+        r"\b(?:пуст\w*|пропущен\w*|отсутств\w*)",
+        text,
+    ):
+        return False
+
+    if re.search(r"\b(?:сколько|посчитай)\b.*\bбез\s+[a-zа-яёәіңғүұқөһ]+", text):
+        return True
+
+    return bool(re.search(
+        r"\b(?:проверь|проверить|проверяй|найди|найти|"
+        r"покажи|показать|выяви|выявить|посчитай|"
+        r"определи|определить)\b.*"
+        r"\b(?:пуст\w*|пропущен\w*|отсутств\w*|"
+        r"незаполнен\w*|не\s+заполнен\w*|"
+        r"без\s+значени\w*|пустот\w*)\b"
+        r"|\b(?:пуст\w*|пропущен\w*|отсутств\w*|"
+        r"незаполнен\w*|не\s+заполнен\w*)\b.*"
+        r"\b(?:ячейк\w*|значени\w*|пол\w*|столбц\w*|"
+        r"таблиц\w*|данн\w*|запис\w*)\b",
+        text,
+    ))
+
+
+def _get_missing_scope(task: str) -> str:
+    """
+    Возвращает:
+      all_columns
+      selected_columns
+      single_column
+      required_fields
+      unspecified
+    """
+
+    text = _normalize_header_text(task)
+
+    if re.search(
+        r"\b(?:обязательн\w*\s+пол\w*|"
+        r"обязательн\w*\s+столбц\w*)\b",
+        text,
+    ):
+        return "required_fields"
+
+    if re.search(
+        r"\b(?:всю\s+таблиц\w*|вся\s+таблиц\w*|"
+        r"всей\s+таблиц\w*|все\s+столбц\w*|"
+        r"кажд\w*\s+столбц\w*|"
+        r"по\s+всем\s+столбц\w*|"
+        r"по\s+всей\s+таблиц\w*|"
+        r"всех\s+столбц\w*|"
+        r"во\s+всех\s+столбц\w*|"
+        r"все\s+колонк\w*|"
+        r"кажд\w*\s+колонк\w*|"
+        r"по\s+всем\s+колонк\w*|"
+        r"всех\s+колонк\w*)\b",
+        text,
+    ):
+        return "all_columns"
+
+    return "unspecified"
+
+
+def _route_remove_empty_rows_request(
+    task: str,
+    analysis: Any,
+    selected_sheet: Any = None,
+) -> dict | None:
+    """Route deletion of entirely empty rows before missing-cell audits."""
+    text = _normalize_header_text(_normalize_task_text(task))
+    remove_rows = bool(re.search(
+        r"\b(?:удал\w*|убер\w*|убрат\w*|очист\w*)\b.*(?:"
+        r"\b(?:полностью\s+|целиком\s+)?пуст\w*\s+строк\w*\b|"
+        r"\bстрок\w*\b[^.]{0,160}\bпуст\w*\b)",
+        text,
+    ))
+    if not remove_rows:
+        return None
+
+    sheets = _extract_sheets(analysis)
+    if selected_sheet:
+        sheets = [
+            item for item in sheets
+            if _get_sheet_name(item) == str(selected_sheet).strip()
+        ]
+    if len(sheets) != 1:
+        return {
+            "questions": ["Укажи лист, на котором удалить полностью пустые строки."],
+            "operations": [],
+            "explanation": "Для очистки нужно однозначно определить исходный лист.",
+            "mode": "questions",
+            "deterministic_route": True,
+        }
+
+    sheet_name = _get_sheet_name(sheets[0])
+    output_match = re.search(
+        r"(?:с\s+названием|под\s+названием)\s+[«\"]([^»\"]+)[»\"]",
+        task,
+        re.I,
     )
+    wants_copy = bool(re.search(
+        r"\b(?:созда\w*\s+копи\w*|в\s+копи\w*|исходн\w*\s+лист\w*.*"
+        r"(?:не\s+измен\w*|остав\w*\s+без\s+измен))\b",
+        text,
+    ))
 
-    field_pattern = r"(?:" + "|".join(field_terms) + r")"
+    op = {
+        "type": "remove_empty_rows",
+        "sheet": sheet_name,
+        "header_rows": 1,
+    }
+    if wants_copy:
+        op["output_sheet"] = (
+            output_match.group(1).strip()
+            if output_match
+            else f"{sheet_name} — обработано"
+        )
 
-    missing_patterns = (
-        r"\bне\s+(?:имеют|имеет|указан\w*|заполнен\w*|содерж\w*)\b",
-        r"\bбез\s+" + field_pattern,
-        r"\bотсутств\w*",
-        r"\bпропущен\w*",
-        r"\bнезаполнен\w*",
-        r"\bпуст\w*",
-        r"\bнет\s+" + field_pattern,
-        r"\bсколько\b.*\bне\b",
-        r"\bнайди\b.*\bне\b",
-        r"\bпокажи\b.*\bне\b",
-        r"\bсписок\b.*\bбез\b",
+    target = (
+        f"в копии «{op['output_sheet']}»; исходный лист останется без изменений"
+        if op.get("output_sheet")
+        else f"на листе «{sheet_name}»"
     )
-
-    has_field = re.search(field_pattern, text, flags=re.IGNORECASE)
-    has_missing_intent = any(
-        re.search(pattern, text, flags=re.IGNORECASE)
-        for pattern in missing_patterns
-    )
-
-    return bool(has_field and has_missing_intent)
+    return {
+        "questions": [],
+        "operations": [op],
+        "explanation": (
+            "Будут удалены только строки, где все ячейки физически пусты "
+            f"или содержат только пробелы, {target}. Строки хотя бы с одним "
+            "значением сохранятся."
+        ),
+        "mode": "operations",
+        "deterministic_route": True,
+    }
 
 
 FIELD_ALIASES = {
@@ -483,7 +763,6 @@ FIELD_ALIASES = {
 def _requested_field(task: str) -> str | None:
     text = _normalize_header_text(task)
 
-    # Сначала проверяем наиболее специфичные поля.
     patterns = [
         (r"\bотчеств\w*", "отчество"),
         (r"\bфамили\w*", "фамилия"),
@@ -493,7 +772,11 @@ def _requested_field(task: str) -> str | None:
         (r"\bтелефон\w*\b", "телефон"),
         (r"\bкурс\w*\b", "курс"),
         (r"\bгрупп\w*\b", "группа"),
-        (r"\bспециальност\w*\b|\bобразовательн\w+\s+программ\w*", "специальность"),
+        (
+            r"\bспециальност\w*\b|"
+            r"\bобразовательн\w+\s+программ\w*",
+            "специальность",
+        ),
         (r"\bфакультет\w*\b", "факультет"),
     ]
 
@@ -509,6 +792,7 @@ def _match_field_header(
     headers: list[str],
 ) -> list[str]:
     aliases = FIELD_ALIASES.get(requested_field, {requested_field})
+
     normalized_aliases = {
         _normalize_header_text(alias)
         for alias in aliases
@@ -522,8 +806,6 @@ def _match_field_header(
         if normalized_header in normalized_aliases:
             matches.append(header)
 
-    # Если нет точного совпадения, используем ограниченное
-    # сопоставление по словам, но не угадываем при нескольких вариантах.
     if not matches:
         for header in headers:
             normalized_header = _normalize_header_text(header)
@@ -549,31 +831,122 @@ def _match_field_header(
     return matches
 
 
+def _semantic_missing_scope(semantic_intent: Any) -> dict:
+    """
+    Безопасно извлекает параметры проверки пустых значений
+    из результата intent_compiler.
+    """
+
+    if not isinstance(semantic_intent, dict):
+        return {}
+
+    resolved = semantic_intent.get("resolved")
+
+    if not isinstance(resolved, dict):
+        resolved = semantic_intent
+
+    return {
+        "scope": (
+            resolved.get("scope")
+            or semantic_intent.get("scope")
+        ),
+        "all_columns": resolved.get("all_columns"),
+        "columns": resolved.get("columns"),
+        "column": resolved.get("column"),
+        "sheet": resolved.get("sheet"),
+        "ambiguity": (
+            semantic_intent.get("ambiguity")
+            or resolved.get("ambiguity")
+        ),
+    }
+
+
+def _find_explicit_headers(
+    task: str,
+    sheets: list[dict],
+    selected_sheet: Any = None,
+) -> list[dict]:
+    """
+    Находит только те заголовки, которые действительно указаны
+    в пользовательском запросе.
+    """
+
+    text = _normalize_header_text(_normalize_task_text(task))
+
+    sheets_to_check = sheets
+
+    if selected_sheet:
+        selected_name = str(selected_sheet).strip()
+
+        matching = [
+            item for item in sheets
+            if _get_sheet_name(item) == selected_name
+        ]
+
+        if matching:
+            sheets_to_check = matching
+
+    candidates = []
+
+    for sheet_info in sheets_to_check:
+        sheet_name = _get_sheet_name(sheet_info)
+
+        for header in _extract_headers(sheet_info):
+            normalized_header = _normalize_header_text(header)
+
+            if not normalized_header:
+                continue
+
+            pattern = (
+                r"(?<!\w)"
+                + re.escape(normalized_header)
+                + r"(?!\w)"
+            )
+
+            if re.search(pattern, text):
+                candidates.append({
+                    "sheet": sheet_name,
+                    "column": header,
+                })
+
+    return candidates
+
+
 def _route_missing_field_request(
     task: str,
     analysis: Any,
     selected_sheet: Any = None,
+    semantic_intent: Any = None,
 ) -> dict | None:
     """
-    Детерминированная обработка понятных запросов о пропущенном поле.
+    Единый маршрутизатор проверки пустых значений.
 
-    Возвращает None, если задача не относится к этому типу.
+    Поддерживает:
+    - проверку всех столбцов;
+    - проверку нескольких явно указанных полей;
+    - проверку одного поля;
+    - уточнение обязательных полей без их перечня.
+
+    Исходный лист не изменяется.
     """
-    if not _detect_missing_field_request(task):
+
+    # The intent compiler can resolve colloquial forms such as
+    # "сколько студентов без отчества", which do not necessarily contain
+    # the literal words "пустой" or "отсутствует".  Treat the compiler's
+    # explicit find_missing action as authoritative, while keeping the local
+    # detector for deployments that call this router without semantic intent.
+    semantic_actions = (
+        semantic_intent.get("actions", [])
+        if isinstance(semantic_intent, dict)
+        else []
+    )
+    semantic_requests_missing = "find_missing" in semantic_actions
+
+    if not (_detect_missing_field_request(task) or semantic_requests_missing):
         return None
 
-    requested_field = _requested_field(task)
-
-    if not requested_field:
-        return {
-            "questions": [
-                "Какое именно поле нужно проверить на отсутствие значений?"
-            ],
-            "operations": [],
-            "explanation": "Нужно уточнить проверяемое поле.",
-            "mode": "questions",
-            "original_task": task,
-        }
+    normalized_task = _normalize_task_text(task)
+    semantic = _semantic_missing_scope(semantic_intent)
 
     sheets = _extract_sheets(analysis)
 
@@ -587,35 +960,304 @@ def _route_missing_field_request(
             "explanation": "Не удалось проверить структуру книги.",
             "mode": "questions",
             "original_task": task,
+            "deterministic_route": True,
         }
+
+    # --------------------------------------------------------
+    # SHEET SELECTION
+    # --------------------------------------------------------
+
+    semantic_sheet = semantic.get("sheet")
 
     if selected_sheet:
         selected_name = str(selected_sheet).strip()
+    elif semantic_sheet:
+        selected_name = str(semantic_sheet).strip()
+    else:
+        selected_name = None
+
+    if selected_name:
         matching_sheets = [
-            sheet for sheet in sheets
-            if _get_sheet_name(sheet) == selected_name
+            item for item in sheets
+            if _get_sheet_name(item) == selected_name
         ]
 
         if matching_sheets:
             sheets_to_check = matching_sheets
         else:
-            sheets_to_check = sheets
+            return {
+                "questions": [
+                    f"Лист «{selected_name}» не найден в анализе файла. "
+                    "Выбери существующий лист и повтори запрос."
+                ],
+                "operations": [],
+                "explanation": "Не удалось определить выбранный лист.",
+                "mode": "questions",
+                "original_task": task,
+                "deterministic_route": True,
+            }
     else:
         sheets_to_check = sheets
 
-    candidates = []
+    # --------------------------------------------------------
+    # SCOPE DETECTION
+    # --------------------------------------------------------
 
-    for sheet_info in sheets_to_check:
-        sheet_name = _get_sheet_name(sheet_info)
-        headers = _extract_headers(sheet_info)
+    requested_scope = _get_missing_scope(task)
 
-        for header in _match_field_header(requested_field, headers):
-            candidates.append({
+    semantic_scope = semantic.get("scope")
+
+    if semantic.get("all_columns") is True:
+        requested_scope = "all_columns"
+
+    elif semantic_scope in {
+        "all_columns",
+        "selected_columns",
+        "single_column",
+    }:
+        requested_scope = semantic_scope
+
+    # --------------------------------------------------------
+    # REQUIRED FIELDS WITHOUT A LIST
+    # --------------------------------------------------------
+
+    if requested_scope == "required_fields":
+        return {
+            "questions": [
+                "Какие именно поля считать обязательными? "
+                "Перечисли названия столбцов Excel."
+            ],
+            "operations": [],
+            "explanation": (
+                "Нельзя самостоятельно определять обязательность полей. "
+                "Нужно получить перечень от пользователя."
+            ),
+            "mode": "questions",
+            "original_task": task,
+            "normalized_task": normalized_task,
+            "deterministic_route": True,
+        }
+
+    # --------------------------------------------------------
+    # ALL COLUMNS
+    # --------------------------------------------------------
+
+    if requested_scope == "all_columns":
+        if len(sheets_to_check) != 1:
+            return {
+                "questions": [
+                    "В файле несколько листов. Укажи, какой лист "
+                    "проверить на пустые значения."
+                ],
+                "operations": [],
+                "explanation": (
+                    "Для проверки всех столбцов необходимо определить лист."
+                ),
+                "mode": "questions",
+                "original_task": task,
+                "normalized_task": normalized_task,
+                "deterministic_route": True,
+            }
+
+        sheet_name = _get_sheet_name(sheets_to_check[0])
+        headers = _extract_headers(sheets_to_check[0])
+
+        if not headers:
+            return {
+                "questions": [
+                    "Не удалось получить заголовки столбцов выбранного листа. "
+                    "Проверь структуру Excel-файла."
+                ],
+                "operations": [],
+                "explanation": "Нет доступных заголовков для проверки.",
+                "mode": "questions",
+                "original_task": task,
+                "deterministic_route": True,
+            }
+
+        operation = {
+            "type": "find_blank_cells",
+            "sheet": sheet_name,
+            "all_columns": True,
+            "output_sheet": "Отчёт проверки",
+            "header_rows": 1,
+        }
+
+        return {
+            "questions": [],
+            "operations": [operation],
+            "explanation": (
+                f"Будут проверены все {len(headers)} столбцов "
+                f"листа «{sheet_name}». "
+                "Пустые ячейки и ячейки, содержащие только пробелы, "
+                "будут отражены в отдельном отчёте. "
+                "Исходный лист останется без изменений."
+            ),
+            "mode": "operations",
+            "original_task": task,
+            "normalized_task": normalized_task,
+            "deterministic_route": True,
+        }
+
+    # --------------------------------------------------------
+    # SELECTED COLUMNS FROM SEMANTIC INTENT
+    # --------------------------------------------------------
+
+    semantic_columns = semantic.get("columns")
+
+    if (
+        isinstance(semantic_columns, list)
+        and semantic_columns
+        and requested_scope in {"selected_columns", "unspecified"}
+    ):
+        selected_columns = [
+            str(item).strip()
+            for item in semantic_columns
+            if item is not None and str(item).strip()
+        ]
+
+        if selected_columns:
+            if len(sheets_to_check) != 1:
+                return {
+                    "questions": [
+                        "Уточни лист, на котором нужно проверить "
+                        "указанные столбцы."
+                    ],
+                    "operations": [],
+                    "explanation": "Не удалось однозначно определить лист.",
+                    "mode": "questions",
+                    "original_task": task,
+                    "deterministic_route": True,
+                }
+
+            sheet_info = sheets_to_check[0]
+            headers = _extract_headers(sheet_info)
+            resolved_columns = []
+
+            for requested in selected_columns:
+                matches = [
+                    header for header in headers
+                    if _normalize_header_text(header)
+                    == _normalize_header_text(requested)
+                ]
+
+                if len(matches) != 1:
+                    return {
+                        "questions": [
+                            f"Не удалось однозначно сопоставить поле "
+                            f"«{requested}» с заголовком Excel. "
+                            "Уточни точное название столбца."
+                        ],
+                        "operations": [],
+                        "explanation": (
+                            "Некоторые указанные поля не удалось определить."
+                        ),
+                        "mode": "questions",
+                        "original_task": task,
+                        "deterministic_route": True,
+                    }
+
+                if matches[0] not in resolved_columns:
+                    resolved_columns.append(matches[0])
+
+            sheet_name = _get_sheet_name(sheet_info)
+
+            operation = {
+                "type": "find_blank_cells",
                 "sheet": sheet_name,
-                "column": header,
-            })
+                "columns": resolved_columns,
+                "output_sheet": "Отчёт проверки",
+                "header_rows": 1,
+            }
 
-    if not candidates:
+            return {
+                "questions": [],
+                "operations": [operation],
+                "explanation": (
+                    "Будут проверены указанные столбцы: "
+                    + ", ".join(f"«{name}»" for name in resolved_columns)
+                    + f" на листе «{sheet_name}». "
+                    "Результат будет записан в отдельный отчёт. "
+                    "Исходный лист останется без изменений."
+                ),
+                "mode": "operations",
+                "original_task": task,
+                "normalized_task": normalized_task,
+                "deterministic_route": True,
+            }
+
+    # --------------------------------------------------------
+    # SINGLE COLUMN FROM SEMANTIC INTENT
+    # --------------------------------------------------------
+
+    semantic_column = semantic.get("column")
+
+    if semantic_column and requested_scope in {
+        "single_column",
+        "unspecified",
+    }:
+        semantic_columns = [str(semantic_column).strip()]
+
+    else:
+        semantic_columns = []
+
+    # --------------------------------------------------------
+    # EXPLICIT HEADER MATCHING
+    # --------------------------------------------------------
+
+    explicit_candidates = _find_explicit_headers(
+        task,
+        sheets_to_check,
+        selected_sheet=selected_name,
+    )
+
+    if semantic_columns:
+        requested_names = semantic_columns
+        explicit_candidates = []
+
+        for sheet_info in sheets_to_check:
+            sheet_name = _get_sheet_name(sheet_info)
+            headers = _extract_headers(sheet_info)
+
+            for requested in requested_names:
+                matches = [
+                    header for header in headers
+                    if _normalize_header_text(header)
+                    == _normalize_header_text(requested)
+                ]
+
+                for header in matches:
+                    explicit_candidates.append({
+                        "sheet": sheet_name,
+                        "column": header,
+                    })
+
+    # --------------------------------------------------------
+    # FALLBACK: KNOWN FIELD ALIASES
+    # --------------------------------------------------------
+
+    if not explicit_candidates:
+        requested_field = _requested_field(task)
+
+        if requested_field:
+            for sheet_info in sheets_to_check:
+                sheet_name = _get_sheet_name(sheet_info)
+                headers = _extract_headers(sheet_info)
+
+                for header in _match_field_header(
+                    requested_field,
+                    headers,
+                ):
+                    explicit_candidates.append({
+                        "sheet": sheet_name,
+                        "column": header,
+                    })
+
+    # --------------------------------------------------------
+    # NO EXPLICIT COLUMN — ASK USER
+    # --------------------------------------------------------
+
+    if not explicit_candidates:
         available = []
 
         for sheet_info in sheets_to_check:
@@ -630,83 +1272,123 @@ def _route_missing_field_request(
         details = "\n".join(available[:8])
 
         question = (
-            f"Не найден однозначный столбец для поля «{requested_field}»."
+            "Какое именно поле или какие столбцы нужно проверить "
+            "на пустые значения? "
+            "Можно указать несколько названий или написать "
+            "«всю таблицу»."
         )
 
         if details:
-            question += (
-                "\nДоступные заголовки:\n"
-                + details
-                + "\nУкажи, какой из этих столбцов нужно проверить."
-            )
-        else:
-            question += (
-                "\nУточни точное название столбца в Excel."
-            )
+            question += "\nДоступные заголовки:\n" + details
 
         return {
             "questions": [question],
             "operations": [],
-            "explanation": "Не найден подходящий заголовок.",
+            "explanation": (
+                "Область проверки не определена. "
+                "Нельзя самостоятельно выбирать поля."
+            ),
             "mode": "questions",
             "original_task": task,
+            "normalized_task": normalized_task,
+            "deterministic_route": True,
         }
 
-    if len(candidates) > 1:
+    # --------------------------------------------------------
+    # CHECK AMBIGUOUS SHEETS / COLUMNS
+    # --------------------------------------------------------
+
+    unique_candidates = []
+    seen = set()
+
+    for item in explicit_candidates:
+        key = (
+            item["sheet"],
+            _normalize_header_text(item["column"]),
+        )
+
+        if key not in seen:
+            seen.add(key)
+            unique_candidates.append(item)
+
+    explicit_candidates = unique_candidates
+
+    candidate_sheets = {
+        item["sheet"]
+        for item in explicit_candidates
+    }
+
+    if len(candidate_sheets) > 1:
         options = [
             f"Лист «{item['sheet']}», столбец «{item['column']}»"
-            for item in candidates
+            for item in explicit_candidates
         ]
 
         return {
             "questions": [
-                "Найдено несколько подходящих столбцов:\n"
+                "Найдено несколько подходящих вариантов:\n"
                 + "\n".join(options)
-                + "\nУкажи, какой столбец нужно проверить."
+                + "\nУкажи нужный лист и столбец."
             ],
             "operations": [],
-            "explanation": "Требуется уточнить лист или столбец.",
+            "explanation": "Требуется уточнить источник данных.",
             "mode": "questions",
             "original_task": task,
+            "normalized_task": normalized_task,
+            "deterministic_route": True,
         }
 
-    match = candidates[0]
+    # --------------------------------------------------------
+    # BUILD OPERATION
+    # --------------------------------------------------------
 
-    output_names = {
-        "отчество": "Без отчества",
-        "фамилия": "Без фамилии",
-        "имя": "Без имени",
-        "иин": "Без ИИН",
-        "email": "Без email",
-        "телефон": "Без телефона",
-        "курс": "Без курса",
-        "группа": "Без группы",
-        "специальность": "Без специальности",
-        "факультет": "Без факультета",
-    }
+    sheet_name = explicit_candidates[0]["sheet"]
 
-    operation = {
-        "type": "find_blank_cells",
-        "sheet": match["sheet"],
-        "column": match["column"],
-        "output_sheet": output_names.get(
-            requested_field,
-            "Записи без значения",
-        ),
-        "missing_field": requested_field,
-    }
+    columns = [
+        item["column"]
+        for item in explicit_candidates
+    ]
+
+    if len(columns) == 1:
+        operation = {
+            "type": "find_blank_cells",
+            "sheet": sheet_name,
+            "column": columns[0],
+            "output_sheet": "Отчёт проверки",
+            "header_rows": 1,
+        }
+
+        explanation = (
+            f"Будет проверен столбец «{columns[0]}» "
+            f"на листе «{sheet_name}». "
+            "Результат будет записан в отдельный отчёт. "
+            "Исходный лист останется без изменений."
+        )
+
+    else:
+        operation = {
+            "type": "find_blank_cells",
+            "sheet": sheet_name,
+            "columns": columns,
+            "output_sheet": "Отчёт проверки",
+            "header_rows": 1,
+        }
+
+        explanation = (
+            "Будут проверены указанные столбцы: "
+            + ", ".join(f"«{name}»" for name in columns)
+            + f" на листе «{sheet_name}». "
+            "Результат будет записан в отдельный отчёт. "
+            "Исходный лист останется без изменений."
+        )
 
     return {
         "questions": [],
         "operations": [operation],
-        "explanation": (
-            f"Проверка пустых значений в столбце "
-            f"«{match['column']}» на листе «{match['sheet']}». "
-            f"Результат: «{operation['output_sheet']}»."
-        ),
+        "explanation": explanation,
         "mode": "operations",
         "original_task": task,
-        "normalized_task": _normalize_task_text(task),
+        "normalized_task": normalized_task,
         "deterministic_route": True,
     }
 
@@ -722,71 +1404,95 @@ def _route_split_then_sort_request(
 ) -> dict | None:
     normalized_task = _normalize_task_text(task)
     text = _normalize_header_text(normalized_task)
+
     sort_match = re.search(
         r"\b(?:внутри\b.*?)?(?:располож\w*|отсортир\w*|сортир\w*|"
         r"упорядоч\w*)\b",
         text,
     )
+
     has_separate_sheets = bool(re.search(
         r"\b(?:отдельн\w*|разн\w*)\s+лист\w*"
         r"|\bлист\w*\s+для\s+кажд\w*",
         text,
     ))
+
     if not sort_match or not has_separate_sheets:
         return None
 
     sheets = _extract_sheets(analysis)
+
     if selected_sheet:
         selected = str(selected_sheet).strip()
-        chosen = [s for s in sheets if _get_sheet_name(s) == selected]
+        chosen = [
+            s for s in sheets
+            if _get_sheet_name(s) == selected
+        ]
         if chosen:
             sheets = chosen
+
     if not sheets:
         return None
 
-    # Если лист явно выбран — выше оставлен только он; иначе сохраняем
-    # прежнее поведение интерпретатора и берём первый доступный лист.
     sheet_info = sheets[0]
     sheet_name = _get_sheet_name(sheet_info)
     headers = _extract_headers(sheet_info)
+
     split_text = text[:sort_match.start()]
     sort_text = text[sort_match.end():]
 
     def candidates(fragment: str) -> list[str]:
         task_stems = {
             _sort_word_stem(word)
-            for word in re.findall(r"\w+", fragment, flags=re.UNICODE)
+            for word in re.findall(
+                r"\w+",
+                fragment,
+                flags=re.UNICODE,
+            )
             if len(word) >= 3
         }
+
         result = []
+
         for header in headers:
             normalized_header = _normalize_header_text(header)
+
             if normalized_header == "имя" and re.search(
-                r"\b(?:имя|имени)\b", fragment
+                r"\b(?:имя|имени)\b",
+                fragment,
             ):
                 result.append(header)
                 continue
+
             header_stems = {
                 _sort_word_stem(word)
                 for word in re.findall(
-                    r"\w+", normalized_header, flags=re.UNICODE
-                ) if len(word) >= 3
+                    r"\w+",
+                    normalized_header,
+                    flags=re.UNICODE,
+                )
+                if len(word) >= 3
             }
+
             if header_stems and header_stems.issubset(task_stems):
                 result.append(header)
+
         return result
 
     split_columns = candidates(split_text)
     sort_columns = candidates(sort_text)
+
     if len(split_columns) != 1 or len(sort_columns) != 1:
         return None
 
     split_column = split_columns[0]
     sort_column = sort_columns[0]
+
     descending = bool(re.search(
         r"\bпо убыванию\b|\bот я до а\b|\bот z до a\b",
-        sort_text,
+        text,
     ))
+
     return {
         "questions": [],
         "operations": [{
@@ -819,68 +1525,88 @@ def _route_trim_then_sort_request(
     analysis: Any,
     selected_sheet: Any = None,
 ) -> dict | None:
-    """Recognise a two-step cleanup-and-sort instruction.
-
-    Column mentions before the sorting clause belong to trim_text; only the
-    text after the sorting verb is considered when choosing the sort column.
-    """
     normalized_task = _normalize_task_text(task)
     text = _normalize_header_text(normalized_task)
+
     has_trim = bool(re.search(
         r"\b(?:убер\w*|удал\w*|очист\w*)\b.*\bпробел\w*",
         text,
     ))
+
     sort_match = re.search(
         r"\b(?:затем\s+)?(?:отсортир\w*|сортир\w*|упорядоч\w*)\b",
         text,
     )
+
     if not has_trim or not sort_match:
         return None
 
     sheets = _extract_sheets(analysis)
+
     if selected_sheet:
         selected = str(selected_sheet).strip()
-        chosen = [s for s in sheets if _get_sheet_name(s) == selected]
+        chosen = [
+            s for s in sheets
+            if _get_sheet_name(s) == selected
+        ]
         if chosen:
             sheets = chosen
+
     if len(sheets) != 1:
         return None
 
     sheet_info = sheets[0]
     sheet_name = _get_sheet_name(sheet_info)
     headers = _extract_headers(sheet_info)
+
     trim_text = text[:sort_match.start()]
     sort_text = text[sort_match.end():]
 
     def mentioned_headers(fragment: str) -> list[str]:
         stems = {
             _sort_word_stem(word)
-            for word in re.findall(r"\w+", fragment, flags=re.UNICODE)
+            for word in re.findall(
+                r"\w+",
+                fragment,
+                flags=re.UNICODE,
+            )
             if len(word) >= 3
         }
+
         matches = []
+
         for header in headers:
             normalized_header = _normalize_header_text(header)
-            # Short Russian words do not stem reliably with the generic
-            # suffix helper ("имя" / "имени"), so handle this common header
-            # by its grammatical forms.
+
             if normalized_header == "имя" and re.search(
-                r"\b(?:имя|имени)\b", fragment
+                r"\b(?:имя|имени)\b",
+                fragment,
             ):
                 matches.append(header)
                 continue
+
             words = [
                 word for word in re.findall(
-                    r"\w+", normalized_header, flags=re.UNICODE
-                ) if len(word) >= 3
+                    r"\w+",
+                    normalized_header,
+                    flags=re.UNICODE,
+                )
+                if len(word) >= 3
             ]
-            header_stems = {_sort_word_stem(word) for word in words}
+
+            header_stems = {
+                _sort_word_stem(word)
+                for word in words
+            }
+
             if header_stems and header_stems.issubset(stems):
                 matches.append(header)
+
         return matches
 
     trim_columns = mentioned_headers(trim_text)
     sort_columns = mentioned_headers(sort_text)
+
     if not trim_columns or len(sort_columns) != 1:
         return None
 
@@ -888,7 +1614,9 @@ def _route_trim_then_sort_request(
         r"\bпо убыванию\b|\bот я до а\b|\bот z до a\b",
         sort_text,
     ))
+
     sort_column = sort_columns[0]
+
     return {
         "questions": [],
         "operations": [
@@ -924,94 +1652,204 @@ def _route_trim_then_sort_request(
 # ============================================================
 
 def _route_smart_summary_request(
-    task: str, analysis: Any, selected_sheet: Any = None,
+    task: str,
+    analysis: Any,
+    selected_sheet: Any = None,
 ) -> dict | None:
-    """Универсальная сводка и разделение по реальным заголовкам книги."""
     normalized_task = _normalize_task_text(task)
     text = _normalize_header_text(normalized_task)
-    wants_summary = bool(re.search(
-        r"\b(?:общ\w*\s+сводк\w*|сводк\w*|итог\w*|статистик\w*|"
-        r"посчитай|сколько|распределени\w*|дашборд\w*|dashboard)\b", text
+
+    wants_comparison = bool(re.search(
+        r"\b(?:сравнительн\w*\s+анализ\w*|сравни\w*|сопостав\w*)\b",
+        text,
     ))
+    wants_cross_tables = bool(re.search(
+        r"\b(?:перекр[её]ст\w*|кросс[-\s]?таблиц\w*|cross[-\s]?tab\w*)\b",
+        text,
+    ))
+
+    wants_summary = wants_comparison or bool(re.search(
+        r"\b(?:общ\w*\s+(?:сводк\w*|сводн\w*\s+таблиц\w*)|"
+        r"сводк\w*|сводн\w*\s+таблиц\w*|итог\w*|статистик\w*|"
+        r"посчитай|сколько|распределени\w*|отчет\w*|отчёт\w*|дашборд\w*|dashboard|"
+        r"проанализир\w*\s+(?:файл\w*|данн\w*|таблиц\w*)|"
+        r"анализ\w*\s+(?:файл\w*|данн\w*|таблиц\w*))\b",
+        text,
+    ))
+
     wants_split = bool(re.search(
         r"\b(?:раздели\w*|разбей\w*|отдельн\w*\s+лист\w*|"
-        r"разн\w*\s+лист\w*)\b", text
+        r"разн\w*\s+лист\w*)\b",
+        text,
     ))
+
     if not (wants_summary or wants_split):
         return None
 
     sheets = _extract_sheets(analysis)
+
     if selected_sheet:
         selected = str(selected_sheet).strip()
-        sheets = [item for item in sheets if _get_sheet_name(item) == selected] or sheets
+        sheets = [
+            item for item in sheets
+            if _get_sheet_name(item) == selected
+        ] or sheets
+
     if len(sheets) != 1:
         return None
-    sheet_info = sheets[0]; sheet_name = _get_sheet_name(sheet_info)
+
+    sheet_info = sheets[0]
+    sheet_name = _get_sheet_name(sheet_info)
     headers = _extract_headers(sheet_info)
+
     task_stems = {
-        _sort_word_stem(word) for word in re.findall(r"\w+", text, flags=re.UNICODE)
+        _sort_word_stem(word)
+        for word in re.findall(
+            r"\w+",
+            text,
+            flags=re.UNICODE,
+        )
         if len(word) >= 3
     }
+
     matched = []
+
     for header in headers:
         words = [
             _sort_word_stem(word)
-            for word in re.findall(r"\w+", _normalize_header_text(header), flags=re.UNICODE)
+            for word in re.findall(
+                r"\w+",
+                _normalize_header_text(header),
+                flags=re.UNICODE,
+            )
             if len(word) >= 3
         ]
+
         if words and all(word in task_stems for word in words):
             matched.append(header)
 
     operations = []
+
     if wants_summary:
+        if wants_cross_tables and len(matched) < 2:
+            anchor = matched[0] if matched else "основной признак"
+            return {
+                "questions": [
+                    f"С каким вторым столбцом построить перекрёстную таблицу для «{anchor}»? "
+                    "Укажите точное название заголовка Excel."
+                ],
+                "operations": [],
+                "mode": "questions",
+                "explanation": (
+                    "Перекрёстная таблица требует двух признаков; "
+                    "автоматическая подстановка остальных столбцов отключена."
+                ),
+            }
+
         operation = {
-            "type": "smart_summary", "sheet": sheet_name,
-            "output_sheet": "Общая сводка", "header_rows": 1,
-            "include_cross_tables": True, "include_charts": True,
+            "type": "smart_summary",
+            "sheet": sheet_name,
+            "output_sheet": "Общая сводка",
+            "header_rows": 1,
+            "include_cross_tables": wants_cross_tables,
+            "include_charts": True,
         }
+
         if matched:
             operation["columns"] = matched
+            # A comparative request must stay on the explicitly named axis.
+            # A broad report may still enrich itself with safe categorical
+            # dimensions, preserving the existing automatic-report workflow.
+            operation["include_other_dimensions"] = not wants_comparison
+
         operations.append(operation)
+
     if wants_split:
         if not matched:
             return {
                 "questions": [
-                    "По каким столбцам разделить записи? Укажите точные названия заголовков Excel."
-                ], "operations": [], "mode": "questions",
-                "explanation": "Для разделения требуется однозначный признак.",
-                "original_task": task, "normalized_task": normalized_task,
+                    "По каким столбцам разделить записи? "
+                    "Укажите точные названия заголовков Excel."
+                ],
+                "operations": [],
+                "mode": "questions",
+                "explanation": (
+                    "Для разделения требуется однозначный признак."
+                ),
+                "original_task": task,
+                "normalized_task": normalized_task,
                 "deterministic_route": True,
             }
+
         operations.append({
-            "type": "split_to_sheets", "sheet": sheet_name,
-            "columns": matched, "header_rows": 1,
+            "type": "split_to_sheets",
+            "sheet": sheet_name,
+            "columns": matched,
+            "header_rows": 1,
         })
 
-    column_text = ", ".join(f"«{name}»" for name in matched)
+    column_text = ", ".join(
+        f"«{name}»"
+        for name in matched
+    )
+
     explanation = []
+
     if wants_summary:
         explanation.append(
-            "Будет создана общая сводка, отдельные распределения, доли, рейтинги, "
-            "диаграммы и перекрёстные таблицы" +
-            (f" по столбцам {column_text}." if matched else " по автоматически найденным разрезам.")
+            "Будет создана общая сводка, отдельные распределения, доли, "
+            "рейтинги и диаграммы"
+            + (" и перекрёстные таблицы" if wants_cross_tables else "")
+            + (
+                f" по столбцам {column_text}."
+                if matched
+                else " по автоматически найденным разрезам."
+            )
         )
+
     if wants_split:
-        explanation.append(f"Записи будут распределены по отдельным листам по комбинациям {column_text}.")
+        explanation.append(
+            f"Записи будут распределены по отдельным листам "
+            f"по комбинациям {column_text}."
+        )
+
+    missing_requested = (
+        bool(re.search(
+            r"направлен|специальност|образовательн\w*\s+программ",
+            text,
+        ))
+        and not any(
+            re.search(
+                r"направлен|специальност|программ",
+                _normalize_header_text(header),
+            )
+            for header in headers
+        )
+    )
+
+    if missing_requested:
+        explanation.append(
+            "ВНИМАНИЕ: столбец направления/специальности/"
+            "образовательной программы отсутствует; "
+            "этот разрез не будет рассчитан."
+        )
+
     return {
-        "questions": [], "operations": operations,
-        "explanation": " ".join(explanation), "mode": "operations",
-        "original_task": task, "normalized_task": normalized_task,
+        "questions": [],
+        "operations": operations,
+        "explanation": " ".join(explanation),
+        "mode": "operations",
+        "original_task": task,
+        "normalized_task": normalized_task,
         "deterministic_route": True,
     }
+
 
 def _route_group_count_request(
     task: str,
     analysis: Any,
     selected_sheet: Any = None,
 ) -> dict | None:
-    """Builds one combined student-count summary and, when requested,
-    partitions the same source rows by the complete set of grouping fields.
-    """
     normalized_task = _normalize_task_text(task)
     text = _normalize_header_text(normalized_task)
 
@@ -1019,13 +1857,19 @@ def _route_group_count_request(
         r"\b(?:сводк\w*|итог\w*|статистик\w*|посчитай|сколько|распределени\w*)\b",
         text,
     ))
+
     if not has_summary:
         return None
 
     sheets = _extract_sheets(analysis)
+
     if selected_sheet:
         selected = str(selected_sheet).strip()
-        matches = [s for s in sheets if _get_sheet_name(s) == selected]
+        matches = [
+            s for s in sheets
+            if _get_sheet_name(s) == selected
+        ]
+
         if matches:
             sheets = matches
 
@@ -1036,9 +1880,6 @@ def _route_group_count_request(
     sheet_name = _get_sheet_name(sheet_info)
     headers = _extract_headers(sheet_info)
 
-    # Поля идут в смысловом порядке, а не в порядке столбцов Excel.
-    # Это важно: расположение столбца в начале таблицы не должно
-    # заставлять BahonIQ игнорировать остальные признаки группировки.
     dimensions = [
         {
             "key": "факультет",
@@ -1069,8 +1910,13 @@ def _route_group_count_request(
 
     requested_dimensions = [
         item for item in dimensions
-        if re.search(item["task_pattern"], text, flags=re.IGNORECASE)
+        if re.search(
+            item["task_pattern"],
+            text,
+            flags=re.IGNORECASE,
+        )
     ]
+
     if not requested_dimensions:
         return None
 
@@ -1086,34 +1932,46 @@ def _route_group_count_request(
                 flags=re.IGNORECASE,
             )
         ]
+
         if len(matches) == 1:
             resolved_columns.append(matches[0])
+
         elif len(matches) > 1:
             return {
                 "questions": [
-                    f"Для признака «{dimension['key']}» найдено несколько столбцов: "
+                    f"Для признака «{dimension['key']}» "
+                    "найдено несколько столбцов: "
                     + ", ".join(f"«{value}»" for value in matches)
                     + ". Укажи, какой столбец использовать."
                 ],
                 "operations": [],
-                "explanation": "Нельзя безопасно выбрать один из нескольких столбцов.",
+                "explanation": (
+                    "Нельзя безопасно выбрать один из нескольких столбцов."
+                ),
                 "mode": "questions",
                 "original_task": task,
                 "normalized_task": normalized_task,
                 "deterministic_route": True,
             }
+
         else:
             missing_dimensions.append(dimension["key"])
 
     if missing_dimensions:
         return {
             "questions": [
-                "Не удалось однозначно найти в Excel столбцы для признаков: "
-                + ", ".join(f"«{name}»" for name in missing_dimensions)
+                "Не удалось однозначно найти в Excel столбцы "
+                "для признаков: "
+                + ", ".join(
+                    f"«{name}»"
+                    for name in missing_dimensions
+                )
                 + ". Проверь названия заголовков или уточни их."
             ],
             "operations": [],
-            "explanation": "Для сводки и разделения нужны все указанные признаки.",
+            "explanation": (
+                "Для сводки и разделения нужны все указанные признаки."
+            ),
             "mode": "questions",
             "original_task": task,
             "normalized_task": normalized_task,
@@ -1147,15 +2005,21 @@ def _route_group_count_request(
             "header_rows": 1,
         })
 
-    cols_formatted = ", ".join(f"«{column}»" for column in resolved_columns)
+    cols_formatted = ", ".join(
+        f"«{column}»"
+        for column in resolved_columns
+    )
+
     explanation = (
         "Будет создана одна общая сводка с количеством студентов "
         f"по комбинациям признаков: {cols_formatted}."
     )
+
     if has_split:
         explanation += (
-            " Дополнительно каждый студент будет распределён на отдельный лист "
-            "по полной комбинации этих же признаков, а не только по первому столбцу."
+            " Дополнительно каждый студент будет распределён "
+            "на отдельный лист по полной комбинации этих же признаков, "
+            "а не только по первому столбцу."
         )
 
     return {
@@ -1178,7 +2042,6 @@ def _route_split_to_sheets_request(
     analysis: Any,
     selected_sheet: Any = None,
 ) -> dict | None:
-    """Обрабатывает запросы на разделение по листам и составление сводок."""
     normalized_task = _normalize_task_text(task)
     text = _normalize_header_text(normalized_task)
 
@@ -1209,7 +2072,6 @@ def _route_split_to_sheets_request(
     sheet_name = _get_sheet_name(sheet_info)
     headers = _extract_headers(sheet_info)
 
-    # 1. Находим ВСЕ столбцы из заголовков Excel, упомянутые в запросе пользователя
     task_stems = {
         _sort_word_stem(word)
         for word in re.findall(r"\w+", text, flags=re.UNICODE)
@@ -1246,7 +2108,6 @@ def _route_split_to_sheets_request(
 
     operations = []
 
-    # 2. Если пользователь просил сводку/статистику, добавляем операции подсчета
     has_summary = bool(re.search(r"\b(?:сводка|сводку|итог|статистик\w*|посчитай)\b", text))
     if has_summary:
         for col in matched_columns:
@@ -1259,7 +2120,6 @@ def _route_split_to_sheets_request(
                 "header_rows": 1,
             })
 
-    # 3. Добавляем операцию разделения на листы по первому/основному столбцу
     split_column = matched_columns[0]
     operations.append({
         "type": "split_to_sheets",
@@ -1268,7 +2128,6 @@ def _route_split_to_sheets_request(
         "header_rows": 1,
     })
 
-    # Формируем человекочитаемое описание цепочки действий
     exp_parts = []
     if has_summary:
         cols_str = ", ".join(f"«{c}»" for c in matched_columns)
@@ -1294,7 +2153,6 @@ def _route_split_to_sheets_request(
 # ============================================================
 
 def _sort_word_stem(word: str) -> str:
-    """Упрощённо нормализует окончания слов для русских заголовков."""
     endings = (
         "иями", "ями", "ами", "ого", "ему", "ому",
         "ыми", "ими", "иях", "ах", "ях", "ов", "ев",
@@ -1316,11 +2174,6 @@ def _route_sort_request(
     analysis: Any,
     selected_sheet: Any = None,
 ) -> dict | None:
-    """
-    Создаёт план простой сортировки без обращения к Ollama.
-    Если запрос нельзя определить однозначно, возвращает None
-    или задаёт уточняющий вопрос.
-    """
     normalized_task = _normalize_task_text(task)
     text = _normalize_header_text(normalized_task)
 
@@ -1339,7 +2192,6 @@ def _route_sort_request(
     ):
         return None
 
-    # Не перехватываем отрицательные или отменяющие команды.
     if re.search(
         r"\b(?:не|нельзя|не надо|не нужно|отмени)\s+"
         r"(?:отсортир\w*|сортиров\w*|упорядоч\w*)",
@@ -1353,7 +2205,6 @@ def _route_sort_request(
     if not sheets:
         return None
 
-    # Если пользователь выбрал лист, в первую очередь работаем с ним.
     if selected_sheet:
         selected_name = str(selected_sheet).strip()
         selected_matches = [
@@ -1368,8 +2219,6 @@ def _route_sort_request(
     else:
         sheets_to_check = sheets
 
-    # Слова из запроса сопоставляем с заголовками,
-    # учитывая распространённые русские окончания.
     task_words = {
         _sort_word_stem(word)
         for word in re.findall(r"\w+", text, flags=re.UNICODE)
@@ -1403,16 +2252,12 @@ def _route_sort_request(
                 if _sort_word_stem(word) in task_words
             ]
 
-            # Для заголовка из нескольких слов достаточно совпадения
-            # хотя бы одного слова. Если подходят несколько столбцов,
-            # ниже будет запрошено уточнение.
             if matched_words:
                 candidates.append({
                     "sheet": sheet_name,
                     "column": header,
                 })
 
-    # Убираем повторы одной пары «лист — столбец».
     unique_candidates = []
     seen = set()
 
@@ -1429,7 +2274,6 @@ def _route_sort_request(
     candidates = unique_candidates
 
     if not candidates:
-        # Не угадываем столбец: оставляем запрос языковой модели.
         return None
 
     if len(candidates) > 1:
@@ -1543,8 +2387,6 @@ def _compact_analysis(analysis: Any) -> str:
     if isinstance(analysis, str):
         text = analysis
     else:
-        # Exclude statistics that distract the model from the user's actual
-        # data. Keep exact names, representative values and semantic profiles.
         compact = {
             "file_name": analysis.get("file_name"),
             "format": analysis.get("format"),
@@ -1577,6 +2419,9 @@ def _compact_analysis(analysis: Any) -> str:
 # ============================================================
 
 def _available_models() -> list[str]:
+    import os
+    os.environ.setdefault("NO_PROXY", "localhost,127.0.0.1")
+    os.environ.setdefault("no_proxy", "localhost,127.0.0.1")
     try:
         with urllib.request.urlopen(OLLAMA_TAGS_URL, timeout=5) as response:
             data = json.loads(response.read().decode("utf-8"))
@@ -1589,37 +2434,54 @@ def _available_models() -> list[str]:
 
 
 def _select_model() -> str:
+    import os
     models = _available_models()
-    if not models or OLLAMA_MODEL in models:
+    if not models:
         return OLLAMA_MODEL
-    # Prefer the strongest installed Qwen model instead of failing merely
-    # because the configured tag is absent.
+    explicit = os.getenv("BAHONIQ_OLLAMA_MODEL", "").strip()
+    if explicit and explicit in models:
+        return explicit
+    if "qwen2.5:7b" in models:
+        return "qwen2.5:7b"
+    if OLLAMA_MODEL in models:
+        return OLLAMA_MODEL
     qwen = [name for name in models if "qwen" in name.casefold()]
     return qwen[0] if qwen else models[0]
 
+EXCEL_AI_SYSTEM_PROMPT = (
+    "Ты — универсальный эксперт по работе с табличными данными (Excel, CSV, TSV) любой сложности и предметной области.\n"
+    "Твоя задача — адаптироваться под задачу пользователя:\n"
+    "- Проведение расчетов, поиск зависимостей, аномалий и ошибок в данных.\n"
+    "- Составление и отладка формул любой сложности (XLOOKUP, INDEX/MATCH, динамические массивы, агрегации, условия).\n"
+    "- Сверка любых таблиц между собой: сопоставление сущностей, нечеткое сравнение строк/ФИО, поиск нестыковок и дубликатов.\n"
+    "- Генерация готового кода на Python (pandas/openpyxl) или VBA макросов для автоматизации обработки.\n"
+    "Ответ давай структурированно, точно и применимо к конкретным колонкам переданной таблицы без лишней теории.\n"
+    "Возвращай только валидный JSON."
+)
+
+
 def _post_to_ollama(prompt: str) -> dict:
+    # 1. Попытка через единый AI-сервис (Google Gemini Flash с fallback)
+    try:
+        import ai_service
+        raw_ai = ai_service.generate_text(
+            prompt=prompt,
+            system_instruction=EXCEL_AI_SYSTEM_PROMPT,
+            temperature=0.1,
+            timeout=30,
+        )
+        if raw_ai and ("{" in raw_ai and "}" in raw_ai):
+            return _extract_json(raw_ai)
+    except Exception as exc:
+        pass
+
+    # 2. Локальный прямой вызов Ollama
     payload = {
         "model": _select_model(),
         "messages": [
             {
                 "role": "system",
-                "content": (
-                    "Ты — интеллектуальный помощник BahonIQ Excel AI. "
-                    "Понимай естественный русский язык, разговорные "
-                    "выражения, синонимы и очевидные опечатки. "
-                    "Выбирай реальные листы и столбцы из анализа. "
-                    "Не выдумывай отсутствующие заголовки и данные. "
-                    "Не используй find_repeated_values для поиска "
-                    "пустых или отсутствующих значений. "
-                    "Если пользователь ищет записи без значения "
-                    "в конкретном поле, используй find_blank_cells. "
-                    "Не удаляй данные, если пользователь не просит "
-                    "их удалить. Для группировки и расчётов используй "
-                    "group_by_aggregate, для формул по строкам — apply_formula. "
-                    "Формула должна содержать плейсхолдер {row}, например "
-                    "=B{row}*C{row}. При неоднозначности задай вопрос. "
-                    "Возвращай только корректный JSON."
-                ),
+                "content": EXCEL_AI_SYSTEM_PROMPT,
             },
             {
                 "role": "user",
@@ -1628,11 +2490,12 @@ def _post_to_ollama(prompt: str) -> dict:
         ],
         "stream": False,
         "format": "json",
-        "keep_alive": -1,  # Удерживает модель в VRAM и предотвращает холодный старт
+        "keep_alive": -1,
         "options": {
-            "temperature": 0,
+            "temperature": 0.1,
             "top_p": 0.1,
-            "num_ctx": CONTEXT_SIZE,
+            "num_ctx": max(CONTEXT_SIZE, 6144),
+            "num_predict": 1200,
         },
     }
 
@@ -1850,7 +2713,6 @@ def _normalize_operation(original: dict, index: int) -> dict:
     if isinstance(operation.get("columns"), str):
         operation["columns"] = [operation["columns"]]
 
-    # Нормализуем параметры новых операций, не затрагивая старые типы.
     if operation_type == "group_by_aggregate":
         if not operation.get("column"):
             for alias in ("group_column", "group_by", "группировать_по"):
@@ -1928,6 +2790,118 @@ def _normalize_operation(original: dict, index: int) -> dict:
                 f"Операция {index} (apply_formula): некорректный шаблон формулы: {exc}"
             ) from exc
         operation["formula"] = formula.strip()
+
+    elif operation_type == "filter_rows":
+        if not operation.get("column") and isinstance(operation.get("columns"), list) and operation["columns"]:
+            operation["column"] = operation["columns"][0]
+        if not operation.get("operator"):
+            for alias in ("op", "condition", "comparison", "условие", "оператор"):
+                if operation.get(alias) is not None:
+                    operation["operator"] = operation[alias]
+                    break
+        raw_op = str(operation.get("operator") or "eq").strip().lower()
+        op_aliases = {
+            "=": "eq", "==": "eq", "равно": "eq", "равен": "eq", "равна": "eq", "equals": "eq", "equal": "eq",
+            "!=": "ne", "<>": "ne", "не равно": "ne", "not_equal": "ne", "neq": "ne",
+            ">": "gt", "больше": "gt", "greater": "gt", "above": "gt",
+            ">=": "ge", "gte": "ge", "больше или равно": "ge", "не меньше": "ge",
+            "<": "lt", "меньше": "lt", "less": "lt", "below": "lt",
+            "<=": "le", "lte": "le", "меньше или равно": "le", "не больше": "le",
+            "содержит": "contains", "включает": "contains", "like": "contains",
+            "не содержит": "not_contains",
+            "пусто": "blank", "пустой": "blank", "is_empty": "blank", "null": "blank",
+            "не пусто": "not_blank", "заполнено": "not_blank", "not_empty": "not_blank",
+        }
+        operation["operator"] = op_aliases.get(raw_op, raw_op)
+        if "value" not in operation:
+            for alias in ("target_value", "filter_value", "значение", "критерий"):
+                if alias in operation:
+                    operation["value"] = operation[alias]
+                    break
+
+    elif operation_type == "pivot_count":
+        if not operation.get("row_column"):
+            for alias in ("row", "rows", "index", "group_column", "column", "строка", "строки", "по_вертикали"):
+                if operation.get(alias):
+                    operation["row_column"] = operation[alias]
+                    break
+        if not operation.get("column_column"):
+            for alias in ("col", "col_column", "header_column", "compare_column", "other_column", "столбец_сравнения", "по_горизонтали"):
+                if operation.get(alias):
+                    operation["column_column"] = operation[alias]
+                    break
+        cols = operation.get("columns")
+        if isinstance(cols, list) and len(cols) >= 2:
+            operation.setdefault("row_column", cols[0])
+            operation.setdefault("column_column", cols[1])
+
+    elif operation_type == "replace_values":
+        if not operation.get("columns") and operation.get("column"):
+            operation["columns"] = [operation["column"]]
+        if "old" not in operation:
+            for alias in ("old_value", "find", "search", "from", "старое", "найти"):
+                if alias in operation:
+                    operation["old"] = operation[alias]
+                    break
+        if "new" not in operation:
+            for alias in ("new_value", "replace", "to", "новое", "заменить_на"):
+                if alias in operation:
+                    operation["new"] = operation[alias]
+                    break
+
+    elif operation_type == "fill_empty":
+        if not operation.get("columns") and operation.get("column"):
+            operation["columns"] = [operation["column"]]
+        if "value" not in operation:
+            for alias in ("fill_value", "default", "replacement", "значение", "чем_заполнить"):
+                if alias in operation:
+                    operation["value"] = operation[alias]
+                    break
+
+    elif operation_type == "sort_rows":
+        if not operation.get("column") and isinstance(operation.get("columns"), list) and operation["columns"]:
+            operation["column"] = operation["columns"][0]
+        if "descending" not in operation:
+            for alias in ("order", "direction", "порядок"):
+                val = str(operation.get(alias) or "").strip().lower()
+                if val in {"desc", "descending", "убывание", "по убыванию", "true"}:
+                    operation["descending"] = True
+                    break
+                if val in {"asc", "ascending", "возрастание", "по возрастанию", "false"}:
+                    operation["descending"] = False
+                    break
+
+    elif operation_type == "distinct_count":
+        if not operation.get("id_column"):
+            for alias in ("column", "key_column", "unique_column", "столбец_id"):
+                if operation.get(alias):
+                    operation["id_column"] = operation[alias]
+                    break
+
+    elif operation_type == "compare_columns":
+        if not operation.get("other_column"):
+            for alias in ("second_column", "column2", "target_column", "второй_столбец"):
+                if operation.get(alias):
+                    operation["other_column"] = operation[alias]
+                    break
+        cols = operation.get("columns")
+        if isinstance(cols, list) and len(cols) >= 2:
+            operation.setdefault("column", cols[0])
+            operation.setdefault("other_column", cols[1])
+
+    elif operation_type in {
+        "extract_split_values_to_sheet", "split_cell_values_to_rows",
+        "split_to_sheets", "split_by_column", "summary_count", "find_repeated_values",
+    }:
+        if not operation.get("column") and isinstance(operation.get("columns"), list) and operation["columns"]:
+            operation["column"] = operation["columns"][0]
+
+    elif operation_type in {
+        "trim_text", "highlight_empty", "remove_duplicates",
+        "find_blank_cells", "select_columns", "copy_columns_to_sheet", "reorder_columns",
+    }:
+        if not operation.get("columns") and operation.get("column"):
+            operation["columns"] = [operation["column"]]
 
     return operation
 
@@ -2058,6 +3032,10 @@ def _build_prompt(
     столбца, используй split_by_column.
 
 11. Для выбора столбцов используй select_columns и columns.
+    Чтобы скопировать выбранные столбцы на другой лист без изменения
+    источника, используй copy_columns_to_sheet с sheet, columns и output_sheet.
+    «ФИО» означает реальные столбцы «Фамилия», «Имя», «Отчество», если они
+    присутствуют раздельно; иначе может означать единственный столбец «ФИО».
 
 12. Для сортировки используй sort_rows, sheet и column.
 
@@ -2080,6 +3058,26 @@ def _build_prompt(
 17. Для заполнения вычисляемого столбца формулой используй apply_formula.
     Поля: sheet, column, formula. В formula используй {{row}} как номер
     строки, например =B{{row}}*C{{row}}. Указывай реальный целевой столбец.
+
+17а. Для фильтрации (отбора) строк на новый лист используй filter_rows.
+     Поля: sheet, column, operator (eq, ne, gt, ge, lt, le, contains, blank, not_blank),
+     value, output_sheet (например «Отбор»).
+
+17б. Для построения перекрёстной матрицы (сводной таблицы 2 признаков) используй
+     pivot_count. Поля: sheet, row_column (строки), column_column (столбцы),
+     output_sheet (например «Перекрёстная таблица»).
+
+17в. Для аналитической сводки с таблицами и графиками по категориальным полям
+     используй smart_summary. Поля: sheet, columns (список столбцов),
+     include_charts (true/false), include_cross_tables (true/false).
+
+17г. Для извлечения нескольких значений из одной ячейки (через запятую/разделитель)
+     в отдельные строки нового листа используй extract_split_values_to_sheet
+     (sheet, column, output_sheet). Для разбиения строк на месте — split_cell_values_to_rows.
+
+17д. Для сравнения двух столбцов между собой используй compare_columns
+     (sheet, column, other_column). Для подсчёта уникальных ID по группам —
+     distinct_count (sheet, id_column, columns, output_sheet).
 
 18. Не придумывай названия, значения, листы или результаты.
 
@@ -2134,6 +3132,206 @@ def _build_prompt(
 # MAIN FUNCTION
 # ============================================================
 
+def _safe_local_plan(task, analysis, selected_sheet=None):
+    """Deterministic plans for unambiguous requests; never silently substitute tasks."""
+    import difflib
+    text = _normalize_header_text(task)
+    typo = {"зделай":"сделай", "падробный":"подробный", "атчет":"отчет", "факултетам":"факультетам", "палу":"полу", "граждаству":"гражданству", "пакажи":"покажи", "каличество":"количество", "працэнты":"проценты", "дигарммы":"диаграммы"}
+    for wrong, right in typo.items():
+        text = re.sub(r"\b"+wrong+r"\b", right, text)
+    sheets = _extract_sheets(analysis)
+    if selected_sheet:
+        sheets = [sh for sh in sheets if _get_sheet_name(sh)==selected_sheet]
+    if len(sheets)!=1:
+        return None
+    name=_get_sheet_name(sheets[0]); headers=_extract_headers(sheets[0])
+    def matched(fragment):
+        words=set(re.findall(r"\w+", fragment))
+        stems={_sort_word_stem(w) for w in words}
+        result=[]
+        for h in headers:
+            hw=re.findall(r"\w+", _normalize_header_text(h))
+            hs={_sort_word_stem(w) for w in hw}
+            if hs and hs.issubset(stems): result.append(h)
+        return result
+
+    # Запрет локального поиска пустых ячеек при явном отрицании
+    if re.search(r"\bне\s+(?:ищи|искать|проверяй|выполняй)\b.*\bпуст\w*", text):
+        return None
+
+    if re.search(r"уникальн\w*\s+id|уникальн\w*\s+обучающ|повторяющ\w*\s+идентификатор", text) and re.search(r"распределен|по\s+факультет|численност", text):
+        return {"operations":[],"questions":["Для распределения по уникальным ID требуется отдельная операция distinct-count по группам. Текущий smart_summary считает строки; подменять расчёт нельзя."],"mode":"questions"}
+    sort_match=re.search(r"\b(?:отсортир\w*|сортир\w*|упорядоч\w*)", text)
+    wants_summary=bool(re.search(r"\b(?:отчет\w*|сводн\w*|сводк\w*|аналитическ\w*|статистик\w*)", text))
+    if sort_match and wants_summary:
+        before=text[:sort_match.end()+1]
+        after=text[sort_match.end():]
+        first=after.split('затем')[0].split('потом')[0]
+        sortcols=matched(first)
+        summarycols=matched(after.split('затем',1)[-1]) if 'затем' in after else matched(after)
+        if len(sortcols)==1 and summarycols:
+            ops=[{"type":"sort_rows","sheet":name,"column":sortcols[0],"descending":False},{"type":"smart_summary","sheet":name,"columns":list(dict.fromkeys(summarycols)),"include_charts":True,"include_cross_tables":True}]
+            return {"operations":ops,"questions":[],"mode":"operations","explanation":"Сортировка, затем аналитические сводки и диаграммы."}
+
+    if re.search(r"(?:кажд\w*\s+комбинац|по\s+комбинац|всем\s+комбинац)",text):
+        cols=matched(text)
+        if len(cols)>=2:
+            return {"operations":[{"type":"group_by_aggregate","sheet":name,"columns":cols,"column":cols[0],"function":"count","include_empty":True,"output_sheet":"Группировка"}],"questions":[],"mode":"operations","explanation":"Подсчёт по полным комбинациям указанных полей."}
+    if wants_summary and re.search(r"диаграм|дигарм|построй",text):
+        cols=matched(text)
+        if cols:
+            return {"operations":[{"type":"smart_summary","sheet":name,"columns":cols,"include_charts":True,"include_cross_tables":True}],"questions":[],"mode":"operations","explanation":"Сводные таблицы и диаграммы по указанным полям."}
+    return None
+
+
+def _plan_composite_request(original_task, normalized_task, analysis,
+                            selected_sheet, semantic_intent):
+    prompt = _build_prompt(normalized_task, analysis, selected_sheet,
+                           original_task, semantic_intent)
+    try:
+        result = _post_to_ollama(prompt)
+        questions = _normalize_questions(result.get("questions"))
+        if questions:
+            return {"questions": questions, "operations": [], "mode": "questions",
+                    "explanation": str(result.get("explanation", "")),
+                    "semantic_intent": semantic_intent}
+        ops = _validate_operations(result.get("operations", []))
+    except (RuntimeError, ValueError, TimeoutError) as exc:
+        return {"questions": ["Составной запрос требует уточнения или доступной модели Ollama. "
+                              "Ни одно действие не выполнено."],
+                "operations": [], "mode": "questions", "ai_fallback": True,
+                "explanation": str(exc).splitlines()[0],
+                "semantic_intent": semantic_intent}
+    planned_types = {op["type"] for op in ops}
+    requirements = {
+        "smart_summary": {"smart_summary", "group_by_aggregate", "summary_count"},
+        "group_count": {"smart_summary", "group_by_aggregate", "summary_count"},
+        "sort_rows": {"sort_rows", "split_to_sheets"},
+        "trim_text": {"trim_text"},
+        "split_to_sheets": {"split_to_sheets"},
+        "find_missing": {"find_blank_cells"},
+    }
+    requested = semantic_intent.get("actions", [])
+    missing = [name for name in requested if name in requirements
+               and not (planned_types & requirements[name])]
+    if missing or not ops:
+        return {"questions": ["План не покрывает все действия: " + ", ".join(missing or requested)
+                              + ". Уточни запрос или повтори планирование."],
+                "operations": [], "mode": "questions",
+                "explanation": "Частичный план заблокирован до подтверждения полноты.",
+                "semantic_intent": semantic_intent}
+    if selected_sheet:
+        for op in ops:
+            op.setdefault("sheet", selected_sheet)
+    return {"questions": [], "operations": ops, "mode": "operations",
+            "explanation": str(result.get("explanation", "")),
+            "coverage": {"requested": requested, "covered": [x for x in requested if x not in missing]},
+            "semantic_intent": semantic_intent}
+
+
+def _route_semantic_quality(task, analysis, selected_sheet=None):
+    text = _normalize_header_text(task)
+    sheets = _extract_sheets(analysis)
+    if selected_sheet:
+        sheets = [s for s in sheets if _get_sheet_name(s) == str(selected_sheet).strip()]
+    if len(sheets) != 1:
+        return None
+    sheet = _get_sheet_name(sheets[0]); headers = _extract_headers(sheets[0])
+    def norm(h): return _normalize_header_text(h)
+    def find(pattern):
+        found = [h for h in headers if re.search(pattern, norm(h))]
+        return found[0] if len(found) == 1 else None
+    def result(ops, explanation):
+        return {"questions": [], "operations": ops, "mode": "operations",
+                "explanation": explanation, "deterministic_route": True}
+
+    if re.search(r"(?:если.*(?:столбц|пол[ея]).*(?:нет|отсутств)|таких столбцов|не подставляй|не создавай фиктивн)", text):
+        requested = []
+        for pattern, label in [(r"образовательн\w*\s+программ", "образовательная программа"),
+                               (r"специальност", "специальность"), (r"курс", "курс")]:
+            if re.search(pattern, text) and not find(pattern): requested.append(label)
+        if requested:
+            return {"questions": ["В файле отсутствуют запрошенные столбцы: " + ", ".join(requested) + ". Уточните доступные поля."],
+                    "operations": [], "mode": "questions", "explanation": "Нельзя подменять отсутствующие поля другими."}
+
+    if re.search(r"уникальн\w*|без повторн\w*\s+подсчет", text) and re.search(r"\bid\b|идентификатор", text):
+        id_col = find(r"^(?:id|ид)\s+обучающ|^(?:id|ид)\s+студент|^student\s*id$|^id$")
+        if not id_col:
+            return {"questions": ["Укажите однозначный столбец ID для подсчёта уникальных записей."], "operations": [], "mode": "questions"}
+        groups=[]
+        for pattern in (r"факультет", r"форм\w*\s+обучен", r"финансирован", r"гражданств", r"\bпол\b"):
+            if re.search(pattern, text):
+                h=find(pattern)
+                if h and h != id_col and h not in groups: groups.append(h)
+        if re.search(r"(?:диаграм|график|перекрестн|перекрестн|комплексн)", text):
+            return {"questions": ["Запрос объединяет уникальные ID и другие виды аналитики. Для предотвращения частичного результата выполните отдельно подсчёт уникальных ID и запрос на диаграммы/перекрёстные таблицы."],
+                    "operations": [], "mode": "questions", "explanation": "Составной отчёт пока не подтверждён полным планом."}
+        return result([{"type":"distinct_count", "sheet":sheet, "id_column":id_col,
+                        "columns":groups, "output_sheet":"Уникальные ID"}],
+                      "Сравнение строк с уникальными ID и распределение по указанным группам.")
+
+    broad = bool(re.search(r"\b(?:полный|полную|полное|комплексный|комплексную|комплексное|подробный|подробную|всесторонний|всестороннюю)\s+(?:анализ|аналитику|аналитический|отчет|отчёт)|\bпроанализируй\s+все\b", text))
+    comparative = bool(re.search(r"\bсравнительн\w*\s+анализ|\bсравни\b|\bсопостав\w*", text))
+    cross_requested = bool(re.search(
+        r"\b(?:перекр[её]ст\w*|кросс[-\s]?таблиц\w*|cross[-\s]?tab\w*)\b",
+        text,
+    ))
+    if broad or comparative:
+        if comparative:
+            requested = [h for h in headers if norm(h) in text or (len(norm(h)) > 3 and norm(h) in text)]
+            if len(requested) != 1:
+                return {"questions": ["По какому одному полю сравнивать группы или периоды? Укажите заголовок из Excel."],
+                        "operations": [], "mode": "questions", "explanation": "Не определена ось сравнения."}
+            if cross_requested:
+                return {
+                    "questions": [
+                        f"С каким вторым столбцом построить перекрёстную таблицу для «{requested[0]}»? "
+                        "Укажите точное название заголовка Excel."
+                    ],
+                    "operations": [],
+                    "mode": "questions",
+                    "explanation": (
+                        "Перекрёстная таблица требует двух признаков; "
+                        "остальные столбцы автоматически не подставляются."
+                    ),
+                }
+            return result([{"type": "smart_summary", "sheet": sheet, "columns": requested,
+                            "include_charts": True, "include_cross_tables": False,
+                            "include_other_dimensions": False}],
+                          "Сравнение категорий по указанному полю. Сравнение динамики требует временного столбца.")
+        return result([{"type": "smart_summary", "sheet": sheet,
+                        "include_charts": True, "include_cross_tables": True}],
+                      "Обзор распределений и перекрёстных таблиц по автоматически выбранным категориальным полям. "
+                      "Это описательный анализ, а не проверка всех возможных статистических гипотез.")
+
+    if re.search(r"(?:за чей счет|за чеи счет|за какие средства|кто оплачивает|контингент|как распределяется)", text) and re.search(r"(?:таблиц|график|сводк|распредел)", text):
+        groups=[]
+        for phrase, pattern in [(r"школ|факультет",r"факультет"),
+                                (r"форм",r"форм\w*\s+обучен"),
+                                (r"за чей счет|за чеи счет|финанс|за какие средства|кто оплачивает",r"финансирован")]:
+            if re.search(phrase, text):
+                h=find(pattern)
+                if h and h not in groups: groups.append(h)
+        missing = []
+        for phrase, pattern, label in [(r"школ|факультет", r"факультет", "факультет"),
+                                       (r"форм", r"форм\w*\s+обучен", "форма обучения"),
+                                       (r"за чей счет|за чеи счет|финанс|за какие средства|кто оплачивает", r"финансирован", "финансирование")]:
+            if re.search(phrase, text) and not find(pattern):
+                missing.append(label)
+        if missing:
+            return {"questions": ["Не найдены однозначные поля: " + ", ".join(missing)],
+                    "operations": [], "mode": "questions"}
+        if groups:
+            return result([{"type":"smart_summary","sheet":sheet,"columns":groups,
+                            "include_cross_tables":True,"include_charts":True}],
+                          "Сводки по смысловым признакам запроса.")
+    return None
+
+def _interpret_task(task: str, analysis: Any, selected_sheet: Any = None, **kwargs):
+    """Compatibility extension hook used by integrations and older builds."""
+    return None
+
+
 def interpret_task(
     task: str,
     analysis: Any,
@@ -2151,17 +3349,118 @@ def interpret_task(
             "Сначала выбери и проанализируй файл."
         )
 
+    if selected_sheet:
+        available_sheet_names = [
+            _get_sheet_name(item) for item in _extract_sheets(analysis)
+        ]
+        from .sheet_names import resolve_sheet_name
+        selected_sheet = resolve_sheet_name(str(selected_sheet), available_sheet_names)
+
+    extension_result = _interpret_task(
+        task, analysis, selected_sheet=selected_sheet, **kwargs
+    )
+    if extension_result is not None:
+        result = dict(extension_result)
+        operations = list(result.get("operations") or [])
+        names = [_get_sheet_name(item) for item in _extract_sheets(analysis)]
+        from .sheet_names import resolve_sheet_name
+        try:
+            for operation in operations:
+                if isinstance(operation, dict) and operation.get("sheet"):
+                    operation["sheet"] = resolve_sheet_name(operation["sheet"], names)
+        except ValueError as exc:
+            return {
+                "questions": [str(exc)], "operations": [], "mode": "questions",
+                "explanation": "План содержит лист, которого нет в книге.",
+            }
+        result["operations"] = operations
+        result.setdefault("questions", [])
+        result.setdefault("mode", "operations" if operations else "questions")
+        return result
+
     original_task = task.strip()
     normalized_task = _normalize_task_text(original_task)
 
-    # Не отправляем заведомо неопределённые короткие пожелания в Ollama.
-    # Они не описывают операцию и раньше могли надолго занимать модель.
+    # Preserve the full order of explicit multi-step instructions before a
+    # narrow one-action router can consume only the first part.
+    from .pro_planner import plan_request as _plan_ordered_request, segments as _segments
+    explicit_sequence = bool(re.search(
+        r"(?:\bзатем\b|\bпотом\b|\bпосле\s+этого\b|\bа\s+также\b|\bкроме\s+того\b|;|(?:^|\n)\s*\d+[.)])",
+        original_task,
+        re.I,
+    ))
+    if re.search(r"\bуникальн\w*\b", normalized_task) and re.search(
+        r"\b(?:id|идентификатор)\w*\b", normalized_task
+    ):
+        explicit_sequence = False
+    if explicit_sequence and len(_segments(original_task)) > 1:
+        ordered = _plan_ordered_request(
+            original_task, analysis, selected_sheet=selected_sheet, use_ai=False
+        )
+        if ordered is not None:
+            ordered.setdefault("original_task", original_task)
+            ordered.setdefault("normalized_task", normalized_task)
+            return ordered
+    if re.search(
+        r"\b(?:заполн\w*|замен\w*|убер\w*\s+пробел\w*|очист\w*\s+пробел\w*|"
+        r"(?:извлек|перенес|вывед|вывест|разверн|раздел)\w*.*(?:строк|вертикальн)\w*)\b",
+        normalized_task,
+    ):
+        direct_mutation = _plan_ordered_request(
+            original_task, analysis, selected_sheet=selected_sheet, use_ai=False
+        )
+        if direct_mutation is not None and direct_mutation.get("operations"):
+            direct_mutation.setdefault("original_task", original_task)
+            direct_mutation.setdefault("normalized_task", normalized_task)
+            return direct_mutation
+
+    # A cross-table is a distinct matrix operation, not a generic grouping,
+    # sorting or split-to-sheets request. Route it before broad keyword rules
+    # can decompose the sentence into unrelated actions.
+    if re.search(r"перекр[её]стн\w*\s+таблиц", normalized_task, re.I):
+        from .pro_planner import plan_request
+        pivot_result = plan_request(
+            original_task,
+            analysis,
+            selected_sheet=selected_sheet,
+            use_ai=False,
+        )
+        if pivot_result is not None:
+            pivot_result.setdefault("original_task", original_task)
+            pivot_result.setdefault("normalized_task", normalized_task)
+            return pivot_result
+
+    # ========================================================
+    # PRIORITY 1. EXTRACT VALUES FROM CELLS TO A NEW SHEET
+    # ========================================================
+
+    extract_result = _route_extract_split_values_to_sheet(
+        task=original_task,
+        analysis=analysis,
+        selected_sheet=selected_sheet,
+    )
+    if extract_result is not None:
+        extract_result["original_task"] = original_task
+        extract_result["normalized_task"] = normalized_task
+        return extract_result
+
+    # ========================================================
+    # VAGUE REQUESTS
+    # ========================================================
+
     vague_text = _normalize_header_text(normalized_task)
+
     vague_phrases = {
-        "сделай красиво", "сделай все красиво", "оформи красиво",
-        "обработай файл", "улучши файл", "сделай хорошо",
-        "приведи в порядок", "сделай как надо",
+        "сделай красиво",
+        "сделай все красиво",
+        "оформи красиво",
+        "обработай файл",
+        "улучши файл",
+        "сделай хорошо",
+        "приведи в порядок",
+        "сделай как надо",
     }
+
     if vague_text in vague_phrases:
         return {
             "questions": [
@@ -2180,117 +3479,271 @@ def interpret_task(
             "deterministic_route": True,
         }
 
+    # High-confidence workbook-grounded planning comes before narrow legacy
+    # routers. It can combine several actions and infer a column from actual
+    # values (for example «платное и бесплатное» -> «Форма оплаты»).
+    from .autonomous_planner import plan_autonomously
+    autonomous = plan_autonomously(original_task, analysis, selected_sheet)
+    if autonomous is not None:
+        autonomous.setdefault("original_task", original_task)
+        autonomous.setdefault("normalized_task", normalized_task)
+        return autonomous
+
+    # Missing-value questions must win over generic words such as "отчёт".
+    removal_of_rows = bool(re.search(
+        r"(?=.*\b(?:удал|убер)\w*\b)(?=.*\bстрок\w*\b)(?=.*\b(?:пуст\w*|пробел\w*)\b)",
+        normalized_task,
+    ))
+    early_missing = None if removal_of_rows else _route_missing_field_request(
+        task=original_task, analysis=analysis,
+        selected_sheet=selected_sheet, semantic_intent=None,
+    )
+    if early_missing is not None:
+        early_missing.setdefault("original_task", original_task)
+        early_missing.setdefault("normalized_task", normalized_task)
+        return early_missing
+
+    # ========================================================
+    # SEMANTIC QUALITY
+    # ========================================================
+
+    precise = _route_semantic_quality(
+        original_task,
+        analysis,
+        selected_sheet,
+    )
+
+    if precise is not None:
+        precise.setdefault("original_task", original_task)
+        precise.setdefault("normalized_task", normalized_task)
+        return precise
+
+    # Очистка строк должна иметь приоритет над общим поиском пустых ячеек.
+    remove_empty_result = _route_remove_empty_rows_request(
+        original_task,
+        analysis,
+        selected_sheet,
+    )
+    if remove_empty_result is not None:
+        remove_empty_result.setdefault("original_task", original_task)
+        remove_empty_result.setdefault("normalized_task", normalized_task)
+        return remove_empty_result
+
     semantic_intent = compile_intent(
         original_task,
         analysis,
         selected_sheet=selected_sheet,
     )
+
     routing_task = original_task
 
-    # --------------------------------------------------------
-    # STEP 1. Complex student-data audit has priority over the
-    # single-field missing-data shortcut. Otherwise phrases like
-    # "find all blanks" can hijack the entire multi-part request.
-    # --------------------------------------------------------
-    audit_markers = (
-        "комплексный аудит", "полный аудит", "аудит данных",
-        "student_data_audit", "повторяющиеся id", "полные дубли",
-        "проверка факультетов", "нормализация",
+    # ========================================================
+    # SAFE LOCAL PLAN
+    # ========================================================
+
+    local_plan = _safe_local_plan(
+        original_task,
+        analysis,
+        selected_sheet,
     )
-    audit_requested = any(marker in normalized_task.casefold() for marker in audit_markers)
+
+    if local_plan is not None:
+        local_plan["original_task"] = original_task
+        local_plan["semantic_intent"] = semantic_intent
+        return local_plan
+
+    # ========================================================
+    # COMPLEX AUDIT
+    # ========================================================
+
+    audit_markers = (
+        "комплексный аудит",
+        "полный аудит",
+        "аудит данных",
+        "student_data_audit",
+        "повторяющиеся id",
+        "полные дубли",
+        "проверка факультетов",
+        "нормализация",
+    )
+
+    audit_requested = any(
+        marker in normalized_task.casefold()
+        for marker in audit_markers
+    )
+
     if audit_requested:
         sheets = _extract_sheets(analysis)
         sheet_name = None
+
         if selected_sheet:
             sheet_name = str(selected_sheet).strip()
         elif len(sheets) == 1:
             sheet_name = _get_sheet_name(sheets[0])
+
         if not sheet_name:
             return {
-                "questions": ["Укажи лист Excel, на котором выполнить комплексный аудит."],
+                "questions": [
+                    "Укажи лист Excel, на котором выполнить комплексный аудит."
+                ],
                 "operations": [],
-                "explanation": "Комплексный аудит требует однозначного исходного листа.",
+                "explanation": (
+                    "Комплексный аудит требует однозначного исходного листа."
+                ),
                 "mode": "questions",
                 "original_task": original_task,
                 "normalized_task": normalized_task,
             }
+
         return {
             "questions": [],
-            "operations": [{"type": "student_data_audit", "sheet": sheet_name, "header_rows": 1}],
-            "explanation": "Запланирован комплексный аудит с шестью отчётными листами.",
+            "operations": [
+                {
+                    "type": "student_data_audit",
+                    "sheet": sheet_name,
+                    "header_rows": 1,
+                }
+            ],
+            "explanation": (
+                "Запланирован комплексный аудит с шестью отчётными листами."
+            ),
             "mode": "operations",
             "original_task": original_task,
             "normalized_task": normalized_task,
             "deterministic_route": True,
         }
 
-    # --------------------------------------------------------
-    # STEP 1. Fast routing — GROUPED COUNT / SUMMARY (Имеет приоритет)
-    # --------------------------------------------------------
-    smart_result = _route_smart_summary_request(
-        task=routing_task, analysis=analysis, selected_sheet=selected_sheet,
+    # ========================================================
+    # SPLIT THEN SORT
+    # ========================================================
+
+    split_sort_result = _route_split_then_sort_request(
+        task=routing_task,
+        analysis=analysis,
+        selected_sheet=selected_sheet,
     )
+
+    if split_sort_result is not None:
+        split_sort_result["semantic_intent"] = semantic_intent
+        return split_sort_result
+
+    # ========================================================
+    # MISSING FIELD
+    # ========================================================
+
+    missing_result = _route_missing_field_request(
+        task=routing_task,
+        analysis=analysis,
+        selected_sheet=selected_sheet,
+        semantic_intent=semantic_intent,
+    )
+
+    if missing_result is not None:
+        missing_result["semantic_intent"] = semantic_intent
+        return missing_result
+
+    # ========================================================
+    # COMPOSITE REQUEST
+    # ========================================================
+
+    active = set(semantic_intent.get("actions", []))
+
+    distinct = active - {
+        "group_count" if "smart_summary" in active else "__none__"
+    }
+
+    if (
+        len(distinct) >= 2
+        and (
+            "smart_summary" in distinct
+            or "group_count" in distinct
+        )
+        and len(semantic_intent.get("mentioned_headers", [])) >= 2
+    ):
+        return _plan_composite_request(
+            original_task,
+            normalized_task,
+            analysis,
+            selected_sheet,
+            semantic_intent,
+        )
+
+    # ========================================================
+    # SMART SUMMARY
+    # ========================================================
+
+    explicit_action = bool(re.search(
+        r"\b(?:удал\w*|убер\w*|замен\w*|заполн\w*|"
+        r"отсортир\w*|сортир\w*|упорядоч\w*|"
+        r"объедин\w*|обьедин\w*|перестав\w*|"
+        r"выдел\w*|очист\w*)\b",
+        normalized_task,
+    ))
+
+    smart_result = (
+        None
+        if explicit_action
+        else _route_smart_summary_request(
+            task=routing_task,
+            analysis=analysis,
+            selected_sheet=selected_sheet,
+        )
+    )
+
     if smart_result is not None:
         smart_result["original_task"] = original_task
         smart_result["semantic_intent"] = semantic_intent
         return smart_result
+
+    # ========================================================
+    # GROUP COUNT
+    # ========================================================
 
     count_result = _route_group_count_request(
         task=routing_task,
         analysis=analysis,
         selected_sheet=selected_sheet,
     )
+
     if count_result is not None:
         count_result["original_task"] = original_task
         count_result["semantic_intent"] = semantic_intent
         return count_result
 
-    # Destination wording ("на разных листах") has priority over the verb
-    # "сортировать": in this context the user wants partitioning, not ordering.
+    # ========================================================
+    # SPLIT TO SEPARATE SHEETS
+    # ========================================================
+
     split_result = _route_split_to_sheets_request(
         task=routing_task,
         analysis=analysis,
         selected_sheet=selected_sheet,
     )
+
     if split_result is not None:
         split_result["original_task"] = original_task
         split_result["semantic_intent"] = semantic_intent
         return split_result
+
+    # ========================================================
+    # TRIM THEN SORT
+    # ========================================================
 
     multi_step_result = _route_trim_then_sort_request(
         task=routing_task,
         analysis=analysis,
         selected_sheet=selected_sheet,
     )
+
     if multi_step_result is not None:
         multi_step_result["original_task"] = original_task
         multi_step_result["semantic_intent"] = semantic_intent
         return multi_step_result
 
-    count_result = _route_group_count_request(
-        task=routing_task,
-        analysis=analysis,
-        selected_sheet=selected_sheet,
-    )
-    if count_result is not None:
-        count_result["original_task"] = original_task
-        count_result["semantic_intent"] = semantic_intent
-        return count_result
+    # ========================================================
+    # SORT
+    # ========================================================
 
-    # Destination wording ("на разных листах") has priority over the verb
-    # "сортировать": in this context the user wants partitioning, not ordering.
-    split_result = _route_split_to_sheets_request(
-        task=routing_task,
-        analysis=analysis,
-        selected_sheet=selected_sheet,
-    )
-    if split_result is not None:
-        split_result["original_task"] = original_task
-        split_result["semantic_intent"] = semantic_intent
-        return split_result
-
-
-    # Быстрая сортировка без вызова Ollama.
     sort_result = _route_sort_request(
         task=routing_task,
         analysis=analysis,
@@ -2302,9 +3755,24 @@ def interpret_task(
         sort_result["semantic_intent"] = semantic_intent
         return sort_result
 
+    # --------------------------------------------------------
+    # STEP 2. Последняя локальная попытка перед Ollama.
+    # --------------------------------------------------------
+    from .pro_planner import plan_request
+    pro_plan = plan_request(
+        original_task,
+        analysis,
+        selected_sheet=selected_sheet,
+        use_ai=False,
+    )
+    if pro_plan is not None:
+        pro_plan.setdefault("original_task", original_task)
+        pro_plan.setdefault("normalized_task", normalized_task)
+        pro_plan.setdefault("semantic_intent", semantic_intent)
+        return pro_plan
 
     # --------------------------------------------------------
-    # STEP 2. Use Ollama for other natural-language requests.
+    # STEP 3. Use Ollama for other natural-language requests.
     # --------------------------------------------------------
 
     prompt = _build_prompt(
@@ -2315,7 +3783,28 @@ def interpret_task(
         semantic_intent=semantic_intent,
     )
 
-    result = _post_to_ollama(prompt)
+    try:
+        result = _post_to_ollama(prompt)
+    except (RuntimeError, ValueError, TimeoutError) as exc:
+        reason = str(exc).strip().splitlines()[0]
+        return {
+            "questions": [
+                "Ollama сейчас не смогла подготовить план. Уточните операцию "
+                "и названия столбцов, например: «создай сводку по Региону и "
+                "Категории», «раздели по Отделу» или «отсортируй по Сумме»."
+            ],
+            "operations": [],
+            "explanation": (
+                "Excel-файл не изменён. Стандартные сводки, сортировка, "
+                "разделение, очистка и диаграммы выполняются локально без "
+                f"Ollama. Причина перехода в безопасный режим: {reason}"
+            ),
+            "mode": "questions",
+            "original_task": original_task,
+            "normalized_task": normalized_task,
+            "semantic_intent": semantic_intent,
+            "ai_fallback": True,
+        }
 
     questions = _normalize_questions(
         result.get("questions", [])

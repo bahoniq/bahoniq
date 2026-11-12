@@ -1,4 +1,7 @@
 import os
+import time
+import threading
+from pathlib import Path
 import shutil
 import tkinter as tk
 from tkinter import messagebox
@@ -25,16 +28,7 @@ def get_temp_folders():
     if windows_temp and windows_temp not in folders:
         folders.append(windows_temp)
 
-    system_temp = os.path.join(
-        os.environ.get(
-            "SystemRoot",
-            r"C:\Windows"
-        ),
-        "Temp"
-    )
-
-    if system_temp not in folders:
-        folders.append(system_temp)
+    # Системный Windows\Temp намеренно не очищаем: это зона ОС.
 
     return folders
 
@@ -44,24 +38,19 @@ def get_temp_folders():
 # ============================================================
 
 def delete_item(path):
-
+    """Удаляет старый временный объект; сообщает об успехе честно."""
     try:
-
-        if os.path.isdir(path):
-
-            shutil.rmtree(
-                path,
-                ignore_errors=True
-            )
-
+        target = Path(path)
+        if target.is_symlink():
+            return False
+        if target.is_dir():
+            shutil.rmtree(target)
+        elif target.is_file():
+            target.unlink()
         else:
-
-            os.remove(path)
-
-        return True
-
-    except Exception:
-
+            return False
+        return not target.exists()
+    except (OSError, PermissionError):
         return False
 
 
@@ -69,7 +58,7 @@ def delete_item(path):
 # CLEAN FOLDER
 # ============================================================
 
-def clean_folder(folder):
+def clean_folder(folder, min_age_days=7):
 
     deleted = 0
     skipped = 0
@@ -91,6 +80,33 @@ def clean_folder(folder):
             folder,
             item
         )
+
+        try:
+            # Не удаляем недавно изменённые объекты. Для каталогов
+            # учитываем и возраст содержимого, чтобы не стереть новые файлы.
+            cutoff = time.time() - min_age_days * 86400
+            if os.path.islink(full_path) or os.path.getmtime(full_path) > cutoff:
+                skipped += 1
+                continue
+            if os.path.isdir(full_path):
+                recent = False
+                for root, dirs, files in os.walk(full_path):
+                    for name in dirs + files:
+                        try:
+                            if os.path.getmtime(os.path.join(root, name)) > cutoff:
+                                recent = True
+                                break
+                        except OSError:
+                            recent = True
+                            break
+                    if recent:
+                        break
+                if recent:
+                    skipped += 1
+                    continue
+        except OSError:
+            skipped += 1
+            continue
 
         if delete_item(full_path):
 
@@ -271,7 +287,7 @@ def open_cleanup(parent):
             "Очистка",
             (
                 "Очистить временные файлы Windows?\n\n"
-                "Занятые системой файлы удалены не будут."
+                "Недавние и занятые файлы будут пропущены."
             ),
             parent=window
         )
@@ -288,33 +304,34 @@ def open_cleanup(parent):
         window.update_idletasks()
 
 
-        try:
+        clean_button.configure(state="disabled")
 
-            deleted, skipped = clean_temp()
+        def worker():
+            try:
+                result = clean_temp()
+                window.after(0, lambda: finish(result))
+            except Exception as error:
+                message = str(error)
+                window.after(0, lambda: fail(message))
 
-
+        def finish(result):
+            if not window.winfo_exists():
+                return
+            deleted, skipped = result
             status.configure(
-                text=(
-                    f"✓ Очистка завершена\n\n"
-                    f"Удалено объектов: {deleted}\n"
-                    f"Пропущено: {skipped}"
-                ),
-                fg="#009246"
+                text=f"✓ Очистка завершена\n\nУдалено объектов: {deleted}\nПропущено: {skipped}",
+                fg="#009246",
             )
+            clean_button.configure(state="normal")
 
+        def fail(message):
+            if not window.winfo_exists():
+                return
+            status.configure(text="Ошибка очистки", fg="#E10600")
+            clean_button.configure(state="normal")
+            messagebox.showerror("Ошибка", message, parent=window)
 
-        except Exception as e:
-
-            status.configure(
-                text="Ошибка очистки",
-                fg="#E10600"
-            )
-
-            messagebox.showerror(
-                "Ошибка",
-                f"Не удалось выполнить очистку:\n\n{e}",
-                parent=window
-            )
+        threading.Thread(target=worker, daemon=True).start()
 
 
     clean_button = tk.Button(

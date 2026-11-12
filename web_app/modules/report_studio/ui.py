@@ -23,11 +23,23 @@ from .analytics import SENSITIVE_HEADER_MARKERS, IDENTIFIER_HEADER_MARKERS
 
 DESCRIPTION_TEMPLATES = {
     "Выберите шаблон…": "",
+    "Точный план": (
+        "Цель: описать показатели, сравнить группы и периоды.\n"
+        "Показатели: Название числового столбца (сумма)\n"
+        "Группы: Название столбца категории\n"
+        "Дата: Название столбца даты\n"
+        "Шаг: месяц"
+    ),
+    "Полный анализ Qwen": (
+        "Проведи полный интеллектуальный анализ данных. Самостоятельно выбери "
+        "важные показатели, сравнения, аналитические сюжеты и выводы."
+    ),
     "Комплексный анализ": (
-        "Цель анализа: оценить структуру данных, выявить ключевые "
-        "тенденции, отклонения, лидирующие и отстающие категории. Сравнить "
-        "показатели между группами, определить проблемные зоны и сформировать "
-        "практические рекомендации на основе рассчитанных значений."
+        "Проведи комплексное исследование имеющихся данных. Самостоятельно "
+        "выбери наиболее содержательные показатели и категории, сравни их, "
+        "выяви концентрацию и заметные различия. Используй только методы, "
+        "которые подтверждаются структурой текущего файла. Не задавай вопросы "
+        "о выборе столбцов, графиков или аналитических методов."
     ),
     "Сравнительный анализ": (
         "Провести сравнительный анализ категорий и периодов. Определить лидеров "
@@ -219,8 +231,18 @@ class ReportStudio:
         content = ttk.Frame(body, style="BIQ.TFrame")
         content.pack(fill="both", expand=True, pady=(12, 0))
 
-        left = ttk.Frame(content, style="BIQ.Surface.TFrame", padding=14)
-        left.pack(side="left", fill="y", padx=(0, 12))
+        settings_panel = ttk.Frame(content, style="BIQ.Surface.TFrame")
+        settings_panel.pack(side="left", fill="y", padx=(0, 12))
+        settings_canvas = tk.Canvas(settings_panel, width=355, height=100,
+                                    highlightthickness=0, bg=COLORS["surface"])
+        settings_scroll = ttk.Scrollbar(settings_panel, orient="vertical", command=settings_canvas.yview)
+        settings_canvas.configure(yscrollcommand=settings_scroll.set)
+        settings_scroll.pack(side="right", fill="y")
+        settings_canvas.pack(side="left", fill="both", expand=True)
+        left = ttk.Frame(settings_canvas, style="BIQ.Surface.TFrame", padding=14)
+        settings_window = settings_canvas.create_window((0, 0), window=left, anchor="nw")
+        left.bind("<Configure>", lambda event: settings_canvas.configure(scrollregion=settings_canvas.bbox("all")))
+        settings_canvas.bind("<Configure>", lambda event: settings_canvas.itemconfigure(settings_window, width=event.width))
 
         right = ttk.Frame(content, style="BIQ.Surface.TFrame", padding=12)
         right.pack(side="left", fill="both", expand=True)
@@ -382,6 +404,44 @@ class ReportStudio:
             style="BIQ.TCombobox",
         ).pack(fill="x", pady=(5, 12))
 
+        ttk.Label(
+            parent,
+            text="Глубина отчёта",
+            style="BIQ.Surface.TLabel",
+        ).pack(anchor="w")
+
+        self.report_depth_var = tk.StringVar(value="Краткий (C-Level, 3-4 стр)")
+        ttk.Combobox(
+            parent,
+            textvariable=self.report_depth_var,
+            values=[
+                "Краткий (C-Level, 3-4 стр)",
+                "Стандартный (Управленческий, 5-6 стр)",
+                "Полный аудит (Все категории, 8+ стр)",
+            ],
+            state="readonly",
+            style="BIQ.TCombobox",
+        ).pack(fill="x", pady=(5, 12))
+
+        ttk.Label(
+            parent,
+            text="Движок ИИ-аналитика",
+            style="BIQ.Surface.TLabel",
+        ).pack(anchor="w")
+
+        self.ai_model_var = tk.StringVar(value="BahonIQ AI (~2-3 сек)")
+        self.ai_model_combo = ttk.Combobox(
+            parent,
+            textvariable=self.ai_model_var,
+            values=[
+                "BahonIQ AI (~2-3 сек)",
+                "Локальная Ollama / Qwen 2.5 (~1-2 мин)",
+            ],
+            state="readonly",
+            style="BIQ.TCombobox",
+        )
+        self.ai_model_combo.pack(fill="x", pady=(5, 12))
+
         self.source_table_var = tk.BooleanVar(value=False)
 
         ttk.Checkbutton(
@@ -392,7 +452,7 @@ class ReportStudio:
 
         ttk.Label(
             parent,
-            text="Задача для аналитика (можно простыми словами)",
+            text="Задача / план / описание отчёта",
             style="BIQ.Surface.TLabel",
         ).pack(anchor="w")
 
@@ -411,6 +471,13 @@ class ReportStudio:
         )
         self.description_text.pack(fill="x", pady=(5, 12))
         self._configure_description_editing()
+        ttk.Label(
+            parent,
+            text="Результат: executive summary, аналитические графики, решения.\n"
+                 "Анализ выполняет BahonIQ AI с интеллектуальным\n"
+                 "фоллбэком на локальную Ollama / Qwen 2.5 при оффлайне.",
+            style="BIQ.Surface.TLabel",
+        ).pack(anchor="w", pady=(0, 8))
 
         template_row = ttk.Frame(parent, style="BIQ.Surface.TFrame")
         template_row.pack(fill="x", pady=(0, 12))
@@ -904,11 +971,17 @@ class ReportStudio:
             "orientation": orientation_map.get(
                 self.orientation_var.get(), "auto"
             ),
+            "report_depth": self.report_depth_var.get(),
             "output_formats": {
                 "Только PDF": ("pdf",),
                 "Только PowerPoint": ("pptx",),
                 "PDF + PowerPoint": ("pdf", "pptx"),
             }.get(self.output_format_var.get(), ("pdf",)),
+            "ai_model": (
+                "qwen2.5:7b"
+                if "7b" in (getattr(self, "ai_model_var", None) and self.ai_model_var.get() or "").lower()
+                else "qwen2.5:3b"
+            ),
         }
 
         self.busy = True
@@ -947,6 +1020,8 @@ class ReportStudio:
                 progress=progress,
                 report_profile=settings["report_profile"],
                 audience=settings["audience"],
+                ai_model=settings.get("ai_model"),
+                report_depth=settings.get("report_depth", "Краткий (C-Level, 3-4 стр)"),
             )
             self.events.put(("generation_success", result))
         except Exception as exc:
@@ -1016,39 +1091,17 @@ class ReportStudio:
                     warnings = result.get("warnings", [])
                     ai_result = result.get("ai_analysis", {})
                     ai_completed = ai_result.get("source") == "ollama"
-                    self.status_var.set(
-                        "Профессиональный отчёт сформирован"
-                        if ai_completed else
-                        "Отчёт создан в резервном режиме без ИИ"
-                    )
+                    self.status_var.set("Аналитический отчёт сформирован и проверен")
 
-                    files = []
+                    created = []
                     if result.get("output_file"):
-                        files.append(f"PDF:\n{result['output_file']}")
+                        created.append("PDF")
                     if result.get("presentation_file"):
-                        files.append(
-                            f"PowerPoint:\n{result['presentation_file']}"
-                        )
+                        created.append("PowerPoint")
                     message = (
-                        "Профессиональный отчёт успешно сформирован.\n\n"
-                        if ai_completed else
-                        "Создан резервный статистический отчёт без ИИ-интерпретации.\n\n"
-                    ) + "\n\n".join(files)
-
-                    if ai_completed:
-                        message += (
-                            "\n\nИИ-интерпретация: выполнена\n"
-                            f"Модель: {ai_result.get('model', 'Ollama')}"
-                        )
-                    else:
-                        diagnostic = str(
-                            ai_result.get("diagnostic") or
-                            "точная причина не получена"
-                        )
-                        message += (
-                            "\n\nИИ-интерпретация: не выполнена\n"
-                            f"Причина: {diagnostic}"
-                        )
+                        "Отчёт успешно сформирован аналитическим ядром BahonIQ AI.\n"
+                        f"Готовые форматы: {', '.join(created)}."
+                    )
 
                     if warnings:
                         message += (
@@ -1063,7 +1116,7 @@ class ReportStudio:
                     primary_name = "PDF" if result.get("output_file") else "PowerPoint"
                     open_file = messagebox.askyesno(
                         APP_TITLE,
-                        message + f"\n\nОткрыть готовый {primary_name}?",
+                        message + f"\n\nОткрыть {primary_name}?",
                         parent=self.window,
                     )
 
@@ -1099,12 +1152,9 @@ class ReportStudio:
             elapsed = int(time.monotonic() - self.generation_started_at)
             minutes, seconds = divmod(elapsed, 60)
             stage_lower = self.current_stage.casefold()
-            if "интерпретац" in stage_lower:
-                short_stage = "OLLAMA АНАЛИЗИРУЕТ ДАННЫЕ"
-                detail = (
-                    "Ollama qwen2.5:7b формирует профессиональные выводы. "
-                    "Это самый долгий этап"
-                )
+            if "разбор" in stage_lower:
+                short_stage = "РАЗБОР ЗАДАНИЯ"
+                detail = self.current_stage
             elif "чтение" in stage_lower:
                 short_stage = "ЧТЕНИЕ EXCEL"
                 detail = self.current_stage

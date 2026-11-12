@@ -51,6 +51,11 @@ def main():
                 str(BASE_DIR)
             )
 
+        if sys.stdout is None:
+            sys.stdout = open(os.devnull, "w", encoding="utf-8")
+        if sys.stderr is None:
+            sys.stderr = open(os.devnull, "w", encoding="utf-8")
+
         from main import main as start_bahoniq
 
         start_bahoniq()

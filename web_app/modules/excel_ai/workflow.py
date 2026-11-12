@@ -1,4 +1,4 @@
-﻿
+
 import hashlib
 import json
 from datetime import datetime
@@ -413,8 +413,8 @@ class ExcelWorkflow:
                     f"Исходный файл не найден: {source}"
                 )
 
-            fingerprint_before = self._file_fingerprint(source)
             source_stat = source.stat()
+            fingerprint_before = self._file_fingerprint(source)
 
             analysis = analyze_workbook(source)
 
@@ -477,10 +477,20 @@ class ExcelWorkflow:
 
             self._validate_plan_for_task(task, plan)
 
-            if self._file_fingerprint(source) != fingerprint_before:
+            # A real content change must not be silently accepted. A metadata-only
+            # change does not affect SHA-256 and therefore is allowed.
+            fingerprint_final = self._file_fingerprint(source)
+            if fingerprint_final != fingerprint_before:
                 raise RuntimeError(
-                    "Исходный файл изменился во время подготовки плана. "
-                    "Повтори подготовку."
+                    "Содержимое исходного Excel изменилось во время подготовки плана "
+                    "(SHA-256 не совпадает). Закрой Excel и программы синхронизации "
+                    "для этого файла, затем загрузи его повторно. "
+                    f"Было: {fingerprint_before[:12]}, стало: {fingerprint_final[:12]}."
+                )
+            if plan.get("source_sha256") != fingerprint_before:
+                raise RuntimeError(
+                    "Контрольная сумма плана не совпадает с исходным Excel. "
+                    "План отменён для защиты данных."
                 )
 
             self.engine.save_checkpoint(

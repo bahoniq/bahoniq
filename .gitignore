@@ -1,3 +1,8 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
 # Python cache and local environments
 __pycache__/
 *.py[cod]
@@ -11,7 +16,6 @@ env/
 *.tmp
 *.temp
 data/
-script_manager/results/
 
 # Local databases and generated reports
 *.db
