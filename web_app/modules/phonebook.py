@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import sqlite3
-import tkinter as tk
 from pathlib import Path
-from tkinter import messagebox, ttk
+
+try:
+    import tkinter as tk
+    from tkinter import messagebox, ttk
+except (ImportError, ModuleNotFoundError):
+    tk = None
+    messagebox = None
+    ttk = None
 
 from services.settings_service import get_theme
 

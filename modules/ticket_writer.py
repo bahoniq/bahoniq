@@ -18,8 +18,12 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-import tkinter as tk
-from tkinter import messagebox
+try:
+    import tkinter as tk
+    from tkinter import messagebox
+except (ImportError, ModuleNotFoundError):
+    tk = None
+    messagebox = None
 
 from config import WHITE
 from services.settings_service import get_theme
