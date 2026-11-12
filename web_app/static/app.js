@@ -1,14 +1,18 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-let analyticsSession=null, excelSession=null, history=[];
+let analyticsSession=null, excelSession=null, operationHistory=[];
 
-// Web Splash Screen Fade-Out (3s для веба)
+// Web Splash Screen Fade-Out
 window.addEventListener('DOMContentLoaded', () => {
   const splash = $('#webSplash');
   if (splash) {
-    setTimeout(() => {
-      splash.classList.add('fade-out');
-      setTimeout(() => splash.remove(), 600);
-    }, 2800);
+    if (location.search.includes('no_splash') || navigator.webdriver) {
+      splash.remove();
+    } else {
+      setTimeout(() => {
+        splash.classList.add('fade-out');
+        setTimeout(() => splash.remove(), 600);
+      }, 1800);
+    }
   }
 
   // Часы реального времени
@@ -59,64 +63,29 @@ const currentLabel = $('#currentModuleLabel');
 let isTransitioning = false;
 
 function openModule(modId, label) {
-  if (isTransitioning) return;
   const target = $('#' + modId);
   if (!target) return;
-  
-  isTransitioning = true;
-  currentLabel.textContent = label || modId.toUpperCase();
+  if (currentLabel) currentLabel.textContent = label || modId.toUpperCase();
   location.hash = modId;
-
-  // Инициализация специфичных модулей
-  if (modId === 'notes') {
-    loadNotes();
-  }
-
-  // Плавный уход дашборда влево с легким уменьшением (PowerPoint slide-out)
-  dashView.classList.add('panorama-out');
-
-  setTimeout(() => {
-    dashView.classList.add('hidden');
-    dashView.classList.remove('panorama-out');
-
-    $$('.module-page').forEach(p => p.classList.remove('active'));
-    target.classList.add('active');
-
-    // Плавный выезд экрана модуля справа (PowerPoint slide-in)
-    modHost.classList.remove('hidden');
-    modHost.classList.remove('panorama-out');
-    modHost.classList.add('panorama-in');
-
-    setTimeout(() => {
-      modHost.classList.remove('panorama-in');
-      isTransitioning = false;
-    }, 420);
-  }, 180);
+  if (modId === 'notes') loadNotes();
+  if (modId === 'academy') loadAcademy();
+  dashView.classList.add('hidden');
+  $$('.module-page').forEach(p => p.classList.remove('active'));
+  target.classList.add('active');
+  modHost.classList.remove('hidden');
+  modHost.classList.add('panorama-in');
+  setTimeout(() => modHost.classList.remove('panorama-in'), 380);
+  document.querySelector('.content-body')?.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function returnToDashboard() {
-  if (isTransitioning) return;
-  isTransitioning = true;
-
-  // Плавный уход экрана модуля вправо
-  modHost.classList.add('panorama-out');
-
-  setTimeout(() => {
-    modHost.classList.add('hidden');
-    modHost.classList.remove('panorama-out');
-    $$('.module-page').forEach(p => p.classList.remove('active'));
-
-    // Плавное возвращение дашборда на первый план
-    dashView.classList.remove('hidden');
-    dashView.classList.add('panorama-in');
-
-    history.replaceState(null, null, ' ');
-
-    setTimeout(() => {
-      dashView.classList.remove('panorama-in');
-      isTransitioning = false;
-    }, 420);
-  }, 180);
+  modHost.classList.add('hidden');
+  modHost.classList.remove('panorama-in', 'panorama-out');
+  $$('.module-page').forEach(p => p.classList.remove('active'));
+  dashView.classList.remove('hidden');
+  dashView.classList.add('panorama-in');
+  window.history.replaceState(null, '', location.pathname + location.search);
+  setTimeout(() => dashView.classList.remove('panorama-in'), 380);
 }
 
 $('#backToDash')?.addEventListener('click', returnToDashboard);
@@ -142,26 +111,29 @@ desktopModal?.addEventListener('click', (e) => {
   }
 });
 
-// Обработка карточек инструментов и Spotlight-подсветка курсора
-$$('.tool-tile').forEach(tile => {
-  // Интерактивное позиционирование радиального света за курсором
-  tile.addEventListener('mousemove', (e) => {
+// Делегирование делает переходы устойчивыми даже после динамического обновления DOM.
+document.addEventListener('mousemove', (e) => {
+  const tile = e.target.closest('.tool-tile');
+  if (tile) {
     const rect = tile.getBoundingClientRect();
     tile.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
     tile.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
-  });
+  }
+});
 
-  tile.addEventListener('click', () => {
-    if (tile.dataset.desktopOnly === 'true') {
-      const title = tile.dataset.title || tile.querySelector('.tool-name')?.textContent || '';
-      const desc = tile.dataset.desc || tile.querySelector('.tool-desc')?.textContent || '';
-      showDesktopModal(title, desc);
-      return;
-    }
-    const modId = tile.dataset.open;
-    const name = tile.querySelector('.tool-name')?.textContent || '';
-    openModule(modId, name);
-  });
+document.addEventListener('click', (e) => {
+  const tile = e.target.closest('.tool-tile');
+  if (!tile) return;
+  if (tile.dataset.desktopOnly === 'true') {
+    const title = tile.dataset.title || tile.querySelector('.tool-name')?.textContent || '';
+    const desc = tile.dataset.desc || tile.querySelector('.tool-desc')?.textContent || '';
+    showDesktopModal(title, desc);
+    return;
+  }
+  const modId = tile.dataset.open;
+  if (!modId) return;
+  const name = tile.querySelector('.tool-name')?.textContent || '';
+  openModule(modId, name);
 });
 
 // Кнопка "Открыть все системы"
@@ -360,7 +332,7 @@ async function executeExcel() {
   try {
     const data = await api('/api/excel/execute', { method: 'POST', body: fd });
     const item = { time: new Date().toLocaleTimeString(), text: $('#excelInstruction').value };
-    history.unshift(item);
+    operationHistory.unshift(item);
     showPlan(`<h2>Готово</h2><p>Изменения выполнены после подтверждения.</p><ul>${(data.changes || []).map(x => `<li>${esc(typeof x === 'string' ? x : JSON.stringify(x))}</li>`).join('')}</ul><a class="button primary" style="display:inline-block;margin-top:12px" href="${data.download_url}">Скачать готовый Excel</a>`);
     renderHistory();
   } catch (e) {
@@ -372,7 +344,7 @@ async function executeExcel() {
 
 function renderHistory() {
   $('#historyContent').className = '';
-  $('#historyContent').innerHTML = history.map(x => `<div class="queue-item" style="padding:10px;border-bottom:1px solid var(--border)"><b>${esc(x.text)}</b><small style="display:block;color:var(--text-sub)">${x.time}</small></div>`).join('');
+  $('#historyContent').innerHTML = operationHistory.map(x => `<div class="queue-item" style="padding:10px;border-bottom:1px solid var(--border)"><b>${esc(x.text)}</b><small style="display:block;color:var(--text-sub)">${x.time}</small></div>`).join('');
 }
 
 // ----------------- PDF CENTER -----------------
@@ -498,9 +470,15 @@ $('#contactForm')?.addEventListener('submit', async e => {
 
 // ----------------- CODE ACADEMY -----------------
 let academy = { python: [], sql: [], book: [], builder_files: [] };
+let academyLoaded = false;
+const academySelection = { python: 0, sql: 0 };
+const academyCompleted = new Set(JSON.parse(localStorage.getItem('bahoniq_academy_completed') || '[]'));
+
 async function loadAcademy() {
+  if (academyLoaded) return;
   try {
     academy = await api('/api/academy/catalog');
+    academyLoaded = true;
     renderLessons('python');
     renderLessons('sql');
     renderBook();
@@ -509,14 +487,22 @@ async function loadAcademy() {
     selectLesson('sql', 0);
     if (academy.book.length) openBook(0);
     if (academy.builder_files.length) openBuilder(academy.builder_files[0]);
-  } catch (e) {}
+    updateAcademyProgress();
+  } catch (e) {
+    const stage = document.querySelector('.academy-stage');
+    if (stage) stage.innerHTML = `<div class="card"><b>Code Academy не загрузилась.</b><p class="helper">${esc(e.message)}</p></div>`;
+  }
 }
 
 function renderLessons(kind) {
   const query = (document.querySelector(`.academy-search[data-kind="${kind}"]`)?.value || '').toLowerCase();
   const target = $('#' + kind + 'Lessons');
   if (!target) return;
-  target.innerHTML = academy[kind].map((x, i) => ({ x, i })).filter(o => !query || (`${o.x.title} ${o.x.theory}`).toLowerCase().includes(query)).map(o => `<button class="button secondary" style="display:block;width:100%;text-align:left;margin-bottom:6px" type="button" data-lesson="${kind}:${o.i}">${esc(o.x.title)}</button>`).join('');
+  target.innerHTML = academy[kind].map((x, i) => ({ x, i })).filter(o => !query || (`${o.x.title} ${o.x.theory}`).toLowerCase().includes(query)).map(o => {
+    const active = academySelection[kind] === o.i ? ' active' : '';
+    const done = academyCompleted.has(`${kind}:${o.x.slug}`) ? ' done' : '';
+    return `<button class="academy-lesson-btn${active}${done}" type="button" data-lesson="${kind}:${o.i}">${esc(o.x.title)}</button>`;
+  }).join('');
   target.querySelectorAll('button').forEach(b => b.onclick = () => {
     const [k, i] = b.dataset.lesson.split(':');
     selectLesson(k, Number(i));
@@ -526,10 +512,20 @@ function renderLessons(kind) {
 function selectLesson(kind, index) {
   const item = academy[kind][index];
   if (!item) return;
+  academySelection[kind] = index;
+  renderLessons(kind);
   $('#' + kind + 'Title').textContent = item.title;
   $('#' + kind + 'Theory').textContent = item.theory;
+  $('#' + kind + 'Walkthrough').textContent = item.walkthrough;
   $('#' + kind + 'Code').value = item.code;
-  $('#' + kind + 'Challenge').textContent = 'Практика: ' + item.challenge;
+  $('#' + kind + 'Challenge').textContent = item.challenge;
+  $('#' + kind + 'Hint').textContent = item.hint;
+  $('#' + kind + 'Level').textContent = `УРОВЕНЬ ${item.level} · ${kind === 'python' ? 'PYTHON' : 'SQL'}`;
+  const complete = document.querySelector(`.academy-complete[data-language="${kind}"]`);
+  const done = academyCompleted.has(`${kind}:${item.slug}`);
+  complete?.classList.toggle('done', done);
+  if (complete) complete.textContent = done ? '✓ Урок пройден' : 'Отметить пройденным';
+  showAcademyPhase(kind, 'theory');
 }
 
 $$('.academy-search').forEach(i => i.oninput = () => renderLessons(i.dataset.kind));
@@ -537,6 +533,7 @@ $$('.academy-run').forEach(b => b.onclick = async () => {
   const lang = b.dataset.language, fd = new FormData();
   fd.append('language', lang);
   fd.append('code', $('#' + lang + 'Code').value);
+  if (lang === 'python') fd.append('stdin', $('#pythonStdin')?.value || '');
   setBusy(b, true);
   try {
     const data = await api('/api/academy/run', { method: 'POST', body: fd });
@@ -548,11 +545,68 @@ $$('.academy-run').forEach(b => b.onclick = async () => {
   }
 });
 
+function showAcademyPhase(kind, phase) {
+  const view = $('#' + (kind === 'python' ? 'academyPython' : 'academySql'));
+  if (!view) return;
+  view.querySelectorAll('.academy-phase-tabs button').forEach(b => b.classList.toggle('active', b.dataset.phase === phase));
+  const ids = ['Theory', 'Walkthrough', 'Challenge', 'Hint'];
+  ids.forEach(s => $('#' + kind + s)?.classList.add('hidden'));
+  const phaseMap = { theory: 'Theory', walkthrough: 'Walkthrough', practice: 'Challenge', check: 'Challenge', reinforce: 'Hint' };
+  $('#' + kind + phaseMap[phase])?.classList.remove('hidden');
+  const labels = { theory: 'ТЕОРИЯ', walkthrough: 'РАЗБОР ПРИМЕРА', practice: 'ПРАКТИЧЕСКОЕ ЗАДАНИЕ', check: 'ПРОВЕРЬ РЕШЕНИЕ ЗАПУСКОМ', reinforce: 'ЗАКРЕПЛЕНИЕ И ПОДСКАЗКА' };
+  $('#' + kind + 'PhaseLabel').textContent = labels[phase];
+}
+
+$$('.academy-phase-tabs').forEach(tabs => tabs.addEventListener('click', e => {
+  const button = e.target.closest('button[data-phase]');
+  if (!button) return;
+  const view = button.closest('.academy-view');
+  showAcademyPhase(view.id === 'academyPython' ? 'python' : 'sql', button.dataset.phase);
+}));
+
+$$('[data-academy-view]').forEach(button => button.addEventListener('click', () => {
+  $$('.academy-route-btn').forEach(b => b.classList.remove('active'));
+  button.classList.add('active');
+  $$('.academy-view').forEach(v => v.classList.remove('active'));
+  $('#' + button.dataset.academyView)?.classList.add('active');
+}));
+
+$$('.academy-reset').forEach(button => button.addEventListener('click', () => {
+  const kind = button.dataset.language;
+  const item = academy[kind][academySelection[kind]];
+  if (item) $('#' + kind + 'Code').value = item.code;
+}));
+
+$$('.academy-hint').forEach(button => button.addEventListener('click', () => showAcademyPhase(button.dataset.language, 'reinforce')));
+$$('.academy-next').forEach(button => button.addEventListener('click', () => {
+  const kind = button.dataset.language;
+  const next = Math.min(academySelection[kind] + 1, academy[kind].length - 1);
+  selectLesson(kind, next);
+  $('#' + kind + 'Lessons')?.querySelector('.academy-lesson-btn.active')?.scrollIntoView({ block: 'nearest' });
+}));
+
+$$('.academy-complete').forEach(button => button.addEventListener('click', () => {
+  const kind = button.dataset.language;
+  const item = academy[kind][academySelection[kind]];
+  if (!item) return;
+  const key = `${kind}:${item.slug}`;
+  if (academyCompleted.has(key)) academyCompleted.delete(key); else academyCompleted.add(key);
+  localStorage.setItem('bahoniq_academy_completed', JSON.stringify([...academyCompleted]));
+  selectLesson(kind, academySelection[kind]);
+  updateAcademyProgress();
+}));
+
+function updateAcademyProgress() {
+  const total = (academy.python?.length || 48) + (academy.sql?.length || 35);
+  const node = $('#academyProgress');
+  if (node) node.textContent = `${academyCompleted.size} / ${total} пройдено`;
+}
+
 function renderBook() {
   const q = ($('#bookSearch')?.value || '').toLowerCase();
   const container = $('#bookChapters');
   if (!container) return;
-  container.innerHTML = academy.book.filter(x => !q || (`${x.section} ${x.title} ${x.file}`).toLowerCase().includes(q)).map(x => `<button class="button secondary" style="display:block;width:100%;text-align:left;margin-bottom:6px" type="button" data-chapter="${x.index}">${esc(x.section)} · ${esc(x.title)}</button>`).join('');
+  container.innerHTML = academy.book.filter(x => !q || (`${x.section} ${x.title} ${x.file}`).toLowerCase().includes(q)).map(x => `<button class="academy-lesson-btn" type="button" data-chapter="${x.index}">${esc(x.section)} · ${esc(x.title)}</button>`).join('');
   $$('[data-chapter]').forEach(b => b.onclick = () => openBook(Number(b.dataset.chapter)));
 }
 
@@ -567,7 +621,7 @@ async function openBook(index) {
 function renderBuilder() {
   const container = $('#builderFiles');
   if (!container) return;
-  container.innerHTML = academy.builder_files.map(name => `<button class="button secondary" style="display:block;width:100%;text-align:left;margin-bottom:6px" type="button" data-builder="${esc(name)}">${esc(name)}</button>`).join('');
+  container.innerHTML = academy.builder_files.map(name => `<button class="academy-lesson-btn" type="button" data-builder="${esc(name)}">${esc(name)}</button>`).join('');
   $$('[data-builder]').forEach(b => b.onclick = () => openBuilder(b.dataset.builder));
 }
 
@@ -579,8 +633,32 @@ async function openBuilder(name) {
 
 $('#copyBuilder')?.addEventListener('click', () => navigator.clipboard.writeText($('#builderSource').value));
 
+const mentorDialog = $('#academyMentorDialog');
+$('#academyMentorOpen')?.addEventListener('click', () => mentorDialog?.showModal());
+$('#academyMentorAsk')?.addEventListener('click', async () => {
+  const question = $('#academyMentorQuestion').value.trim();
+  if (!question) return;
+  const activeKind = $('#academySql')?.classList.contains('active') ? 'sql' : 'python';
+  const item = academy[activeKind]?.[academySelection[activeKind]];
+  const button = $('#academyMentorAsk');
+  const answer = $('#academyMentorAnswer');
+  setBusy(button, true, 'Думаю…');
+  try {
+    const fd = new FormData();
+    fd.append('question', question);
+    fd.append('mode', 'hint');
+    fd.append('code', $('#' + activeKind + 'Code')?.value || '');
+    fd.append('chapter', item?.title || 'Code Academy');
+    const data = await api('/api/academy/ask', { method: 'POST', body: fd });
+    answer.textContent = data.answer || 'Ответ не получен.';
+    answer.classList.remove('hidden');
+  } catch (e) {
+    answer.textContent = e.message;
+    answer.classList.remove('hidden');
+  } finally { setBusy(button, false); }
+});
+
 loadPhonebook();
-loadAcademy();
 
 // ----------------- ЗАМЕТКИ (NOTES) -----------------
 const notesEditor = $('#notesEditor');

@@ -275,12 +275,16 @@ def academy_builder_file(name: str):
 
 
 @app.post("/api/academy/run")
-async def academy_run(language: str = Form(...), code: str = Form(...)):
+async def academy_run(
+    language: str = Form(...),
+    code: str = Form(...),
+    stdin: str = Form(""),
+):
     if len(code) > 100_000:
         raise HTTPException(413, "Код превышает 100 КБ.")
     try:
         if language == "python":
-            result = await run_in_threadpool(execute_python, code, "", 3, 50_000)
+            result = await run_in_threadpool(execute_python, code, stdin, 3, 50_000)
             return {"output": result.stdout, "error": result.stderr, "returncode": result.returncode}
         if language == "sql":
             output = await run_in_threadpool(run_sql, code)
