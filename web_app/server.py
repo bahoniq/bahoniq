@@ -22,6 +22,7 @@ from .modules.excel_ai.ai_interpreter import interpret_task
 from .modules.excel_ai.analyzer import analyze_workbook
 from .modules.excel_ai.operations import execute_operations, plan_operations
 from .modules.report_studio.launcher import generate_report, inspect_excel
+from .modules.report_studio.fast_inspector import fast_inspect_excel
 from .modules.ticket_writer import generate_ticket
 from .modules.phonebook import SEED_CONTACTS
 from .modules.code_academy.professional_curriculum import lessons as academy_lessons
@@ -421,17 +422,14 @@ async def analytics_inspect(workbook: UploadFile = File(...)):
     token, directory = _new_session("analytics")
     try:
         source = await _receive(workbook, directory)
-        inspection = await run_in_threadpool(inspect_excel, source)
+        inspection = await run_in_threadpool(fast_inspect_excel, source)
         sheets = [
             {
                 "name": item.get("name", ""),
-                "rows": item.get("rows_count", item.get("row_count", 0)),
-                "columns": item.get("columns_count", item.get("column_count", 0)),
-                "headers": [str(value or "") for value in (item.get("matrix", [[]]) or [[]])[0][:20]],
-                "preview": [
-                    [str(value) if value is not None else "" for value in row[:20]]
-                    for row in (item.get("matrix", []) or [])[1:16]
-                ],
+                "rows": item.get("rows_count", 0),
+                "columns": item.get("columns_count", 0),
+                "headers": item.get("headers", [])[:20],
+                "preview": item.get("preview", [])[:15],
             }
             for item in inspection.get("sheets", [])
         ]
