@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="bqGrad" x1="20" y1="15" x2="85" y2="85" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00E5FF"/>
+      <stop offset="60%" stop-color="#00C2E0"/>
+      <stop offset="100%" stop-color="#008BA3"/>
+    </linearGradient>
+    <linearGradient id="bqGradDay" x1="20" y1="15" x2="85" y2="85" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0D9488"/>
+      <stop offset="100%" stop-color="#0369A1"/>
+    </linearGradient>
+    <filter id="bqGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#00E5FF" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  
+  <g filter="url(#bqGlow)" class="bq-mark">
+    <!-- Vertical Spine of B -->
+    <path d="M 28 18 L 28 82" stroke="url(#bqGrad)" stroke-width="6.5" stroke-linecap="round"/>
+    
+    <!-- Top Loop of B -->
+    <path d="M 28 18 H 58 C 72 18 80 26 80 37 C 80 48 72 50 58 50 H 28" 
+          stroke="url(#bqGrad)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+          
+    <!-- Bottom Loop of B / Body of Q -->
+    <path d="M 28 50 H 60 C 74 50 82 58 82 69 C 82 80 72 82 58 82 H 28" 
+          stroke="url(#bqGrad)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+          
+    <!-- Distinctive Red-Orange Broadcast Slash for Q -->
+    <path d="M 64 74 L 84 92" stroke="#FF3355" stroke-width="6.5" stroke-linecap="round"/>
+  </g>
+</svg>

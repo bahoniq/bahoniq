@@ -5,13 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>BahonIQ | WORK CENTER</title>
   <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/assets/app.css?v=20261112_02">
+  <link rel="stylesheet" href="/assets/app.css?v=20261112_05">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
     .sidebar { width: 220px; overflow: hidden; display: flex; flex-direction: column; }
-    .sidebar-emblem-wrap { width: 84px; height: 84px; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center; position: relative; }
-    .sidebar-emblem-large { width: 76px !important; height: 76px !important; max-width: 76px !important; max-height: 76px !important; object-fit: contain !important; border-radius: 16px; display: block; margin: 0 auto; }
+    .sidebar-brand-showcase { flex: 1; display: flex; align-items: center; justify-content: center; padding: 18px 0; }
+    .sidebar-emblem-wrap { width: 144px; height: 144px; max-width: 144px; max-height: 144px; margin: 0 auto; display: flex; align-items: center; justify-content: center; position: relative; border-radius: 30px; background: radial-gradient(circle at 50% 50%, rgba(0, 229, 255, 0.08) 0%, rgba(14, 25, 42, 0.5) 70%, transparent 100%); border: 1px solid rgba(0, 229, 255, 0.14); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 0 16px rgba(0, 229, 255, 0.05); }
+    body.theme-day .sidebar-emblem-wrap { background: radial-gradient(circle at 50% 50%, rgba(13, 148, 136, 0.08) 0%, rgba(255, 255, 255, 0.9) 70%, transparent 100%); border-color: rgba(13, 148, 136, 0.2); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06); }
+    .sidebar-emblem-large { width: 104px !important; height: 104px !important; max-width: 104px !important; max-height: 104px !important; object-fit: contain !important; display: block; margin: 0 auto; filter: drop-shadow(0 4px 14px rgba(0, 229, 255, 0.35)); }
     .desktop-pill { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(140, 160, 179, 0.16); border: 1px solid rgba(140, 160, 179, 0.3); color: #8CA0B3; vertical-align: middle; margin-left: 6px; }
     body.theme-day .desktop-pill { background: #E2E8F0; border-color: #CBD5E1; color: #475569; }
     .theme-toggle-btn { display: inline-flex; align-items: center; gap: 8px; background: #101B29; border: 1px solid #1A2B3D; color: #FFFFFF; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; }
@@ -21,11 +23,11 @@
 <body class="theme-night">
   <div id="webSplash" class="web-splash">
     <div class="web-splash-card">
-      <img src="/assets/logo.png" alt="BahonIQ" class="web-splash-logo">
-      <div class="web-splash-title">BahonIQ Work Center</div>
-      <div class="web-splash-sub">v2.0.0 • Local Node</div>
+      <div class="web-splash-mark">
+        <img src="/assets/logo.svg?v=20261112_06" alt="BahonIQ" class="web-splash-logo">
+      </div>
       <div class="web-splash-bar"><div class="web-splash-fill"></div></div>
-      <div class="web-splash-status">Инициализация систем и ИИ-модулей...</div>
+      <div class="web-splash-status">Подготавливаем рабочее пространство…</div>
     </div>
   </div>
 
@@ -55,9 +57,8 @@
       </nav>
 
       <div class="sidebar-brand-showcase">
-        <div class="sidebar-emblem-wrap">
-          <img src="/assets/logo.png" alt="BahonIQ Emblem" class="sidebar-emblem-large" width="80" height="80" style="width:80px;height:80px;max-width:80px;max-height:80px;object-fit:contain;border-radius:18px;display:block;">
-          <div class="emblem-ambient-glow"></div>
+        <div class="sidebar-emblem-wrap" title="BahonIQ Work Center">
+          <img src="/assets/logo.svg?v=20261112_06" alt="BahonIQ" class="sidebar-emblem-large" width="104" height="104" style="width:104px;height:104px;max-width:104px;max-height:104px;object-fit:contain;display:block;">
         </div>
       </div>
 
@@ -70,7 +71,33 @@
 
     <!-- Основная рабочая область -->
     <div class="main-area">
-      <!-- Верхний TopBar как на десктопе -->
+      <!-- Фоновая сдержанная геометрическая композиция кубов и координатной сетки -->
+      <div class="broadcast-bg-canvas" aria-hidden="true">
+        <svg class="bg-geometry-svg" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="coordGrid" width="64" height="64" patternUnits="userSpaceOnUse">
+              <path d="M 64 0 L 0 0 0 64" fill="none" stroke="currentColor" stroke-width="1" stroke-opacity="0.025" />
+              <circle cx="64" cy="0" r="1.5" fill="currentColor" fill-opacity="0.06" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#coordGrid)" />
+          <g class="geo-shapes" stroke="currentColor" stroke-width="1" stroke-opacity="0.06">
+            <polygon points="1280,120 1420,50 1420,200 1280,270" fill="currentColor" fill-opacity="0.015" />
+            <polygon points="1140,50 1280,120 1280,270 1140,200" fill="currentColor" fill-opacity="0.02" />
+            <polygon points="1140,50 1280,-20 1420,50 1280,120" fill="currentColor" fill-opacity="0.03" />
+            <polygon points="1440,260 1520,220 1520,310 1440,350" fill="currentColor" fill-opacity="0.015" />
+            <polygon points="1360,220 1440,260 1440,350 1360,310" fill="currentColor" fill-opacity="0.01" />
+            <polygon points="1360,220 1440,180 1520,220 1440,260" fill="currentColor" fill-opacity="0.025" />
+            <rect x="1060" y="80" width="380" height="260" fill="none" stroke-dasharray="4 8" stroke-opacity="0.035" />
+            <rect x="220" y="520" width="340" height="240" fill="none" stroke-dasharray="4 8" stroke-opacity="0.025" />
+            <polygon points="340,640 460,580 460,700 340,760" fill="currentColor" fill-opacity="0.015" />
+            <polygon points="220,580 340,640 340,760 220,700" fill="currentColor" fill-opacity="0.018" />
+            <polygon points="220,580 340,520 460,580 340,640" fill="currentColor" fill-opacity="0.025" />
+          </g>
+        </svg>
+      </div>
+
+      <!-- Верхний TopBar: сдержанный и лаконичный -->
       <header class="topbar">
         <div class="brand-group">
           <div class="brand"><span class="brand-green">BahonIQ</span> <span class="brand-sep">|</span> <span class="brand-sub">WORK CENTER</span></div>
@@ -80,12 +107,6 @@
             <span class="theme-icon">🌙</span>
             <span class="theme-label">Ночь</span>
           </button>
-          <div id="liveClock" class="clock">15:00:00</div>
-          <div class="status-indicator">
-            <span class="dot-live"></span>
-            <span class="status-text">СИСТЕМА ГОТОВА</span>
-          </div>
-          <div class="ai-badge">BahonIQ AI</div>
         </div>
       </header>
 
@@ -94,234 +115,114 @@
         <!-- Главный дашборд с плитками -->
         <section id="dashboardView" class="dashboard-view">
           <div class="welcome-banner">
-            <div class="broadcast-tag">
-              <span class="live-pulse-dot"></span>
-              <span class="broadcast-tag-text">BAHONIQ BROADCAST WORKSPACE • V2.0.0</span>
-            </div>
-            <h1 class="welcome-title">Центр управления системами и рабочими инструментами</h1>
-            <p class="welcome-subtitle">Единая технологическая платформа: нейросетевые сервисы, автоматизация отчётов, утилиты и быстрый доступ.</p>
+            <h1>Добро пожаловать в BahonIQ</h1>
+            <p>Все рабочие инструменты и системы в одном центре.</p>
           </div>
 
           <div class="section-heading">
-            <div class="heading-left">
-              <h2>Рабочие инструменты</h2>
-              <span class="heading-counter">10 доступных модулей</span>
-            </div>
-            <div class="heading-right">
-              <span class="status-chip ready">● Все сервисы активны</span>
-            </div>
+            <h2>Рабочие инструменты</h2>
           </div>
 
-          <!-- Сетка 2 колонки с расширенными broadcast-карточками -->
+          <!-- Сетка 2 колонки со всеми 10 инструментами -->
           <div class="tools-grid">
             <!-- 1. Ticket Writer AI -->
             <div class="tool-tile" data-open="tickets">
-              <div class="tile-accent-line accent-teal"></div>
-              <div class="tile-icon-box icon-teal">
-                <span class="tile-glyph">✦</span>
+              <div class="tool-icon icon-teal">✦</div>
+              <div class="tool-meta">
+                <div class="tool-name">Ticket Writer AI</div>
+                <div class="tool-desc">Создание чётких и структурированных обращений в техподдержку без лишней информации.</div>
               </div>
-              <div class="tile-content">
-                <div class="tile-header">
-                  <h3 class="tool-name tile-title">Ticket Writer AI</h3>
-                  <span class="tile-tag tag-teal">ИИ-Ассистент</span>
-                </div>
-                <p class="tool-desc tile-description">Умное составление заявок в HelpDesk и Platonus на базе ИИ без лишней переписки.</p>
-                <div class="tile-chips">
-                  <span class="chip">Форматирование заявки</span>
-                  <span class="chip">Снятие логов</span>
-                  <span class="chip chip-status ready">● В сети</span>
-                </div>
-              </div>
-              <div class="tile-arrow">›</div>
+              <div class="tool-arrow">›</div>
             </div>
 
             <!-- 2. Заметки -->
             <div class="tool-tile" data-open="notes">
-              <div class="tile-accent-line accent-cyan"></div>
-              <div class="tile-icon-box icon-cyan">
-                <span class="tile-glyph">✎</span>
+              <div class="tool-icon icon-cyan">✎</div>
+              <div class="tool-meta">
+                <div class="tool-name">Заметки</div>
+                <div class="tool-desc">Быстрые записи, идеи и рабочие черновики с автоматическим сохранением.</div>
               </div>
-              <div class="tile-content">
-                <div class="tile-header">
-                  <h3 class="tool-name tile-title">Заметки</h3>
-                  <span class="tile-tag tag-cyan">Блокнот</span>
-                </div>
-                <p class="tool-desc tile-description">Оперативные черновики, задачи и быстрые записи с моментальной автосинхронизацией.</p>
-                <div class="tile-chips">
-                  <span class="chip">Автосохранение</span>
-                  <span class="chip">Счётчик символов</span>
-                  <span class="chip chip-status ready">● Синхронизировано</span>
-                </div>
-              </div>
-              <div class="tile-arrow">›</div>
+              <div class="tool-arrow">›</div>
             </div>
 
             <!-- 3. Excel AI -->
             <div class="tool-tile" data-open="excel">
-              <div class="tile-accent-line accent-red"></div>
-              <div class="tile-icon-box icon-red">
-                <span class="tile-glyph">▦</span>
+              <div class="tool-icon icon-red">▦</div>
+              <div class="tool-meta">
+                <div class="tool-name">Excel AI</div>
+                <div class="tool-desc">Умная обработка, очистка и слияние электронных таблиц по текстовым указаниям.</div>
               </div>
-              <div class="tile-content">
-                <div class="tile-header">
-                  <h3 class="tool-name tile-title">Excel AI</h3>
-                  <span class="tile-tag tag-red">Автономный агент</span>
-                </div>
-                <p class="tool-desc tile-description">Интеллектуальная трансформация таблиц, поиск расхождений и выполнение задач на естественном языке.</p>
-                <div class="tile-chips">
-                  <span class="chip">Smart Merge</span>
-                  <span class="chip">Безопасный план</span>
-                  <span class="chip chip-status ready">● AI Engine 3.0</span>
-                </div>
-              </div>
-              <div class="tile-arrow">›</div>
+              <div class="tool-arrow">›</div>
             </div>
 
             <!-- 4. Очистка (Только на рабочем столе) -->
-            <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="Очистка" data-desc="Освобождение дискового пространства, очистка системных кэшей и временных файлов Windows. Требует прямого доступа к файловой системе ОС.">
-              <div class="tile-accent-line accent-amber"></div>
-              <div class="tile-icon-box icon-amber">
-                <span class="tile-glyph">⚡</span>
+            <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="Очистка" data-desc="Освобождение дискового пространства, удаление временных файлов и системных кэшей. Требует прямого доступа к файловой системе Windows.">
+              <div class="tool-icon icon-amber">⚡</div>
+              <div class="tool-meta">
+                <div class="tool-name">Очистка <span class="desktop-badge">Только на рабочем столе</span></div>
+                <div class="tool-desc">Освобождение дискового пространства, удаление временных файлов и кэша.</div>
               </div>
-              <div class="tile-content">
-                <div class="tile-header">
-                  <h3 class="tool-name tile-title">Очистка</h3>
-                  <span class="tile-tag tag-desktop">Только на ПК 🔒</span>
-                </div>
-                <p class="tool-desc tile-description">Глубокое освобождение места на дисках ПК, очистка кэшей приложений и корзины Windows.</p>
-                <div class="tile-chips">
-                  <span class="chip">Кэш системы</span>
-                  <span class="chip">Корзина Windows</span>
-                  <span class="chip chip-status locked">🔒 Локальный запуск</span>
-                </div>
-              </div>
-              <div class="tile-arrow">🔒</div>
+              <div class="tool-arrow">🔒</div>
             </div>
 
             <!-- 5. Дубликаты (Только на рабочем столе) -->
-            <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="Дубликаты" data-desc="Глубокое сканирование дисков компьютера на повторяющиеся файлы по контрольным суммам. Доступно в установленном приложении BahonIQ.">
-              <div class="tile-accent-line accent-purple"></div>
-              <div class="tile-icon-box icon-purple">
-                <span class="tile-glyph">🔍</span>
+            <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="Дубликаты" data-desc="Побайтовое сканирование накопителей компьютера и поиск одинаковых тяжёлых файлов. Доступно в установленном приложении BahonIQ.">
+              <div class="tool-icon icon-purple">🔍</div>
+              <div class="tool-meta">
+                <div class="tool-name">Дубликаты <span class="desktop-badge">Только на рабочем столе</span></div>
+                <div class="tool-desc">Поиск и безопасное удаление повторяющихся файлов на дисках компьютера.</div>
               </div>
-              <div class="tile-content">
-                <div class="tile-header">
-                  <h3 class="tool-name tile-title">Дубликаты</h3>
-                  <span class="tile-tag tag-desktop">Только на ПК 🔒</span>
-                </div>
-                <p class="tool-desc tile-description">Побайтовое сканирование накопителей компьютера и поиск одинаковых тяжёлых файлов.</p>
-                <div class="tile-chips">
-                  <span class="chip">Хэширование MD5</span>
-                  <span class="chip">Аудит накопителей</span>
-                  <span class="chip chip-status locked">🔒 Локальный запуск</span>
-                </div>
-              </div>
-              <div class="tile-arrow">🔒</div>
+              <div class="tool-arrow">🔒</div>
             </div>
 
             <!-- 6. AnyDesk (Только на рабочем столе) -->
-            <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="AnyDesk" data-desc="Быстрый запуск AnyDesk для удалённого подключения и технической поддержки рабочих станций через локальный клиент AnyDesk.exe.">
-              <div class="tile-accent-line accent-rose"></div>
-              <div class="tile-icon-box icon-rose">
-                <span class="tile-glyph">◉</span>
+            <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="AnyDesk" data-desc="Быстрый запуск AnyDesk для удалённого подключения и дистанционной технической поддержки рабочих станций через локальный клиент AnyDesk.exe.">
+              <div class="tool-icon icon-rose">◉</div>
+              <div class="tool-meta">
+                <div class="tool-name">AnyDesk <span class="desktop-badge">Только на рабочем столе</span></div>
+                <div class="tool-desc">Удалённый доступ и оперативная дистанционная техническая поддержка.</div>
               </div>
-              <div class="tile-content">
-                <div class="tile-header">
-                  <h3 class="tool-name tile-title">AnyDesk</h3>
-                  <span class="tile-tag tag-desktop">Только на ПК 🔒</span>
-                </div>
-                <p class="tool-desc tile-description">Быстрый запуск клиента AnyDesk для дистанционного подключения и оперативной технической поддержки.</p>
-                <div class="tile-chips">
-                  <span class="chip">Прямой туннель</span>
-                  <span class="chip">Удаленная помощь</span>
-                  <span class="chip chip-status locked">🔒 Локальный запуск</span>
-                </div>
-              </div>
-              <div class="tile-arrow">🔒</div>
+              <div class="tool-arrow">🔒</div>
             </div>
 
             <!-- 7. PDF Center -->
             <div class="tool-tile" data-open="pdf">
-              <div class="tile-accent-line accent-teal"></div>
-              <div class="tile-icon-box icon-teal">
-                <span class="tile-glyph">▤</span>
+              <div class="tool-icon icon-teal">▤</div>
+              <div class="tool-meta">
+                <div class="tool-name">PDF Center</div>
+                <div class="tool-desc">Конвертация документов, объединение файлов, разделение страниц и сжатие PDF.</div>
               </div>
-              <div class="tile-content">
-                <div class="tile-header">
-                  <h3 class="tool-name tile-title">PDF Center</h3>
-                  <span class="tile-tag tag-teal">8 инструментов</span>
-                </div>
-                <p class="tool-desc tile-description">Универсальный комбайн: конвертация PDF в Word, объединение, разделение и оптимизация веса.</p>
-                <div class="tile-chips">
-                  <span class="chip">PDF → Word</span>
-                  <span class="chip">Склейка документов</span>
-                  <span class="chip chip-status ready">● В сети</span>
-                </div>
-              </div>
-              <div class="tile-arrow">›</div>
+              <div class="tool-arrow">›</div>
             </div>
 
             <!-- 8. ANALYTICS AI -->
             <div class="tool-tile" data-open="analytics">
-              <div class="tile-accent-line accent-blue"></div>
-              <div class="tile-icon-box icon-blue">
-                <span class="tile-glyph">▥</span>
+              <div class="tool-icon icon-blue">▥</div>
+              <div class="tool-meta">
+                <div class="tool-name">ANALYTICS AI</div>
+                <div class="tool-desc">Управленческий анализ табличных данных с формированием отчётов PDF и PowerPoint.</div>
               </div>
-              <div class="tile-content">
-                <div class="tile-header">
-                  <h3 class="tool-name tile-title">ANALYTICS AI</h3>
-                  <span class="tile-tag tag-blue">Executive BI</span>
-                </div>
-                <p class="tool-desc tile-description">Глубокий управленческий экспресс-анализ таблиц с генерацией отчётов PDF и слайдов PowerPoint.</p>
-                <div class="tile-chips">
-                  <span class="chip">PDF-буклет</span>
-                  <span class="chip">Презентация PPTX</span>
-                  <span class="chip chip-status ready">● Fast Core</span>
-                </div>
-              </div>
-              <div class="tile-arrow">›</div>
+              <div class="tool-arrow">›</div>
             </div>
 
             <!-- 9. Телефонный справочник -->
             <div class="tool-tile" data-open="phonebook">
-              <div class="tile-accent-line accent-teal"></div>
-              <div class="tile-icon-box icon-teal">
-                <span class="tile-glyph">☎</span>
+              <div class="tool-icon icon-teal">☎</div>
+              <div class="tool-meta">
+                <div class="tool-name">Телефонный справочник</div>
+                <div class="tool-desc">Поиск сотрудников по подразделениям, внутренним номерам и контактным данным.</div>
               </div>
-              <div class="tile-content">
-                <div class="tile-header">
-                  <h3 class="tool-name tile-title">Телефонный справочник</h3>
-                  <span class="tile-tag tag-teal">База контактов</span>
-                </div>
-                <p class="tool-desc tile-description">Быстрый поиск сотрудников организации по ФИО, подразделениям, внутренним номерам и кабинетам.</p>
-                <div class="tile-chips">
-                  <span class="chip">Внутренние номера</span>
-                  <span class="chip">Поиск по ФИО</span>
-                  <span class="chip chip-status ready">● База активна</span>
-                </div>
-              </div>
-              <div class="tile-arrow">›</div>
+              <div class="tool-arrow">›</div>
             </div>
 
             <!-- 10. Code Academy -->
             <div class="tool-tile" data-open="academy">
-              <div class="tile-accent-line accent-purple"></div>
-              <div class="tile-icon-box icon-purple">
-                <span class="tile-glyph">⌘</span>
+              <div class="tool-icon icon-purple">⌘</div>
+              <div class="tool-meta">
+                <div class="tool-name">Code Academy</div>
+                <div class="tool-desc">Практическое обучение программированию на Python, SQL-запросам и архитектуре ПО.</div>
               </div>
-              <div class="tile-content">
-                <div class="tile-header">
-                  <h3 class="tool-name tile-title">Code Academy</h3>
-                  <span class="tile-tag tag-purple">Среда разработки</span>
-                </div>
-                <p class="tool-desc tile-description">Интерактивный учебный полигон: программирование на Python, SQL-запросы и архитектурный конструктор.</p>
-                <div class="tile-chips">
-                  <span class="chip">Python Sandbox</span>
-                  <span class="chip">SQL Playground</span>
-                  <span class="chip chip-status ready">● Открытый доступ</span>
-                </div>
-              </div>
-              <div class="tile-arrow">›</div>
+              <div class="tool-arrow">›</div>
             </div>
           </div>
         </section>
@@ -443,15 +344,51 @@
 
           <!-- CODE ACADEMY -->
           <section id="academy" class="module-page">
-            <div class="page-heading">
-              <div><span class="eyebrow">МОДУЛЬ 06</span><h1>CODE ACADEMY</h1><p>Python, SQL, архитектура и учебный проект BahonIQ.</p></div>
-              <span class="badge">СВОБОДНЫЙ ДОСТУП</span>
+            <div class="academy-header">
+              <div><span class="eyebrow">BAHONIQ / CODE ACADEMY</span><h1>Учись на настоящем проекте</h1><p>Python, SQL, архитектура и практика — в едином рабочем пространстве.</p></div>
+              <div id="academyProgress" class="academy-progress">0 / 83</div>
             </div>
-            <div class="tabs academy-tabs"><button class="tab active" data-tab="academyPython">Python</button><button class="tab" data-tab="academySql">SQL</button><button class="tab" data-tab="academyBook">Книга и код</button><button class="tab" data-tab="academyBuilder">Конструктор</button></div>
-            <div id="academyPython" class="tab-page active academy-workspace"><aside class="card"><input class="academy-search" data-kind="python" placeholder="Поиск урока"><div id="pythonLessons" class="lesson-list"></div></aside><div class="card lesson-content"><h2 id="pythonTitle"></h2><p id="pythonTheory"></p><textarea id="pythonCode" class="code-editor"></textarea><p id="pythonChallenge" class="helper"></p><button class="button primary academy-run" data-language="python" type="button">Запустить Python</button><pre id="pythonOutput" class="code-output"></pre></div></div>
-            <div id="academySql" class="tab-page academy-workspace"><aside class="card"><input class="academy-search" data-kind="sql" placeholder="Поиск урока"><div id="sqlLessons" class="lesson-list"></div></aside><div class="card lesson-content"><h2 id="sqlTitle"></h2><p id="sqlTheory"></p><textarea id="sqlCode" class="code-editor"></textarea><p id="sqlChallenge" class="helper"></p><button class="button primary academy-run" data-language="sql" type="button">Выполнить SQL</button><pre id="sqlOutput" class="code-output"></pre></div></div>
-            <div id="academyBook" class="tab-page academy-workspace"><aside class="card"><input id="bookSearch" placeholder="Поиск главы"><div id="bookChapters" class="lesson-list"></div></aside><div class="card lesson-content"><h2 id="bookTitle"></h2><div id="bookReading" class="book-reading"></div><textarea id="bookSource" class="code-editor" readonly></textarea></div></div>
-            <div id="academyBuilder" class="tab-page academy-workspace"><aside class="card"><div id="builderFiles" class="lesson-list"></div></aside><div class="card lesson-content"><h2 id="builderTitle">Учебный проект</h2><textarea id="builderSource" class="code-editor"></textarea><button id="copyBuilder" class="button secondary" type="button">Копировать код</button></div></div>
+            <div class="academy-shell">
+              <nav class="academy-route" aria-label="Учебный маршрут">
+                <span class="academy-route-label">УЧЕБНЫЙ МАРШРУТ</span>
+                <button class="academy-route-btn active" data-academy-view="academyPython" type="button"><b>1</b><span>Python<small>48 уроков</small></span></button>
+                <button class="academy-route-btn" data-academy-view="academySql" type="button"><b>2</b><span>SQL<small>35 уроков</small></span></button>
+                <button class="academy-route-btn" data-academy-view="academyBook" type="button"><b>3</b><span>Книга и код<small>Архитектура BahonIQ</small></span></button>
+                <button class="academy-route-btn" data-academy-view="academyBuilder" type="button"><b>4</b><span>Конструктор<small>Учебный проект</small></span></button>
+                <button id="academyMentorOpen" class="academy-mentor-btn" type="button"><span>✦</span><div><b>ИИ-наставник</b><small>Подсказка по уроку</small></div></button>
+              </nav>
+
+              <div class="academy-stage">
+                <div id="academyPython" class="academy-view active">
+                  <aside class="academy-lessons"><div class="academy-list-head"><b>PYTHON STUDIO</b><input class="academy-search" data-kind="python" placeholder="Найти урок…"></div><div id="pythonLessons" class="lesson-list"></div></aside>
+                  <div class="academy-studio">
+                    <div class="academy-lesson-head"><div><span id="pythonLevel" class="academy-level"></span><h2 id="pythonTitle"></h2></div><button class="academy-complete" data-language="python" type="button">Отметить пройденным</button></div>
+                    <div class="academy-phase-tabs"><button class="active" data-phase="theory" type="button">1 · Теория</button><button data-phase="walkthrough" type="button">2 · Разбор</button><button data-phase="practice" type="button">3 · Практика</button><button data-phase="check" type="button">4 · Проверка</button><button data-phase="reinforce" type="button">5 · Закрепление</button></div>
+                    <div class="academy-reading"><span id="pythonPhaseLabel">ТЕОРИЯ</span><p id="pythonTheory"></p><p id="pythonWalkthrough" class="hidden"></p><p id="pythonChallenge" class="hidden"></p><p id="pythonHint" class="hidden"></p></div>
+                    <textarea id="pythonCode" class="code-editor academy-editor" spellcheck="false"></textarea>
+                    <div class="academy-console"><div class="academy-input-row"><label>Ввод<input id="pythonStdin" placeholder="Данные для input(), если нужны"></label></div><pre id="pythonOutput" class="code-output">Результат выполнения появится здесь.</pre></div>
+                    <div class="academy-actions"><button class="button primary academy-run" data-language="python" type="button">▶ Запустить</button><button class="button secondary academy-reset" data-language="python" type="button">Вернуть пример</button><button class="button secondary academy-hint" data-language="python" type="button">Подсказка</button><button class="button secondary academy-next" data-language="python" type="button">Следующий урок →</button></div>
+                  </div>
+                </div>
+
+                <div id="academySql" class="academy-view">
+                  <aside class="academy-lessons"><div class="academy-list-head"><b>SQL STUDIO</b><input class="academy-search" data-kind="sql" placeholder="Найти урок…"></div><div id="sqlLessons" class="lesson-list"></div></aside>
+                  <div class="academy-studio">
+                    <div class="academy-lesson-head"><div><span id="sqlLevel" class="academy-level"></span><h2 id="sqlTitle"></h2></div><button class="academy-complete" data-language="sql" type="button">Отметить пройденным</button></div>
+                    <div class="academy-phase-tabs"><button class="active" data-phase="theory" type="button">1 · Теория</button><button data-phase="walkthrough" type="button">2 · Разбор</button><button data-phase="practice" type="button">3 · Практика</button><button data-phase="check" type="button">4 · Проверка</button><button data-phase="reinforce" type="button">5 · Закрепление</button></div>
+                    <div class="academy-reading"><span id="sqlPhaseLabel">ТЕОРИЯ</span><p id="sqlTheory"></p><p id="sqlWalkthrough" class="hidden"></p><p id="sqlChallenge" class="hidden"></p><p id="sqlHint" class="hidden"></p></div>
+                    <textarea id="sqlCode" class="code-editor academy-editor" spellcheck="false"></textarea>
+                    <div class="academy-console"><pre id="sqlOutput" class="code-output">Результат запроса появится здесь.</pre></div>
+                    <div class="academy-actions"><button class="button primary academy-run" data-language="sql" type="button">▶ Выполнить</button><button class="button secondary academy-reset" data-language="sql" type="button">Вернуть пример</button><button class="button secondary academy-hint" data-language="sql" type="button">Подсказка</button><button class="button secondary academy-next" data-language="sql" type="button">Следующий урок →</button></div>
+                  </div>
+                </div>
+
+                <div id="academyBook" class="academy-view academy-library-view"><aside class="academy-lessons"><div class="academy-list-head"><b>КНИГА И КОД</b><input id="bookSearch" placeholder="Найти главу…"></div><div id="bookChapters" class="lesson-list"></div></aside><article class="academy-studio academy-book"><h2 id="bookTitle"></h2><div id="bookReading" class="book-reading"></div><textarea id="bookSource" class="code-editor academy-editor" readonly></textarea></article></div>
+                <div id="academyBuilder" class="academy-view academy-library-view"><aside class="academy-lessons"><div class="academy-list-head"><b>КОНСТРУКТОР</b><small>Структура учебного приложения</small></div><div id="builderFiles" class="lesson-list"></div></aside><div class="academy-studio"><h2 id="builderTitle">Учебный проект</h2><p class="academy-builder-note">Изучи назначение файла, измени код и собери собственную базовую архитектуру.</p><textarea id="builderSource" class="code-editor academy-editor academy-builder-editor"></textarea><div class="academy-actions"><button id="copyBuilder" class="button primary" type="button">Копировать код</button></div></div></div>
+              </div>
+            </div>
+
+            <dialog id="academyMentorDialog" class="academy-mentor-dialog"><form method="dialog"><div class="academy-mentor-head"><div><span class="eyebrow">ИИ-НАСТАВНИК</span><h2>Спросить по текущему уроку</h2></div><button value="cancel" aria-label="Закрыть">×</button></div><textarea id="academyMentorQuestion" rows="4" placeholder="Что объяснить или где нужна подсказка?"></textarea><div class="academy-actions"><button id="academyMentorAsk" class="button primary" value="default" type="button">Получить подсказку</button></div><div id="academyMentorAnswer" class="academy-mentor-answer hidden"></div></form></dialog>
           </section>
 
           <!-- ЗАМЕТКИ -->
@@ -513,12 +450,11 @@
       </div>
 
       <footer class="app-footer">
-        <span>BahonIQ Work Center • Версия 2.0.0 • Готов к работе</span>
-        <span class="footer-right">Локальная веб-нода • BahonIQ AI</span>
+        <span>BahonIQ Work Center</span>
       </footer>
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261112_02"></script>
+  <script src="/assets/app.js?v=20261112_05"></script>
 </body>
 </html>
