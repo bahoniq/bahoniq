@@ -363,6 +363,12 @@ if (toolList) {
   });
 }
 
+let pdfQueueFiles = [];
+
+function pdfAcceptList() {
+  return (pdfOps[pdfOperation][2] || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+}
+
 function selectPdf(key) {
   pdfOperation = key;
   $$('#pdfTools button').forEach((b, i) => b.classList.toggle('active', Object.keys(pdfOps)[i] === key));
@@ -371,20 +377,62 @@ function selectPdf(key) {
   $('#pdfHint').textContent = v[1];
   $('#pdfFiles').accept = v[2];
   $('#pdfFiles').value = '';
-  renderQueue([]);
+  pdfQueueFiles = [];
+  renderQueue();
   $('#pdfResult').classList.add('hidden');
 }
 
-$('#pdfFiles')?.addEventListener('change', e => renderQueue([...e.target.files]));
+function addPdfFiles(list) {
+  const allowed = pdfAcceptList();
+  const rejected = [];
+  [...list].forEach(f => {
+    const ext = '.' + f.name.split('.').pop().toLowerCase();
+    if (allowed.length && !allowed.includes(ext)) { rejected.push(f.name); return; }
+    if (!pdfQueueFiles.some(x => x.name === f.name && x.size === f.size && x.lastModified === f.lastModified)) pdfQueueFiles.push(f);
+  });
+  renderQueue(rejected.length ? `Пропущено (неподходящий формат ${allowed.join(', ')}): ${rejected.join(', ')}` : '');
+}
 
-function renderQueue(files) {
-  $('#pdfFileNames').textContent = files.length ? `${files.length} файл(ов) выбрано` : 'Формат зависит от выбранной операции';
-  $('#pdfQueue').innerHTML = files.length ? files.map((f, i) => `<div class="queue-item" style="padding:4px 0"><b>${String(i + 1).padStart(2, '0')}. ${esc(f.name)}</b> <small style="color:var(--text-sub)">(${formatBytes(f.size)})</small></div>`).join('') : '<span>Файлы не выбраны</span>';
+if ($('#pdfFiles')) selectPdf(pdfOperation);
+
+$('#pdfFiles')?.addEventListener('change', e => {
+  addPdfFiles(e.target.files);
+  e.target.value = '';   // позволяет выбирать файлы повторно и накапливать список
+});
+
+const pdfDrop = document.querySelector('#pdfForm .file-drop');
+if (pdfDrop) {
+  ['dragenter', 'dragover'].forEach(n => pdfDrop.addEventListener(n, e => { e.preventDefault(); pdfDrop.classList.add('dragover'); }));
+  ['dragleave', 'drop'].forEach(n => pdfDrop.addEventListener(n, e => { e.preventDefault(); pdfDrop.classList.remove('dragover'); }));
+  pdfDrop.addEventListener('drop', e => addPdfFiles(e.dataTransfer.files));
+}
+
+$('#pdfQueue')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-q]');
+  if (!btn) return;
+  const i = Number(btn.dataset.i), act = btn.dataset.q;
+  if (act === 'del') pdfQueueFiles.splice(i, 1);
+  if (act === 'up' && i > 0) [pdfQueueFiles[i - 1], pdfQueueFiles[i]] = [pdfQueueFiles[i], pdfQueueFiles[i - 1]];
+  if (act === 'down' && i < pdfQueueFiles.length - 1) [pdfQueueFiles[i + 1], pdfQueueFiles[i]] = [pdfQueueFiles[i], pdfQueueFiles[i + 1]];
+  if (act === 'clear') pdfQueueFiles = [];
+  renderQueue();
+});
+
+function renderQueue(note = '') {
+  const files = pdfQueueFiles;
+  const orderMatters = ['merge_pdf', 'images_pdf'].includes(pdfOperation);
+  $('#pdfFileNames').textContent = files.length
+    ? `${files.length} файл(ов) выбрано · нажмите, чтобы добавить ещё, или перетащите сюда`
+    : 'Выберите несколько файлов или перетащите их сюда · ' + pdfAcceptList().join(', ');
+  const rows = files.map((f, i) => `<div class="queue-item pdf-queue-row"><span class="pdf-queue-name"><b>${String(i + 1).padStart(2, '0')}. ${esc(f.name)}</b> <small style="color:var(--text-sub)">(${formatBytes(f.size)})</small></span><span class="pdf-queue-actions">${orderMatters ? `<button type="button" data-q="up" data-i="${i}" title="Выше" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" data-q="down" data-i="${i}" title="Ниже" ${i === files.length - 1 ? 'disabled' : ''}>↓</button>` : ''}<button type="button" data-q="del" data-i="${i}" title="Убрать">✕</button></span></div>`).join('');
+  const clear = files.length > 1 ? `<div style="padding:6px 0"><button type="button" class="pdf-queue-clear" data-q="clear" data-i="0">Очистить список</button></div>` : '';
+  const warn = note ? `<div style="color:var(--yellow);font-size:12px;padding:4px 0">${esc(note)}</div>` : '';
+  $('#pdfQueue').innerHTML = (files.length ? rows + clear : '<span>Файлы не выбраны</span>') + warn;
 }
 
 $('#pdfForm')?.addEventListener('submit', async e => {
   e.preventDefault();
-  const files = [...$('#pdfFiles').files];
+  const files = [...pdfQueueFiles];
   if (!files.length) return alert('Добавьте файлы.');
   const button = e.submitter, fd = new FormData();
   fd.append('operation', pdfOperation);

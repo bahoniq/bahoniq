@@ -1116,3 +1116,12 @@ body.theme-day .academy-editor { color: #16322f; }
   .academy-route { grid-template-columns: repeat(2, 1fr); }
   .academy-actions .academy-next { margin-left: 0; }
 }
+
+/* PDF Center: очередь файлов */
+.file-drop.dragover { border-color: var(--cyan-neon); background: rgba(0, 229, 255, 0.07); }
+.pdf-queue-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 10px; margin-bottom:5px; border:1px solid var(--border); border-radius:8px; background: var(--bg-card); }
+.pdf-queue-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+.pdf-queue-actions { display:flex; gap:4px; flex-shrink:0; }
+.pdf-queue-actions button, .pdf-queue-clear { background:transparent; border:1px solid var(--border); color:var(--text-muted); border-radius:6px; min-width:28px; height:26px; padding:0 8px; cursor:pointer; font-size:12px; }
+.pdf-queue-actions button:hover:not(:disabled), .pdf-queue-clear:hover { color:var(--cyan-neon); border-color:var(--cyan-neon); }
+.pdf-queue-actions button:disabled { opacity:.35; cursor:default; }
