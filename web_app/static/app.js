@@ -23,34 +23,141 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Навигация между Дашбордом и Модулями
+// Управление темами: Ночь / День
+function applyTheme(theme) {
+  const body = document.body;
+  const toggleBtn = $('#themeToggle');
+  const icon = toggleBtn?.querySelector('.theme-icon');
+  const label = toggleBtn?.querySelector('.theme-label');
+  
+  if (theme === 'day') {
+    body.classList.remove('theme-night');
+    body.classList.add('theme-day');
+    if (icon) icon.textContent = '☀️';
+    if (label) label.textContent = 'День';
+  } else {
+    body.classList.remove('theme-day');
+    body.classList.add('theme-night');
+    if (icon) icon.textContent = '🌙';
+    if (label) label.textContent = 'Ночь';
+  }
+  localStorage.setItem('bahoniq_theme', theme);
+}
+
+const savedTheme = localStorage.getItem('bahoniq_theme') || 'night';
+applyTheme(savedTheme);
+
+$('#themeToggle')?.addEventListener('click', () => {
+  const isNight = document.body.classList.contains('theme-night');
+  applyTheme(isNight ? 'day' : 'night');
+});
+
+// Навигация между Дашбордом и Модулями (PowerPoint-style плавные панорамные переходы)
 const dashView = $('#dashboardView');
 const modHost = $('#moduleHost');
 const currentLabel = $('#currentModuleLabel');
+let isTransitioning = false;
 
 function openModule(modId, label) {
-  dashView.classList.add('hidden');
-  modHost.classList.remove('hidden');
-  $$('.module-page').forEach(p => p.classList.remove('active'));
+  if (isTransitioning) return;
   const target = $('#' + modId);
-  if (target) {
-    target.classList.add('active');
-    currentLabel.textContent = label || modId.toUpperCase();
-    location.hash = modId;
+  if (!target) return;
+  
+  isTransitioning = true;
+  currentLabel.textContent = label || modId.toUpperCase();
+  location.hash = modId;
+
+  // Инициализация специфичных модулей
+  if (modId === 'notes') {
+    loadNotes();
   }
+
+  // Плавный уход дашборда влево с легким уменьшением (PowerPoint slide-out)
+  dashView.classList.add('panorama-out');
+
+  setTimeout(() => {
+    dashView.classList.add('hidden');
+    dashView.classList.remove('panorama-out');
+
+    $$('.module-page').forEach(p => p.classList.remove('active'));
+    target.classList.add('active');
+
+    // Плавный выезд экрана модуля справа (PowerPoint slide-in)
+    modHost.classList.remove('hidden');
+    modHost.classList.remove('panorama-out');
+    modHost.classList.add('panorama-in');
+
+    setTimeout(() => {
+      modHost.classList.remove('panorama-in');
+      isTransitioning = false;
+    }, 420);
+  }, 180);
 }
 
 function returnToDashboard() {
-  modHost.classList.add('hidden');
-  dashView.classList.remove('hidden');
-  $$('.module-page').forEach(p => p.classList.remove('active'));
-  history.replaceState(null, null, ' ');
+  if (isTransitioning) return;
+  isTransitioning = true;
+
+  // Плавный уход экрана модуля вправо
+  modHost.classList.add('panorama-out');
+
+  setTimeout(() => {
+    modHost.classList.add('hidden');
+    modHost.classList.remove('panorama-out');
+    $$('.module-page').forEach(p => p.classList.remove('active'));
+
+    // Плавное возвращение дашборда на первый план
+    dashView.classList.remove('hidden');
+    dashView.classList.add('panorama-in');
+
+    history.replaceState(null, null, ' ');
+
+    setTimeout(() => {
+      dashView.classList.remove('panorama-in');
+      isTransitioning = false;
+    }, 420);
+  }, 180);
 }
 
 $('#backToDash')?.addEventListener('click', returnToDashboard);
 
+// Всплывающее окно для инструментов рабочего стола (Очистка, Дубликаты, AnyDesk)
+const desktopModal = $('#desktopModal');
+const modalTitle = $('#modalToolTitle');
+const modalDesc = $('#modalToolDesc');
+
+function showDesktopModal(title, desc) {
+  if (modalTitle) modalTitle.textContent = title;
+  if (modalDesc) modalDesc.textContent = desc;
+  desktopModal?.classList.remove('hidden');
+}
+
+$('#closeDesktopModal')?.addEventListener('click', () => {
+  desktopModal?.classList.add('hidden');
+});
+
+desktopModal?.addEventListener('click', (e) => {
+  if (e.target === desktopModal) {
+    desktopModal.classList.add('hidden');
+  }
+});
+
+// Обработка карточек инструментов и Spotlight-подсветка курсора
 $$('.tool-tile').forEach(tile => {
+  // Интерактивное позиционирование радиального света за курсором
+  tile.addEventListener('mousemove', (e) => {
+    const rect = tile.getBoundingClientRect();
+    tile.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+    tile.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+  });
+
   tile.addEventListener('click', () => {
+    if (tile.dataset.desktopOnly === 'true') {
+      const title = tile.dataset.title || tile.querySelector('.tool-name')?.textContent || '';
+      const desc = tile.dataset.desc || tile.querySelector('.tool-desc')?.textContent || '';
+      showDesktopModal(title, desc);
+      return;
+    }
     const modId = tile.dataset.open;
     const name = tile.querySelector('.tool-name')?.textContent || '';
     openModule(modId, name);
@@ -474,3 +581,89 @@ $('#copyBuilder')?.addEventListener('click', () => navigator.clipboard.writeText
 
 loadPhonebook();
 loadAcademy();
+
+// ----------------- ЗАМЕТКИ (NOTES) -----------------
+const notesEditor = $('#notesEditor');
+const notesStatusDot = $('#notesStatusDot');
+const notesStatusText = $('#notesStatusText');
+const notesWordCount = $('#notesWordCount');
+const notesCharCount = $('#notesCharCount');
+let notesSaveTimeout = null;
+
+function updateNotesCounters(text) {
+  const chars = text.length;
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  if (notesWordCount) {
+    notesWordCount.textContent = `${words} ${words === 1 ? 'слово' : (words >= 2 && words <= 4 ? 'слова' : 'слов')}`;
+  }
+  if (notesCharCount) {
+    notesCharCount.textContent = `${chars} символов`;
+  }
+}
+
+async function loadNotes() {
+  try {
+    const res = await api('/api/notes');
+    if (notesEditor) {
+      notesEditor.value = res.text || '';
+      updateNotesCounters(notesEditor.value);
+    }
+    setNotesStatus('saved');
+  } catch (e) {
+    console.error('Ошибка загрузки заметок:', e);
+  }
+}
+
+function setNotesStatus(state) {
+  if (!notesStatusDot || !notesStatusText) return;
+  if (state === 'saving') {
+    notesStatusDot.className = 'status-dot-saving';
+    notesStatusText.textContent = 'Сохранение...';
+  } else {
+    notesStatusDot.className = 'status-dot-saved';
+    notesStatusText.textContent = 'Синхронизировано';
+  }
+}
+
+notesEditor?.addEventListener('input', () => {
+  const text = notesEditor.value;
+  updateNotesCounters(text);
+  setNotesStatus('saving');
+  clearTimeout(notesSaveTimeout);
+  notesSaveTimeout = setTimeout(async () => {
+    try {
+      const fd = new FormData();
+      fd.append('text', text);
+      await api('/api/notes', { method: 'POST', body: fd });
+      setNotesStatus('saved');
+    } catch (e) {
+      console.error('Ошибка сохранения заметок:', e);
+    }
+  }, 600);
+});
+
+$('#copyNotesBtn')?.addEventListener('click', async () => {
+  if (!notesEditor) return;
+  await navigator.clipboard.writeText(notesEditor.value);
+  const btn = $('#copyNotesBtn');
+  const originalText = btn.textContent;
+  btn.textContent = '✓ Скопировано!';
+  setTimeout(() => { btn.textContent = originalText; }, 1800);
+});
+
+$('#clearNotesBtn')?.addEventListener('click', async () => {
+  if (!notesEditor) return;
+  if (confirm('Очистить текст всех заметок?')) {
+    notesEditor.value = '';
+    updateNotesCounters('');
+    setNotesStatus('saving');
+    try {
+      const fd = new FormData();
+      fd.append('text', '');
+      await api('/api/notes', { method: 'POST', body: fd });
+      setNotesStatus('saved');
+    } catch (e) {
+      console.error('Ошибка очистки заметок:', e);
+    }
+  }
+});

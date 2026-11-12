@@ -161,7 +161,10 @@ def _new_session(kind: str) -> tuple[str, Path]:
 
 @app.get("/")
 def home():
-    return FileResponse(STATIC / "index.html")
+    return FileResponse(
+        STATIC / "index.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
+    )
 
 
 @app.get("/api/status")

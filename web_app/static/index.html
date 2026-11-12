@@ -5,7 +5,18 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>BahonIQ | WORK CENTER</title>
   <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/assets/app.css">
+  <link rel="stylesheet" href="/assets/app.css?v=20261112_01">
+  <style>
+    /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
+    img { max-width: 100%; height: auto; }
+    .sidebar { width: 220px; overflow: hidden; display: flex; flex-direction: column; }
+    .sidebar-emblem-wrap { width: 84px; height: 84px; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center; position: relative; }
+    .sidebar-emblem-large { width: 76px !important; height: 76px !important; max-width: 76px !important; max-height: 76px !important; object-fit: contain !important; border-radius: 16px; display: block; margin: 0 auto; }
+    .desktop-pill { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(140, 160, 179, 0.16); border: 1px solid rgba(140, 160, 179, 0.3); color: #8CA0B3; vertical-align: middle; margin-left: 6px; }
+    body.theme-day .desktop-pill { background: #E2E8F0; border-color: #CBD5E1; color: #475569; }
+    .theme-toggle-btn { display: inline-flex; align-items: center; gap: 8px; background: #101B29; border: 1px solid #1A2B3D; color: #FFFFFF; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    body.theme-day .theme-toggle-btn { background: #FFFFFF; border-color: #DFE5EC; color: #0F172A; }
+  </style>
 </head>
 <body class="theme-night">
   <div id="webSplash" class="web-splash">
@@ -43,13 +54,21 @@
         </a>
       </nav>
 
+      <div class="sidebar-brand-showcase">
+        <div class="sidebar-emblem-wrap">
+          <img src="/assets/logo.png" alt="BahonIQ Emblem" class="sidebar-emblem-large" width="76" height="76" style="width:76px;height:76px;max-width:76px;max-height:76px;object-fit:contain;border-radius:16px;display:block;">
+          <div class="emblem-pulse-ring"></div>
+        </div>
+        <div class="sidebar-brand-meta">
+          <div class="sidebar-brand-title">BahonIQ</div>
+          <div class="sidebar-brand-subtitle">WORK CENTER</div>
+        </div>
+      </div>
+
       <div class="sidebar-footer">
         <button id="openAllSystems" class="open-all-btn" type="button">
           <span>⚡</span> Открыть все системы
         </button>
-        <div class="sidebar-watermark">
-          <img src="/assets/logo.png" alt="BahonIQ Emblem">
-        </div>
       </div>
     </aside>
 
@@ -61,6 +80,10 @@
           <div class="brand"><span class="brand-green">BahonIQ</span> <span class="brand-sep">|</span> <span class="brand-sub">WORK CENTER</span></div>
         </div>
         <div class="topbar-right">
+          <button id="themeToggle" class="theme-toggle-btn" type="button" title="Переключить тему: День / Ночь">
+            <span class="theme-icon">🌙</span>
+            <span class="theme-label">Ночь</span>
+          </button>
           <div id="liveClock" class="clock">15:00:00</div>
           <div class="status-indicator">
             <span class="dot-live"></span>
@@ -83,7 +106,7 @@
             <h2>Рабочие инструменты</h2>
           </div>
 
-          <!-- Сетка 2 колонки строго без лишних утилит (только рабочие инструменты) -->
+          <!-- Сетка 2 колонки со всеми 10 инструментами -->
           <div class="tools-grid">
             <!-- 1. Ticket Writer AI -->
             <div class="tool-tile" data-open="tickets">
@@ -95,7 +118,17 @@
               <div class="tool-arrow">›</div>
             </div>
 
-            <!-- 2. Excel AI -->
+            <!-- 2. Заметки -->
+            <div class="tool-tile" data-open="notes">
+              <div class="tool-icon icon-cyan">✎</div>
+              <div class="tool-meta">
+                <div class="tool-name">Заметки</div>
+                <div class="tool-desc">Быстрые записи и идеи</div>
+              </div>
+              <div class="tool-arrow">›</div>
+            </div>
+
+            <!-- 3. Excel AI -->
             <div class="tool-tile" data-open="excel">
               <div class="tool-icon icon-red">▦</div>
               <div class="tool-meta">
@@ -105,7 +138,46 @@
               <div class="tool-arrow">›</div>
             </div>
 
-            <!-- 3. PDF Center -->
+            <!-- 4. Очистка (Только на рабочем столе) -->
+            <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="Очистка" data-desc="Освобождение дискового пространства, очистка системных кэшей и временных файлов Windows. Требует прямого доступа к файловой системе ОС.">
+              <div class="tool-icon icon-amber">⚡</div>
+              <div class="tool-meta">
+                <div class="tool-name-wrap">
+                  <span class="tool-name">Очистка</span>
+                  <span class="desktop-pill">Только на рабочем столе</span>
+                </div>
+                <div class="tool-desc">Освобождение места и обслуживание</div>
+              </div>
+              <div class="tool-arrow">🔒</div>
+            </div>
+
+            <!-- 5. Дубликаты (Только на рабочем столе) -->
+            <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="Дубликаты" data-desc="Глубокое сканирование дисков компьютера на повторяющиеся файлы по контрольным суммам. Доступно в установленном приложении BahonIQ.">
+              <div class="tool-icon icon-purple">🔍</div>
+              <div class="tool-meta">
+                <div class="tool-name-wrap">
+                  <span class="tool-name">Дубликаты</span>
+                  <span class="desktop-pill">Только на рабочем столе</span>
+                </div>
+                <div class="tool-desc">Поиск повторяющихся файлов</div>
+              </div>
+              <div class="tool-arrow">🔒</div>
+            </div>
+
+            <!-- 6. AnyDesk (Только на рабочем столе) -->
+            <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="AnyDesk" data-desc="Быстрый запуск AnyDesk для удалённого подключения и технической поддержки рабочих станций через локальный клиент AnyDesk.exe.">
+              <div class="tool-icon icon-rose">◉</div>
+              <div class="tool-meta">
+                <div class="tool-name-wrap">
+                  <span class="tool-name">AnyDesk</span>
+                  <span class="desktop-pill">Только на рабочем столе</span>
+                </div>
+                <div class="tool-desc">Удаленная техническая поддержка</div>
+              </div>
+              <div class="tool-arrow">🔒</div>
+            </div>
+
+            <!-- 7. PDF Center -->
             <div class="tool-tile" data-open="pdf">
               <div class="tool-icon icon-teal">▤</div>
               <div class="tool-meta">
@@ -115,7 +187,7 @@
               <div class="tool-arrow">›</div>
             </div>
 
-            <!-- 4. ANALYTICS AI -->
+            <!-- 8. ANALYTICS AI -->
             <div class="tool-tile" data-open="analytics">
               <div class="tool-icon icon-blue">▥</div>
               <div class="tool-meta">
@@ -125,7 +197,7 @@
               <div class="tool-arrow">›</div>
             </div>
 
-            <!-- 5. Телефонный справочник -->
+            <!-- 9. Телефонный справочник -->
             <div class="tool-tile" data-open="phonebook">
               <div class="tool-icon icon-teal">☎</div>
               <div class="tool-meta">
@@ -135,7 +207,7 @@
               <div class="tool-arrow">›</div>
             </div>
 
-            <!-- 6. Code Academy -->
+            <!-- 10. Code Academy -->
             <div class="tool-tile" data-open="academy">
               <div class="tool-icon icon-purple">⌘</div>
               <div class="tool-meta">
@@ -274,8 +346,64 @@
             <div id="academyBook" class="tab-page academy-workspace"><aside class="card"><input id="bookSearch" placeholder="Поиск главы"><div id="bookChapters" class="lesson-list"></div></aside><div class="card lesson-content"><h2 id="bookTitle"></h2><div id="bookReading" class="book-reading"></div><textarea id="bookSource" class="code-editor" readonly></textarea></div></div>
             <div id="academyBuilder" class="tab-page academy-workspace"><aside class="card"><div id="builderFiles" class="lesson-list"></div></aside><div class="card lesson-content"><h2 id="builderTitle">Учебный проект</h2><textarea id="builderSource" class="code-editor"></textarea><button id="copyBuilder" class="button secondary" type="button">Копировать код</button></div></div>
           </section>
+
+          <!-- ЗАМЕТКИ -->
+          <section id="notes" class="module-page">
+            <div class="page-heading">
+              <div>
+                <span class="eyebrow">МОДУЛЬ 07</span>
+                <h1>ЗАМЕТКИ</h1>
+                <p>Быстрые записи, идеи и рабочие черновики с моментальной синхронизацией.</p>
+              </div>
+              <div class="notes-status-badge">
+                <span id="notesStatusDot" class="status-dot-saved"></span>
+                <span id="notesStatusText">Синхронизировано</span>
+              </div>
+            </div>
+            <div class="card notes-workspace-card">
+              <div class="notes-toolbar">
+                <div class="notes-counters">
+                  <span id="notesWordCount">0 слов</span>
+                  <span class="counter-sep">•</span>
+                  <span id="notesCharCount">0 символов</span>
+                </div>
+                <div class="notes-actions">
+                  <button id="copyNotesBtn" class="button secondary" type="button">📋 Скопировать всё</button>
+                  <button id="clearNotesBtn" class="button secondary" type="button">🗑 Очистить</button>
+                </div>
+              </div>
+              <textarea id="notesEditor" class="notes-textarea" placeholder="Начните писать здесь свои мысли, задачи, списки... Заметки сохраняются автоматически в реальном времени."></textarea>
+            </div>
+          </section>
         </div>
       </main>
+
+      <!-- Модальное окно для инструментов рабочего стола -->
+      <div id="desktopModal" class="desktop-modal-backdrop hidden">
+        <div class="desktop-modal-card">
+          <div class="modal-glow-bg"></div>
+          <div class="modal-badge">
+            <span>💻</span>
+            <span>НАСТОЛЬНЫЙ РЕЖИМ</span>
+          </div>
+          <h2 id="modalToolTitle" class="modal-title">Инструмент</h2>
+          <p id="modalToolDesc" class="modal-description">Описание инструмента.</p>
+          <div class="modal-info-panel">
+            <div class="info-row">
+              <span class="info-label">Среда выполнения:</span>
+              <span class="info-value">BahonIQ Work Center Desktop</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Требования:</span>
+              <span class="info-value">Локальные диски / Windows API</span>
+            </div>
+          </div>
+          <p class="modal-tip">Запустите ярлык <b>BahonIQ — Work Center</b> на рабочем столе этого ПК для прямого выполнения.</p>
+          <div class="modal-footer">
+            <button id="closeDesktopModal" class="button primary" type="button">Понятно</button>
+          </div>
+        </div>
+      </div>
 
       <footer class="app-footer">
         <span>BahonIQ Work Center • Версия 2.0.0 • Готов к работе</span>
@@ -284,6 +412,6 @@
     </div>
   </div>
 
-  <script src="/assets/app.js"></script>
+  <script src="/assets/app.js?v=20261112_01"></script>
 </body>
 </html>
