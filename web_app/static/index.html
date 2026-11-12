@@ -5,27 +5,26 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>BahonIQ | WORK CENTER</title>
   <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/assets/app.css?v=20261112_08">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/app.css?v=20261112_10">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
-    .sidebar { width: 220px; overflow: hidden; display: flex; flex-direction: column; }
-    .sidebar-footer { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 14px; padding-top: 16px; }
+    .sidebar { width: 248px; overflow: hidden; display: flex; flex-direction: column; }
+    .sidebar-footer { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 18px; padding-top: 16px; width: 100%; }
     .sidebar-logo-bottom { display: flex; align-items: center; justify-content: center; width: 100%; }
-    .sidebar-logo-img { width: 108px !important; height: 108px !important; max-width: 108px !important; max-height: 108px !important; object-fit: contain !important; display: block; margin: 0 auto; filter: drop-shadow(0 4px 16px rgba(0, 229, 255, 0.25)); transition: transform 0.2s ease; cursor: pointer; }
-    .sidebar-logo-img:hover { transform: scale(1.04); }
+    .sidebar-logo-img { width: 112px !important; height: 112px !important; max-width: 112px !important; max-height: 112px !important; object-fit: contain !important; display: block; margin: 0 auto; filter: drop-shadow(0 6px 20px rgba(0, 229, 255, 0.28)); transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1); cursor: pointer; }
+    .sidebar-logo-img:hover { transform: scale(1.05); }
     .web-splash-logo { width: 200px !important; height: 200px !important; max-width: 200px !important; max-height: 200px !important; object-fit: contain !important; filter: drop-shadow(0 10px 30px rgba(0, 229, 255, 0.35)); }
-    .desktop-pill { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(140, 160, 179, 0.16); border: 1px solid rgba(140, 160, 179, 0.3); color: #8CA0B3; vertical-align: middle; margin-left: 6px; }
-    body.theme-day .desktop-pill { background: #E2E8F0; border-color: #CBD5E1; color: #475569; }
-    .theme-toggle-btn { display: inline-flex; align-items: center; gap: 8px; background: #101B29; border: 1px solid #1A2B3D; color: #FFFFFF; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; }
-    body.theme-day .theme-toggle-btn { background: #FFFFFF; border-color: #DFE5EC; color: #0F172A; }
   </style>
 </head>
 <body class="theme-night">
   <div id="webSplash" class="web-splash">
     <div class="web-splash-card">
       <div class="web-splash-mark">
-        <img src="/assets/logo.png?v=20261112_08" alt="BahonIQ" class="web-splash-logo" width="200" height="200">
+        <img src="/assets/logo.png?v=20261112_10" alt="BahonIQ" class="web-splash-logo" width="200" height="200">
       </div>
       <div class="web-splash-bar"><div class="web-splash-fill"></div></div>
       <div class="web-splash-status">Подготавливаем рабочее пространство…</div>
@@ -33,64 +32,125 @@
   </div>
 
   <div class="app-layout">
-    <!-- Левый сайдбар (СИСТЕМЫ) как на десктопе -->
+    <!-- Левый сайдбар (СИСТЕМЫ) -->
     <aside class="sidebar">
       <div class="sidebar-section-title">СИСТЕМЫ</div>
       <nav class="systems-nav">
         <a href="https://platonus.kaznmu.edu.kz/" target="_blank" rel="noopener" class="system-item">
-          <span class="sys-icon">🎓</span><span class="sys-name">Platonus</span>
+          <span class="sys-icon">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+          </span>
+          <span class="sys-name">Platonus</span>
+          <span class="sys-ext"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg></span>
         </a>
         <a href="https://support.platonus.kz/" target="_blank" rel="noopener" class="system-item">
-          <span class="sys-icon">🛠</span><span class="sys-name">Поддержка</span>
+          <span class="sys-icon">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+          </span>
+          <span class="sys-name">Поддержка</span>
+          <span class="sys-ext"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg></span>
         </a>
         <a href="https://web.telegram.org/" target="_blank" rel="noopener" class="system-item">
-          <span class="sys-icon">✈</span><span class="sys-name">Telegram</span>
+          <span class="sys-icon">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+          </span>
+          <span class="sys-name">Telegram</span>
+          <span class="sys-ext"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg></span>
         </a>
         <a href="https://web.whatsapp.com/" target="_blank" rel="noopener" class="system-item">
-          <span class="sys-icon">💬</span><span class="sys-name">WhatsApp</span>
+          <span class="sys-icon">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
+          </span>
+          <span class="sys-name">WhatsApp</span>
+          <span class="sys-ext"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg></span>
         </a>
         <a href="https://mail.google.com/mail/u/0/#inbox" target="_blank" rel="noopener" class="system-item">
-          <span class="sys-icon">✉</span><span class="sys-name">Gmail</span>
+          <span class="sys-icon">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+          </span>
+          <span class="sys-name">Gmail</span>
+          <span class="sys-ext"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg></span>
         </a>
         <a href="https://salemoffice.kaznmu.edu.kz/sign-in" target="_blank" rel="noopener" class="system-item">
-          <span class="sys-icon">🏢</span><span class="sys-name">Salem Office</span>
+          <span class="sys-icon">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>
+          </span>
+          <span class="sys-name">Salem Office</span>
+          <span class="sys-ext"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg></span>
         </a>
       </nav>
 
       <div class="sidebar-footer">
         <div class="sidebar-logo-bottom" title="BahonIQ Work Center">
-          <img src="/assets/logo.png?v=20261112_08" alt="BahonIQ" class="sidebar-logo-img" width="108" height="108">
+          <img src="/assets/logo.png?v=20261112_10" alt="BahonIQ" class="sidebar-logo-img" width="112" height="112">
         </div>
         <button id="openAllSystems" class="open-all-btn" type="button">
-          <span>⚡</span> Открыть все системы
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <span>Открыть все системы</span>
         </button>
       </div>
     </aside>
 
     <!-- Основная рабочая область -->
     <div class="main-area">
-      <!-- Фоновая сдержанная геометрическая композиция кубов и координатной сетки -->
+      <!-- Фоновая архитектурная композиция кубов и координатной сетки (Al Arabiya Broadcast Style) -->
       <div class="broadcast-bg-canvas" aria-hidden="true">
-        <svg class="bg-geometry-svg" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg class="bg-geometry-svg" viewBox="0 0 1680 1020" preserveAspectRatio="xMidYMid slice" fill="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <pattern id="coordGrid" width="64" height="64" patternUnits="userSpaceOnUse">
-              <path d="M 64 0 L 0 0 0 64" fill="none" stroke="currentColor" stroke-width="1" stroke-opacity="0.045" />
-              <circle cx="64" cy="0" r="1.5" fill="currentColor" fill-opacity="0.08" />
+            <pattern id="coordGrid" width="72" height="72" patternUnits="userSpaceOnUse">
+              <path d="M 72 0 L 0 0 0 72" fill="none" stroke="currentColor" stroke-width="1" stroke-opacity="0.045" />
+              <path d="M 69 0 L 75 0 M 72 -3 L 72 3" stroke="currentColor" stroke-width="1" stroke-opacity="0.14" />
             </pattern>
+            <linearGradient id="cubeTopGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.09" />
+              <stop offset="100%" stop-color="#0088AA" stop-opacity="0.02" />
+            </linearGradient>
+            <linearGradient id="cubeLeftGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.05" />
+              <stop offset="100%" stop-color="#071224" stop-opacity="0.01" />
+            </linearGradient>
+            <linearGradient id="cubeRightGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.06" />
+              <stop offset="100%" stop-color="#050C18" stop-opacity="0.02" />
+            </linearGradient>
+            <linearGradient id="beamCyan" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#00E5FF" stop-opacity="0" />
+              <stop offset="50%" stop-color="#00E5FF" stop-opacity="0.28" />
+              <stop offset="100%" stop-color="#00E5FF" stop-opacity="0" />
+            </linearGradient>
+            <linearGradient id="beamAccent" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#FF2E54" stop-opacity="0" />
+              <stop offset="50%" stop-color="#FF2E54" stop-opacity="0.32" />
+              <stop offset="100%" stop-color="#FF2E54" stop-opacity="0" />
+            </linearGradient>
           </defs>
+
+          <!-- Базовая координатная сетка -->
           <rect width="100%" height="100%" fill="url(#coordGrid)" />
-          <g class="geo-shapes" stroke="currentColor" stroke-width="1" stroke-opacity="0.06">
-            <polygon points="1280,120 1420,50 1420,200 1280,270" fill="currentColor" fill-opacity="0.015" />
-            <polygon points="1140,50 1280,120 1280,270 1140,200" fill="currentColor" fill-opacity="0.02" />
-            <polygon points="1140,50 1280,-20 1420,50 1280,120" fill="currentColor" fill-opacity="0.03" />
-            <polygon points="1440,260 1520,220 1520,310 1440,350" fill="currentColor" fill-opacity="0.015" />
-            <polygon points="1360,220 1440,260 1440,350 1360,310" fill="currentColor" fill-opacity="0.01" />
-            <polygon points="1360,220 1440,180 1520,220 1440,260" fill="currentColor" fill-opacity="0.025" />
-            <rect x="1060" y="80" width="380" height="260" fill="none" stroke-dasharray="4 8" stroke-opacity="0.035" />
-            <rect x="220" y="520" width="340" height="240" fill="none" stroke-dasharray="4 8" stroke-opacity="0.025" />
-            <polygon points="340,640 460,580 460,700 340,760" fill="currentColor" fill-opacity="0.015" />
-            <polygon points="220,580 340,640 340,760 220,700" fill="currentColor" fill-opacity="0.018" />
-            <polygon points="220,580 340,520 460,580 340,640" fill="currentColor" fill-opacity="0.025" />
+
+          <!-- Крупная эфирная изометрическая группа справа вверху -->
+          <g class="geo-shapes">
+            <!-- Главный стеклянный куб 1 -->
+            <polygon points="1340,-10 1520,80 1340,170 1160,80" fill="url(#cubeTopGrad)" stroke="currentColor" stroke-opacity="0.12" stroke-width="1" />
+            <polygon points="1160,80 1340,170 1340,370 1160,280" fill="url(#cubeLeftGrad)" stroke="currentColor" stroke-opacity="0.09" stroke-width="1" />
+            <polygon points="1340,170 1520,80 1520,280 1340,370" fill="url(#cubeRightGrad)" stroke="currentColor" stroke-opacity="0.1" stroke-width="1" />
+
+            <!-- Второй спутниковый куб -->
+            <polygon points="1520,210 1630,265 1520,320 1410,265" fill="url(#cubeTopGrad)" stroke="currentColor" stroke-opacity="0.1" stroke-width="1" />
+            <polygon points="1410,265 1520,320 1520,440 1410,385" fill="url(#cubeLeftGrad)" stroke="currentColor" stroke-opacity="0.07" stroke-width="1" />
+            <polygon points="1520,320 1630,265 1630,385 1520,440" fill="url(#cubeRightGrad)" stroke="currentColor" stroke-opacity="0.08" stroke-width="1" />
+
+            <!-- Архитектурная рамка фокуса -->
+            <rect x="1100" y="36" width="460" height="310" fill="none" stroke="currentColor" stroke-dasharray="4 8" stroke-opacity="0.06" />
+
+            <!-- Нижний левый/центральный куб в глубине -->
+            <polygon points="340,620 490,695 340,770 190,695" fill="url(#cubeTopGrad)" stroke="currentColor" stroke-opacity="0.09" stroke-width="1" />
+            <polygon points="190,695 340,770 340,940 190,865" fill="url(#cubeLeftGrad)" stroke="currentColor" stroke-opacity="0.07" stroke-width="1" />
+            <polygon points="340,770 490,695 490,865 340,940" fill="url(#cubeRightGrad)" stroke="currentColor" stroke-opacity="0.08" stroke-width="1" />
+
+            <!-- Светящиеся эфирные направляющие (холодный циан + редкий красно-оранжевый акцент) -->
+            <line x1="980" y1="80" x2="1340" y2="80" stroke="url(#beamCyan)" stroke-width="1.5" />
+            <line x1="1260" y1="370" x2="1560" y2="370" stroke="url(#beamAccent)" stroke-width="1.5" />
           </g>
         </svg>
       </div>
@@ -102,7 +162,9 @@
         </div>
         <div class="topbar-right">
           <button id="themeToggle" class="theme-toggle-btn" type="button" title="Переключить тему: День / Ночь">
-            <span class="theme-icon">🌙</span>
+            <span class="theme-icon">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+            </span>
             <span class="theme-label">Ночь</span>
           </button>
         </div>
@@ -113,7 +175,7 @@
         <!-- Главный дашборд с плитками -->
         <section id="dashboardView" class="dashboard-view">
           <div class="welcome-banner">
-            <h1>Добро пожаловать в BahonIQ</h1>
+            <h1>Добро пожаловать в <span class="welcome-accent">BahonIQ</span></h1>
             <p>Все рабочие инструменты и системы в одном центре.</p>
           </div>
 
@@ -126,121 +188,141 @@
             <!-- 1. Ticket Writer AI (Бирюзовый) -->
             <div class="tool-tile" data-open="tickets">
               <div class="tool-icon icon-teal">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="12" y1="7" x2="12" y2="13"/><line x1="9" y1="10" x2="15" y2="10"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="12" y1="7" x2="12" y2="13"/><line x1="9" y1="10" x2="15" y2="10"/></svg>
               </div>
               <div class="tool-meta">
                 <div class="tool-name">Ticket Writer AI</div>
                 <div class="tool-desc">Создание чётких и структурированных обращений в техподдержку без лишней информации.</div>
               </div>
-              <div class="tool-arrow">›</div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
             </div>
 
             <!-- 2. Заметки (Бирюзовый) -->
             <div class="tool-tile" data-open="notes">
               <div class="tool-icon icon-teal">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-5.5"/><polyline points="14 2 14 8 20 8"/><path d="M10.4 12.6a2 2 0 1 1 3 3L6 23l-4 1 1-4Z"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-5.5"/><polyline points="14 2 14 8 20 8"/><path d="M10.4 12.6a2 2 0 1 1 3 3L6 23l-4 1 1-4Z"/></svg>
               </div>
               <div class="tool-meta">
                 <div class="tool-name">Заметки</div>
                 <div class="tool-desc">Быстрые записи, идеи и рабочие черновики с автоматическим сохранением.</div>
               </div>
-              <div class="tool-arrow">›</div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
             </div>
 
             <!-- 3. Excel AI (Синий - данные) -->
             <div class="tool-tile" data-open="excel">
               <div class="tool-icon icon-blue">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/></svg>
               </div>
               <div class="tool-meta">
                 <div class="tool-name">Excel AI</div>
                 <div class="tool-desc">Умная обработка, очистка и слияние электронных таблиц по текстовым указаниям.</div>
               </div>
-              <div class="tool-arrow">›</div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
             </div>
 
             <!-- 4. Очистка (Красный - операции с диском) -->
             <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="Очистка" data-desc="Освобождение дискового пространства, удаление временных файлов и системных кэшей. Требует прямого доступа к файловой системе Windows.">
               <div class="tool-icon icon-red">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
               </div>
               <div class="tool-meta">
-                <div class="tool-name">Очистка <span class="desktop-badge">Только на рабочем столе</span></div>
+                <div class="tool-name">Очистка <span class="desktop-badge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Только на рабочем столе</span></div>
                 <div class="tool-desc">Освобождение дискового пространства, удаление временных файлов и кэша.</div>
               </div>
-              <div class="tool-arrow">🔒</div>
+              <div class="tool-arrow tool-lock" aria-hidden="true" title="Доступно в настольном приложении">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
             </div>
 
             <!-- 5. Дубликаты (Красный - операции с диском) -->
             <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="Дубликаты" data-desc="Побайтовое сканирование накопителей компьютера и поиск одинаковых тяжёлых файлов. Доступно в установленном приложении BahonIQ.">
               <div class="tool-icon icon-red">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
               </div>
               <div class="tool-meta">
-                <div class="tool-name">Дубликаты <span class="desktop-badge">Только на рабочем столе</span></div>
+                <div class="tool-name">Дубликаты <span class="desktop-badge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Только на рабочем столе</span></div>
                 <div class="tool-desc">Поиск и безопасное удаление повторяющихся файлов на дисках компьютера.</div>
               </div>
-              <div class="tool-arrow">🔒</div>
+              <div class="tool-arrow tool-lock" aria-hidden="true" title="Доступно в настольном приложении">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
             </div>
 
             <!-- 6. AnyDesk (Янтарный - системная функция) -->
             <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="AnyDesk" data-desc="Быстрый запуск AnyDesk для удалённого подключения и дистанционной технической поддержки рабочих станций через локальный клиент AnyDesk.exe.">
               <div class="tool-icon icon-amber">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/><path d="m9 10 3-3 3 3"/><path d="M12 13V7"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/><path d="m9 10 3-3 3 3"/><path d="M12 13V7"/></svg>
               </div>
               <div class="tool-meta">
-                <div class="tool-name">AnyDesk <span class="desktop-badge">Только на рабочем столе</span></div>
+                <div class="tool-name">AnyDesk <span class="desktop-badge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Только на рабочем столе</span></div>
                 <div class="tool-desc">Удалённый доступ и оперативная дистанционная техническая поддержка.</div>
               </div>
-              <div class="tool-arrow">🔒</div>
+              <div class="tool-arrow tool-lock" aria-hidden="true" title="Доступно в настольном приложении">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
             </div>
 
             <!-- 7. PDF Center (Бирюзовый) -->
             <div class="tool-tile" data-open="pdf">
               <div class="tool-icon icon-teal">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 2v5h5"/><path d="M21 6v6.5c0 .8-.7 1.5-1.5 1.5h-7c-.8 0-1.5-.7-1.5-1.5v-9c0-.8.7-1.5 1.5-1.5H17l4 4z"/><path d="M7 8v8.8c0 .3.2.6.4.8.2.2.5.4.8.4H15"/><path d="M3 12v8.8c0 .3.2.6.4.8.2.2.5.4.8.4H11"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 2v5h5"/><path d="M21 6v6.5c0 .8-.7 1.5-1.5 1.5h-7c-.8 0-1.5-.7-1.5-1.5v-9c0-.8.7-1.5 1.5-1.5H17l4 4z"/><path d="M7 8v8.8c0 .3.2.6.4.8.2.2.5.4.8.4H15"/><path d="M3 12v8.8c0 .3.2.6.4.8.2.2.5.4.8.4H11"/></svg>
               </div>
               <div class="tool-meta">
                 <div class="tool-name">PDF Center</div>
                 <div class="tool-desc">Конвертация документов, объединение файлов, разделение страниц и сжатие PDF.</div>
               </div>
-              <div class="tool-arrow">›</div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
             </div>
 
             <!-- 8. ANALYTICS AI (Синий - аналитика) -->
             <div class="tool-tile" data-open="analytics">
               <div class="tool-icon icon-blue">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
               </div>
               <div class="tool-meta">
                 <div class="tool-name">ANALYTICS AI</div>
                 <div class="tool-desc">Управленческий анализ табличных данных с формированием отчётов PDF и PowerPoint.</div>
               </div>
-              <div class="tool-arrow">›</div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
             </div>
 
             <!-- 9. Телефонный справочник (Янтарный - системная функция) -->
             <div class="tool-tile" data-open="phonebook">
               <div class="tool-icon icon-amber">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/><path d="M14.05 2a9 9 0 0 1 8 7.94"/><path d="M14.05 6A5 5 0 0 1 18 10"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/><path d="M14.05 2a9 9 0 0 1 8 7.94"/><path d="M14.05 6A5 5 0 0 1 18 10"/></svg>
               </div>
               <div class="tool-meta">
                 <div class="tool-name">Телефонный справочник</div>
                 <div class="tool-desc">Поиск сотрудников по подразделениям, внутренним номерам и контактным данным.</div>
               </div>
-              <div class="tool-arrow">›</div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
             </div>
 
             <!-- 10. Code Academy (Фиолетовый - обучение) -->
             <div class="tool-tile" data-open="academy">
               <div class="tool-icon icon-purple">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
               </div>
               <div class="tool-meta">
                 <div class="tool-name">Code Academy</div>
                 <div class="tool-desc">Практическое обучение программированию на Python, SQL-запросам и архитектуре ПО.</div>
               </div>
-              <div class="tool-arrow">›</div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
             </div>
           </div>
         </section>
@@ -458,7 +540,7 @@
         <div class="desktop-modal-card">
           <div class="modal-glow-bg"></div>
           <div class="modal-badge">
-            <span>💻</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
             <span>НАСТОЛЬНЫЙ РЕЖИМ</span>
           </div>
           <h2 id="modalToolTitle" class="modal-title">Инструмент</h2>
@@ -479,12 +561,9 @@
           </div>
         </div>
       </div>
-
-      <footer class="app-footer">
-      </footer>
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261112_05"></script>
+  <script src="/assets/app.js?v=20261112_10"></script>
 </body>
 </html>

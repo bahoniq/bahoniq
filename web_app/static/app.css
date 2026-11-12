@@ -1,56 +1,56 @@
 :root {
   /* Al Arabiya Broadcast Rebrand — Глубокий тёмно-синий фон, холодный бирюзовый свет, редкие красно-оранжевые акценты */
-  --bg-dark: #07101E;
-  --bg-sidebar: rgba(8, 17, 30, 0.95);
-  --bg-card: rgba(14, 25, 42, 0.72);
-  --bg-card-hover: rgba(20, 35, 58, 0.88);
+  --bg-dark: #060E1B;
+  --bg-sidebar: rgba(8, 16, 29, 0.94);
+  --bg-card: rgba(15, 27, 46, 0.76);
+  --bg-card-hover: rgba(21, 38, 63, 0.90);
   --bg-input: rgba(9, 17, 28, 0.85);
-  --border: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.09);
   --border-focus: #00E5FF;
   --border-card-hover: rgba(0, 229, 255, 0.45);
   
-  --text-main: #FFFFFF;
-  --text-muted: #9BB0C7;
-  --text-sub: #5E748B;
+  --text-main: #F8FAFC;
+  --text-muted: #A9BDD3;
+  --text-sub: #647D96;
   
   --green: #009246;
-  --green-neon: #11B5AE;
+  --green-neon: #14C8C1;
   --cyan-neon: #00E5FF;
-  --red: #CE2B37;
-  --blue: #2A72D4;
-  --purple: #8B5CF6;
+  --red: #D92B3A;
+  --blue: #3B82F6;
+  --purple: #A855F7;
   --yellow: #F59E0B;
   
-  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  --glow: rgba(0, 229, 255, 0.22);
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.28);
+  --glow: rgba(0, 229, 255, 0.18);
   --modal-bg: rgba(8, 17, 30, 0.96);
 }
 
 /* Дневная тема (светлый чистый broadcast) */
 body.theme-day {
-  --bg-dark: #F1F4F8;
-  --bg-sidebar: rgba(255, 255, 255, 0.95);
-  --bg-card: rgba(255, 255, 255, 0.88);
+  --bg-dark: #F1F5F9;
+  --bg-sidebar: rgba(255, 255, 255, 0.96);
+  --bg-card: rgba(255, 255, 255, 0.92);
   --bg-card-hover: #FFFFFF;
   --bg-input: #FFFFFF;
-  --border: rgba(15, 23, 42, 0.1);
+  --border: rgba(15, 23, 42, 0.09);
   --border-focus: #0D9488;
-  --border-card-hover: rgba(13, 148, 136, 0.5);
+  --border-card-hover: rgba(13, 148, 136, 0.45);
   
-  --text-main: #0C1726;
-  --text-muted: #546577;
-  --text-sub: #8B9CAE;
+  --text-main: #0F172A;
+  --text-muted: #475569;
+  --text-sub: #94A3B8;
   
   --green: #00873D;
   --green-neon: #0D9488;
   --cyan-neon: #0284C7;
-  --red: #D92534;
-  --blue: #1D6AE5;
+  --red: #DC2626;
+  --blue: #2563EB;
   --purple: #7C3AED;
   --yellow: #D97706;
   
-  --card-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
-  --glow: rgba(13, 148, 136, 0.15);
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 4px 18px rgba(15, 23, 42, 0.06);
+  --glow: rgba(13, 148, 136, 0.12);
   --modal-bg: rgba(255, 255, 255, 0.98);
 }
 
@@ -58,25 +58,26 @@ body.theme-day {
 img { max-width: 100%; height: auto; display: block; }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background-color: var(--bg-dark);
   color: var(--text-main);
   height: 100vh;
   overflow: hidden;
   user-select: none;
+  -webkit-font-smoothing: antialiased;
   transition: background-color 0.3s ease, color 0.3s ease;
   
   /* Телевизионный broadcast-фон: холодное бирюзовое освещение и редкий красно-оранжевый акцент */
   background-image: 
-    radial-gradient(1100px 700px at 85% 15%, rgba(0, 229, 255, 0.06), transparent 70%),
-    radial-gradient(900px 600px at 15% 75%, rgba(17, 181, 174, 0.04), transparent 70%),
-    radial-gradient(600px 400px at 95% 95%, rgba(206, 43, 55, 0.04), transparent 65%);
+    radial-gradient(1200px 750px at 82% 18%, rgba(0, 229, 255, 0.075), transparent 70%),
+    radial-gradient(950px 650px at 18% 78%, rgba(20, 200, 193, 0.05), transparent 70%),
+    radial-gradient(650px 450px at 92% 92%, rgba(217, 43, 58, 0.045), transparent 65%);
 }
 
 body.theme-day {
   background-image: 
-    radial-gradient(1100px 700px at 85% 15%, rgba(13, 148, 136, 0.05), transparent 70%),
-    radial-gradient(900px 600px at 15% 75%, rgba(29, 106, 229, 0.04), transparent 70%);
+    radial-gradient(1200px 750px at 82% 18%, rgba(13, 148, 136, 0.06), transparent 70%),
+    radial-gradient(950px 650px at 18% 78%, rgba(37, 99, 235, 0.04), transparent 70%);
 }
 
 /* Web Splash Screen */
@@ -102,15 +103,15 @@ body.theme-day {
   width: 100vw;
 }
 
-/* Sidebar — Сдержанная панель со стеклом */
+/* Sidebar — Сдержанная панель со стеклом и векторной навигацией */
 .sidebar {
-  width: 220px;
+  width: 244px;
   background-color: var(--bg-sidebar);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(24px);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 16px 12px;
+  padding: 20px 14px 18px;
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
@@ -121,47 +122,119 @@ body.theme-day {
   font-size: 11px;
   font-weight: 800;
   color: var(--green-neon);
-  letter-spacing: 1.5px;
-  padding: 4px 10px 12px;
+  letter-spacing: 1.6px;
+  padding: 4px 10px 14px;
 }
 
 .systems-nav {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 8px;
 }
 
+/* Кнопки систем высотой 48px (по стандарту WCAG >= 44×44px) */
 .system-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 9px 12px;
-  border-radius: 8px;
+  min-height: 48px;
+  padding: 7px 11px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   color: var(--text-main);
   text-decoration: none;
-  font-size: 13px;
-  font-weight: 500;
-  transition: background 0.15s, color 0.15s, transform 0.1s;
+  font-size: 13.5px;
+  font-weight: 600;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease;
+}
+
+body.theme-day .system-item {
+  background: rgba(15, 23, 42, 0.025);
+  border-color: rgba(15, 23, 42, 0.07);
+}
+
+.sys-icon {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 9px;
+  background: rgba(0, 229, 255, 0.07);
+  border: 1px solid rgba(0, 229, 255, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5CE1E6;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+body.theme-day .sys-icon {
+  background: rgba(13, 148, 136, 0.08);
+  border-color: rgba(13, 148, 136, 0.20);
+  color: #0D9488;
+}
+
+.sys-icon svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 2;
+  display: block;
+}
+
+.sys-name {
+  white-space: nowrap;
+  flex: 1;
+}
+
+.sys-ext {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-sub);
+  opacity: 0.45;
+  transform: translate(0, 0);
+  transition: opacity 0.18s ease, transform 0.18s ease, color 0.18s ease;
 }
 
 .system-item:hover {
   background-color: var(--bg-card-hover);
-  color: var(--green-neon);
+  border-color: rgba(0, 229, 255, 0.28);
+  color: #FFFFFF;
   transform: translateX(2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
 }
 
-.sys-icon { font-size: 16px; }
-.sys-name { white-space: nowrap; }
+body.theme-day .system-item:hover {
+  color: var(--text-main);
+  border-color: rgba(13, 148, 136, 0.32);
+}
 
-/* Сайдбар: логотип размещён над кнопкой внизу без лишней пустой растяжки и без массивной рамки */
+.system-item:hover .sys-icon {
+  background: rgba(0, 229, 255, 0.16);
+  border-color: rgba(0, 229, 255, 0.38);
+  color: var(--cyan-neon);
+}
+
+.system-item:hover .sys-ext {
+  opacity: 1;
+  transform: translate(2px, -2px);
+  color: var(--cyan-neon);
+}
+
+/* Сайдбар: логотип размещён над кнопкой внизу с деликатным разделителем */
 .sidebar-footer {
   margin-top: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  padding-top: 16px;
+  gap: 20px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
   width: 100%;
+}
+
+body.theme-day .sidebar-footer {
+  border-top-color: rgba(15, 23, 42, 0.08);
 }
 
 .sidebar-logo-bottom {
@@ -172,41 +245,53 @@ body.theme-day {
 }
 
 .sidebar-logo-img {
-  width: 108px !important;
-  height: 108px !important;
-  max-width: 108px !important;
-  max-height: 108px !important;
+  width: 110px !important;
+  height: 110px !important;
+  max-width: 110px !important;
+  max-height: 110px !important;
   object-fit: contain !important;
   display: block;
   margin: 0 auto;
-  filter: drop-shadow(0 4px 16px rgba(0, 229, 255, 0.25));
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s;
+  filter: drop-shadow(0 6px 20px rgba(0, 229, 255, 0.24));
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), filter 0.22s ease;
   cursor: pointer;
 }
 
 .sidebar-logo-img:hover {
   transform: scale(1.05);
-  filter: drop-shadow(0 6px 22px rgba(0, 229, 255, 0.45));
+  filter: drop-shadow(0 8px 26px rgba(0, 229, 255, 0.42));
 }
 
 .open-all-btn {
-  background-color: var(--red);
+  width: 100%;
+  background: linear-gradient(135deg, #E12D3C 0%, #C41E2C 100%);
   color: #fff;
-  border: none;
-  padding: 11px;
-  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 12px 14px;
+  border-radius: 10px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.15px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: 0 4px 14px rgba(206, 43, 55, 0.3);
-  transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 6px 18px rgba(217, 43, 58, 0.32);
+  transition: filter 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
 
-.open-all-btn:hover { background-color: #B51F2A; box-shadow: 0 6px 18px rgba(206, 43, 55, 0.4); }
+.btn-bolt-svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2.2;
+  flex-shrink: 0;
+}
+
+.open-all-btn:hover {
+  filter: brightness(1.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 8px 22px rgba(217, 43, 58, 0.45);
+}
 .open-all-btn:active { transform: scale(0.98); }
 
 /* Main Area */
@@ -237,22 +322,22 @@ body.theme-day {
 
 /* Topbar — Лаконичный, только бренд и переключатель темы */
 .topbar {
-  height: 52px;
+  height: 56px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 32px;
+  padding: 0 48px;
   background-color: var(--bg-sidebar);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(24px);
   z-index: 2;
   transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
-.brand { font-size: 18px; font-weight: 800; letter-spacing: 0.5px; }
+.brand { font-size: 18px; font-weight: 800; letter-spacing: 0.4px; display: flex; align-items: center; }
 .brand-green { color: var(--green-neon); }
-.brand-sep { color: var(--border); margin: 0 6px; }
-.brand-sub { color: var(--text-main); font-weight: 600; font-size: 13px; letter-spacing: 1.5px; }
+.brand-sep { color: var(--border); margin: 0 10px; font-weight: 400; }
+.brand-sub { color: var(--text-main); font-weight: 700; font-size: 12.5px; letter-spacing: 1.8px; opacity: 0.92; }
 
 .topbar-right {
   display: flex;
@@ -263,16 +348,31 @@ body.theme-day {
 .theme-toggle-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   color: var(--text-main);
-  padding: 6px 14px;
+  padding: 7px 15px;
   border-radius: 20px;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: border-color 0.2s, transform 0.15s;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: border-color 0.2s, transform 0.15s, background-color 0.2s;
+}
+
+.theme-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cyan-neon);
+}
+
+.theme-svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.1;
+  display: block;
 }
 
 .theme-toggle-btn:hover {
@@ -280,20 +380,23 @@ body.theme-day {
   transform: translateY(-1px);
 }
 
-/* Content Body */
+/* Content Body — выверенный вертикальный баланс на 1080p */
 .content-body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 24px 44px;
+  padding: 28px 52px;
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Главный дашборд */
+/* Главный дашборд — идеально сбалансирован по вертикали без прилипания к верху */
 .dashboard-view {
-  max-width: 1450px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: 1480px;
+  margin: auto;
   opacity: 1;
   transform: translateX(0);
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease, filter 0.3s ease;
@@ -315,26 +418,39 @@ body.theme-day {
   to { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
 }
 
-/* Простой и строгий заголовок */
+/* Строгий и выразительный заголовок */
 .welcome-banner {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
 }
 
 .welcome-banner h1 {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 28px;
+  font-weight: 800;
   color: var(--text-main);
-  margin-bottom: 4px;
-  letter-spacing: -0.2px;
+  margin-bottom: 6px;
+  letter-spacing: -0.45px;
+}
+
+.welcome-accent {
+  background: linear-gradient(90deg, #FFFFFF 0%, #6CE5FF 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+body.theme-day .welcome-accent {
+  background: linear-gradient(90deg, #0F172A 0%, #0D9488 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .welcome-banner p {
-  font-size: 13.5px;
+  font-size: 14.5px;
+  font-weight: 400;
   color: var(--text-muted);
 }
 
 .section-heading {
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .section-heading h2 {
@@ -350,28 +466,32 @@ body.theme-day {
 .tools-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 13px;
+  gap: 16px 20px;
   width: 100%;
 }
 
 .tool-tile {
   position: relative;
-  background-color: var(--bg-card);
-  backdrop-filter: blur(16px);
+  background: linear-gradient(135deg, rgba(16, 29, 49, 0.82) 0%, rgba(10, 20, 35, 0.72) 100%);
+  backdrop-filter: blur(18px);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px 20px;
+  border-radius: 14px;
+  padding: 20px 24px;
   display: flex;
   align-items: center;
   gap: 18px;
   cursor: pointer;
-  min-height: 104px;
+  min-height: 122px;
   box-shadow: var(--card-shadow);
   overflow: hidden;
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
               border-color 0.2s ease, 
-              background-color 0.2s ease, 
+              background 0.2s ease, 
               box-shadow 0.2s ease;
+}
+
+body.theme-day .tool-tile {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.90) 100%);
 }
 
 /* Деликатный светящийся блик курсора */
@@ -379,8 +499,8 @@ body.theme-day {
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: 12px;
-  background: radial-gradient(380px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), var(--glow), transparent 65%);
+  border-radius: 14px;
+  background: radial-gradient(420px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), var(--glow), transparent 65%);
   opacity: 0;
   transition: opacity 0.3s;
   pointer-events: none;
@@ -388,9 +508,14 @@ body.theme-day {
 
 .tool-tile:hover {
   transform: translateY(-2px);
-  background-color: var(--bg-card-hover);
+  background: linear-gradient(135deg, rgba(22, 39, 66, 0.90) 0%, rgba(14, 26, 46, 0.82) 100%);
   border-color: var(--border-card-hover);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 12px 28px rgba(0, 0, 0, 0.38);
+}
+
+body.theme-day .tool-tile:hover {
+  background: #FFFFFF;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.09);
 }
 
 .tool-tile:hover::before {
@@ -398,25 +523,26 @@ body.theme-day {
 }
 
 .tool-tile:active {
-  transform: scale(0.99);
+  transform: scale(0.992);
 }
 
-/* Унифицированные SVG-иконки инструментов (Lucide Style) */
+/* Унифицированные SVG-иконки инструментов (Lucide Style — единый размер 50×50, радиус 12px и толщина линий) */
 .tool-icon {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  border-radius: 10px;
+  width: 50px;
+  height: 50px;
+  min-width: 50px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .tool-icon svg {
-  width: 22px;
-  height: 22px;
+  width: 23px;
+  height: 23px;
   stroke-width: 2;
   display: block;
 }
@@ -425,11 +551,18 @@ body.theme-day {
   transform: scale(1.06);
 }
 
-.icon-teal { background: rgba(0, 229, 255, 0.12); color: #00E5FF; border: 1px solid rgba(0, 229, 255, 0.22); }
-.icon-blue { background: rgba(59, 130, 246, 0.12); color: #3B82F6; border: 1px solid rgba(59, 130, 246, 0.22); }
-.icon-purple { background: rgba(168, 85, 247, 0.12); color: #A855F7; border: 1px solid rgba(168, 85, 247, 0.22); }
-.icon-red { background: rgba(239, 68, 68, 0.12); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.22); }
-.icon-amber { background: rgba(245, 158, 11, 0.12); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.22); }
+/* Смысловая цветовая система BahonIQ: бирюзовый (основной), синий (аналитика), фиолетовый (обучение), красный (очистка/дубликаты), янтарный (локальные функции) */
+.icon-teal { background: rgba(0, 229, 255, 0.12); color: #00E5FF; border: 1px solid rgba(0, 229, 255, 0.26); }
+.icon-blue { background: rgba(59, 130, 246, 0.13); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.28); }
+.icon-purple { background: rgba(168, 85, 247, 0.13); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.28); }
+.icon-red { background: rgba(239, 68, 68, 0.12); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.26); }
+.icon-amber { background: rgba(245, 158, 11, 0.12); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.26); }
+
+body.theme-day .icon-teal { background: rgba(13, 148, 136, 0.10); color: #0D9488; border-color: rgba(13, 148, 136, 0.25); }
+body.theme-day .icon-blue { background: rgba(37, 99, 235, 0.10); color: #2563EB; border-color: rgba(37, 99, 235, 0.25); }
+body.theme-day .icon-purple { background: rgba(124, 58, 237, 0.10); color: #7C3AED; border-color: rgba(124, 58, 237, 0.25); }
+body.theme-day .icon-red { background: rgba(220, 38, 38, 0.10); color: #DC2626; border-color: rgba(220, 38, 38, 0.25); }
+body.theme-day .icon-amber { background: rgba(217, 119, 6, 0.10); color: #D97706; border-color: rgba(217, 119, 6, 0.25); }
 
 /* Контент карточки */
 .tool-meta {
@@ -438,36 +571,48 @@ body.theme-day {
 }
 
 .tool-name {
-  font-size: 16px;
+  font-size: 16.5px;
   font-weight: 700;
   color: var(--text-main);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  letter-spacing: -0.15px;
 }
 
-/* Отметка "Только на рабочем столе" — сдержанная и лаконичная */
+/* Отметка "Только на рабочем столе" — сдержанная и лаконичная с мини-иконкой монитора */
 .desktop-badge {
-  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 2.5px 8.5px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--text-muted);
+  letter-spacing: 0.1px;
+}
+
+.badge-pc-svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2;
+  opacity: 0.85;
 }
 
 body.theme-day .desktop-badge {
-  background: #E2E8F0;
+  background: #F1F5F9;
   border-color: #CBD5E1;
   color: #475569;
 }
 
 .tool-desc {
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 13.5px;
+  line-height: 1.48;
   color: var(--text-muted);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -475,28 +620,69 @@ body.theme-day .desktop-badge {
   overflow: hidden;
 }
 
+/* Правый индикатор действия (стрелка или замок) — единый векторный стиль */
 .tool-arrow {
-  font-size: 20px;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-sub);
-  transition: transform 0.15s, color 0.15s;
+  transition: transform 0.18s ease, color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
 }
 
-.tool-tile:hover .tool-arrow {
-  color: var(--green-neon);
+body.theme-day .tool-arrow {
+  background: rgba(15, 23, 42, 0.03);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+.tool-arrow svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 2.1;
+  display: block;
+}
+
+.tool-lock {
+  color: #F59E0B;
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.20);
+}
+
+.tool-lock svg {
+  width: 15px;
+  height: 15px;
+}
+
+.tool-tile:hover .tool-arrow:not(.tool-lock) {
+  color: var(--cyan-neon);
+  background: rgba(0, 229, 255, 0.10);
+  border-color: rgba(0, 229, 255, 0.30);
   transform: translateX(3px);
 }
 
+.tool-tile:hover .tool-lock {
+  color: #FBBF24;
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
 .desktop-only-tile {
-  opacity: 0.94;
+  opacity: 0.96;
 }
 
 /* Module Host Views */
 .module-host {
   display: block;
+  width: 100%;
   opacity: 1;
   transform: translateX(0);
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease, filter 0.3s ease;
-  max-width: 1450px;
+  max-width: 1480px;
   margin: 0 auto;
 }
 

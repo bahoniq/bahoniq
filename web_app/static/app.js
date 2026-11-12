@@ -33,16 +33,18 @@ function applyTheme(theme) {
   const toggleBtn = $('#themeToggle');
   const icon = toggleBtn?.querySelector('.theme-icon');
   const label = toggleBtn?.querySelector('.theme-label');
+  const sunSvg = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>';
+  const moonSvg = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>';
   
   if (theme === 'day') {
     body.classList.remove('theme-night');
     body.classList.add('theme-day');
-    if (icon) icon.textContent = '☀️';
+    if (icon) icon.innerHTML = sunSvg;
     if (label) label.textContent = 'День';
   } else {
     body.classList.remove('theme-day');
     body.classList.add('theme-night');
-    if (icon) icon.textContent = '🌙';
+    if (icon) icon.innerHTML = moonSvg;
     if (label) label.textContent = 'Ночь';
   }
   localStorage.setItem('bahoniq_theme', theme);
