@@ -12,8 +12,8 @@ import zipfile
 from dataclasses import asdict
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
@@ -57,6 +57,48 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Опциональная защита паролем для публичного облака (задается через BAHONIQ_PASSWORD)
+AUTH_PASSWORD = os.getenv("BAHONIQ_PASSWORD", "").strip()
+AUTH_COOKIE_NAME = "bahoniq_auth"
+AUTH_TOKEN = secrets.token_hex(16) if AUTH_PASSWORD else ""
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    if not AUTH_PASSWORD:
+        return await call_next(request)
+    
+    path = request.url.path
+    # Разрешаем статику, favicon, логотип и эндпоинты авторизации
+    if path in {"/api/auth/login", "/api/auth/status"} or path.startswith("/assets/favicon") or path.startswith("/assets/logo"):
+        return await call_next(request)
+    
+    cookie_val = request.cookies.get(AUTH_COOKIE_NAME)
+    if cookie_val == AUTH_TOKEN:
+        return await call_next(request)
+        
+    # Если это API-запрос, возвращаем 401
+    if path.startswith("/api/"):
+        return JSONResponse({"status": "unauthorized", "error": "Требуется авторизация"}, status_code=401)
+        
+    # Для браузера отдаем страницу входа
+    return FileResponse(STATIC / "login.html")
+
+@app.post("/api/auth/login")
+async def auth_login(password: str = Form(...)):
+    if not AUTH_PASSWORD or password == AUTH_PASSWORD:
+        response = JSONResponse({"status": "ok"})
+        response.set_cookie(AUTH_COOKIE_NAME, AUTH_TOKEN, max_age=30*24*3600, httponly=True, samesite="lax")
+        return response
+    raise HTTPException(status_code=403, detail="Неверный пароль")
+
+@app.get("/api/auth/status")
+def auth_status(request: Request):
+    if not AUTH_PASSWORD:
+        return {"auth_required": False, "authenticated": True}
+    is_auth = request.cookies.get(AUTH_COOKIE_NAME) == AUTH_TOKEN
+    return {"auth_required": True, "authenticated": is_auth}
+
 
 app.mount("/assets", StaticFiles(directory=STATIC), name="assets")
 

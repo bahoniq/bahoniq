@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Вход | BahonIQ Work Center</title>
+  <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #060E1B;
+      --card: rgba(15, 27, 46, 0.85);
+      --border: rgba(255, 255, 255, 0.1);
+      --cyan: #00E5FF;
+      --red: #D92B3A;
+      --text: #F8FAFC;
+      --muted: #A9BDD3;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background-image: 
+        radial-gradient(1000px 600px at 50% 20%, rgba(0, 229, 255, 0.08), transparent 70%),
+        radial-gradient(800px 500px at 50% 80%, rgba(217, 43, 58, 0.05), transparent 70%);
+    }
+    .login-box {
+      width: 100%;
+      max-width: 400px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px 30px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+      text-align: center;
+    }
+    .logo {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 16px;
+      object-fit: contain;
+      filter: drop-shadow(0 4px 16px rgba(0,229,255,0.3));
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    h1 span { color: var(--cyan); }
+    p {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 24px;
+    }
+    .input-group {
+      margin-bottom: 18px;
+      text-align: left;
+    }
+    input[type="password"] {
+      width: 100%;
+      background: rgba(9, 17, 28, 0.9);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 14px;
+      color: #fff;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    input[type="password"]:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.2);
+    }
+    button {
+      width: 100%;
+      background: linear-gradient(135deg, #00E5FF 0%, #0099B8 100%);
+      color: #05101E;
+      font-weight: 700;
+      font-size: 14px;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    button:hover { opacity: 0.92; }
+    button:active { transform: scale(0.98); }
+    .error {
+      color: #F87171;
+      font-size: 12px;
+      margin-top: 12px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <img src="/assets/logo.png" alt="BahonIQ" class="logo">
+    <h1>Bahon<span>IQ</span></h1>
+    <p>Рабочий центр закрыт паролем</p>
+    <form id="loginForm">
+      <div class="input-group">
+        <input type="password" id="pwd" placeholder="Введите пароль доступа" required autofocus autocomplete="current-password">
+      </div>
+      <button type="submit" id="submitBtn">Войти в центр</button>
+      <div class="error" id="errorMsg">Неверный пароль</div>
+    </form>
+  </div>
+  <script>
+    document.getElementById('loginForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const pwd = document.getElementById('pwd').value;
+      const btn = document.getElementById('submitBtn');
+      const err = document.getElementById('errorMsg');
+      btn.disabled = true;
+      btn.textContent = 'Проверка…';
+      err.style.display = 'none';
+      try {
+        const fd = new FormData();
+        fd.append('password', pwd);
+        const res = await fetch('/api/auth/login', { method: 'POST', body: fd });
+        if (res.ok) {
+          location.reload();
+        } else {
+          err.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = 'Войти в центр';
+        }
+      } catch (e) {
+        err.textContent = 'Ошибка связи с сервером';
+        err.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Войти в центр';
+      }
+    };
+  </script>
+</body>
+</html>
