@@ -10,8 +10,8 @@
   --border-card-hover: rgba(0, 229, 255, 0.45);
   
   --text-main: #FFFFFF;
-  --text-muted: #8FA2B6;
-  --text-sub: #52677C;
+  --text-muted: #9BB0C7;
+  --text-sub: #5E748B;
   
   --green: #009246;
   --green-neon: #11B5AE;
@@ -153,65 +153,40 @@ body.theme-day {
 .sys-icon { font-size: 16px; }
 .sys-name { white-space: nowrap; }
 
-/* Центральная зона: крупный знак BahonIQ в пустом пространстве сайдбара */
-.sidebar-brand-showcase {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px 0;
-  min-height: 140px;
-}
-
-.sidebar-emblem-wrap {
-  position: relative;
-  width: 144px;
-  height: 144px;
-  max-width: 144px;
-  max-height: 144px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 30px;
-  background: radial-gradient(circle at 50% 50%, rgba(0, 229, 255, 0.08) 0%, rgba(14, 25, 42, 0.45) 70%, transparent 100%);
-  border: 1px solid rgba(0, 229, 255, 0.14);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 0 16px rgba(0, 229, 255, 0.04);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-body.theme-day .sidebar-emblem-wrap {
-  background: radial-gradient(circle at 50% 50%, rgba(13, 148, 136, 0.08) 0%, rgba(255, 255, 255, 0.9) 70%, transparent 100%);
-  border-color: rgba(13, 148, 136, 0.2);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-}
-
-.sidebar-emblem-large {
-  width: 104px !important;
-  height: 104px !important;
-  max-width: 104px !important;
-  max-height: 104px !important;
-  object-fit: contain !important;
-  filter: drop-shadow(0 4px 14px rgba(0, 229, 255, 0.35));
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), filter 0.3s;
-  cursor: pointer;
-  display: block;
-}
-
-.sidebar-brand-showcase:hover .sidebar-emblem-wrap {
-  border-color: rgba(0, 229, 255, 0.3);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45), inset 0 0 24px rgba(0, 229, 255, 0.08);
-}
-
-.sidebar-brand-showcase:hover .sidebar-emblem-large {
-  transform: scale(1.05) translateY(-2px);
-  filter: drop-shadow(0 10px 26px rgba(0, 229, 255, 0.55));
-}
-
+/* Сайдбар: логотип размещён над кнопкой внизу без лишней пустой растяжки и без массивной рамки */
 .sidebar-footer {
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  padding-top: 10px;
+  align-items: center;
+  gap: 16px;
+  padding-top: 16px;
+  width: 100%;
+}
+
+.sidebar-logo-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.sidebar-logo-img {
+  width: 108px !important;
+  height: 108px !important;
+  max-width: 108px !important;
+  max-height: 108px !important;
+  object-fit: contain !important;
+  display: block;
+  margin: 0 auto;
+  filter: drop-shadow(0 4px 16px rgba(0, 229, 255, 0.25));
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s;
+  cursor: pointer;
+}
+
+.sidebar-logo-img:hover {
+  transform: scale(1.05);
+  filter: drop-shadow(0 6px 22px rgba(0, 229, 255, 0.45));
 }
 
 .open-all-btn {
@@ -426,31 +401,35 @@ body.theme-day .sidebar-emblem-wrap {
   transform: scale(0.99);
 }
 
-/* Крупная иконка */
+/* Унифицированные SVG-иконки инструментов (Lucide Style) */
 .tool-icon {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
-  font-weight: 700;
   flex-shrink: 0;
-  transition: transform 0.2s;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.tool-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2;
+  display: block;
 }
 
 .tool-tile:hover .tool-icon {
-  transform: scale(1.05);
+  transform: scale(1.06);
 }
 
-.icon-teal { background: rgba(17, 181, 174, 0.14); color: var(--green-neon); border: 1px solid rgba(17, 181, 174, 0.3); }
-.icon-cyan { background: rgba(0, 229, 255, 0.14); color: #00E5FF; border: 1px solid rgba(0, 229, 255, 0.3); }
-.icon-red { background: rgba(206, 43, 55, 0.14); color: #FF4D5E; border: 1px solid rgba(206, 43, 55, 0.3); }
-.icon-blue { background: rgba(42, 114, 212, 0.14); color: #5B9BFF; border: 1px solid rgba(42, 114, 212, 0.3); }
-.icon-purple { background: rgba(139, 92, 246, 0.14); color: #B794F6; border: 1px solid rgba(139, 92, 246, 0.3); }
-.icon-amber { background: rgba(245, 158, 11, 0.14); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.3); }
-.icon-rose { background: rgba(244, 63, 94, 0.14); color: #FB7185; border: 1px solid rgba(244, 63, 94, 0.3); }
+.icon-teal { background: rgba(0, 229, 255, 0.12); color: #00E5FF; border: 1px solid rgba(0, 229, 255, 0.22); }
+.icon-blue { background: rgba(59, 130, 246, 0.12); color: #3B82F6; border: 1px solid rgba(59, 130, 246, 0.22); }
+.icon-purple { background: rgba(168, 85, 247, 0.12); color: #A855F7; border: 1px solid rgba(168, 85, 247, 0.22); }
+.icon-red { background: rgba(239, 68, 68, 0.12); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.22); }
+.icon-amber { background: rgba(245, 158, 11, 0.12); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.22); }
 
 /* Контент карточки */
 .tool-meta {

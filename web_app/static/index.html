@@ -5,15 +5,16 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>BahonIQ | WORK CENTER</title>
   <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/assets/app.css?v=20261112_05">
+  <link rel="stylesheet" href="/assets/app.css?v=20261112_08">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
     .sidebar { width: 220px; overflow: hidden; display: flex; flex-direction: column; }
-    .sidebar-brand-showcase { flex: 1; display: flex; align-items: center; justify-content: center; padding: 18px 0; }
-    .sidebar-emblem-wrap { width: 144px; height: 144px; max-width: 144px; max-height: 144px; margin: 0 auto; display: flex; align-items: center; justify-content: center; position: relative; border-radius: 30px; background: radial-gradient(circle at 50% 50%, rgba(0, 229, 255, 0.08) 0%, rgba(14, 25, 42, 0.5) 70%, transparent 100%); border: 1px solid rgba(0, 229, 255, 0.14); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 0 16px rgba(0, 229, 255, 0.05); }
-    body.theme-day .sidebar-emblem-wrap { background: radial-gradient(circle at 50% 50%, rgba(13, 148, 136, 0.08) 0%, rgba(255, 255, 255, 0.9) 70%, transparent 100%); border-color: rgba(13, 148, 136, 0.2); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06); }
-    .sidebar-emblem-large { width: 104px !important; height: 104px !important; max-width: 104px !important; max-height: 104px !important; object-fit: contain !important; display: block; margin: 0 auto; filter: drop-shadow(0 4px 14px rgba(0, 229, 255, 0.35)); }
+    .sidebar-footer { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 14px; padding-top: 16px; }
+    .sidebar-logo-bottom { display: flex; align-items: center; justify-content: center; width: 100%; }
+    .sidebar-logo-img { width: 108px !important; height: 108px !important; max-width: 108px !important; max-height: 108px !important; object-fit: contain !important; display: block; margin: 0 auto; filter: drop-shadow(0 4px 16px rgba(0, 229, 255, 0.25)); transition: transform 0.2s ease; cursor: pointer; }
+    .sidebar-logo-img:hover { transform: scale(1.04); }
+    .web-splash-logo { width: 200px !important; height: 200px !important; max-width: 200px !important; max-height: 200px !important; object-fit: contain !important; filter: drop-shadow(0 10px 30px rgba(0, 229, 255, 0.35)); }
     .desktop-pill { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(140, 160, 179, 0.16); border: 1px solid rgba(140, 160, 179, 0.3); color: #8CA0B3; vertical-align: middle; margin-left: 6px; }
     body.theme-day .desktop-pill { background: #E2E8F0; border-color: #CBD5E1; color: #475569; }
     .theme-toggle-btn { display: inline-flex; align-items: center; gap: 8px; background: #101B29; border: 1px solid #1A2B3D; color: #FFFFFF; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; }
@@ -24,7 +25,7 @@
   <div id="webSplash" class="web-splash">
     <div class="web-splash-card">
       <div class="web-splash-mark">
-        <img src="/assets/logo.svg?v=20261112_06" alt="BahonIQ" class="web-splash-logo">
+        <img src="/assets/logo.png?v=20261112_08" alt="BahonIQ" class="web-splash-logo" width="200" height="200">
       </div>
       <div class="web-splash-bar"><div class="web-splash-fill"></div></div>
       <div class="web-splash-status">Подготавливаем рабочее пространство…</div>
@@ -56,13 +57,10 @@
         </a>
       </nav>
 
-      <div class="sidebar-brand-showcase">
-        <div class="sidebar-emblem-wrap" title="BahonIQ Work Center">
-          <img src="/assets/logo.svg?v=20261112_06" alt="BahonIQ" class="sidebar-emblem-large" width="104" height="104" style="width:104px;height:104px;max-width:104px;max-height:104px;object-fit:contain;display:block;">
-        </div>
-      </div>
-
       <div class="sidebar-footer">
+        <div class="sidebar-logo-bottom" title="BahonIQ Work Center">
+          <img src="/assets/logo.png?v=20261112_08" alt="BahonIQ" class="sidebar-logo-img" width="108" height="108">
+        </div>
         <button id="openAllSystems" class="open-all-btn" type="button">
           <span>⚡</span> Открыть все системы
         </button>
@@ -76,8 +74,8 @@
         <svg class="bg-geometry-svg" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <pattern id="coordGrid" width="64" height="64" patternUnits="userSpaceOnUse">
-              <path d="M 64 0 L 0 0 0 64" fill="none" stroke="currentColor" stroke-width="1" stroke-opacity="0.025" />
-              <circle cx="64" cy="0" r="1.5" fill="currentColor" fill-opacity="0.06" />
+              <path d="M 64 0 L 0 0 0 64" fill="none" stroke="currentColor" stroke-width="1" stroke-opacity="0.045" />
+              <circle cx="64" cy="0" r="1.5" fill="currentColor" fill-opacity="0.08" />
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#coordGrid)" />
@@ -125,9 +123,11 @@
 
           <!-- Сетка 2 колонки со всеми 10 инструментами -->
           <div class="tools-grid">
-            <!-- 1. Ticket Writer AI -->
+            <!-- 1. Ticket Writer AI (Бирюзовый) -->
             <div class="tool-tile" data-open="tickets">
-              <div class="tool-icon icon-teal">✦</div>
+              <div class="tool-icon icon-teal">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="12" y1="7" x2="12" y2="13"/><line x1="9" y1="10" x2="15" y2="10"/></svg>
+              </div>
               <div class="tool-meta">
                 <div class="tool-name">Ticket Writer AI</div>
                 <div class="tool-desc">Создание чётких и структурированных обращений в техподдержку без лишней информации.</div>
@@ -135,9 +135,11 @@
               <div class="tool-arrow">›</div>
             </div>
 
-            <!-- 2. Заметки -->
+            <!-- 2. Заметки (Бирюзовый) -->
             <div class="tool-tile" data-open="notes">
-              <div class="tool-icon icon-cyan">✎</div>
+              <div class="tool-icon icon-teal">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-5.5"/><polyline points="14 2 14 8 20 8"/><path d="M10.4 12.6a2 2 0 1 1 3 3L6 23l-4 1 1-4Z"/></svg>
+              </div>
               <div class="tool-meta">
                 <div class="tool-name">Заметки</div>
                 <div class="tool-desc">Быстрые записи, идеи и рабочие черновики с автоматическим сохранением.</div>
@@ -145,9 +147,11 @@
               <div class="tool-arrow">›</div>
             </div>
 
-            <!-- 3. Excel AI -->
+            <!-- 3. Excel AI (Синий - данные) -->
             <div class="tool-tile" data-open="excel">
-              <div class="tool-icon icon-red">▦</div>
+              <div class="tool-icon icon-blue">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/></svg>
+              </div>
               <div class="tool-meta">
                 <div class="tool-name">Excel AI</div>
                 <div class="tool-desc">Умная обработка, очистка и слияние электронных таблиц по текстовым указаниям.</div>
@@ -155,9 +159,11 @@
               <div class="tool-arrow">›</div>
             </div>
 
-            <!-- 4. Очистка (Только на рабочем столе) -->
+            <!-- 4. Очистка (Красный - операции с диском) -->
             <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="Очистка" data-desc="Освобождение дискового пространства, удаление временных файлов и системных кэшей. Требует прямого доступа к файловой системе Windows.">
-              <div class="tool-icon icon-amber">⚡</div>
+              <div class="tool-icon icon-red">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              </div>
               <div class="tool-meta">
                 <div class="tool-name">Очистка <span class="desktop-badge">Только на рабочем столе</span></div>
                 <div class="tool-desc">Освобождение дискового пространства, удаление временных файлов и кэша.</div>
@@ -165,9 +171,11 @@
               <div class="tool-arrow">🔒</div>
             </div>
 
-            <!-- 5. Дубликаты (Только на рабочем столе) -->
+            <!-- 5. Дубликаты (Красный - операции с диском) -->
             <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="Дубликаты" data-desc="Побайтовое сканирование накопителей компьютера и поиск одинаковых тяжёлых файлов. Доступно в установленном приложении BahonIQ.">
-              <div class="tool-icon icon-purple">🔍</div>
+              <div class="tool-icon icon-red">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </div>
               <div class="tool-meta">
                 <div class="tool-name">Дубликаты <span class="desktop-badge">Только на рабочем столе</span></div>
                 <div class="tool-desc">Поиск и безопасное удаление повторяющихся файлов на дисках компьютера.</div>
@@ -175,9 +183,11 @@
               <div class="tool-arrow">🔒</div>
             </div>
 
-            <!-- 6. AnyDesk (Только на рабочем столе) -->
+            <!-- 6. AnyDesk (Янтарный - системная функция) -->
             <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="AnyDesk" data-desc="Быстрый запуск AnyDesk для удалённого подключения и дистанционной технической поддержки рабочих станций через локальный клиент AnyDesk.exe.">
-              <div class="tool-icon icon-rose">◉</div>
+              <div class="tool-icon icon-amber">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/><path d="m9 10 3-3 3 3"/><path d="M12 13V7"/></svg>
+              </div>
               <div class="tool-meta">
                 <div class="tool-name">AnyDesk <span class="desktop-badge">Только на рабочем столе</span></div>
                 <div class="tool-desc">Удалённый доступ и оперативная дистанционная техническая поддержка.</div>
@@ -185,9 +195,11 @@
               <div class="tool-arrow">🔒</div>
             </div>
 
-            <!-- 7. PDF Center -->
+            <!-- 7. PDF Center (Бирюзовый) -->
             <div class="tool-tile" data-open="pdf">
-              <div class="tool-icon icon-teal">▤</div>
+              <div class="tool-icon icon-teal">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 2v5h5"/><path d="M21 6v6.5c0 .8-.7 1.5-1.5 1.5h-7c-.8 0-1.5-.7-1.5-1.5v-9c0-.8.7-1.5 1.5-1.5H17l4 4z"/><path d="M7 8v8.8c0 .3.2.6.4.8.2.2.5.4.8.4H15"/><path d="M3 12v8.8c0 .3.2.6.4.8.2.2.5.4.8.4H11"/></svg>
+              </div>
               <div class="tool-meta">
                 <div class="tool-name">PDF Center</div>
                 <div class="tool-desc">Конвертация документов, объединение файлов, разделение страниц и сжатие PDF.</div>
@@ -195,9 +207,11 @@
               <div class="tool-arrow">›</div>
             </div>
 
-            <!-- 8. ANALYTICS AI -->
+            <!-- 8. ANALYTICS AI (Синий - аналитика) -->
             <div class="tool-tile" data-open="analytics">
-              <div class="tool-icon icon-blue">▥</div>
+              <div class="tool-icon icon-blue">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+              </div>
               <div class="tool-meta">
                 <div class="tool-name">ANALYTICS AI</div>
                 <div class="tool-desc">Управленческий анализ табличных данных с формированием отчётов PDF и PowerPoint.</div>
@@ -205,9 +219,11 @@
               <div class="tool-arrow">›</div>
             </div>
 
-            <!-- 9. Телефонный справочник -->
+            <!-- 9. Телефонный справочник (Янтарный - системная функция) -->
             <div class="tool-tile" data-open="phonebook">
-              <div class="tool-icon icon-teal">☎</div>
+              <div class="tool-icon icon-amber">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/><path d="M14.05 2a9 9 0 0 1 8 7.94"/><path d="M14.05 6A5 5 0 0 1 18 10"/></svg>
+              </div>
               <div class="tool-meta">
                 <div class="tool-name">Телефонный справочник</div>
                 <div class="tool-desc">Поиск сотрудников по подразделениям, внутренним номерам и контактным данным.</div>
@@ -215,9 +231,11 @@
               <div class="tool-arrow">›</div>
             </div>
 
-            <!-- 10. Code Academy -->
+            <!-- 10. Code Academy (Фиолетовый - обучение) -->
             <div class="tool-tile" data-open="academy">
-              <div class="tool-icon icon-purple">⌘</div>
+              <div class="tool-icon icon-purple">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              </div>
               <div class="tool-meta">
                 <div class="tool-name">Code Academy</div>
                 <div class="tool-desc">Практическое обучение программированию на Python, SQL-запросам и архитектуре ПО.</div>
@@ -463,7 +481,6 @@
       </div>
 
       <footer class="app-footer">
-        <span>BahonIQ Work Center</span>
       </footer>
     </div>
   </div>
