@@ -100,11 +100,12 @@ def _call_ollama(
     system_instruction: str = "",
     temperature: float = 0.2,
     timeout: int = 120,
+    model: str = "",
 ) -> str:
     """Вызов локальной Ollama (fallback)."""
     url = f"{OLLAMA_HOST}/api/generate"
     payload = {
-        "model": OLLAMA_MODEL,
+        "model": model or OLLAMA_MODEL,
         "prompt": prompt,
         "system": system_instruction,
         "stream": False,
@@ -132,6 +133,7 @@ def generate_text(
     timeout: int = 45,
     system_prompt: str = "",
     return_provider: bool = False,
+    ollama_model: str = "",
 ) -> str | tuple[str, str]:
     """Генерация текста с тихим автоматическим Fallback."""
     sys_inst = system_instruction or system_prompt
@@ -176,7 +178,10 @@ def generate_text(
             system_instruction=sys_inst,
             temperature=temperature,
             timeout=timeout,
+            model=ollama_model,
         )
+        if not text:
+            raise RuntimeError("Ollama вернула пустой ответ")
         return (text, "ollama") if return_provider else text
     except Exception as exc:
         LOGGER.error("Ошибка при обращении к Ollama fallback: %s", exc)

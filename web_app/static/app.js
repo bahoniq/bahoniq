@@ -648,12 +648,14 @@ $('#academyMentorAsk')?.addEventListener('click', async () => {
   try {
     const fd = new FormData();
     fd.append('question', question);
-    fd.append('mode', 'hint');
+    fd.append('mode', $('#academyMentorMode')?.value || 'hint');
     fd.append('code', $('#' + activeKind + 'Code')?.value || '');
     fd.append('chapter', item?.title || 'Code Academy');
     const data = await api('/api/academy/ask', { method: 'POST', body: fd });
     answer.textContent = data.answer || 'Ответ не получен.';
     answer.classList.remove('hidden');
+    const prov = $('#academyMentorProvider');
+    if (prov && data.provider_label) prov.textContent = data.provider_label;
   } catch (e) {
     answer.textContent = e.message;
     answer.classList.remove('hidden');

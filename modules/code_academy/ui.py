@@ -8,7 +8,7 @@ from .studio_core import Workspace
 from .architecture import list_project_files, read_project_file, describe_code
 from .architecture_book import CHAPTERS, chapter_source
 from .architecture_pro import explain_line, explain_block, import_map, safe_copy_target
-from .ai_tutor import ask_tutor
+from .ai_tutor import ask_tutor_detailed, PROVIDER_LABELS
 from .mentor_core import MentorSession
 from .studio_v4 import build_studio, _enable_editor_shortcuts
 from .editor import CodeEditor
@@ -32,6 +32,7 @@ class AcademyWindow:
         self.completed=self._load_progress()
         self.verified=self._load_verified()
         self._studio_closers=[]
+        self._studio_routes={}
         self.win=tk.Toplevel(parent);self.win.title('BahonIQ Code Academy — Studio Edition')
         self.win.geometry('1440x900');self.win.minsize(1050,690);self.win.configure(bg=BG)
         self.win.protocol('WM_DELETE_WINDOW',self._close)
@@ -49,7 +50,7 @@ class AcademyWindow:
         content=tk.Frame(shell,bg=WHITE);content.pack(side='left',fill='both',expand=True)
         self.tabs=PageRouter(content)
         self.pages={}
-        items=[('python','1 · PYTHON'),('sql','2 · SQL'),('architecture','3 · КНИГА И КОД'),('builder','4 · КОНСТРУКТОР'),('tutor','ИИ-НАСТАВНИК'),('tests','5 · АТТЕСТАЦИЯ')]
+        items=[('python','1 · PYTHON'),('sql','2 · SQL'),('architecture','3 · КНИГА И КОД'),('builder','4 · КОНСТРУКТОР'),('practice','ПРАКТИЧЕСКИЕ ЗАНЯТИЯ'),('tests','ТЕСТЫ И АТТЕСТАЦИЯ'),('tutor','ИИ-НАСТАВНИК')]
         tk.Label(nav,text='УЧЕБНЫЙ МАРШРУТ',bg='#17352A',fg='#8DE3B8',font=('Segoe UI',11,'bold')).pack(fill='x',padx=15,pady=(22,12))
         for key,title in items:
             page=tk.Frame(content,bg=WHITE);self.pages[key]=page
@@ -57,6 +58,8 @@ class AcademyWindow:
             button.config(command=lambda p=page:self.tabs.select(p));button.pack(fill='x',padx=8,pady=2)
             self.tabs.add(key,title,page,button)
         build_studio(self,'python');build_studio(self,'sql');self._build_architecture();self._build_builder();self._build_tutor();self._build_tests();self._update_status()
+        from .learning_hub import build_practice_catalogue
+        build_practice_catalogue(self)
         self.tabs.select(self.pages['python'])
     def _load_progress(self):
         try:return set(json.loads(self.progress_path.read_text(encoding='utf-8')).get('completed',[]))
@@ -301,8 +304,9 @@ class AcademyWindow:
         banner.pack(fill='x')
         tk.Label(banner, text='AI MENTOR  /  УЧЕБНЫЙ НАСТАВНИК', bg='#172C27', fg='white',
                  font=('Segoe UI', 16, 'bold')).pack(side='left', padx=20, pady=16)
-        tk.Label(banner, text='Ollama · локально · история сохраняется', bg='#172C27',
-                 fg='#A7D4BD').pack(side='right', padx=20)
+        self.mentor_banner = tk.Label(banner, text='Gemini · облако  +  Ollama резерв · история сохраняется', bg='#172C27',
+                 fg='#A7D4BD')
+        self.mentor_banner.pack(side='right', padx=20)
         panes = tk.PanedWindow(frame, orient='horizontal', sashwidth=6, bg='#EDF3F0')
         panes.pack(fill='both', expand=True, padx=12, pady=12)
         left = tk.Frame(panes, bg=WHITE)
@@ -321,9 +325,11 @@ class AcademyWindow:
         self.tutor_mode = tk.StringVar(value='hint')
         ttk.Combobox(options, textvariable=self.tutor_mode, state='readonly', width=18,
                      values=['hint', 'explain', 'review', 'solution', 'quiz']).pack(side='left')
-        self.tutor_model = tk.StringVar(value='qwen2.5:3b')
-        ttk.Combobox(options, textvariable=self.tutor_model, width=16,
-                     values=['qwen2.5:3b', 'qwen2.5:7b']).pack(side='left', padx=8)
+        import os
+        self.tutor_model = tk.StringVar(value=os.getenv('OLLAMA_MODEL', 'qwen2.5:7b'))
+        tk.Label(options, text='Резерв:', bg=WHITE, fg='#53665D').pack(side='left', padx=(10, 2))
+        ttk.Combobox(options, textvariable=self.tutor_model, width=14,
+                     values=['qwen2.5:7b', 'qwen2.5:3b']).pack(side='left', padx=(0, 8))
         self.tutor_timeout = tk.StringVar(value='180')
         ttk.Combobox(options, textvariable=self.tutor_timeout, state='readonly', width=6,
                      values=['90', '180', '300', '600']).pack(side='left')
@@ -382,19 +388,21 @@ class AcademyWindow:
         timeout = int(self.tutor_timeout.get())
         history = list(self.mentor_session.messages)
         self.tutor_send.config(state='disabled')
-        self._set(self.tutor_history, 'Ожидание ответа Ollama...\n\n' +
+        self._set(self.tutor_history, 'Ожидание ответа ИИ (Gemini → Ollama)...\n\n' +
                   '\n\n'.join(('ВЫ: ' if m['role']=='user' else 'НАСТАВНИК: ') + m['content'] for m in history))
         def worker():
             try:
-                answer = ask_tutor(question, model=model, timeout=timeout, mode=mode,
-                                   context=context, history=history)
+                answer, provider = ask_tutor_detailed(question, model=model, timeout=timeout, mode=mode,
+                                                      context=context, history=history)
                 error = None
             except Exception as exc:
-                answer, error = '', str(exc)
+                answer, provider, error = '', '', str(exc)
             def done():
                 if not self.win.winfo_exists():
                     return
                 self.tutor_send.config(state='normal')
+                if provider:
+                    self.mentor_banner.config(text=PROVIDER_LABELS.get(provider, provider) + '  ·  история сохраняется')
                 if error:
                     messagebox.showwarning('ИИ-наставник', error, parent=self.win)
                 else:
@@ -410,7 +418,16 @@ class AcademyWindow:
         threading.Thread(target=worker, daemon=True).start()
 
     def _build_tests(self):
+        from .learning_hub import build_knowledge_quiz
         from .adaptive_assessment_ui import build_adaptive_assessment
+        page=self.pages['tests']
+        tabs=ttk.Notebook(page);tabs.pack(fill='both',expand=True,padx=10,pady=10)
+        knowledge=tk.Frame(tabs);practical=tk.Frame(tabs)
+        tabs.add(knowledge,text='  Тесты на понимание  ')
+        tabs.add(practical,text='  Практическая аттестация  ')
+        build_knowledge_quiz(self,knowledge)
+        self.pages['tests']=practical
         build_adaptive_assessment(self)
+        self.pages['tests']=page
 
 def open_code_academy(parent):return AcademyWindow(parent)

@@ -469,7 +469,7 @@
                 <button class="academy-route-btn" data-academy-view="academySql" type="button"><b>2</b><span>SQL<small>35 уроков</small></span></button>
                 <button class="academy-route-btn" data-academy-view="academyBook" type="button"><b>3</b><span>Книга и код<small>Архитектура BahonIQ</small></span></button>
                 <button class="academy-route-btn" data-academy-view="academyBuilder" type="button"><b>4</b><span>Конструктор<small>Учебный проект</small></span></button>
-                <button id="academyMentorOpen" class="academy-mentor-btn" type="button"><span>✦</span><div><b>ИИ-наставник</b><small>Подсказка по уроку</small></div></button>
+                <button id="academyMentorOpen" class="academy-mentor-btn" type="button"><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 17v4M17 19h4"/></svg></span><div><b>ИИ-наставник</b><small>Подсказка по уроку</small></div></button>
               </nav>
 
               <div class="academy-stage">
@@ -502,7 +502,7 @@
               </div>
             </div>
 
-            <dialog id="academyMentorDialog" class="academy-mentor-dialog"><form method="dialog"><div class="academy-mentor-head"><div><span class="eyebrow">ИИ-НАСТАВНИК</span><h2>Спросить по текущему уроку</h2></div><button value="cancel" aria-label="Закрыть">×</button></div><textarea id="academyMentorQuestion" rows="4" placeholder="Что объяснить или где нужна подсказка?"></textarea><div class="academy-actions"><button id="academyMentorAsk" class="button primary" value="default" type="button">Получить подсказку</button></div><div id="academyMentorAnswer" class="academy-mentor-answer hidden"></div></form></dialog>
+            <dialog id="academyMentorDialog" class="academy-mentor-dialog"><form method="dialog"><div class="academy-mentor-head"><div><span class="eyebrow">ИИ-НАСТАВНИК</span><h2>Спросить по текущему уроку</h2></div><button value="cancel" aria-label="Закрыть">×</button></div><div class="academy-mentor-modes"><select id="academyMentorMode" aria-label="Режим наставника"><option value="hint">Подсказка</option><option value="explain">Объяснить</option><option value="review">Проверить код</option><option value="solution">Показать решение</option><option value="quiz">Проверочный вопрос</option></select><small id="academyMentorProvider">Gemini · облако, Ollama — резерв</small></div><textarea id="academyMentorQuestion" rows="4" placeholder="Что объяснить или где нужна подсказка?"></textarea><div class="academy-actions"><button id="academyMentorAsk" class="button primary" value="default" type="button">Отправить вопрос</button></div><div id="academyMentorAnswer" class="academy-mentor-answer hidden"></div></form></dialog>
           </section>
 
           <!-- ЗАМЕТКИ -->

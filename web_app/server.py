@@ -825,15 +825,16 @@ async def academy_ask(
     chapter: str = Form(""),
 ):
     """ИИ-Ментор Code Academy по архитектуре, коду BahonIQ и SOLID."""
-    from .modules.code_academy.ai_tutor import ask_tutor
+    from .modules.code_academy.ai_tutor import ask_tutor_detailed, PROVIDER_LABELS
     try:
-        answer = await run_in_threadpool(
-            ask_tutor,
+        answer, provider = await run_in_threadpool(
+            ask_tutor_detailed,
             question=question,
             mode=mode,
             context={"code": code, "lesson": chapter, "area": "Code Academy"},
         )
-        return {"status": "completed", "answer": answer}
+        return {"status": "completed", "answer": answer, "provider": provider,
+                "provider_label": PROVIDER_LABELS.get(provider, provider)}
     except Exception as exc:
         raise HTTPException(400, str(exc)) from exc
 

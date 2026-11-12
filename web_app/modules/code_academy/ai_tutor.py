@@ -1,14 +1,15 @@
-"""Local Ollama educational assistant, without code execution or file mutation."""
-import json
-import urllib.request
-import urllib.error
+"""Educational AI mentor: Gemini first, local Ollama as fallback (no code execution or file mutation)."""
+import logging
+
 from .mentor_core import build_messages
 
-URL = 'http://127.0.0.1:11434/api/chat'
+LOGGER = logging.getLogger("bahoniq.ai_tutor")
+PROVIDER_LABELS = {"gemini": "Gemini · облако", "ollama": "Ollama · локально (резерв)"}
 
 
-def ask_tutor(question, filename='', code='', model='qwen2.5:3b', timeout=180,
-              mode='hint', context=None, history=()):
+def ask_tutor_detailed(question, filename='', code='', model='', timeout=180,
+                       mode='hint', context=None, history=()):
+    """Return (answer, provider). provider is 'gemini' or 'ollama'."""
     if not 10 <= int(timeout) <= 900:
         raise ValueError('Ожидание должно быть от 10 до 900 секунд')
     if len(question) > 4000:
@@ -16,42 +17,29 @@ def ask_tutor(question, filename='', code='', model='qwen2.5:3b', timeout=180,
     context = dict(context or {})
     context.setdefault('file', filename)
     context.setdefault('code', code)
-
     messages = build_messages(question, mode, context, history)
 
-    # 1. Первичный вызов через Google Gemini с автоматическим тихим Fallback
+    from ai_service import generate_text
+    system_inst = messages[0]['content'] if messages and messages[0].get('role') == 'system' else ''
+    parts = []
+    for m in messages[1:]:
+        prefix = 'Ученик: ' if m.get('role') == 'user' else 'Наставник: '
+        parts.append(prefix + str(m.get('content')))
+    prompt = '\n\n'.join(parts) if parts else question
     try:
-        from ai_service import generate_text
-        system_inst = messages[0]['content'] if messages and messages[0].get('role') == 'system' else ''
-        user_prompt_parts = []
-        for m in messages[1:]:
-            role_prefix = "Ученик: " if m.get('role') == 'user' else "Наставник: "
-            user_prompt_parts.append(f"{role_prefix}{m.get('content')}")
-        full_user_prompt = "\n\n".join(user_prompt_parts) if user_prompt_parts else question
-
-        answer = generate_text(
-            prompt=full_user_prompt,
-            system_instruction=system_inst,
-            temperature=0.3,
-            timeout=timeout,
-        )
-        if answer and str(answer).strip():
-            return str(answer).strip()
-    except Exception:
-        pass
-
-    # 2. Тихий резервный вызов локальной Ollama
-    payload = {'model': model, 'stream': False,
-               'messages': messages,
-               'options': {'temperature': 0.3, 'num_predict': 900, 'num_ctx': 8192}}
-    req = urllib.request.Request(URL, data=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
-                                 headers={'Content-Type': 'application/json'}, method='POST')
-    try:
-        with urllib.request.urlopen(req, timeout=int(timeout)) as response:
-            data = json.load(response)
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise RuntimeError('Нет ответа ИИ-сервера. Проверь подключение к интернету или запуск Ollama.') from exc
-    answer = data.get('message', {}).get('content', '').strip()
+        answer, provider = generate_text(prompt=prompt, system_instruction=system_inst,
+                                         temperature=0.3, timeout=int(timeout),
+                                         return_provider=True, ollama_model=(model or '').strip())
+    except Exception as exc:
+        LOGGER.error('AI mentor failed: %s', exc)
+        raise RuntimeError('ИИ недоступен: Gemini не ответил, а локальная Ollama вернула ошибку. '
+                           'Проверьте GEMINI_API_KEY, интернет и запуск Ollama. Детали: %s' % exc) from exc
+    answer = str(answer or '').strip()
     if not answer:
         raise RuntimeError('ИИ вернул пустой ответ.')
-    return answer
+    return answer, provider
+
+
+def ask_tutor(*args, **kwargs):
+    """Backward-compatible wrapper returning only the answer text."""
+    return ask_tutor_detailed(*args, **kwargs)[0]
