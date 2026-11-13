@@ -21,6 +21,7 @@ from config import SYSTEMS
 from .modules.excel_ai.ai_interpreter import interpret_task
 from .modules.excel_ai.analyzer import analyze_workbook
 from .modules.excel_ai.operations import execute_operations, plan_operations
+from .modules.excel_ai.comparison import _read_book, reconcile_students, save_student_reconciliation_report
 from .modules.report_studio.launcher import generate_report, inspect_excel
 from .modules.report_studio.fast_inspector import fast_inspect_excel
 from .modules.ticket_writer import generate_ticket
@@ -675,6 +676,8 @@ def download(session_id: str, kind: str):
         raise HTTPException(404, "Результат не найден.")
     if session["kind"] == "excel" and kind == "excel":
         path = Path(session["output"])
+    elif session["kind"] == "reconcile" and kind == "reconcile":
+        path = Path(session["output"])
     elif session["kind"] == "pdf" and kind == "pdf_result":
         path = Path(session["output"])
     else:
@@ -684,6 +687,7 @@ def download(session_id: str, kind: str):
         raise HTTPException(404, "Файл результата отсутствует.")
     names = {
         "excel": "Excel_AI_result.xlsx",
+        "reconcile": "Сверка_студентов_неповторяющиеся.xlsx",
         "pdf": "Analytics_AI_report.pdf",
         "pptx": "Analytics_AI_report.pptx",
         "pdf_result": path.name if path else "PDF_Center_result",
@@ -694,6 +698,86 @@ def download(session_id: str, kind: str):
 # ============================================================
 # ДОПОЛНИТЕЛЬНЫЕ ЭНДПОИНТЫ v2.0.0
 # ============================================================
+
+@app.post("/api/excel/reconcile")
+async def excel_reconcile(
+    file1: UploadFile = File(...),
+    file2: UploadFile = File(...),
+    sheet1: str = Form(""),
+    sheet2: str = Form(""),
+):
+    """Интеллектуальная сверка двух списков студентов по ИИН и ФИО."""
+    token, directory = _new_session("reconcile")
+    try:
+        async def _save_upload(upload: UploadFile, prefix: str) -> Path:
+            name = Path(upload.filename or "file.xlsx").name
+            suffix = Path(name).suffix.lower()
+            if suffix not in EXCEL_EXTENSIONS:
+                raise HTTPException(400, f"Файл «{name}»: поддерживаются форматы .xls, .xlsx и .xlsm.")
+            dest = directory / f"{prefix}{suffix}"
+            sz = 0
+            with dest.open("wb") as stream:
+                while chunk := await upload.read(1024 * 1024):
+                    sz += len(chunk)
+                    if sz > MAX_UPLOAD:
+                        raise HTTPException(413, f"Файл «{name}» превышает 50 МБ.")
+                    stream.write(chunk)
+            await upload.close()
+            if not sz:
+                raise HTTPException(400, f"Файл «{name}» пуст.")
+            return dest
+
+        src1 = await _save_upload(file1, "file1")
+        src2 = await _save_upload(file2, "file2")
+
+        b1 = await run_in_threadpool(_read_book, src1)
+        b2 = await run_in_threadpool(_read_book, src2)
+        if not b1 or not b2:
+            raise HTTPException(400, "В одном из загруженных файлов не найдено листов.")
+
+        s1_name = sheet1 if sheet1 and any(x["name"] == sheet1 for x in b1) else b1[0]["name"]
+        s2_name = sheet2 if sheet2 and any(x["name"] == sheet2 for x in b2) else b2[0]["name"]
+
+        result = await run_in_threadpool(reconcile_students, src1, s1_name, src2, s2_name)
+        out_excel = directory / "Сверка_студентов_неповторяющиеся.xlsx"
+        await run_in_threadpool(save_student_reconciliation_report, result, out_excel)
+
+        with _lock:
+            _sessions[token] = {
+                "kind": "reconcile",
+                "created": time.time(),
+                "directory": directory,
+                "output": out_excel,
+                "complete": True,
+            }
+
+        samples_only1 = [
+            {"num": idx, "fio": s["fio"], "iin": s["iin"], "kurs": s["kurs"], "fac_spec": s["fac_spec"], "reg": s["region"]}
+            for idx, s in enumerate(result["only1"][:20], start=1)
+        ]
+        samples_only2 = [
+            {"num": idx, "fio": s["fio"], "iin": s["iin"], "kurs": s["kurs"], "fac_spec": s["fac_spec"], "dorm": s["dorm"], "room": s["room"]}
+            for idx, s in enumerate(result["only2"], start=1)
+        ]
+
+        return {
+            "status": "completed",
+            "session_id": token,
+            "download_url": f"/api/download/{token}/reconcile",
+            "counts": result["counts"],
+            "file1_name": Path(file1.filename or "Файл 1").name,
+            "file2_name": Path(file2.filename or "Файл 2").name,
+            "sheet1_name": s1_name,
+            "sheet2_name": s2_name,
+            "samples_only1": samples_only1,
+            "samples_only2": samples_only2,
+        }
+    except HTTPException:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
+    except Exception as exc:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise HTTPException(400, str(exc)) from exc
 
 @app.post("/api/excel/process")
 async def excel_process(

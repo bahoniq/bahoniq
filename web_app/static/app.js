@@ -134,6 +134,12 @@ document.addEventListener('click', (e) => {
   }
   const modId = tile.dataset.open;
   if (!modId) return;
+  if (modId === 'reconcile') {
+    openModule('excel', 'Excel AI — Сверка студентов');
+    const recTab = document.querySelector('[data-tab="excelReconcile"]');
+    if (recTab) recTab.click();
+    return;
+  }
   const name = tile.querySelector('.tool-name')?.textContent || '';
   openModule(modId, name);
 });
@@ -151,13 +157,19 @@ $('#openAllSystems')?.addEventListener('click', () => {
   urls.forEach(u => window.open(u, '_blank'));
 });
 
-// Проверка прямого хэша в URL (например #tickets)
+// Проверка прямого хэша в URL (например #tickets или #reconcile)
 if (location.hash) {
   const hash = location.hash.slice(1);
-  const matchedTile = document.querySelector(`[data-open="${hash}"]`);
-  if (matchedTile) {
-    const name = matchedTile.querySelector('.tool-name')?.textContent || '';
-    openModule(hash, name);
+  if (hash === 'reconcile') {
+    openModule('excel', 'Excel AI — Сверка студентов');
+    const recTab = document.querySelector('[data-tab="excelReconcile"]');
+    if (recTab) recTab.click();
+  } else {
+    const matchedTile = document.querySelector(`[data-open="${hash}"]`);
+    if (matchedTile) {
+      const name = matchedTile.querySelector('.tool-name')?.textContent || '';
+      openModule(hash, name);
+    }
   }
 }
 
@@ -795,5 +807,173 @@ $('#clearNotesBtn')?.addEventListener('click', async () => {
     } catch (e) {
       console.error('Ошибка очистки заметок:', e);
     }
+  }
+});
+
+// ----------------- СВЕРКА СТУДЕНТОВ (RECONCILE) -----------------
+const recFile1 = $('#reconcileFile1');
+const recFile2 = $('#reconcileFile2');
+const recName1 = $('#reconcileFileName1');
+const recName2 = $('#reconcileFileName2');
+const recForm = $('#reconcileForm');
+const recProgress = $('#reconcileProgress');
+const recResult = $('#reconcileResult');
+const recBtn = $('#reconcileSubmitBtn');
+
+recFile1?.addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (recName1) recName1.textContent = f ? `${f.name} (${formatBytes(f.size)})` : '.xls, .xlsx или .xlsm, до 50 МБ';
+});
+
+recFile2?.addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (recName2) recName2.textContent = f ? `${f.name} (${formatBytes(f.size)})` : '.xls, .xlsx или .xlsm, до 50 МБ';
+});
+
+recForm?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const f1 = recFile1?.files[0];
+  const f2 = recFile2?.files[0];
+
+  if (!f1 || !f2) {
+    alert('Пожалуйста, выберите оба файла для сверки.');
+    return;
+  }
+
+  setBusy(recBtn, true, 'Сверка баз студентов…');
+  if (recProgress) recProgress.classList.remove('hidden');
+  if (recResult) recResult.classList.add('hidden');
+
+  const fd = new FormData();
+  fd.append('file1', f1);
+  fd.append('file2', f2);
+
+  try {
+    const data = await api('/api/excel/reconcile', { method: 'POST', body: fd });
+    const c = data.counts || {};
+
+    let html = `
+      <div style="background:rgba(20,200,193,0.08);border:1px solid rgba(20,200,193,0.3);border-radius:12px;padding:20px;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+          <div>
+            <h2 style="font-size:18px;margin:0 0 4px 0;color:var(--text-main);">Сверка успешно завершена!</h2>
+            <div style="font-size:13px;color:var(--text-muted);">
+              Сравнение файлов: <b>${esc(data.file1_name)}</b> и <b>${esc(data.file2_name)}</b>
+            </div>
+          </div>
+          <a class="button primary" style="padding:10px 20px;font-size:14px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;" href="${data.download_url}" download>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Скачать отчёт сверки (.xlsx)
+          </a>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;margin-bottom:16px;">
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:var(--text-sub);text-transform:uppercase;">Файл 1 (всего)</div>
+            <div style="font-size:24px;font-weight:700;color:var(--text-main);margin-top:4px;">${c.total1?.toLocaleString() || 0}</div>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:var(--text-sub);text-transform:uppercase;">Файл 2 (всего)</div>
+            <div style="font-size:24px;font-weight:700;color:var(--text-main);margin-top:4px;">${c.total2?.toLocaleString() || 0}</div>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:var(--text-sub);text-transform:uppercase;">Совпали в обоих</div>
+            <div style="font-size:24px;font-weight:700;color:var(--green-neon);margin-top:4px;">${c.matched?.toLocaleString() || 0}</div>
+          </div>
+          <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:var(--yellow);text-transform:uppercase;font-weight:600;">НЕ повторяются (всего)</div>
+            <div style="font-size:24px;font-weight:700;color:var(--yellow);margin-top:4px;">${c.unique_total?.toLocaleString() || 0}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">(Файл 1: ${c.only1} | Файл 2: ${c.only2})</div>
+          </div>
+        </div>
+
+        <p style="font-size:13px;color:var(--text-sub);margin:0;">
+          Готовый файл Excel содержит 5 вкладок: <b>Сводка сверки</b>, <b>Все_неповторяющиеся</b> (${c.unique_total}), <b>Только_в_Файле_1</b> (${c.only1}), <b>Только_в_Файле_2</b> (${c.only2}) и <b>Совпавшие_студенты</b> (${c.matched}).
+        </p>
+      </div>
+    `;
+
+    if (data.samples_only2 && data.samples_only2.length > 0) {
+      html += `
+        <div style="margin-bottom:20px;">
+          <h3 style="font-size:15px;margin-bottom:8px;color:var(--text-main);">Студенты, найденные только во втором файле (${data.samples_only2.length} чел.):</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>№</th>
+                  <th>ФИО</th>
+                  <th>ИИН</th>
+                  <th>Курс</th>
+                  <th>Специальность</th>
+                  <th>Общежитие / Комната</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.samples_only2.map(s => `
+                  <tr>
+                    <td>${s.num}</td>
+                    <td><b>${esc(s.fio)}</b></td>
+                    <td><code>${esc(s.iin || '-')}</code></td>
+                    <td>${esc(s.kurs || '-')}</td>
+                    <td>${esc(s.fac_spec || '-')}</td>
+                    <td>${esc(s.dorm || '')} ${esc(s.room ? 'комн. ' + s.room : '')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    if (data.samples_only1 && data.samples_only1.length > 0) {
+      html += `
+        <div>
+          <h3 style="font-size:15px;margin-bottom:8px;color:var(--text-main);">Образец студентов, которые есть только в первом файле (показаны первые 20 из ${c.only1}):</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>№</th>
+                  <th>ФИО</th>
+                  <th>ИИН</th>
+                  <th>Курс</th>
+                  <th>Факультет</th>
+                  <th>Регион</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.samples_only1.map(s => `
+                  <tr>
+                    <td>${s.num}</td>
+                    <td><b>${esc(s.fio)}</b></td>
+                    <td><code>${esc(s.iin || '-')}</code></td>
+                    <td>${esc(s.kurs || '-')}</td>
+                    <td>${esc(s.fac_spec || '-')}</td>
+                    <td>${esc(s.reg || '-')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          <small style="display:block;margin-top:6px;color:var(--text-sub);">Полный реестр всех ${c.only1} студентов доступен в скачиваемом Excel-файле.</small>
+        </div>
+      `;
+    }
+
+    if (recResult) {
+      recResult.innerHTML = html;
+      recResult.classList.remove('hidden');
+    }
+  } catch (err) {
+    if (recResult) {
+      showResult(recResult, `<b>Ошибка сверки:</b> ${esc(err.message)}`, true);
+    } else {
+      alert('Ошибка сверки: ' + err.message);
+    }
+  } finally {
+    setBusy(recBtn, false);
+    if (recProgress) recProgress.classList.add('hidden');
   }
 });

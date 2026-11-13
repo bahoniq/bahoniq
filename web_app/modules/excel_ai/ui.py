@@ -553,7 +553,7 @@ class ExcelAIWindow(tk.Toplevel):
 
         ttk.Button(
             tools,
-            text="Сопоставить два Excel-файла",
+            text="Сверить студентов / Сопоставить",
             command=self._open_comparison,
             style="Tool.TButton",
         ).pack(side="left")

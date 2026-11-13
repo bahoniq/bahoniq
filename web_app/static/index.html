@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=20261112_12">
+  <link rel="stylesheet" href="/assets/app.css?v=20261113_v2">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
@@ -227,6 +227,20 @@
               </div>
             </div>
 
+            <!-- 4. Сверка студентов (Бирюзовый - сопоставление списков) -->
+            <div class="tool-tile" data-open="reconcile">
+              <div class="tool-icon icon-teal">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <div class="tool-meta">
+                <div class="tool-name">Сверка студентов</div>
+                <div class="tool-desc">Сверка двух списков студентов по ИИН и ФИО с выгрузкой неповторяющихся в Excel.</div>
+              </div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
+            </div>
+
             <!-- 4. Очистка (Красный - операции с диском) -->
             <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="Очистка" data-desc="Освобождение дискового пространства, удаление временных файлов и системных кэшей. Требует прямого доступа к файловой системе Windows.">
               <div class="tool-icon icon-red">
@@ -377,8 +391,21 @@
                 <p>Умная обработка, очистка и слияние электронных таблиц по текстовым указаниям.</p>
               </div>
             </div>
-            <div class="tabs"><button class="tab active" data-tab="excelTask">Задание</button><button class="tab" data-tab="excelPlan">План и результат</button><button class="tab" data-tab="excelHistory">История</button></div>
+            <div class="tabs">
+              <button class="tab active" data-tab="excelTask">Задание</button>
+              <button class="tab" data-tab="excelReconcile" style="background:rgba(20,200,193,0.15);color:var(--green-neon);font-weight:600;">⚡ Сверка студентов</button>
+              <button class="tab" data-tab="excelPlan">План и результат</button>
+              <button class="tab" data-tab="excelHistory">История</button>
+            </div>
             <div id="excelTask" class="tab-page active card">
+              <div style="background:rgba(20,200,193,0.12);border:1px solid rgba(20,200,193,0.35);border-radius:10px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="font-size:20px;">👥</span>
+                  <span style="font-size:13px;color:var(--text-main);"><b>Нужно сверить списки студентов?</b> Сравнение двух баз по ИИН и ФИО с выгрузкой неповторяющихся в Excel.</span>
+                </div>
+                <button type="button" class="button primary" onclick="document.querySelector('[data-tab=\'excelReconcile\']').click()" style="padding:7px 16px;font-size:13px;cursor:pointer;">Перейти к сверке студентов ›</button>
+              </div>
+
               <form id="excelForm">
                 <label>Excel-файл<input id="excelFile" type="file" accept=".xls,.xlsx,.xlsm" required></label>
                 <label>Опишите задачу своими словами<textarea id="excelInstruction" rows="10" required placeholder="Например: выведи ФИО на отдельный лист, отсортируй по специальности…"></textarea></label>
@@ -386,6 +413,57 @@
                 <button class="button primary" type="submit">Разобрать задачу и подготовить план</button>
               </form>
             </div>
+
+            <!-- Вкладка Сверка студентов -->
+            <div id="excelReconcile" class="tab-page card">
+              <form id="reconcileForm">
+                <div style="margin-bottom:16px;">
+                  <h2 style="font-size:18px;color:var(--text-main);margin:0 0 6px 0;">Интеллектуальная сверка двух списков студентов</h2>
+                  <p style="font-size:13px;color:var(--text-muted);margin:0;">Сравнение двух файлов по ИИН и ФИО с автоматическим формированием 5-вкладочного Excel-отчёта (Сводка, Все неповторяющиеся, Только в Файле 1, Только в Файле 2, Совпавшие).</p>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:16px;margin-bottom:16px;">
+                  <div class="reconcile-file-box">
+                    <label style="display:block;margin-bottom:6px;font-size:13px;color:var(--text-main);font-weight:600;">Файл 1 (например, деканат / 3000+ ст.)</label>
+                    <label class="file-drop" id="reconcileDrop1" style="margin-bottom:0;padding:24px;">
+                      <input id="reconcileFile1" type="file" accept=".xls,.xlsx,.xlsm" required>
+                      <span class="file-title">Выберите первый файл</span>
+                      <small id="reconcileFileName1">.xls, .xlsx или .xlsm, до 50 МБ</small>
+                    </label>
+                  </div>
+                  <div class="reconcile-file-box">
+                    <label style="display:block;margin-bottom:6px;font-size:13px;color:var(--text-main);font-weight:600;">Файл 2 (например, общежитие / 2600+ ст.)</label>
+                    <label class="file-drop" id="reconcileDrop2" style="margin-bottom:0;padding:24px;">
+                      <input id="reconcileFile2" type="file" accept=".xls,.xlsx,.xlsm" required>
+                      <span class="file-title">Выберите второй файл</span>
+                      <small id="reconcileFileName2">.xls, .xlsx или .xlsm, до 50 МБ</small>
+                    </label>
+                  </div>
+                </div>
+
+                <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;gap:12px;">
+                  <span style="font-size:20px;">⚡</span>
+                  <div style="font-size:13px;color:var(--text-muted);line-height:1.5;">
+                    <b style="color:var(--text-main);">Алгоритм:</b> 1) По 12-значному ИИН (с сохранением нулей); 2) Для студентов без ИИН — автопоиск по нормализованному ФИО (с учетом казахских и латинских символов). Автоматически объединяет поля Фамилия + Имя + Отчество.
+                  </div>
+                </div>
+
+                <button class="button primary" id="reconcileSubmitBtn" type="submit" style="padding:12px 24px;font-size:14px;cursor:pointer;">
+                  Сверить студентов и сформировать отчёт
+                </button>
+
+                <div id="reconcileProgress" class="progress-panel hidden" style="margin-top:20px;">
+                  <div class="progress-copy">
+                    <b id="reconcileProgressLabel">BahonIQ выполняет сверку списков…</b>
+                    <span id="reconcileProgressPercent">Обработка</span>
+                  </div>
+                  <div class="progress-track"><span id="reconcileProgressBar" style="width:100%;"></span></div>
+                </div>
+
+                <div id="reconcileResult" class="result-panel hidden" style="margin-top:20px;"></div>
+              </form>
+            </div>
+
             <div id="excelPlan" class="tab-page card"><div id="planContent" class="empty-state">План ещё не сформирован.</div></div>
             <div id="excelHistory" class="tab-page card"><div id="historyContent" class="empty-state">В этой сессии операций пока нет.</div></div>
           </section>
@@ -564,6 +642,6 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261112_12"></script>
+  <script src="/assets/app.js?v=20261113_v2"></script>
 </body>
 </html>
