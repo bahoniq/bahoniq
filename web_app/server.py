@@ -65,14 +65,20 @@ AUTH_PASSWORD = os.getenv("BAHONIQ_PASSWORD", "").strip()
 AUTH_COOKIE_NAME = "bahoniq_auth"
 AUTH_TOKEN = secrets.token_hex(16) if AUTH_PASSWORD else ""
 
+@app.get("/health")
+def health():
+    """Лёгкий эндпоинт для пингера (UptimeRobot) и Render health check. Без авторизации."""
+    return {"status": "ok"}
+
+
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     if not AUTH_PASSWORD:
         return await call_next(request)
     
     path = request.url.path
-    # Разрешаем статику, favicon, логотип и эндпоинты авторизации
-    if path in {"/api/auth/login", "/api/auth/status"} or path.startswith("/assets/favicon") or path.startswith("/assets/logo"):
+    # Разрешаем статику, favicon, логотип, health и эндпоинты авторизации
+    if path in {"/api/auth/login", "/api/auth/status", "/health"} or path.startswith("/assets/favicon") or path.startswith("/assets/logo"):
         return await call_next(request)
     
     cookie_val = request.cookies.get(AUTH_COOKIE_NAME)

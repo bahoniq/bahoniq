@@ -2,13 +2,13 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BahonIQ | WORK CENTER</title>
   <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=20261113_v2">
+  <link rel="stylesheet" href="/assets/app.css?v=20261113_v3">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
@@ -32,6 +32,7 @@
   </div>
 
   <div class="app-layout">
+    <div id="sidebarBackdrop" class="sidebar-backdrop"></div>
     <!-- Левый сайдбар (СИСТЕМЫ) -->
     <aside class="sidebar">
       <div class="sidebar-section-title">СИСТЕМЫ</div>
@@ -158,6 +159,7 @@
       <!-- Верхний TopBar: сдержанный и лаконичный -->
       <header class="topbar">
         <div class="brand-group">
+          <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Меню систем" aria-expanded="false">☰</button>
           <div class="brand"><span class="brand-green">BahonIQ</span> <span class="brand-sep">|</span> <span class="brand-sub">WORK CENTER</span></div>
         </div>
         <div class="topbar-right">
@@ -642,6 +644,6 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261113_v2"></script>
+  <script src="/assets/app.js?v=20261113_v3"></script>
 </body>
 </html>

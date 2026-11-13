@@ -1125,3 +1125,34 @@ body.theme-day .academy-editor { color: #16322f; }
 .pdf-queue-actions button, .pdf-queue-clear { background:transparent; border:1px solid var(--border); color:var(--text-muted); border-radius:6px; min-width:28px; height:26px; padding:0 8px; cursor:pointer; font-size:12px; }
 .pdf-queue-actions button:hover:not(:disabled), .pdf-queue-clear:hover { color:var(--cyan-neon); border-color:var(--cyan-neon); }
 .pdf-queue-actions button:disabled { opacity:.35; cursor:default; }
+
+/* ===== Мобильная адаптация (BahonIQ) ===== */
+.sidebar-toggle { display: none; background: transparent; border: 1px solid var(--border); color: var(--text-main); border-radius: 8px; width: 38px; height: 38px; font-size: 20px; line-height: 1; cursor: pointer; margin-right: 12px; }
+.sidebar-backdrop { display: none; }
+.tool-meta { min-width: 0; flex: 1; }
+.tool-name, .tool-desc { word-break: normal; overflow-wrap: break-word; }
+
+@media (max-width: 768px) {
+  .app-layout { height: auto; min-height: 100vh; width: 100%; overflow-x: hidden; }
+  .sidebar-toggle { display: inline-flex; align-items: center; justify-content: center; }
+  .sidebar {
+    position: fixed; left: -100%; top: 0; height: 100vh; width: min(82vw, 300px);
+    z-index: 1000; transition: left 0.3s ease; overflow-y: auto;
+    background-color: var(--modal-bg);
+  }
+  .sidebar.open { left: 0; box-shadow: 8px 0 32px rgba(0,0,0,.5); }
+  .sidebar-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 999; opacity: 0; pointer-events: none; transition: opacity .3s ease; display: block; }
+  .sidebar-backdrop.show { opacity: 1; pointer-events: auto; }
+  .main-area { width: 100%; min-width: 0; }
+  .topbar { padding: 0 14px; }
+  .brand-group { display: flex; align-items: center; min-width: 0; }
+  .content-body { padding: 14px 14px; }
+  .welcome-banner h1 { font-size: clamp(1.5rem, 6vw, 2.2rem); overflow-wrap: break-word; }
+  .tools-grid { grid-template-columns: 1fr; width: 100%; }
+  .tool-tile { min-width: 0; }
+  .page-heading h1 { font-size: clamp(1.3rem, 5.5vw, 1.8rem); }
+  .tabs { flex-wrap: wrap; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .pdf-layout { grid-template-columns: 1fr; }
+  .settings-card, .preview-card { min-width: 0; }
+}

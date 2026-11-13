@@ -977,3 +977,19 @@ recForm?.addEventListener('submit', async e => {
     if (recProgress) recProgress.classList.add('hidden');
   }
 });
+
+
+// Выдвижное меню систем (мобильная версия)
+(function () {
+  const sb = $('.sidebar'), btn = $('#sidebarToggle'), bd = $('#sidebarBackdrop');
+  if (!sb || !btn) return;
+  const setOpen = open => {
+    sb.classList.toggle('open', open);
+    bd?.classList.toggle('show', open);
+    btn.setAttribute('aria-expanded', String(open));
+  };
+  btn.addEventListener('click', () => setOpen(!sb.classList.contains('open')));
+  bd?.addEventListener('click', () => setOpen(false));
+  sb.addEventListener('click', e => { if (e.target.closest('a.system-item')) setOpen(false); });
+  window.addEventListener('resize', () => { if (window.innerWidth > 768) setOpen(false); });
+})();
