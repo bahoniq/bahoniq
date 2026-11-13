@@ -598,6 +598,18 @@ $('#copyTicket')?.addEventListener('click', async () => {
         chatForm?.dispatchEvent(new Event('submit', { cancelable: true }));
       }
     }
+
+    // Деловые шаблоны (Служебная записка, письмо, приказ)
+    const presetBtn = e.target.closest('.preset-btn');
+    if (presetBtn && presetBtn.dataset.insert) {
+      const wrapper = presetBtn.closest('.chat-wrapper');
+      const input = wrapper?.querySelector('textarea');
+      if (input) {
+        input.value = presetBtn.dataset.insert;
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    }
   });
 
   // Очистка диалога
