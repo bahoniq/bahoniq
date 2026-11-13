@@ -2788,7 +2788,7 @@ def build_analytics_pdf_v53(
     include_source_table: bool = False, orientation: str = "auto",
     ai_analysis: dict | None = None, report_profile: str = "Автоматически",
     audience: str = "Руководство",
-    report_depth: str = "Стандартный (5-6 стр)",
+    report_depth: str = "Полный аудит (Все категории, 8+ стр)",
 ) -> Path:
     """Адаптивный отчёт: страницы определяются показателями текущего файла."""
     if not matrix:
@@ -2799,7 +2799,7 @@ def build_analytics_pdf_v53(
         raise ValueError("В выбранном листе нет строк данных для отчёта.")
 
     depth = str(report_depth).casefold()
-    dimension_limit = 3 if "крат" in depth or "3-4" in depth else 5 if "стандарт" in depth or "5-6" in depth else 8
+    dimension_limit = 10 if ("полн" in depth or "8" in depth or "10" in depth) else (4 if "крат" in depth or "3-4" in depth else 6)
     dimensions = _v52_dimensions(analysis)[:dimension_limit]
     numeric = [
         c for c in analysis.get("numeric_columns", [])

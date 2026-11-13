@@ -484,6 +484,7 @@ async def analytics_generate(
     orientation: str = Form("auto"),
     report_profile: str = Form("Автоматически"),
     audience: str = Form("Руководство"),
+    report_depth: str = Form("Полный аудит (Все категории, 8+ стр)"),
 ):
     with _lock:
         session = _sessions.get(session_id)
@@ -502,6 +503,7 @@ async def analytics_generate(
             session["source"], sheet_name, title,
             session["directory"], description, include_source_table,
             orientation, formats, None, report_profile, audience,
+            None, report_depth,
         )
         files = {}
         for key, label in (("output_file", "pdf"), ("presentation_file", "pptx")):

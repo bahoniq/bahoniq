@@ -415,14 +415,14 @@ class ReportStudio:
             style="BIQ.Surface.TLabel",
         ).pack(anchor="w")
 
-        self.report_depth_var = tk.StringVar(value="Краткий (C-Level, 3-4 стр)")
+        self.report_depth_var = tk.StringVar(value="Полный аудит (Все категории, 8+ стр)")
         ttk.Combobox(
             parent,
             textvariable=self.report_depth_var,
             values=[
-                "Краткий (C-Level, 3-4 стр)",
-                "Стандартный (Управленческий, 5-6 стр)",
                 "Полный аудит (Все категории, 8+ стр)",
+                "Стандартный (Управленческий, 5-6 стр)",
+                "Краткий (C-Level, 3-4 стр)",
             ],
             state="readonly",
             style="BIQ.TCombobox",

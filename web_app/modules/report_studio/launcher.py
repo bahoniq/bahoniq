@@ -352,7 +352,7 @@ def generate_report(
     report_profile: str = "Автоматически",
     audience: str = "Руководство",
     ai_model: str | None = None,
-    report_depth: str = "Краткий (C-Level, 3-4 стр)",
+    report_depth: str = "Полный аудит (Все категории, 8+ стр)",
 ) -> dict[str, Any]:
     """
     Формирует аналитический PDF для выбранного листа.
