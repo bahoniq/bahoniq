@@ -105,8 +105,11 @@ async def auth_middleware(request: Request, call_next):
         return await call_next(request)
     
     path = request.url.path
-    # Разрешаем статику, favicon, логотип, health и эндпоинты авторизации
-    if path in {"/api/auth/login", "/api/auth/status", "/health"} or path.startswith("/assets/favicon") or path.startswith("/assets/logo"):
+    # Разрешаем статику, PWA манифест, service worker, health и эндпоинты авторизации
+    if (
+        path in {"/api/auth/login", "/api/auth/status", "/health", "/manifest.json", "/sw.js"}
+        or path.startswith("/assets/")
+    ):
         return await call_next(request)
     
     cookie_val = request.cookies.get(AUTH_COOKIE_NAME)
@@ -134,6 +137,14 @@ def auth_status(request: Request):
         return {"auth_required": False, "authenticated": True}
     is_auth = request.cookies.get(AUTH_COOKIE_NAME) == AUTH_TOKEN
     return {"auth_required": True, "authenticated": is_auth}
+
+@app.get("/manifest.json")
+def pwa_manifest():
+    return FileResponse(STATIC / "manifest.json", media_type="application/manifest+json")
+
+@app.get("/sw.js")
+def pwa_sw():
+    return FileResponse(STATIC / "sw.js", media_type="application/javascript")
 
 
 app.mount("/assets", StaticFiles(directory=STATIC), name="assets")
