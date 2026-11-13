@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=20261113_v7">
+  <link rel="stylesheet" href="/assets/app.css?v=20261113_v21_final">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
@@ -362,8 +362,18 @@
                   <button class="button primary wide" type="submit">Сформировать отчёт</button>
                 </aside>
                 <div class="preview-card">
-                  <div class="card-title"><div><h2>Предпросмотр данных</h2><span id="previewMeta">Файл не загружен</span></div><span class="scroll-badge" style="font-size:11px;color:var(--green-neon);background:rgba(13,148,136,0.1);padding:3px 8px;border-radius:12px;white-space:nowrap;">↔ Прокручивайте вправо</span></div>
+                  <div class="card-title"><div><h2>Предпросмотр данных</h2><span id="previewMeta">Файл не загружен</span></div>
+                    <div class="table-scroll-controls">
+                      <button type="button" class="table-scroll-btn btn-scroll-left" title="Сдвинуть влево">◀ Влево</button>
+                      <button type="button" class="table-scroll-btn btn-scroll-right" title="Сдвинуть вправо">Вправо ▶</button>
+                    </div>
+                  </div>
                   <div class="table-wrap"><table id="previewTable"><tbody><tr><td class="empty">После загрузки здесь появятся данные выбранного листа.</td></tr></tbody></table></div>
+                  <div class="mobile-table-actions">
+                    <button type="button" class="table-scroll-btn btn-scroll-left">◀ Влево</button>
+                    <span class="scroll-status">↔ Свайп или кнопки для просмотра всех колонок</span>
+                    <button type="button" class="table-scroll-btn btn-scroll-right">Вправо ▶</button>
+                  </div>
                   <div id="analyticsProgress" class="progress-panel hidden"><div class="progress-copy"><b id="progressLabel">BahonIQ AI анализирует данные</b><span id="progressPercent">0%</span></div><div class="progress-track"><span id="progressBar"></span></div></div>
                   <div id="analyticsResult" class="result-panel hidden"></div>
                 </div>
@@ -630,6 +640,6 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261113_v7"></script>
+  <script src="/assets/app.js?v=20261113_v21_final"></script>
 </body>
 </html>

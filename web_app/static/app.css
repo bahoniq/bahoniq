@@ -1229,11 +1229,26 @@ body.theme-day .academy-editor { color: #16322f; }
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
-    overflow-x: auto !important;
-    overflow-y: auto !important;
+    box-sizing: border-box !important;
+    overflow-x: scroll !important;
+    overflow-y: visible !important;
     -webkit-overflow-scrolling: touch !important;
-    touch-action: pan-x pan-y !important;
+    touch-action: pan-x !important;
     overscroll-behavior-x: contain !important;
+    scrollbar-width: thin;
+    scrollbar-color: var(--green-neon) rgba(255, 255, 255, 0.08);
+  }
+  .table-wrap::-webkit-scrollbar {
+    height: 10px !important;
+    display: block !important;
+  }
+  .table-wrap::-webkit-scrollbar-track {
+    background: rgba(20, 200, 193, 0.08) !important;
+    border-radius: 6px;
+  }
+  .table-wrap::-webkit-scrollbar-thumb {
+    background: var(--green-neon, #14c8c1) !important;
+    border-radius: 6px;
   }
   .table-wrap table, #previewTable {
     display: table !important;
@@ -1242,7 +1257,8 @@ body.theme-day .academy-editor { color: #16322f; }
   }
   .table-wrap th, .table-wrap td, #previewTable th, #previewTable td {
     white-space: nowrap !important;
-    min-width: 90px;
+    min-width: 110px !important;
+    padding: 10px 14px !important;
   }
   .pdf-layout { grid-template-columns: 1fr; }
 }
@@ -1257,4 +1273,56 @@ body.theme-day .academy-editor { color: #16322f; }
   .content-body { display: block; overflow: visible; flex: none; padding-bottom: 40px; }
   .dashboard-view, .module-host { height: auto; overflow: visible; }
   .sidebar { height: 100vh; height: 100dvh; }
+}
+
+
+/* Кнопки и панель горизонтальной прокрутки таблицы */
+.table-scroll-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.table-scroll-btn {
+  background: rgba(20, 200, 193, 0.16);
+  border: 1px solid var(--green-neon);
+  color: var(--text-main);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.table-scroll-btn:hover {
+  background: rgba(20, 200, 193, 0.28);
+}
+.table-scroll-btn:active {
+  transform: scale(0.94);
+  background: var(--green-neon);
+  color: #fff;
+}
+.mobile-table-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+.mobile-table-actions .scroll-status {
+  font-size: 12px;
+  color: var(--green-neon);
+  font-weight: 600;
+  text-align: center;
+  flex: 1;
 }

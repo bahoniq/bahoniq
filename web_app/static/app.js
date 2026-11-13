@@ -1096,3 +1096,92 @@ recForm?.addEventListener('submit', async e => {
   sb.addEventListener('click', e => { if (e.target.closest('a.system-item')) setOpen(false); });
   window.addEventListener('resize', () => { if (window.innerWidth > 768) setOpen(false); });
 })();
+
+
+// Обработка горизонтальной прокрутки таблицы кнопками и пальцем
+(function initTableScrollHelper() {
+  function scrollWrap(wrap, delta) {
+    if (!wrap) return;
+    try {
+      wrap.scrollBy({ left: delta, behavior: 'smooth' });
+    } catch (e) {
+      wrap.scrollLeft += delta;
+    }
+  }
+
+  function handleScrollBtn(target) {
+    const btn = target.closest('.btn-scroll-left, .btn-scroll-right');
+    if (!btn) return false;
+    const isLeft = btn.classList.contains('btn-scroll-left');
+    const delta = isLeft ? -280 : 280;
+    const wrap = btn.closest('.preview-card, #analytics, .tab-page, .module-page')?.querySelector('.table-wrap') || document.querySelector('.table-wrap');
+    if (wrap) {
+      scrollWrap(wrap, delta);
+    }
+    return true;
+  }
+
+  // Клик по кнопкам Влево / Вправо
+  document.addEventListener('click', (e) => {
+    handleScrollBtn(e.target);
+  });
+
+  // Сенсорное перетаскивание таблицы пальцем (touch drag)
+  function bindTouch(wrap) {
+    if (!wrap || wrap._touchReady) return;
+    wrap._touchReady = true;
+
+    let startX = 0, startY = 0, startScroll = 0, isDragging = false, isHorizontal = false;
+
+    wrap.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      startScroll = wrap.scrollLeft;
+      isDragging = true;
+      isHorizontal = false;
+    }, { passive: true });
+
+    wrap.addEventListener('touchmove', (e) => {
+      if (!isDragging || e.touches.length !== 1) return;
+      const x = e.touches[0].clientX;
+      const y = e.touches[0].clientY;
+      const diffX = startX - x;
+      const diffY = startY - y;
+
+      if (!isHorizontal) {
+        if (Math.abs(diffX) > 6 && Math.abs(diffX) > Math.abs(diffY)) {
+          isHorizontal = true;
+        } else if (Math.abs(diffY) > 8) {
+          isDragging = false;
+          return;
+        }
+      }
+
+      if (isHorizontal) {
+        wrap.scrollLeft = startScroll + diffX;
+        if (e.cancelable) e.preventDefault();
+      }
+    }, { passive: false });
+
+    const endDrag = () => { isDragging = false; isHorizontal = false; };
+    wrap.addEventListener('touchend', endDrag, { passive: true });
+    wrap.addEventListener('touchcancel', endDrag, { passive: true });
+
+    // Индикатор прокрутки
+    wrap.addEventListener('scroll', () => {
+      const max = wrap.scrollWidth - wrap.clientWidth;
+      const ind = wrap.parentElement?.querySelector('.scroll-status');
+      if (ind && max > 0) {
+        const pct = Math.round((wrap.scrollLeft / max) * 100);
+        ind.textContent = `↔ Прокрутка: ${pct}% ${pct >= 95 ? '(конец)' : pct <= 5 ? '(начало)' : ''}`;
+      }
+    }, { passive: true });
+  }
+
+  function rebind() {
+    document.querySelectorAll('.table-wrap').forEach(bindTouch);
+  }
+  rebind();
+  setInterval(rebind, 1200);
+})();
