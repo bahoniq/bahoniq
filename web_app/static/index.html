@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=20261113_v21_final">
+  <link rel="stylesheet" href="/assets/app.css?v=20261113_v25_mobile_layout_perfect">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
@@ -427,7 +427,7 @@
                   <p style="font-size:13px;color:var(--text-muted);margin:0;">Сравнение двух файлов по ИИН и ФИО с автоматическим формированием 5-вкладочного Excel-отчёта (Сводка, Все неповторяющиеся, Только в Файле 1, Только в Файле 2, Совпавшие).</p>
                 </div>
 
-                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:16px;margin-bottom:16px;">
+                <div class="reconcile-files-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:16px;margin-bottom:16px;">
                   <div class="reconcile-file-box">
                     <label style="display:block;margin-bottom:6px;font-size:13px;color:var(--text-main);font-weight:600;">Файл 1 (например, деканат / 3000+ ст.)</label>
                     <label class="file-drop" id="reconcileDrop1" style="margin-bottom:0;padding:24px;">
@@ -647,7 +647,7 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261113_v21_final"></script>
+  <script src="/assets/app.js?v=20261113_v25_mobile_layout_perfect"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
