@@ -14,7 +14,7 @@ import os
 import threading
 import urllib.error
 import urllib.request
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 LOGGER = logging.getLogger("bahoniq.ai_service")
 
@@ -189,6 +189,105 @@ def generate_text(
             "Не удалось получить ответ от ИИ: облачный Gemini недоступен, "
             f"а локальная Ollama вернула ошибку: {exc}"
         ) from exc
+
+
+def generate_text_stream(
+    prompt: str,
+    system_instruction: str = "",
+    temperature: float = 0.2,
+    timeout: int = 45,
+    system_prompt: str = "",
+    ollama_model: str = "",
+) -> Iterator[str]:
+    """Потоковая генерация текста (Streaming / SSE) через Gemini или Ollama fallback."""
+    sys_inst = system_instruction or system_prompt
+    client = get_gemini_client()
+
+    if client:
+        config = {}
+        if sys_inst:
+            config["system_instruction"] = sys_inst
+        if temperature is not None:
+            config["temperature"] = temperature
+
+        from google.genai import types
+        gen_config = types.GenerateContentConfig(**config) if config else None
+
+        models_to_try = [GEMINI_MODEL]
+        for candidate in ("gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash"):
+            if candidate not in models_to_try:
+                models_to_try.append(candidate)
+
+        for current_model in models_to_try:
+            try:
+                stream_iter = client.models.generate_content_stream(
+                    model=current_model,
+                    contents=prompt,
+                    config=gen_config,
+                )
+                yielded_any = False
+                for chunk in stream_iter:
+                    if chunk and chunk.text:
+                        yielded_any = True
+                        yield chunk.text
+                if yielded_any:
+                    return
+            except Exception as exc:
+                LOGGER.warning("Gemini stream (%s) ошибка: %s", current_model, exc)
+
+        LOGGER.warning("Все облачные стримы Gemini временно недоступны. Активируем fallback...")
+
+    # Fallback на Ollama со стримингом
+    try:
+        url = f"{OLLAMA_HOST}/api/generate"
+        payload = {
+            "model": ollama_model or OLLAMA_MODEL,
+            "prompt": prompt,
+            "system": sys_inst,
+            "stream": True,
+            "options": {
+                "temperature": temperature,
+                "num_predict": 1000,
+            },
+        }
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            for line in resp:
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line.decode("utf-8", errors="replace"))
+                    part = obj.get("response", "")
+                    if part:
+                        yield part
+                    if obj.get("done", False):
+                        break
+                except Exception:
+                    continue
+        return
+    except Exception as exc:
+        LOGGER.warning("Ollama stream fallback ошибка: %s", exc)
+
+    # Крайний fallback: синхронный generate_text
+    try:
+        full = generate_text(
+            prompt=prompt,
+            system_instruction=sys_inst,
+            temperature=temperature,
+            timeout=timeout,
+            ollama_model=ollama_model,
+        )
+        if isinstance(full, tuple):
+            full = full[0]
+        yield full
+    except Exception as final_exc:
+        raise RuntimeError(f"Не удалось выполнить генерацию: {final_exc}") from final_exc
 
 
 def generate_text_async(

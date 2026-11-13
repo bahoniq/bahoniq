@@ -10,13 +10,14 @@ from __future__ import annotations
 import json
 from difflib import SequenceMatcher
 import os
+import logging
 import queue
 import re
 import threading
 import time
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Iterator
 
 try:
     import tkinter as tk
@@ -445,6 +446,40 @@ def generate_ticket(problem: str) -> dict[str, str]:
         result = _fallback_ticket(clean)
         result["warning"] = str(exc).strip().splitlines()[0]
         return result
+
+
+def generate_ticket_stream(problem: str) -> Iterator[str]:
+    """Генерация заявки с потоковым выводом текста (SSE).
+    
+    События:
+      data: {"type": "chunk", "text": "..."}\n\n
+      data: {"type": "done", "title": "...", "description": "...", "full_text": "..."}\n\n
+      data: {"type": "error", "error": "..."}\n\n
+    """
+    clean = _clean_text(problem)
+    if len(clean) < 5:
+        yield f"data: {json.dumps({'type': 'error', 'error': 'Опишите задачу или проблему хотя бы одним предложением.'}, ensure_ascii=False)}\n\n"
+        return
+
+    from ai_service import generate_text_stream
+    chunks = []
+    try:
+        stream = generate_text_stream(
+            prompt=f"Обращение пользователя:\n{clean}",
+            system_prompt=SYSTEM_PROMPT,
+            temperature=0.3,
+        )
+        for chunk in stream:
+            if chunk:
+                chunks.append(chunk)
+                yield f"data: {json.dumps({'type': 'chunk', 'text': chunk}, ensure_ascii=False)}\n\n"
+
+        full_text = "".join(chunks).strip()
+        title, description = _parse_ticket_response(full_text)
+        yield f"data: {json.dumps({'type': 'done', 'title': title[:180], 'description': description or full_text, 'full_text': full_text}, ensure_ascii=False)}\n\n"
+    except Exception as exc:
+        fb = _fallback_ticket(problem)
+        yield f"data: {json.dumps({'type': 'done', 'title': fb['title'], 'description': fb['description'], 'full_text': fb['description'], 'warning': str(exc)}, ensure_ascii=False)}\n\n"
 
 
 class TicketWriterWindow:

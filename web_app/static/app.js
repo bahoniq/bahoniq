@@ -195,6 +195,58 @@ const pdfOps = {
 };
 let pdfOperation = "pdf_word";
 
+// Потоковое чтение SSE (Server-Sent Events) для мгновенного стриминга ИИ
+async function consumeSSE(url, formData, onChunk, onDone, onError) {
+  try {
+    const res = await fetch(url, { credentials: 'same-origin', method: 'POST', body: formData });
+    if (!res.ok) {
+      const errText = await res.text();
+      let msg = res.statusText;
+      try { const j = JSON.parse(errText); if (j.detail) msg = j.detail; } catch (_) { msg = errText || msg; }
+      throw new Error(msg);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let doneEventReceived = false;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const jsonStr = trimmed.slice(5).trim();
+        if (!jsonStr) continue;
+        try {
+          const payload = JSON.parse(jsonStr);
+          if (payload.type === 'chunk' && payload.text) {
+            if (onChunk) onChunk(payload.text);
+          } else if (payload.type === 'done') {
+            doneEventReceived = true;
+            if (onDone) onDone(payload);
+          } else if (payload.type === 'error') {
+            throw new Error(payload.error || 'Ошибка генерации');
+          }
+        } catch (parseErr) {
+          if (parseErr.message && !parseErr.message.includes('JSON')) {
+            throw parseErr;
+          }
+        }
+      }
+    }
+    if (!doneEventReceived && onDone) {
+      onDone({});
+    }
+  } catch (err) {
+    if (onError) onError(err);
+  }
+}
+
 async function api(url, options = {}) {
   const r = await fetch(url, options);
   let data = {};
@@ -464,18 +516,46 @@ $('#pdfForm')?.addEventListener('submit', async e => {
 $('#ticketForm')?.addEventListener('submit', async e => {
   e.preventDefault();
   const b = e.submitter, fd = new FormData();
-  fd.append('problem', $('#ticketProblem').value);
-  setBusy(b, true, 'BahonIQ AI структурирует заявку…');
-  try {
-    const data = await api('/api/tickets/generate', { method: 'POST', body: fd });
-    $('#ticketTitle').value = data.title || '';
-    $('#ticketDescription').value = data.description || '';
-    showResult($('#ticketResult'), 'Заявка сформирована BahonIQ AI без лишних слов.');
-  } catch (err) {
-    showResult($('#ticketResult'), esc(err.message), true);
-  } finally {
-    setBusy(b, false);
-  }
+  const problemVal = $('#ticketProblem').value.trim();
+  if (!problemVal) return;
+  fd.append('problem', problemVal);
+  setBusy(b, true, '⚡ BahonIQ AI печатает в реальном времени…');
+
+  const titleInput = $('#ticketTitle');
+  const descInput = $('#ticketDescription');
+  const resPanel = $('#ticketResult');
+  titleInput.value = '';
+  descInput.value = '';
+  showResult(resPanel, '⚡ <i>Стриминг: ответ появляется мгновенно по токенам…</i>');
+
+  let streamText = '';
+  await consumeSSE(
+    '/api/tickets/generate_stream',
+    fd,
+    (chunk) => {
+      streamText += chunk;
+      descInput.value = streamText;
+      descInput.scrollTop = descInput.scrollHeight;
+    },
+    (doneData) => {
+      setBusy(b, false);
+      if (doneData.title) titleInput.value = doneData.title;
+      if (doneData.description) descInput.value = doneData.description;
+      showResult(resPanel, '✅ Заявка сформирована BahonIQ AI (мгновенный стриминг).');
+    },
+    async (err) => {
+      try {
+        const data = await api('/api/tickets/generate', { method: 'POST', body: fd });
+        titleInput.value = data.title || '';
+        descInput.value = data.description || '';
+        showResult(resPanel, 'Заявка сформирована BahonIQ AI.');
+      } catch (fbErr) {
+        showResult(resPanel, esc(fbErr.message || err.message), true);
+      } finally {
+        setBusy(b, false);
+      }
+    }
+  );
 });
 
 $('#copyTicket')?.addEventListener('click', async () => {
@@ -704,22 +784,44 @@ $('#academyMentorAsk')?.addEventListener('click', async () => {
   const item = academy[activeKind]?.[academySelection[activeKind]];
   const button = $('#academyMentorAsk');
   const answer = $('#academyMentorAnswer');
-  setBusy(button, true, 'Думаю…');
-  try {
-    const fd = new FormData();
-    fd.append('question', question);
-    fd.append('mode', $('#academyMentorMode')?.value || 'hint');
-    fd.append('code', $('#' + activeKind + 'Code')?.value || '');
-    fd.append('chapter', item?.title || 'Code Academy');
-    const data = await api('/api/academy/ask', { method: 'POST', body: fd });
-    answer.textContent = data.answer || 'Ответ не получен.';
-    answer.classList.remove('hidden');
-    const prov = $('#academyMentorProvider');
-    if (prov && data.provider_label) prov.textContent = data.provider_label;
-  } catch (e) {
-    answer.textContent = e.message;
-    answer.classList.remove('hidden');
-  } finally { setBusy(button, false); }
+  setBusy(button, true, '⚡ Наставник печатает…');
+  answer.textContent = '';
+  answer.classList.remove('hidden');
+
+  const fd = new FormData();
+  fd.append('question', question);
+  fd.append('mode', $('#academyMentorMode')?.value || 'hint');
+  fd.append('code', $('#' + activeKind + 'Code')?.value || '');
+  fd.append('chapter', item?.title || 'Code Academy');
+
+  let streamAns = '';
+  await consumeSSE(
+    '/api/academy/ask_stream',
+    fd,
+    (chunk) => {
+      streamAns += chunk;
+      answer.textContent = streamAns;
+      answer.scrollTop = answer.scrollHeight;
+    },
+    (doneData) => {
+      setBusy(button, false);
+      if (doneData.answer) answer.textContent = doneData.answer;
+      const prov = $('#academyMentorProvider');
+      if (prov && doneData.provider_label) prov.textContent = doneData.provider_label;
+    },
+    async (err) => {
+      try {
+        const data = await api('/api/academy/ask', { method: 'POST', body: fd });
+        answer.textContent = data.answer || 'Ответ не получен.';
+        const prov = $('#academyMentorProvider');
+        if (prov && data.provider_label) prov.textContent = data.provider_label;
+      } catch (fbErr) {
+        answer.textContent = fbErr.message || err.message;
+      } finally {
+        setBusy(button, false);
+      }
+    }
+  );
 });
 
 loadPhonebook();

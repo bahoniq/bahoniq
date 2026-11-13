@@ -13,7 +13,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
@@ -24,7 +24,7 @@ from .modules.excel_ai.operations import execute_operations, plan_operations
 from .modules.excel_ai.comparison import _read_book, reconcile_students, save_student_reconciliation_report
 from .modules.report_studio.launcher import generate_report, inspect_excel
 from .modules.report_studio.fast_inspector import fast_inspect_excel
-from .modules.ticket_writer import generate_ticket
+from .modules.ticket_writer import generate_ticket, generate_ticket_stream
 from .modules.phonebook import SEED_CONTACTS
 from .modules.code_academy.professional_curriculum import lessons as academy_lessons
 from .modules.code_academy.architecture_book import CHAPTERS, chapter_reading, chapter_source
@@ -241,6 +241,23 @@ async def tickets_generate(problem: str = Form(...)):
         return await run_in_threadpool(generate_ticket, problem)
     except Exception as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/tickets/generate_stream")
+def tickets_generate_stream(problem: str = Form(...)):
+    """Потоковая генерация заявки через SSE (Server-Sent Events)."""
+    problem = problem.strip()
+    if not problem:
+        raise HTTPException(400, "Опишите проблему.")
+    return StreamingResponse(
+        generate_ticket_stream(problem),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/api/notes")
@@ -967,6 +984,33 @@ async def academy_ask(
                 "provider_label": PROVIDER_LABELS.get(provider, provider)}
     except Exception as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/academy/ask_stream")
+def academy_ask_stream(
+    question: str = Form(...),
+    mode: str = Form("hint"),
+    code: str = Form(""),
+    chapter: str = Form(""),
+):
+    """Потоковый ИИ-Ментор Code Academy через SSE (Server-Sent Events)."""
+    question = question.strip()
+    if not question:
+        raise HTTPException(400, "Задайте вопрос ментору.")
+    from .modules.code_academy.ai_tutor import ask_tutor_stream
+    return StreamingResponse(
+        ask_tutor_stream(
+            question=question,
+            mode=mode,
+            context={"code": code, "lesson": chapter, "area": "Code Academy"},
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 if __name__ == "__main__":
