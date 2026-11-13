@@ -5,7 +5,7 @@
 from pathlib import Path
 
 APP_TITLE = "ANALYTICS AI"
-APP_VERSION = "5.0.1"
+APP_VERSION = "5.4.3 VECTOR COHORTS"
 
 SUPPORTED_EXTENSIONS = {".xlsx", ".xlsm", ".xls"}
 

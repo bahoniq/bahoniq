@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from collections import Counter
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,8 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.graphics.shapes import Circle, Drawing, Line, Rect, String
+from reportlab.graphics.charts.doughnut import Doughnut
 from reportlab.platypus import (
     CondPageBreak,
     Image,
@@ -2023,65 +2026,139 @@ V51_PALETTE = ["#11B5AE", "#183153", "#E84C4C", "#F2C230", "#5B8FF9", "#8A70C9"]
 
 def _v51_chart(kind: str, labels: list[str], values: list[float], width: float,
                height: float, title: str = ""):
-    """Compact infographic chart with stable BahonIQ styling."""
+    """Vector infographic chart with stable BahonIQ styling.
+
+    ReportLab drawings stay sharp at any PDF zoom level.  Do not replace this
+    with raster PNG export: large landscape pages make even high-DPI labels
+    visibly softer than surrounding text.
+    """
     if not labels or not values:
         return Spacer(1, height)
     try:
-        import io
         import textwrap
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        from matplotlib.ticker import FuncFormatter
-        plt.rcParams["font.family"] = "DejaVu Sans"
-        fig, ax = plt.subplots(figsize=(8.2, 4.3), facecolor="white")
         labels = [str(x) for x in labels]
         values = [float(x or 0) for x in values]
+        drawing = Drawing(width, height)
+        palette = [colors.HexColor(value) for value in V51_PALETTE]
+        navy = colors.HexColor("#183153")
+        muted = colors.HexColor("#667085")
+        grid = colors.HexColor("#E7EBF0")
+
+        if title:
+            drawing.add(String(
+                2, height - 12, title, fontName=FONT_BOLD,
+                fontSize=10, fillColor=navy,
+            ))
+
         if kind == "donut":
-            count = min(6, len(values)); labels, values = labels[:count], values[:count]
-            wedges, _ = ax.pie(values, startangle=90, counterclock=False,
-                               colors=V51_PALETTE[:count], wedgeprops={"width": .34, "edgecolor": "white"})
-            total = sum(values)
-            ax.text(0, .08, f"{total:,.0f}".replace(",", " "), ha="center", va="center",
-                    fontsize=18, weight="bold", color="#183153")
-            ax.text(0, -.15, "записей", ha="center", va="center", fontsize=8, color="#667085")
-            legend = [f"{label[:32]} — {value * 100 / total:.1f}%" for label, value in zip(labels, values)] if total else labels
-            ax.legend(wedges, legend, loc="center left", bbox_to_anchor=(.98, .5), frameon=False, fontsize=7)
-            ax.axis("equal")
+            count = min(6, len(values))
+            labels, values = labels[:count], values[:count]
+            total = sum(values) or 1
+            size = min(height - 34, width * .47)
+            pie = Doughnut()
+            pie.x = 8
+            pie.y = max(8, (height - size) / 2 - 4)
+            pie.width = size
+            pie.height = size
+            pie.data = values
+            pie.labels = [""] * count
+            pie.startAngle = 90
+            pie.direction = "clockwise"
+            for index in range(count):
+                pie.slices[index].fillColor = palette[index % len(palette)]
+                pie.slices[index].strokeColor = colors.white
+                pie.slices[index].strokeWidth = .8
+            drawing.add(pie)
+            center_x = pie.x + size / 2
+            center_y = pie.y + size / 2
+            drawing.add(String(
+                center_x, center_y + 4,
+                _format_number(sum(values)), fontName=FONT_BOLD,
+                fontSize=14, textAnchor="middle", fillColor=navy,
+            ))
+            drawing.add(String(
+                center_x, center_y - 10, "записей", fontName=FONT_REGULAR,
+                fontSize=7.5, textAnchor="middle", fillColor=muted,
+            ))
+            legend_x = size + 30
+            legend_y = height - 34
+            for index, (label, value) in enumerate(zip(labels, values)):
+                y = legend_y - index * 22
+                drawing.add(Rect(legend_x, y - 7, 9, 9, fillColor=palette[index % len(palette)], strokeColor=None))
+                shown = label if len(label) <= 34 else label[:31] + "…"
+                drawing.add(String(
+                    legend_x + 14, y, f"{shown} — {value * 100 / total:.1f}%",
+                    fontName=FONT_REGULAR, fontSize=7.5,
+                    fillColor=navy,
+                ))
         elif kind == "gauge":
             total = sum(values) or 1
-            left = 0
+            left = 8.0
+            bar_y = height * .48
+            bar_width = width - 16
             for i, (label, value) in enumerate(zip(labels, values)):
                 share = value * 100 / total
-                ax.barh([0], [share], left=[left], color=V51_PALETTE[i % len(V51_PALETTE)], height=.42)
+                segment = bar_width * share / 100
+                drawing.add(Rect(left, bar_y, segment, 24, fillColor=palette[i % len(palette)], strokeColor=None))
                 if share >= 8:
-                    ax.text(left + share / 2, 0, f"{share:.1f}%", ha="center", va="center",
-                            fontsize=10, color="white", weight="bold")
-                left += share
-            ax.set_xlim(0, 100); ax.set_ylim(-.7, .7); ax.set_yticks([])
-            ax.set_xticks([0, 25, 50, 75, 100]); ax.set_xticklabels(["0%", "25%", "50%", "75%", "100%"], fontsize=7)
-            ax.legend(labels, loc="upper center", bbox_to_anchor=(.5, -.25), ncol=2, frameon=False, fontsize=7)
-            for spine in ax.spines.values(): spine.set_visible(False)
+                    drawing.add(String(
+                        left + segment / 2, bar_y + 8, f"{share:.1f}%",
+                        fontName=FONT_BOLD, fontSize=8, textAnchor="middle",
+                        fillColor=colors.white,
+                    ))
+                left += segment
         else:
-            count = min(9, len(values)); labels, values = labels[:count][::-1], values[:count][::-1]
-            wrapped = ["\n".join(textwrap.wrap(x, 34)[:2]) for x in labels]
-            bars = ax.barh(range(count), values, color=[V51_PALETTE[i % 4] for i in range(count)])
-            ax.set_yticks(range(count)); ax.set_yticklabels(wrapped, fontsize=7)
-            ax.grid(axis="x", alpha=.16); ax.set_axisbelow(True)
-            ax.tick_params(axis="x", labelsize=7)
-            ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _pos: _compact_number(x)))
-            for bar, value in zip(bars, values):
-                ax.text(bar.get_width(), bar.get_y() + bar.get_height()/2,
-                        "  " + _compact_number(value), va="center", fontsize=7, color="#183153")
-            for spine in ("top", "right", "left"): ax.spines[spine].set_visible(False)
-        if title:
-            ax.set_title(title, loc="left", fontsize=11, weight="bold", color="#183153", pad=10)
-        fig.tight_layout()
-        buf = io.BytesIO(); fig.savefig(buf, format="png", dpi=160, bbox_inches="tight", facecolor="white")
-        plt.close(fig); buf.seek(0)
-        return Image(buf, width=width, height=height, kind="proportional")
+            # Date pages may contain up to twelve annual cohorts.  Keeping the
+            # old nine-item cap made the explanatory sentence mention recent
+            # years that were silently absent from the chart.
+            count = min(12, len(values))
+            labels, values = labels[:count], values[:count]
+            max_value = max(values) or 1
+            top_pad = 24 if title else 8
+            bottom_pad = 12
+            label_width = width * .37
+            plot_x = label_width + 8
+            plot_width = width - plot_x - 44
+            plot_height = height - top_pad - bottom_pad
+            row_height = plot_height / max(count, 1)
+            bar_height = min(20, row_height * .58)
+            for tick in range(5):
+                x = plot_x + plot_width * tick / 4
+                drawing.add(Line(x, bottom_pad, x, height - top_pad, strokeColor=grid, strokeWidth=.6))
+            for index, (label, value) in enumerate(zip(labels, values)):
+                center_y = height - top_pad - row_height * (index + .5)
+                bar_y = center_y - bar_height / 2
+                bar_width = max(1, plot_width * value / max_value)
+                drawing.add(Rect(
+                    plot_x, bar_y, bar_width, bar_height,
+                    fillColor=palette[index % 4], strokeColor=None,
+                ))
+                wrapped = textwrap.wrap(label, 34)[:2] or [label]
+                if len(wrapped) == 1:
+                    drawing.add(String(
+                        plot_x - 7, center_y - 3, wrapped[0],
+                        fontName=FONT_REGULAR, fontSize=7.6,
+                        textAnchor="end", fillColor=navy,
+                    ))
+                else:
+                    drawing.add(String(
+                        plot_x - 7, center_y + 2, wrapped[0],
+                        fontName=FONT_REGULAR, fontSize=7.1,
+                        textAnchor="end", fillColor=navy,
+                    ))
+                    drawing.add(String(
+                        plot_x - 7, center_y - 8, wrapped[1],
+                        fontName=FONT_REGULAR, fontSize=7.1,
+                        textAnchor="end", fillColor=navy,
+                    ))
+                drawing.add(String(
+                    min(plot_x + bar_width + 5, width - 40), center_y - 3,
+                    _compact_number(value), fontName=FONT_REGULAR,
+                    fontSize=7.8, fillColor=navy,
+                ))
+        return drawing
     except Exception:
-        LOGGER.debug("V5.1 chart failed", exc_info=True)
+        LOGGER.exception("V5.1 vector chart failed")
         return Spacer(1, height)
 
 
@@ -2235,16 +2312,24 @@ build_analytics_pdf = build_analytics_pdf_v51
 def _v52_dimensions(analysis: dict[str, Any]) -> list[dict[str, Any]]:
     """Selects real categorical dimensions without assuming a business domain."""
     result = []
+    low_information = []
     for column in analysis.get("categorical_columns", []):
         stats = column.get("statistics", {}) or {}
         unique = int(stats.get("unique_count", 0) or 0)
         if column.get("reportable") and 2 <= unique <= 100 and _v51_top(column, 1):
-            result.append(column)
+            if column.get("duplicate_of"):
+                continue
+            if column.get("low_information"):
+                low_information.append(column)
+            else:
+                result.append(column)
     result.sort(key=lambda c: (
         int(c.get("statistics", {}).get("unique_count", 0) or 0) > 20,
         -float(c.get("statistics", {}).get("top_value_percent", 0) or 0),
     ))
-    return result
+    # Почти постоянный показатель показываем только когда других содержательных
+    # разрезов нет. Иначе он остаётся в аудите как контроль исключений.
+    return result or low_information[:1]
 
 
 def _v52_fact(column: dict[str, Any], total: int) -> tuple[str, float, float]:
@@ -2546,11 +2631,14 @@ def _v54_story_for_column(
                     continue
             best = {
                 "story_type": _safe_text(raw.get("story_type"), 40),
-                "headline": _safe_text(raw.get("headline"), 180),
-                "evidence": _safe_text(raw.get("evidence"), 500),
-                "interpretation": _safe_text(raw.get("interpretation"), 650),
-                "limitation": _safe_text(raw.get("limitation"), 500),
-                "action": _safe_text(raw.get("action"), 500),
+                "headline": _safe_text(raw.get("headline"), 150),
+                "evidence": _safe_text(raw.get("evidence"), 300),
+                # Карточки находятся рядом с диаграммой. Длинный текст делает
+                # единственную строку Table выше страницы, после чего ReportLab
+                # выбрасывает LayoutError вместо готового отчёта.
+                "interpretation": _safe_text(raw.get("interpretation"), 260),
+                "limitation": _safe_text(raw.get("limitation"), 180),
+                "action": _safe_text(raw.get("action"), 220),
             }
             break
     return best
@@ -2574,12 +2662,133 @@ def _v53_numeric_takeaway(column: dict[str, Any]) -> str:
     )
 
 
+def _v54_cross_analysis(analysis: dict[str, Any]) -> dict[str, Any] | None:
+    """Selects one evidence-rich categorical cross-tab for the report."""
+    columns = [
+        column for column in analysis.get("categorical_columns", [])
+        if column.get("reportable") and not column.get("duplicate_of")
+        and not column.get("low_information")
+        and 2 <= int(column.get("unique_count", 0) or 0) <= 25
+    ]
+    rows = analysis.get("rows", []) or []
+    if len(columns) < 2 or not rows:
+        return None
+
+    def priority(name: str, primary: bool) -> int:
+        folded = name.casefold()
+        if primary:
+            markers = ("факульт", "школ", "подраздел", "программ", "специаль", "степен", "курс", "отдел", "регион")
+        else:
+            markers = ("финанс", "оплат", "грант", "форм", "пол", "язык", "статус", "граждан")
+        return 8 if any(marker in folded for marker in markers) else 0
+
+    best: tuple[float, dict[str, Any]] | None = None
+    for primary in columns:
+        p_unique = int(primary.get("unique_count", 0) or 0)
+        if not 2 <= p_unique <= 20:
+            continue
+        for secondary in columns:
+            if secondary is primary:
+                continue
+            s_unique = int(secondary.get("unique_count", 0) or 0)
+            if not 2 <= s_unique <= 8:
+                continue
+            pi, si = int(primary["index"]), int(secondary["index"])
+            counts: dict[str, Counter] = {}
+            global_counts: Counter = Counter()
+            for row in rows:
+                if pi >= len(row) or si >= len(row):
+                    continue
+                left = _safe_text(row[pi], 100)
+                right = _safe_text(row[si], 100)
+                if not left or not right:
+                    continue
+                counts.setdefault(left, Counter())[right] += 1
+                global_counts[right] += 1
+            if len(counts) < 2 or len(global_counts) < 2:
+                continue
+            leaders = []
+            for bucket in counts.values():
+                total = sum(bucket.values())
+                leaders.append(max(bucket.values()) * 100 / total if total else 0)
+            variation = max(leaders) - min(leaders) if leaders else 0
+            score = priority(str(primary.get("name", "")), True)
+            score += priority(str(secondary.get("name", "")), False)
+            score += min(12.0, variation / 2)
+            score -= max(0, p_unique - 12) * .4
+            payload = {
+                "primary": primary,
+                "secondary": secondary,
+                "counts": counts,
+                "global_counts": global_counts,
+                "variation": round(variation, 1),
+            }
+            if best is None or score > best[0]:
+                best = (score, payload)
+    return best[1] if best else None
+
+
+def _v54_cross_table(cross: dict[str, Any], styles, width: float) -> tuple[Table, str]:
+    counts = cross["counts"]
+    secondary_values = [name for name, _ in cross["global_counts"].most_common(4)]
+    primary_values = sorted(counts, key=lambda name: -sum(counts[name].values()))[:6]
+    header = [_safe_text(cross["primary"].get("name"), 35)] + secondary_values + ["Всего"]
+    data: list[list[Any]] = [header]
+    for primary_value in primary_values:
+        bucket = counts[primary_value]
+        total = sum(bucket.values())
+        row: list[Any] = [_safe_text(primary_value, 45)]
+        for secondary_value in secondary_values:
+            count = int(bucket.get(secondary_value, 0))
+            row.append(f"{_format_number(count)}\n{count * 100 / total:.1f}%" if total else "0")
+        row.append(_format_number(total))
+        data.append(row)
+    col_widths = [width * .28] + [width * .14] * len(secondary_values) + [width * .12]
+    table = _table(data, widths=col_widths, font_size=7)
+    conclusion = (
+        f"Состав по показателю «{_safe_text(cross['secondary'].get('name'), 80)}» "
+        f"различается между группами «{_safe_text(cross['primary'].get('name'), 80)}». "
+        f"Разброс доли ведущей категории достигает {cross['variation']:.1f} п.п."
+    )
+    return table, conclusion
+
+
+def _v54_select_dates(analysis: dict[str, Any]) -> list[dict[str, Any]]:
+    """Keeps only date views that are meaningful for a current snapshot.
+
+    A roster of active students is not a ten-year observation period.  Admission
+    dates describe cohorts, while birth dates describe age.  Showing both
+    admission date fields usually duplicates the same story, so keep one cohort
+    view and one age view.
+    """
+    columns = analysis.get("date_columns", []) or []
+    age_columns = [
+        column for column in columns
+        if (column.get("statistics", {}) or {}).get("age_statistics")
+    ]
+    cohort_columns = [
+        column for column in columns
+        if not (column.get("statistics", {}) or {}).get("age_statistics")
+        and 2 <= len((column.get("statistics", {}) or {}).get("year_counts", []) or []) <= 15
+    ]
+
+    def cohort_priority(column: dict[str, Any]) -> tuple[int, int]:
+        name = str(column.get("name", "")).casefold()
+        rank = 0 if "поступ" in name else 1 if "зачис" in name else 2
+        years = len((column.get("statistics", {}) or {}).get("year_counts", []) or [])
+        return rank, years
+
+    cohort_columns.sort(key=cohort_priority)
+    return cohort_columns[:1] + age_columns[:1]
+
+
 def build_analytics_pdf_v53(
     matrix: list[list], title: str, source_name: str = "", sheet_name: str = "",
     output_dir: str | Path | None = None, description: str = "",
     include_source_table: bool = False, orientation: str = "auto",
     ai_analysis: dict | None = None, report_profile: str = "Автоматически",
     audience: str = "Руководство",
+    report_depth: str = "Стандартный (5-6 стр)",
 ) -> Path:
     """Адаптивный отчёт: страницы определяются показателями текущего файла."""
     if not matrix:
@@ -2589,13 +2798,15 @@ def build_analytics_pdf_v53(
     if total <= 0:
         raise ValueError("В выбранном листе нет строк данных для отчёта.")
 
-    dimensions = _v52_dimensions(analysis)[:6]
+    depth = str(report_depth).casefold()
+    dimension_limit = 3 if "крат" in depth or "3-4" in depth else 5 if "стандарт" in depth or "5-6" in depth else 8
+    dimensions = _v52_dimensions(analysis)[:dimension_limit]
     numeric = [
         c for c in analysis.get("numeric_columns", [])
         if c.get("reportable") and not c.get("identifier_like")
         and int((c.get("statistics", {}) or {}).get("count", 0) or 0) > 1
     ][:6]
-    dates = [c for c in analysis.get("date_columns", []) if c.get("reportable")][:3]
+    dates = _v54_select_dates(analysis)
     label_column = _v53_label_column(analysis)
 
     out = Path(output_dir).expanduser() if output_dir else Path.home() / "Documents" / "BahonIQ Reports"
@@ -2619,11 +2830,14 @@ def build_analytics_pdf_v53(
         f"Анализ {total} записей: структура, числовые показатели, "
         "лидеры, отклонения и доказательные выводы"
     )
+    visible_profile = _safe_text(report_profile, 120) or "Аналитический отчёт"
+    if any(marker in visible_profile.casefold() for marker in ("qwen", "ollama", "ии", "ai")):
+        visible_profile = "Аналитический отчёт"
     cover = [
         Paragraph(_escape(display_title, 180), styles["CoverTitleLightCustom"]),
         Paragraph(_escape(subtitle, 420), styles["CoverSubtitleLightCustom"]),
         Spacer(1, 22 * mm),
-        Paragraph(_escape(f"{report_profile} • {audience}", 180), styles["CoverSubtitleLightCustom"]),
+        Paragraph(_escape(f"{visible_profile} • {audience}", 180), styles["CoverSubtitleLightCustom"]),
         Paragraph(datetime.now().strftime("%d.%m.%Y"), styles["CoverSubtitleLightCustom"]),
     ]
     story.append(Table([[cover]], colWidths=[width], rowHeights=[150 * mm], style=TableStyle([
@@ -2675,7 +2889,11 @@ def build_analytics_pdf_v53(
         story_data = _v54_story_for_column(
             ai_analysis, _safe_text(column.get("name"), 100), column, total,
         )
-        ai_text = story_data.get("interpretation") or _v53_ai_for_column(ai_analysis, _safe_text(column.get("name"), 100))
+        ai_text = _safe_text(
+            story_data.get("interpretation")
+            or _v53_ai_for_column(ai_analysis, _safe_text(column.get("name"), 100)),
+            260,
+        )
         story.append(PageBreak())
         page_title = story_data.get("headline") or _safe_text(column.get("name"), 100)
         takeaway = story_data.get("evidence") or fact
@@ -2687,35 +2905,66 @@ def build_analytics_pdf_v53(
             width * .64, 108 * mm,
         )
         side = [_v51_callout("КОНЦЕНТРАЦИЯ", f"{share:.1f}%", "Доля крупнейшей категории", styles)]
-        side.extend([
-            Spacer(1, 3 * mm),
-            _v51_callout(
-                "ТРИ КРУПНЕЙШИЕ КАТЕГОРИИ", f"{top3:.1f}%",
-                "Совокупная доля трёх крупнейших категорий",
-                styles, colors.HexColor("#F4F7FB"),
-            ),
-        ])
         if ai_text:
             side.extend([
                 Spacer(1, 3 * mm),
-                _v51_callout("ИНТЕРПРЕТАЦИЯ QWEN", "Что означает результат", ai_text, styles, colors.HexColor("#EAF8F7")),
+                _v51_callout(
+                    "АНАЛИТИЧЕСКИЙ ВЫВОД", "Что означает результат",
+                    _safe_text(ai_text, 180), styles,
+                    colors.HexColor("#EAF8F7"),
+                ),
+            ])
+        else:
+            side.extend([
+                Spacer(1, 3 * mm),
+                _v51_callout(
+                    "ТРИ КРУПНЕЙШИЕ КАТЕГОРИИ", f"{top3:.1f}%",
+                    "Совокупная доля трёх крупнейших категорий",
+                    styles, colors.HexColor("#F4F7FB"),
+                ),
             ])
         if story_data.get("action"):
             side.extend([
                 Spacer(1, 3 * mm),
-                _v51_callout("ОБОСНОВАННОЕ ДЕЙСТВИЕ", "Следующий шаг", story_data["action"], styles, colors.HexColor("#FFF6E2")),
+                _v51_callout(
+                    "ОБОСНОВАННОЕ ДЕЙСТВИЕ", "Следующий шаг",
+                    _safe_text(story_data["action"], 150), styles,
+                    colors.HexColor("#FFF6E2"),
+                ),
             ])
-        if story_data.get("limitation"):
+        # На странице с действием ограничение переносится в итоговую логику:
+        # пять карточек в одной боковой колонке могут физически не поместиться.
+        if story_data.get("limitation") and not story_data.get("action"):
             side.extend([
                 Spacer(1, 3 * mm),
                 _v51_callout(
                     "ГРАНИЦА ВЫВОДА", "Что нельзя утверждать",
-                    story_data["limitation"], styles, colors.HexColor("#FFF6E2"),
+                    _safe_text(story_data["limitation"], 180), styles,
+                    colors.HexColor("#FFF6E2"),
                 ),
             ])
         story.append(Table([[chart, side]], colWidths=[width * .66, width * .34], style=TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ])))
+
+    cross = _v54_cross_analysis(analysis)
+    if cross:
+        page_no += 1
+        story.append(PageBreak())
+        cross_table, cross_conclusion = _v54_cross_table(cross, styles, width)
+        _v51_page_title(
+            story, page_no,
+            f"{_safe_text(cross['primary'].get('name'), 70)} × {_safe_text(cross['secondary'].get('name'), 70)}",
+            cross_conclusion, styles,
+        )
+        story.append(cross_table)
+        story.append(Spacer(1, 5 * mm))
+        story.append(_v51_callout(
+            "КАК ЧИТАТЬ ТАБЛИЦУ", "Количество и доля внутри строки",
+            "Каждая ячейка показывает число записей и долю категории внутри соответствующей группы. "
+            "Сравнивайте проценты по строкам, а не только абсолютные значения.",
+            styles, colors.HexColor("#EAF8F7"),
+        ))
 
     for column in numeric:
         page_no += 1
@@ -2738,7 +2987,11 @@ def build_analytics_pdf_v53(
             )
         else:
             chart = Spacer(1, 108 * mm)
-        ai_text = story_data.get("interpretation") or _v53_ai_for_column(ai_analysis, _safe_text(column.get("name"), 100))
+        ai_text = _safe_text(
+            story_data.get("interpretation")
+            or _v53_ai_for_column(ai_analysis, _safe_text(column.get("name"), 100)),
+            260,
+        )
         deviation = abs(float(stats.get("mean", 0) or 0) - float(stats.get("median", 0) or 0))
         display = column.get("display", {}) or {}
         multiplier = float(display.get("multiplier", 1) or 1)
@@ -2756,7 +3009,7 @@ def build_analytics_pdf_v53(
         if ai_text:
             side.extend([
                 Spacer(1, 3 * mm),
-                _v51_callout("АНАЛИТИЧЕСКИЙ ВЫВОД QWEN", display_value(deviation), ai_text,
+                _v51_callout("АНАЛИТИЧЕСКИЙ ВЫВОД", display_value(deviation), ai_text,
                              styles, colors.HexColor("#FFF6E2")),
             ])
         if story_data.get("limitation"):
@@ -2773,19 +3026,50 @@ def build_analytics_pdf_v53(
         page_no += 1
         stats = column.get("statistics", {}) or {}
         story.append(PageBreak())
-        takeaway = (
-            f"Период охватывает {stats.get('span_days', 0)} дней: "
-            f"с {stats.get('min', '—')} по {stats.get('max', '—')}."
-        )
-        _v51_page_title(story, page_no, _safe_text(column.get("name"), 100), takeaway, styles)
         age = stats.get("age_statistics", {}) or {}
+        year_counts = stats.get("year_counts", []) or []
+        takeaway = (
+            f"Средний возраст — {age.get('mean', '—')} года; диапазон от "
+            f"{age.get('min', '—')} до {age.get('max', '—')} лет."
+            if age else (
+                f"Среди действующего контингента представлены годы "
+                f"{year_counts[0].get('value', '—')}–{year_counts[-1].get('value', '—')}. "
+                f"Наибольшее число записей относится к "
+                f"{max(year_counts, key=lambda item: int(item.get('count', 0) or 0)).get('value', '—')} году."
+                if year_counts else "Недостаточно данных для распределения по годам."
+            )
+        )
+        page_title = (
+            _safe_text(column.get("name"), 100)
+            if age else f"Распределение действующего контингента по годам: {_safe_text(column.get('name'), 70)}"
+        )
+        _v51_page_title(story, page_no, page_title, takeaway, styles)
         groups = age.get("groups", []) or []
         if groups:
             chart = _v51_chart("bar", [x.get("value") for x in groups], [x.get("count") for x in groups], width * .62, 105 * mm, "Распределение по группам")
             note = _v51_callout("СРЕДНЕЕ ЗНАЧЕНИЕ", str(age.get("mean", "—")), "Возраст рассчитан только по допустимым датам.", styles, colors.HexColor("#EAF8F7"))
             story.append(Table([[chart, note]], colWidths=[width * .66, width * .34], style=TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")])))
         else:
-            story.append(_v51_callout("ВРЕМЕННОЙ ДИАПАЗОН", str(stats.get("span_days", 0)), "Количество дней между минимальной и максимальной датой.", styles, colors.HexColor("#F4F7FB")))
+            if 2 <= len(year_counts) <= 12:
+                chart = _v51_chart(
+                    "column", [x.get("value") for x in year_counts],
+                    [x.get("count") for x in year_counts], width * .66, 100 * mm,
+                    "Количество записей по годам",
+                )
+                note = _v51_callout(
+                    "ДЕЙСТВУЮЩИЙ КОНТИНГЕНТ", _format_number(sum(int(x.get("count", 0) or 0) for x in year_counts)),
+                    "Диаграмма показывает распределение текущих записей по году события, а не длительность наблюдения.",
+                    styles, colors.HexColor("#F4F7FB"),
+                )
+                story.append(Table([[chart, note]], colWidths=[width * .68, width * .32], style=TableStyle([
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ])))
+            else:
+                story.append(_v51_callout(
+                    "ДАТЫ", "Недостаточно групп",
+                    "Для содержательного сравнения по годам нужно не менее двух годовых групп.",
+                    styles, colors.HexColor("#F4F7FB"),
+                ))
 
     findings = _v53_ai_items(ai_analysis, "findings", 6)
     risks = _v53_ai_items(ai_analysis, "risks", 4)
@@ -2793,7 +3077,7 @@ def build_analytics_pdf_v53(
     if findings or risks or recommendations:
         page_no += 1
         story.append(PageBreak())
-        _v51_page_title(story, page_no, "Выводы и решения", "Интерпретация сформирована по показателям текущего Excel-файла.", styles)
+        _v51_page_title(story, page_no, "Выводы и решения", "Выводы основаны на рассчитанных показателях текущего набора данных.", styles)
         left = [Paragraph("ДОКАЗАТЕЛЬНЫЕ ВЫВОДЫ", styles["SubsectionCustom"])]
         left.extend(_bullet(x, styles) for x in (findings + risks)[:7])
         right = [Paragraph("ПРОВЕРЯЕМЫЕ ДЕЙСТВИЯ", styles["SubsectionCustom"])]
@@ -2817,4 +3101,4 @@ def build_analytics_pdf_v53(
     return output_path
 
 
-build_analytics_pdf = build_analytics_pdf_v52
+build_analytics_pdf = build_analytics_pdf_v53

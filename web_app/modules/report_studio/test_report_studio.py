@@ -120,6 +120,25 @@ def main() -> int:
             if "Фамилия" in reportable_names or "Факультет" not in reportable_names:
                 raise RuntimeError("Персональные поля не исключены из отчёта.")
 
+            duplicated = analyze_matrix([
+                ["Факультет", "Вид гранта", "Вид финансирования", "Дата"],
+                ["Медицина", "Грант", "Грант", "2024-09-01"],
+                ["Фармация", "Платно", "Платно", "2025-09-01"],
+                ["Медицина", "Грант", "Грант", "2025-09-02"],
+            ])
+            duplicate_pairs = duplicated.get("quality", {}).get("duplicate_columns", [])
+            if not any(item.get("column") == "Вид финансирования" for item in duplicate_pairs):
+                raise RuntimeError("Аналитика не выявила дублирующие категориальные поля.")
+            financing = next(
+                item for item in duplicated["categorical_columns"]
+                if item["name"] == "Вид финансирования"
+            )
+            if financing.get("reportable") or financing.get("duplicate_of") != "Вид гранта":
+                raise RuntimeError("Дублирующее поле не исключено из страниц отчёта.")
+            date_column = duplicated["date_columns"][0]
+            if len(date_column.get("statistics", {}).get("year_counts", [])) != 2:
+                raise RuntimeError("Годовая динамика по датам не рассчитана.")
+
             compact = _compact_analysis(matrix, analysis)
             prompt = _build_prompt(compact, "Тест", "Сравнить группы")
             if '"quality"' in prompt or '"missing"' in prompt:
@@ -144,6 +163,17 @@ def main() -> int:
             filtered_text = str(filtered).casefold()
             if any(word in filtered_text for word in ("пуст", "пропуск", "отсутств", "провести анализ")):
                 raise RuntimeError("Фильтр ИИ не удалил технические шаблонные выводы.")
+
+            # Регрессия LayoutError: модель может вернуть длинные карточки.
+            # Генератор обязан ограничить их и завершить PDF, а не пытаться
+            # поместить двухколоночную таблицу выше доступной страницы.
+            if filtered.get("stories"):
+                filtered["stories"][0]["interpretation"] = (
+                    "Подробная интерпретация результата и его ограничений. " * 30
+                )
+                filtered["stories"][0]["action"] = (
+                    "Проверяемое действие с ответственным и контрольным показателем. " * 25
+                )
 
             # Проверяем создание PDF напрямую, без записи в историю.
             pdf_path = build_analytics_pdf(

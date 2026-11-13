@@ -322,6 +322,14 @@ def _build_audit(row_count, column_count, quality, columns) -> dict[str, Any]:
         add("low", "CONSTANT_COLUMNS", "Столбцы не несут аналитической ценности",
             ", ".join(quality["constant_columns"][:8]),
             "Удалить поля из витрины либо документировать их назначение.")
+    if quality.get("duplicate_columns"):
+        evidence = "; ".join(
+            f"{item['column']} совпадает с {item['duplicate_of']}"
+            for item in quality["duplicate_columns"][:5]
+        )
+        add("medium", "DUPLICATE_COLUMNS", "Дублирующие аналитические поля",
+            evidence,
+            "Оставить один источник признака либо документировать различие полей.")
     for column in columns:
         name = str(column.get("name", "Показатель"))
         mixed = float(column.get("mixed_type_percent", 0) or 0)
@@ -342,6 +350,7 @@ def _build_audit(row_count, column_count, quality, columns) -> dict[str, Any]:
     penalty = min(45, empty_percent * 1.5) + min(25, duplicate_percent * 2)
     penalty += min(10, len(quality.get("duplicate_headers", [])) * 5)
     penalty += min(10, len(quality.get("constant_columns", [])) * 2)
+    penalty += min(6, len(quality.get("duplicate_columns", [])) * 2)
     base_codes = {"MISSING_DATA", "DUPLICATES", "DUPLICATE_HEADERS", "CONSTANT_COLUMNS"}
     penalty += min(20, sum(8 if f["severity"] == "critical" else 5 if f["severity"] == "high" else 2 if f["severity"] == "medium" else 0 for f in findings if f["code"] not in base_codes))
     score = max(0, round(100 - penalty))
@@ -429,6 +438,10 @@ def _date_statistics(values: list[Any], column_name: str = "") -> dict[str, Any]
         "max": maximum.isoformat(),
         "unique_count": len(unique_dates),
         "span_days": (maximum - minimum).days,
+        "year_counts": [
+            {"value": str(year), "count": count}
+            for year, count in sorted(Counter(item.year for item in dates).items())
+        ],
     }
     today = date.today()
     if 1900 <= minimum.year <= today.year and maximum <= today:
@@ -748,6 +761,42 @@ def analyze_matrix(matrix: list[list[Any]]) -> dict[str, Any]:
         "outlier_count": total_outliers,
     }
 
+    # Одинаковые по значениям столбцы не должны превращаться в две почти
+    # идентичные страницы отчёта. Сохраняем первый разрез, а последующие
+    # помечаем как семантические дубли. Сравнение выполняется по нормализованным
+    # значениям всех строк и не зависит от регистра или лишних пробелов.
+    duplicate_columns: list[dict[str, str]] = []
+    seen_signatures: dict[tuple[str, ...], dict[str, Any]] = {}
+    for column in categorical_columns:
+        index = int(column.get("index", -1))
+        if index < 0:
+            continue
+        signature = tuple(
+            _display(row[index] if index < len(row) else None, 1000)
+            .strip().casefold()
+            for row in normalized_rows
+        )
+        original = seen_signatures.get(signature)
+        if original is None:
+            seen_signatures[signature] = column
+            continue
+        column["duplicate_of"] = original.get("name")
+        column["reportable"] = False
+        duplicate_columns.append({
+            "column": str(column.get("name", "")),
+            "duplicate_of": str(original.get("name", "")),
+        })
+
+    # Почти постоянные поля полезны как контроль исключений, но отдельная
+    # круговая диаграмма для доли 99–100% не даёт управленческой информации.
+    for column in categorical_columns:
+        top_share = float(
+            (column.get("statistics", {}) or {}).get("top_value_percent", 0) or 0
+        )
+        column["low_information"] = top_share >= 98.0
+
+    quality["duplicate_columns"] = duplicate_columns
+
     kpis = {
         "records": row_count,
         "columns": column_count - len(empty_columns),
@@ -786,6 +835,16 @@ def analyze_matrix(matrix: list[list[Any]]) -> dict[str, Any]:
         warnings.append(
             "Выбросы определены статистическим правилом 1,5 IQR; "
             "они требуют проверки и не обязательно являются ошибками."
+        )
+
+    if duplicate_columns:
+        pairs = ", ".join(
+            f"{item['column']} = {item['duplicate_of']}"
+            for item in duplicate_columns[:5]
+        )
+        warnings.append(
+            "Обнаружены дублирующие разрезы; повторные страницы исключены: "
+            + pairs + "."
         )
 
     return {

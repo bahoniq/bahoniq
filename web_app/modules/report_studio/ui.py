@@ -10,10 +10,15 @@ import subprocess
 import sys
 import threading
 import time
-import tkinter as tk
-
 from pathlib import Path
-from tkinter import ttk, filedialog, messagebox
+try:
+    import tkinter as tk
+    from tkinter import ttk, filedialog, messagebox
+except (ImportError, ModuleNotFoundError):
+    tk = None
+    ttk = None
+    filedialog = None
+    messagebox = None
 
 from .config import APP_TITLE, APP_VERSION, COLORS, DEFAULT_OUTPUT_DIR
 from .launcher import inspect_excel, generate_report

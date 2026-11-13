@@ -796,12 +796,13 @@ build_analytics_pptx = build_analytics_pptx_v51
 # ADAPTIVE INFOGRAPHIC PRESENTATION 5.2
 
 def _v52_dimensions(analysis:dict)->list[dict]:
-    result=[]
+    result=[]; low_information=[]
     for column in analysis.get("categorical_columns",[]):
         stats=column.get("statistics",{}) or {};unique=int(stats.get("unique_count",0) or 0)
-        if column.get("reportable") and 2<=unique<=100 and _pro_top_values(column,1): result.append(column)
+        if column.get("reportable") and not column.get("duplicate_of") and 2<=unique<=100 and _pro_top_values(column,1):
+            (low_information if column.get("low_information") else result).append(column)
     result.sort(key=lambda c:(int(c.get("statistics",{}).get("unique_count",0) or 0)>20,-float(c.get("statistics",{}).get("top_value_percent",0) or 0)))
-    return result
+    return result or low_information[:1]
 
 
 def _v52_fact(column:dict,total:int):
@@ -935,8 +936,12 @@ def build_analytics_pptx_v52(
         if len(_pro_top_values(column,10))<=5:_v51_donut(slide,column,.95,2.0,7.6,4.5,6)
         else:_v51_bar(slide,column,.95,2.0,7.6,4.5,9)
         _v51_note(slide,9.05,1.55,3.55,1.45,"Ключевой факт",f"{share:.1f}%",f"Доля крупнейшей категории по показателю «{_safe(column.get('name'),70)}».",TEAL)
-        _v51_note(slide,9.05,3.18,3.55,1.65,"Интерпретация Qwen","Что означает результат",interpretation,NAVY)
+        if interpretation:
+            _v51_note(slide,9.05,3.18,3.55,1.65,"Аналитический вывод","Что означает результат",interpretation,NAVY)
+        else:
+            _v51_note(slide,9.05,3.18,3.55,1.65,"Три крупнейшие категории",f"{top3:.1f}%","Совокупная доля трёх крупнейших категорий.",NAVY)
         if action:_v51_note(slide,9.05,5.0,3.55,1.9,"Обоснованное действие","Следующий шаг",action,YELLOW)
+        else:_v51_note(slide,9.05,5.0,3.55,1.9,"Граница вывода","Один срез","Распределение не подтверждает динамику или причины различий.",YELLOW)
         decisions.append((_safe(column.get("name"),70),f"{share:.1f}%",headline,interpretation));slide_no+=1
 
     numeric=[c for c in analysis.get("numeric_columns",[]) if c.get("reportable") and not c.get("identifier_like")][:6]
