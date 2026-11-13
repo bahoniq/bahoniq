@@ -63,7 +63,6 @@ body {
   color: var(--text-main);
   height: 100vh;
   overflow: hidden;
-  user-select: none;
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.3s ease, color 0.3s ease;
   
@@ -72,6 +71,18 @@ body {
     radial-gradient(1200px 750px at 82% 18%, rgba(0, 229, 255, 0.075), transparent 70%),
     radial-gradient(950px 650px at 18% 78%, rgba(20, 200, 193, 0.05), transparent 70%),
     radial-gradient(650px 450px at 92% 92%, rgba(217, 43, 58, 0.045), transparent 65%);
+}
+
+/* Разрешаем свободное выделение, копирование и вставку во всех модулях и элементах */
+input, textarea, [contenteditable="true"], .card, .preview-card, table, th, td, pre, code, .result-panel, p, span, label, .modal-body, .notes-content, .tool-desc, .tool-name, .tab-page, .module-page {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+/* Запрещаем выделение только на кнопках и иконках */
+button, .button, .tab, .sidebar-nav, .tool-icon, .table-scroll-btn, .sidebar-logo-img {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 body.theme-day {

@@ -413,15 +413,40 @@ class ExcelAIWindow(tk.Toplevel):
             widget.insert("insert", text)
             return "break"
 
+        def select_all(event=None):
+            widget.tag_add("sel", "1.0", "end-1c")
+            widget.mark_set("insert", "end-1c")
+            widget.focus_set()
+            return "break"
+
         widget.bind("<Control-a>", lambda event: (select_all(), "break")[1])
         widget.bind("<Control-A>", lambda event: (select_all(), "break")[1])
         widget.bind("<Control-c>", copy_text)
         widget.bind("<Control-C>", copy_text)
+        widget.bind("<Control-Insert>", copy_text)
         if not readonly:
             widget.bind("<Control-x>", cut_text)
             widget.bind("<Control-X>", cut_text)
             widget.bind("<Control-v>", paste_text)
             widget.bind("<Control-V>", paste_text)
+            widget.bind("<Shift-Insert>", paste_text)
+
+        def physical_shortcut(event):
+            key = str(getattr(event, "keysym", "")).casefold()
+            if key in {"a", "c", "v", "x"}:
+                return None
+            code = getattr(event, "keycode", None)
+            if code == 65 or key in {"cyrillic_ef", "cyrillic_a"}:
+                return select_all(event)
+            if code == 67 or key in {"cyrillic_es", "cyrillic_c"}:
+                return copy_text(event)
+            if not readonly and (code == 86 or key in {"cyrillic_em", "cyrillic_v"}):
+                return paste_text(event)
+            if not readonly and (code == 88 or key in {"cyrillic_che", "cyrillic_x"}):
+                return cut_text(event)
+            return None
+
+        widget.bind("<Control-KeyPress>", physical_shortcut, add="+")
 
         menu = tk.Menu(widget, tearoff=0)
         if not readonly:
@@ -430,12 +455,6 @@ class ExcelAIWindow(tk.Toplevel):
         if not readonly:
             menu.add_command(label="Вставить", command=paste_text)
         menu.add_separator()
-
-        def select_all():
-            widget.tag_add("sel", "1.0", "end-1c")
-            widget.mark_set("insert", "end-1c")
-            widget.focus_set()
-
         menu.add_command(
             label="Выделить всё",
             command=select_all,

@@ -586,7 +586,7 @@ class ReportStudio:
             widget.see("insert")
             return "break"
 
-        for sequence in ("<Control-c>", "<Control-C>"):
+        for sequence in ("<Control-c>", "<Control-C>", "<Control-Insert>"):
             widget.bind(sequence, copy_text)
         for sequence in ("<Control-x>", "<Control-X>"):
             widget.bind(sequence, cut_text)
@@ -594,6 +594,23 @@ class ReportStudio:
             widget.bind(sequence, paste_text)
         for sequence in ("<Control-a>", "<Control-A>"):
             widget.bind(sequence, select_all)
+
+        def physical_shortcut(event):
+            key = str(getattr(event, "keysym", "")).casefold()
+            if key in {"a", "c", "v", "x"}:
+                return None
+            code = getattr(event, "keycode", None)
+            if code == 65 or key in {"cyrillic_ef", "cyrillic_a"}:
+                return select_all(event)
+            if code == 67 or key in {"cyrillic_es", "cyrillic_c"}:
+                return copy_text(event)
+            if code == 86 or key in {"cyrillic_em", "cyrillic_v"}:
+                return paste_text(event)
+            if code == 88 or key in {"cyrillic_che", "cyrillic_x"}:
+                return cut_text(event)
+            return None
+
+        widget.bind("<Control-KeyPress>", physical_shortcut, add="+")
 
         menu = tk.Menu(widget, tearoff=False)
         menu.add_command(label="Вырезать", command=cut_text)

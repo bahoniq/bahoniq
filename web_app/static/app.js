@@ -1185,3 +1185,61 @@ recForm?.addEventListener('submit', async e => {
   rebind();
   setInterval(rebind, 1200);
 })();
+
+// Гарантированная поддержка Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X на ЛЮБОЙ раскладке (русской, английской, казахской)
+(function initClipboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    const code = e.code; // Всегда физическая клавиша: KeyA, KeyC, KeyV, KeyX независимо от языка
+    const active = document.activeElement;
+    const isInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+
+    // Ctrl + A (Выделить всё)
+    if (code === 'KeyA') {
+      if (isInput) {
+        active.select?.();
+        e.preventDefault();
+      } else {
+        const sel = window.getSelection();
+        const range = document.createRange();
+        const container = active?.closest('.card, .preview-card, .tab-page, .module-page, table') || document.querySelector('.module-page.active') || document.body;
+        range.selectNodeContents(container);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        e.preventDefault();
+      }
+    }
+
+    // Ctrl + C (Копировать)
+    if (code === 'KeyC') {
+      const sel = window.getSelection();
+      const selectedText = sel ? sel.toString() : '';
+      if (selectedText) {
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(selectedText);
+          }
+        } catch (err) {}
+      }
+    }
+
+    // Ctrl + V (Вставить)
+    if (code === 'KeyV' && isInput && !active.readOnly) {
+      if (e.key === 'м' || e.key === 'М') {
+        // Если при русской раскладке браузер заблокировал нативную вставку
+        try {
+          if (navigator.clipboard && navigator.clipboard.readText) {
+            navigator.clipboard.readText().then(text => {
+              if (text && isInput && !active.readOnly) {
+                const start = active.selectionStart ?? active.value.length;
+                const end = active.selectionEnd ?? active.value.length;
+                active.setRangeText(text, start, end, 'end');
+                active.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+            }).catch(() => {});
+          }
+        } catch (err) {}
+      }
+    }
+  });
+})();

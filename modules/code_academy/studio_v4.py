@@ -26,6 +26,26 @@ def _enable_editor_shortcuts(widget):
     widget.bind("<Control-A>", select_all)
     for key, virtual in (("c", "<<Copy>>"), ("C", "<<Copy>>"), ("v", "<<Paste>>"), ("V", "<<Paste>>"), ("x", "<<Cut>>"), ("X", "<<Cut>>")):
         widget.bind(f"<Control-{key}>", lambda e, v=virtual: (widget.event_generate(v), "break")[1])
+
+    def physical_shortcut(event):
+        key = str(getattr(event, "keysym", "")).casefold()
+        if key in {"a", "c", "v", "x"}:
+            return None
+        code = getattr(event, "keycode", None)
+        if code == 65 or key in {"cyrillic_ef", "cyrillic_a"}:
+            return select_all(event)
+        if code == 67 or key in {"cyrillic_es", "cyrillic_c"}:
+            widget.event_generate("<<Copy>>")
+            return "break"
+        if code == 86 or key in {"cyrillic_em", "cyrillic_v"}:
+            widget.event_generate("<<Paste>>")
+            return "break"
+        if code == 88 or key in {"cyrillic_che", "cyrillic_x"}:
+            widget.event_generate("<<Cut>>")
+            return "break"
+        return None
+
+    widget.bind("<Control-KeyPress>", physical_shortcut, add="+")
     menu = tk.Menu(widget, tearoff=0)
     menu.add_command(label="Вырезать", command=lambda: widget.event_generate("<<Cut>>"))
     menu.add_command(label="Копировать", command=lambda: widget.event_generate("<<Copy>>"))
@@ -70,6 +90,8 @@ def build_studio(academy,kind):
     main=tk.Frame(workspace,bg=c['panel']);main.grid(row=2,column=0,sticky='nsew')
     lesson_text=tk.Text(main,bg=c['panel'],fg=c['ink'],font=('Segoe UI',11),wrap='word',height=8,bd=0,padx=15,pady=12,spacing2=4,state='disabled')
     lesson_text.pack(fill='both',expand=True)
+    lesson_scroll=ttk.Scrollbar(lesson_text,command=lesson_text.yview)
+    lesson_text.configure(yscrollcommand=lesson_scroll.set);lesson_scroll.pack(side='right',fill='y')
     _enable_editor_shortcuts(lesson_text)
     edit_frame=tk.Frame(main,bg=c['editor']);editor=CodeEditor(edit_frame,height=12,language=kind,bg=c['editor'],fg=c['ink'],insertbackground='white',font=('Consolas',11),undo=True,wrap='none',bd=0,padx=15,pady=12)
     _enable_editor_shortcuts(editor).pack(fill='both',expand=True)
@@ -81,7 +103,14 @@ def build_studio(academy,kind):
     console_input=tk.Entry(inputbar,bg=c['panel'],fg=c['ink'],insertbackground=c['ink'],font=('Consolas',10))
     console_input.pack(side='left',fill='x',expand=True,padx=6)
     controls=tk.Frame(workspace,bg=c['bg']);controls.grid(row=5,column=0,sticky='ew',pady=(8,0))
-    def show(w,s):w.config(state='normal');w.delete('1.0','end');w.insert('1.0',s);w.config(state='disabled')
+    def show(w,s):
+        w.config(state='normal');w.delete('1.0','end');w.insert('1.0',s)
+        if w is lesson_text:
+            w.tag_configure('heading',foreground=c['accent'],font=('Segoe UI',11,'bold'),spacing1=12,spacing3=6)
+            for number,line in enumerate(s.splitlines(),1):
+                if line.strip() and line.strip().isupper() and len(line)<90:
+                    w.tag_add('heading',f'{number}.0',f'{number}.end')
+        w.config(state='disabled');w.see('1.0')
     def schedule(callback):
         def invoke():
             state['callbacks'].discard(job)
@@ -107,22 +136,27 @@ def build_studio(academy,kind):
         stop()
         state['index']=index;state['phase']=0
         listing.selection_clear(0,'end');listing.selection_set(index);listing.see(index)
-        editor.delete('1.0','end');editor.insert('1.0',path().read_text(encoding='utf-8') if path().is_file() else lesson().code)
+        editor.delete('1.0','end');editor.insert('1.0',path().read_text(encoding='utf-8') if path().is_file() else ('# Напиши своё решение здесь. Пример находится во вкладке «Разбор».\n' if kind=='python' else '-- Напиши свой запрос здесь.\n'))
         state['loaded']=True
         refresh();show(result,'Начни с теории, затем перейди к разбору и практике. Изменения сохраняются в учебной папке.')
     def refresh():
         step=lesson();phase=state['phase'];title.config(text=step.title)
         for w in phase_bar.winfo_children():w.destroy()
         for i,text in enumerate(phases):
-            b=btn(phase_bar,text,lambda x=i:set_phase(x),i==phase);b.pack(side='left',padx=(0,4))
+            b=btn(phase_bar,text,lambda x=i:set_phase(x),i==phase);b.grid(row=i//3,column=i%3,sticky='ew',padx=(0,4),pady=2)
+            phase_bar.columnconfigure(i%3,weight=1)
         if phase in (2,3,4):
-            lesson_text.pack_forget();edit_frame.pack(fill='both',expand=True)
-            if phase==2:show(result,'ПРАКТИКА: '+challenge()+'\n\nПОДСКАЗКА: '+step.hint)
+            edit_frame.pack_forget();lesson_text.pack_forget()
+            lesson_text.configure(height=5)
+            lesson_text.pack(fill='x');show(lesson_text,'САМОСТОЯТЕЛЬНОЕ ЗАДАНИЕ\n\n'+challenge())
+            edit_frame.pack(fill='both',expand=True)
+            if phase==2:show(result,'Напиши решение по условию выше. «Запустить» выполняет код, «Проверить» проверяет требования. Подсказка доступна отдельно.')
             if phase==3:show(result,'ПРОВЕРКА: '+challenge()+'\n\nЗапуск показывает поведение кода. Проверка подтверждает выполнение условия.')
             if phase==4:show(result,'ЗАКРЕПЛЕНИЕ: '+challenge()+'\nПопроси ИИ объяснить выбранную строку или проверь решение.')
         else:
             edit_frame.pack_forget();lesson_text.pack(fill='both',expand=True)
-            show(lesson_text,('ТЕОРИЯ\n\n'+step.theory+'\n\nЗАЧЕМ ЭТО НУЖНО\n\nКаждый урок развивает один общий проект BahonIQ Task Manager.' if phase==0 else 'ПОСТРОЧНЫЙ РАЗБОР\n\n'+step.walkthrough+'\n\nПРИМЕР КОДА\n\n'+step.code))
+            lesson_text.configure(height=8)
+            show(lesson_text,('ТЕОРИЯ\n\n'+step.theory if phase==0 else 'ПРИМЕР КОДА\n\n'+step.code+'\n\nПОСТРОЧНЫЙ РАЗБОР\n\n'+step.walkthrough))
     def set_phase(i):state['phase']=i;refresh()
     def append_output(text):
         result.config(state='normal');result.insert('end',text);result.see('end');result.config(state='disabled')
@@ -189,6 +223,7 @@ def build_studio(academy,kind):
             if ok and code == editor.get('1.0','end-1c'):
                 academy.verified.add(step.slug)
                 academy.completed.add('route-'+step.slug);academy._save_progress();academy._update_status()
+                if hasattr(academy,'_refresh_practice'):academy._refresh_practice()
             elif ok:
                 ok=False;msg='Код изменился во время проверки. Проверь текущую версию ещё раз.'
             show(result,('✓ ' if ok else '✕ ')+msg+'\n\n'+('Урок подтверждён функциональными критериями.' if ok else 'Исправь решение и попробуй снова.'))
@@ -239,6 +274,12 @@ def build_studio(academy,kind):
         state['callbacks'].clear()
         if state['loaded']:save(True)
     academy._studio_closers.append(close_studio)
+    def open_lesson(slug,phase=0):
+        index=next((i for i,s in enumerate(route) if s.slug==slug),None)
+        if index is None:return
+        if state['checking']:return
+        switch(index);set_phase(phase)
+    academy._studio_routes[kind]=open_lesson
     def close_page(event):
         if event.widget is page:
             stop()
