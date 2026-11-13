@@ -781,10 +781,61 @@ input:focus, select:focus, textarea:focus { border-color: var(--green-neon); out
 .analytics-grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; }
 .settings-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
 .preview-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; min-width: 0; }
-.table-wrap { overflow: auto; max-height: 480px; border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }
-table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
-th { background: var(--bg-sidebar); padding: 10px; border-bottom: 1px solid var(--border); color: var(--green-neon); font-weight: 600; white-space: nowrap; }
-td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-main); }
+.table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: auto !important;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 10px;
+  max-height: 480px;
+  position: relative;
+}
+table,
+.table-wrap table,
+#previewTable {
+  width: max-content !important;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+th,
+.table-wrap th,
+#previewTable th {
+  background: var(--bg-sidebar);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--green-neon);
+  font-weight: 600;
+  white-space: nowrap !important;
+}
+td,
+.table-wrap td,
+#previewTable td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-main);
+  white-space: nowrap !important;
+}
+.table-wrap::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.table-wrap::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.05);
+  border-radius: 4px;
+}
+.table-wrap::-webkit-scrollbar-thumb {
+  background: var(--green-neon, #0D9488);
+  border-radius: 4px;
+}
 
 .file-drop {
   border: 2px dashed var(--border); border-radius: 10px; padding: 24px; text-align: center;
@@ -1151,10 +1202,49 @@ body.theme-day .academy-editor { color: #16322f; }
   .tools-grid { grid-template-columns: 1fr; width: 100%; }
   .tool-tile { min-width: 0; }
   .page-heading h1 { font-size: clamp(1.3rem, 5.5vw, 1.8rem); }
-  .tabs { flex-wrap: wrap; }
-  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tabs {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-x !important;
+    gap: 8px;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    width: 100%;
+    max-width: 100%;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex-shrink: 0 !important; white-space: nowrap !important; }
+  .settings-card, .preview-card {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+  .table-wrap {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-x pan-y !important;
+    overscroll-behavior-x: contain !important;
+  }
+  .table-wrap table, #previewTable {
+    display: table !important;
+    width: max-content !important;
+    min-width: 100% !important;
+  }
+  .table-wrap th, .table-wrap td, #previewTable th, #previewTable td {
+    white-space: nowrap !important;
+    min-width: 90px;
+  }
   .pdf-layout { grid-template-columns: 1fr; }
-  .settings-card, .preview-card { min-width: 0; }
 }
 
 /* Мобильная прокрутка: разрешаем странице скроллиться (body был height:100vh + overflow:hidden) */

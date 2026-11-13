@@ -2578,10 +2578,22 @@ def _v53_ai_items(ai_analysis: dict | None, key: str, limit: int = 8) -> list[st
 
 
 def _v53_ai_for_column(ai_analysis: dict | None, column_name: str) -> str:
-    needle = column_name.casefold()
+    needle = column_name.casefold().strip()
+    if not needle:
+        return ""
+    if needle == "пол":
+        for key in ("findings", "risks", "recommendations"):
+            for item in _v53_ai_items(ai_analysis, key, 12):
+                low = item.casefold()
+                if any(k in low for k in ("грант", "оплат", "финанс", "валют", "доход", "бюджет", "поступлен", "собственн")):
+                    continue
+                if any(g in low for g in ("женск", "мужск", "гендер", "девуш", "юнош", " половой", " по полу")):
+                    return item
+        return ""
+    pattern = re.compile(rf'(?:\A|[^\wа-яА-ЯёЁ]){re.escape(needle)}(?:\Z|[^\wа-яА-ЯёЁ])', re.IGNORECASE)
     for key in ("findings", "risks", "recommendations"):
         for item in _v53_ai_items(ai_analysis, key, 12):
-            if needle and needle in item.casefold():
+            if pattern.search(item):
                 return item
     return ""
 

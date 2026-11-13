@@ -674,19 +674,35 @@ def _v51_bar(slide, column, x, y, w, h, limit=8) -> None:
 
 
 def _v51_donut(slide, column, x, y, w, h, limit=6) -> None:
-    top=[v for v in _pro_top_values(column,limit)
-         if str(v.get("value","")).strip() not in ("", "None")
-         and float(v.get("count",0) or 0) > 0]
+    top = [v for v in _pro_top_values(column, limit)
+           if str(v.get("value", "")).strip() not in ("", "None")
+           and float(v.get("count", 0) or 0) > 0]
     if not top:
-        _v50_text(slide,"Нет категорий для круговой диаграммы",x+.2,y+h/2-.2,w-.4,.4,12,MUTED)
+        _v50_text(slide, "Нет категорий для круговой диаграммы", x + .2, y + h / 2 - .2, w - .4, .4, 12, MUTED)
         return
-    data=ChartData(); data.categories=[_safe(v.get("value"),34) for v in top]
-    data.add_series("Доля",[float(v.get("count",0) or 0) for v in top])
-    chart=slide.shapes.add_chart(XL_CHART_TYPE.DOUGHNUT,Inches(x),Inches(y),Inches(w),Inches(h),data).chart
-    chart.has_legend=True; chart.legend.position=XL_LEGEND_POSITION.BOTTOM; chart.legend.font.size=Pt(8)
-    chart.plots[0].hole_size=58
-    for i,p in enumerate(chart.plots[0].series[0].points):
-        p.format.fill.solid(); p.format.fill.fore_color.rgb=V51_COLORS[i%len(V51_COLORS)]
+    total_val = sum(float(v.get("count", 0) or 0) for v in top)
+    categories = []
+    for v in top:
+        val = float(v.get("count", 0) or 0)
+        pct = (val / total_val * 100) if total_val > 0 else 0
+        categories.append(f"{_safe(v.get('value'), 28)} — {pct:.1f}%")
+    data = ChartData()
+    data.categories = categories
+    data.add_series("Доля", [float(v.get("count", 0) or 0) for v in top])
+    chart = slide.shapes.add_chart(XL_CHART_TYPE.DOUGHNUT, Inches(x), Inches(y), Inches(w), Inches(h), data).chart
+    chart.has_legend = True
+    chart.legend.position = XL_LEGEND_POSITION.BOTTOM
+    chart.legend.font.size = Pt(8.5)
+    chart.plots[0].hole_size = 58
+    chart.plots[0].has_data_labels = True
+    dl = chart.plots[0].data_labels
+    dl.font.size = Pt(9)
+    dl.show_percentage = True
+    dl.show_value = False
+    dl.show_category_name = False
+    for i, p in enumerate(chart.plots[0].series[0].points):
+        p.format.fill.solid()
+        p.format.fill.fore_color.rgb = V51_COLORS[i % len(V51_COLORS)]
 
 
 def _v51_note(slide,x,y,w,h,kicker:str,headline:str,body:str,accent=TEAL) -> None:

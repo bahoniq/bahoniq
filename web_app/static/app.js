@@ -78,6 +78,7 @@ function openModule(modId, label) {
   modHost.classList.add('panorama-in');
   setTimeout(() => modHost.classList.remove('panorama-in'), 380);
   document.querySelector('.content-body')?.scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function returnToDashboard() {

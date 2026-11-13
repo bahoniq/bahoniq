@@ -68,7 +68,35 @@ AUTH_TOKEN = secrets.token_hex(16) if AUTH_PASSWORD else ""
 @app.get("/health")
 def health():
     """Лёгкий эндпоинт для пингера (UptimeRobot) и Render health check. Без авторизации."""
-    return {"status": "ok"}
+    return {"status": "ok", "app": "BahonIQ Work Center"}
+
+
+# ============================================================
+# АНТИ-СОН (KEEP-AWAKE ДЛЯ RENDER FREE TIER)
+# ============================================================
+def _keep_awake_worker():
+    """Фоновый самопинг через внешний домен Render каждые 9 минут."""
+    import time
+    import urllib.request
+    target = os.environ.get("RENDER_EXTERNAL_URL") or "https://bahoniq.onrender.com"
+    health_url = f"{target.rstrip('/')}/health"
+    time.sleep(45)  # даём серверу 45 секунд на полный старт
+    while True:
+        try:
+            req = urllib.request.Request(
+                health_url,
+                headers={"User-Agent": "BahonIQ-AntiSleep/1.0"}
+            )
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                pass
+        except Exception:
+            pass
+        time.sleep(540)  # каждые 9 минут (таймаут засыпания Render = 15 мин)
+
+
+if os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"):
+    import threading
+    threading.Thread(target=_keep_awake_worker, daemon=True, name="anti-sleep").start()
 
 
 @app.middleware("http")
