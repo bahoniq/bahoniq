@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   /* Al Arabiya Broadcast Rebrand — Глубокий тёмно-синий фон, холодный бирюзовый свет, редкие красно-оранжевые акценты */
   --bg-dark: #060E1B;
   --bg-sidebar: rgba(8, 16, 29, 0.94);
@@ -1155,4 +1155,16 @@ body.theme-day .academy-editor { color: #16322f; }
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .pdf-layout { grid-template-columns: 1fr; }
   .settings-card, .preview-card { min-width: 0; }
+}
+
+/* Мобильная прокрутка: разрешаем странице скроллиться (body был height:100vh + overflow:hidden) */
+@media (max-width: 768px) {
+  html { height: auto; overflow: visible; }
+  body { height: auto; min-height: 100vh; min-height: 100dvh; overflow: visible; }
+  .app-layout { height: auto; min-height: 100dvh; display: block; overflow-x: clip; }
+  .main-area { display: block; min-height: 100dvh; }
+  .topbar { position: sticky; top: 0; z-index: 20; }
+  .content-body { display: block; overflow: visible; flex: none; padding-bottom: 40px; }
+  .dashboard-view, .module-host { height: auto; overflow: visible; }
+  .sidebar { height: 100vh; height: 100dvh; }
 }
