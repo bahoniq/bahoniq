@@ -266,7 +266,7 @@ def status():
             {"icon": icon, "name": name, "url": url}
             for icon, name, url in SYSTEMS
         ],
-        "modules": ["analytics", "excel", "pdf", "tickets", "notes", "phonebook", "academy"],
+        "modules": ["aichat", "analytics", "excel", "pdf", "tickets", "notes", "phonebook", "academy"],
     }
 
 
@@ -290,6 +290,84 @@ def tickets_generate_stream(problem: str = Form(...)):
         raise HTTPException(400, "Опишите проблему.")
     return StreamingResponse(
         generate_ticket_stream(problem),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/api/chat")
+async def api_chat(message: str = Form(...), system: str = Form(""), history: str = Form("[]")):
+    """Универсальный свободный диалог с ИИ (как ChatGPT / Gemini)."""
+    import json
+    message = message.strip()
+    if not message:
+        raise HTTPException(400, "Сообщение не может быть пустым.")
+    from ai_service import generate_text
+    sys_prompt = system.strip() or (
+        "Ты — умный, универсальный и дружелюбный AI-ассистент BahonIQ Work Center (работаешь на базе Google Gemini Flash). "
+        "Отвечай развернуто, структурированно, грамотно и по делу на русском языке (или на языке вопроса пользователя). "
+        "Помогай с написанием любых текстов, официальных писем, служебных записок, кода, анализом данных, формулами Excel и ответами на любые вопросы, точно как ChatGPT и Gemini."
+    )
+    full_prompt = message
+    try:
+        hist_list = json.loads(history)
+        if isinstance(hist_list, list) and hist_list:
+            dialogue = []
+            for item in hist_list[-8:]:
+                role = "Пользователь" if item.get("role") == "user" else "Ассистент"
+                dialogue.append(f"{role}: {item.get('text', '')}")
+            dialogue.append(f"Пользователь: {message}")
+            full_prompt = "\n".join(dialogue)
+    except Exception:
+        pass
+
+    try:
+        reply = await run_in_threadpool(generate_text, full_prompt, sys_prompt, 4096, 0.7)
+        return {"status": "ok", "reply": reply}
+    except Exception as exc:
+        raise HTTPException(500, f"Ошибка ИИ: {exc}")
+
+
+@app.post("/api/chat/stream")
+def api_chat_stream(message: str = Form(...), system: str = Form(""), history: str = Form("[]")):
+    """Потоковый диалог с ИИ через SSE (Server-Sent Events) для мгновенного вывода текста."""
+    import json
+    message = message.strip()
+    if not message:
+        raise HTTPException(400, "Сообщение не может быть пустым.")
+    from ai_service import generate_text_stream
+    sys_prompt = system.strip() or (
+        "Ты — умный, универсальный и дружелюбный AI-ассистент BahonIQ Work Center (работаешь на базе Google Gemini Flash). "
+        "Отвечай развернуто, структурированно, грамотно и по делу на русском языке (или на языке вопроса пользователя). "
+        "Помогай с написанием любых текстов, официальных писем, служебных записок, кода, анализом данных, формулами Excel и ответами на любые вопросы, точно как ChatGPT и Gemini."
+    )
+    full_prompt = message
+    try:
+        hist_list = json.loads(history)
+        if isinstance(hist_list, list) and hist_list:
+            dialogue = []
+            for item in hist_list[-8:]:
+                role = "Пользователь" if item.get("role") == "user" else "Ассистент"
+                dialogue.append(f"{role}: {item.get('text', '')}")
+            dialogue.append(f"Пользователь: {message}")
+            full_prompt = "\n".join(dialogue)
+    except Exception:
+        pass
+
+    def event_generator():
+        try:
+            for chunk in generate_text_stream(full_prompt, sys_prompt, 4096, 0.7):
+                yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'done': True}, ensure_ascii=False)}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'error': str(exc)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

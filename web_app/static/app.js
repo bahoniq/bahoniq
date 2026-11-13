@@ -567,6 +567,190 @@ $('#copyTicket')?.addEventListener('click', async () => {
   }
 });
 
+// ==================== UNIVERSAL AI CHAT (ChatGPT & Gemini) ====================
+(function initAiChatModule() {
+  const chatMessages = $('#chatMessages');
+  const chatForm = $('#chatForm');
+  const chatInput = $('#chatInput');
+  const chatSendBtn = $('#chatSendBtn');
+  const clearChatBtn = $('#clearChatBtn');
+  let chatHistory = [];
+
+  // Переключение вкладок внутри Ticket Writer AI
+  document.querySelectorAll('[data-tickettab]').forEach(tabBtn => {
+    tabBtn.addEventListener('click', () => {
+      const targetId = tabBtn.dataset.tickettab;
+      document.querySelectorAll('[data-tickettab]').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.ticket-pane-view').forEach(p => p.style.display = 'none');
+      tabBtn.classList.add('active');
+      const targetPane = document.getElementById(targetId);
+      if (targetPane) targetPane.style.display = 'block';
+    });
+  });
+
+  // Быстрые подсказки-чипы
+  document.addEventListener('click', (e) => {
+    const chip = e.target.closest('.quick-prompt-chip');
+    if (chip && chip.dataset.prompt) {
+      if (chatInput) {
+        chatInput.value = chip.dataset.prompt;
+        chatInput.focus();
+        chatForm?.dispatchEvent(new Event('submit', { cancelable: true }));
+      }
+    }
+  });
+
+  // Очистка диалога
+  clearChatBtn?.addEventListener('click', () => {
+    if (!confirm('Очистить историю диалога с ИИ?')) return;
+    chatHistory = [];
+    if (chatMessages) {
+      chatMessages.innerHTML = `
+        <div class="chat-msg ai-msg">
+          <div class="msg-avatar">🤖</div>
+          <div class="msg-body">
+            <div class="msg-author">BahonIQ AI (Gemini Core)</div>
+            <div class="msg-text">Диалог очищен. Напишите любой новый вопрос, задачу или текст!</div>
+          </div>
+        </div>
+      `;
+    }
+  });
+
+  function renderMarkdown(raw) {
+    if (!raw) return '';
+    let escHtml = esc(raw);
+    escHtml = escHtml.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    escHtml = escHtml.replace(/`([^`]+)`/g, '<code>$1</code>');
+    escHtml = escHtml.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+    return escHtml;
+  }
+
+  async function sendMessage(inputEl, containerEl, sendBtn) {
+    const text = inputEl.value.trim();
+    if (!text) return;
+    inputEl.value = '';
+
+    const userMsgEl = document.createElement('div');
+    userMsgEl.className = 'chat-msg user-msg';
+    userMsgEl.innerHTML = `
+      <div class="msg-avatar">Вы</div>
+      <div class="msg-body">
+        <div class="msg-author">Вы</div>
+        <div class="msg-text">${esc(text)}</div>
+      </div>
+    `;
+    containerEl.appendChild(userMsgEl);
+
+    const aiMsgEl = document.createElement('div');
+    aiMsgEl.className = 'chat-msg ai-msg';
+    aiMsgEl.innerHTML = `
+      <div class="msg-avatar">🤖</div>
+      <div class="msg-body">
+        <div class="msg-author">BahonIQ AI (Gemini)</div>
+        <div class="msg-text"><i>Печатает ответ…</i></div>
+        <div class="msg-actions" style="display:none;">
+          <button type="button" class="msg-action-btn btn-copy-reply">📋 Копировать ответ</button>
+        </div>
+      </div>
+    `;
+    containerEl.appendChild(aiMsgEl);
+    containerEl.scrollTop = containerEl.scrollHeight;
+
+    const textEl = aiMsgEl.querySelector('.msg-text');
+    const actionsEl = aiMsgEl.querySelector('.msg-actions');
+
+    chatHistory.push({ role: 'user', text });
+    if (sendBtn) setBusy(sendBtn, true, '…');
+
+    const fd = new FormData();
+    fd.append('message', text);
+    fd.append('history', JSON.stringify(chatHistory.slice(-8)));
+
+    let fullReply = '';
+    try {
+      await consumeSSE(
+        '/api/chat/stream',
+        fd,
+        (chunk) => {
+          fullReply += chunk;
+          textEl.innerHTML = renderMarkdown(fullReply);
+          containerEl.scrollTop = containerEl.scrollHeight;
+        },
+        () => {
+          if (sendBtn) setBusy(sendBtn, false);
+          textEl.innerHTML = renderMarkdown(fullReply);
+          actionsEl.style.display = 'flex';
+          chatHistory.push({ role: 'assistant', text: fullReply });
+          containerEl.scrollTop = containerEl.scrollHeight;
+        },
+        async () => {
+          try {
+            const data = await api('/api/chat', { method: 'POST', body: fd });
+            fullReply = data.reply;
+            textEl.innerHTML = renderMarkdown(fullReply);
+            actionsEl.style.display = 'flex';
+            chatHistory.push({ role: 'assistant', text: fullReply });
+          } catch (e) {
+            textEl.innerHTML = `<span style="color:#F87171;">Ошибка ИИ: ${esc(e.message)}</span>`;
+          } finally {
+            if (sendBtn) setBusy(sendBtn, false);
+            containerEl.scrollTop = containerEl.scrollHeight;
+          }
+        }
+      );
+    } catch (err) {
+      textEl.innerHTML = `<span style="color:#F87171;">Ошибка связи: ${esc(err.message)}</span>`;
+      if (sendBtn) setBusy(sendBtn, false);
+    }
+  }
+
+  chatForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (chatInput && chatMessages) {
+      sendMessage(chatInput, chatMessages, chatSendBtn);
+    }
+  });
+
+  chatInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      chatForm?.dispatchEvent(new Event('submit'));
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    const copyBtn = e.target.closest('.btn-copy-reply');
+    if (copyBtn) {
+      const msgTextEl = copyBtn.closest('.msg-body')?.querySelector('.msg-text');
+      if (msgTextEl) {
+        const textToCopy = msgTextEl.innerText || msgTextEl.textContent;
+        navigator.clipboard?.writeText(textToCopy).then(() => {
+          const original = copyBtn.textContent;
+          copyBtn.textContent = '✅ Скопировано!';
+          setTimeout(() => copyBtn.textContent = original, 1800);
+        });
+      }
+    }
+  });
+
+  const ticketChatForm = $('#ticketChatForm');
+  const ticketChatInput = $('#ticketChatInput');
+  const ticketChatMessages = $('#ticketChatMessages');
+  ticketChatForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (ticketChatInput && ticketChatMessages) {
+      sendMessage(ticketChatInput, ticketChatMessages, ticketChatForm.querySelector('button[type="submit"]'));
+    }
+  });
+  ticketChatInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      ticketChatForm?.dispatchEvent(new Event('submit'));
+    }
+  });
+})();
+
 // ----------------- PHONEBOOK -----------------
 let contacts = [];
 async function loadPhonebook() {

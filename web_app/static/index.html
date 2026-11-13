@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=20261113_v30_clipboard_fixed">
+  <link rel="stylesheet" href="/assets/app.css?v=20261113_v35_aichat_added">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
@@ -192,8 +192,28 @@
             <h2>Рабочие инструменты</h2>
           </div>
 
-          <!-- Сетка 2 колонки со всеми 10 инструментами -->
+          <!-- Сетка со всеми рабочими инструментами -->
           <div class="tools-grid">
+            <!-- 0. AI Chat (ChatGPT & Gemini) -->
+            <div class="tool-tile" data-open="aichat" style="border-color: rgba(0, 229, 255, 0.4); background: linear-gradient(135deg, rgba(15, 27, 46, 0.9) 0%, rgba(9, 23, 40, 0.9) 100%);">
+              <div class="tool-icon" style="background: linear-gradient(135deg, rgba(0,229,255,0.2) 0%, rgba(13,148,136,0.3) 100%); color: var(--cyan-neon); border: 1px solid rgba(0,229,255,0.45);">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  <path d="M9.5 9h.01"/><path d="M14.5 9h.01"/><path d="M9.5 13a3.5 3.5 0 0 0 5 0"/>
+                </svg>
+              </div>
+              <div class="tool-meta">
+                <div class="tool-name" style="display:flex;align-items:center;gap:6px;">
+                  <span>AI Чат (ChatGPT / Gemini)</span>
+                  <span style="font-size:10px;background:linear-gradient(135deg,#00E5FF,#14C8C1);color:#05101E;font-weight:800;padding:2px 7px;border-radius:10px;letter-spacing:0.4px;">ЧИСТЫЙ ИИ</span>
+                </div>
+                <div class="tool-desc">Свободный диалог с искусственным интеллектом: ответы на любые вопросы, написание текстов, писем, кода и консультации.</div>
+              </div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
+            </div>
+
             <!-- 1. Ticket Writer AI (Бирюзовый) -->
             <div class="tool-tile" data-open="tickets">
               <div class="tool-icon icon-teal">
@@ -493,24 +513,100 @@
             </div>
           </section>
 
+          <!-- AI CHAT (ChatGPT & Gemini) -->
+          <section id="aichat" class="module-page">
+            <div class="page-heading">
+              <div>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                  <h1>AI Чат (ChatGPT / Gemini)</h1>
+                  <span class="desktop-pill" style="background:linear-gradient(135deg,rgba(0,229,255,0.2),rgba(20,200,193,0.3));color:var(--cyan-neon);border:1px solid rgba(0,229,255,0.4);font-weight:700;">● Google Gemini Flash • Онлайн 24/7</span>
+                </div>
+                <p>Чистый ИИ-ассистент: свободный диалог, ответы на любые вопросы, написание текстов, кода, писем и анализ данных.</p>
+              </div>
+              <button id="clearChatBtn" class="button secondary" type="button" style="padding:6px 14px;font-size:12px;">🗑 Очистить диалог</button>
+            </div>
+
+            <div class="chat-wrapper card">
+              <div id="chatMessages" class="chat-messages">
+                <div class="chat-msg ai-msg">
+                  <div class="msg-avatar">🤖</div>
+                  <div class="msg-body">
+                    <div class="msg-author">BahonIQ AI (Gemini Core)</div>
+                    <div class="msg-text">Здравствуйте! Я ваш универсальный ИИ-ассистент (как ChatGPT и Gemini). Готов ответить на любой вопрос, помочь с написанием служебных записок, официальных писем, составлением формул Excel, программированием, переводом или анализом информации. Чем могу помочь?</div>
+                    <div class="quick-prompts">
+                      <span class="quick-prompt-chip" data-prompt="Напиши официальную служебную записку руководству о необходимости обновления рабочего оборудования.">📝 Служебная записка</span>
+                      <span class="quick-prompt-chip" data-prompt="Как в Excel объединить данные из двух таблиц по совпадению ИИН или ФИО? Объясни формулу.">📊 Формула для Excel</span>
+                      <span class="quick-prompt-chip" data-prompt="Составь грамотный и вежливый ответ на официальное письмо от партнера.">✉️ Официальный ответ</span>
+                      <span class="quick-prompt-chip" data-prompt="Объясни простыми словами, как работают современные нейросети и языковые модели (LLM).">💡 Как устроен ИИ?</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <form id="chatForm" class="chat-input-bar">
+                <textarea id="chatInput" rows="2" placeholder="Спросите что угодно у ИИ (Enter — отправить, Shift+Enter — перенос строки)…" required></textarea>
+                <button type="submit" id="chatSendBtn" class="button primary chat-send-btn">
+                  <span>Отправить</span>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              </form>
+            </div>
+          </section>
+
           <!-- TICKET WRITER AI -->
           <section id="tickets" class="module-page">
             <div class="page-heading">
               <div>
                 <h1>Ticket Writer AI</h1>
-                <p>Создание чётких и структурированных обращений в техподдержку без лишней информации.</p>
+                <p>Создание чётких обращений в техподдержку и свободный диалог с ИИ.</p>
               </div>
             </div>
-            <div class="two-column">
-              <form id="ticketForm" class="card">
-                <label>Опишите задачу или проблему своими словами<textarea id="ticketProblem" rows="14" required placeholder="Пишите обычным языком. Скрины и файлы закинете потом…"></textarea></label>
-                <button class="button primary" type="submit">Сформировать заявку</button>
-              </form>
-              <div class="card">
-                <label>Название заявки (Тема)<input id="ticketTitle" readonly></label>
-                <label>Описание заявки<textarea id="ticketDescription" rows="12" readonly></textarea></label>
-                <div class="button-row"><button id="copyTicket" class="button secondary" type="button">Копировать всё</button></div>
-                <div id="ticketResult" class="result-panel hidden"></div>
+
+            <!-- Вкладки переключения между созданием заявки и свободным ИИ-чатом -->
+            <div class="tabs" style="margin-bottom:18px;">
+              <button class="tab active" type="button" data-tickettab="ticketMakerPane">🎫 Создание заявки в поддержку</button>
+              <button class="tab" type="button" data-tickettab="ticketChatPane" style="background:rgba(0,229,255,0.12);color:var(--cyan-neon);font-weight:700;">💬 Свободный ИИ-Чат (ChatGPT / Gemini)</button>
+            </div>
+
+            <div id="ticketMakerPane" class="ticket-pane-view">
+              <div class="two-column">
+                <form id="ticketForm" class="card">
+                  <label>Опишите задачу или проблему своими словами<textarea id="ticketProblem" rows="14" required placeholder="Пишите обычным языком. Скрины и файлы закинете потом…"></textarea></label>
+                  <button class="button primary" type="submit">Сформировать заявку</button>
+                </form>
+                <div class="card">
+                  <label>Название заявки (Тема)<input id="ticketTitle" readonly></label>
+                  <label>Описание заявки<textarea id="ticketDescription" rows="12" readonly></textarea></label>
+                  <div class="button-row"><button id="copyTicket" class="button secondary" type="button">Копировать всё</button></div>
+                  <div id="ticketResult" class="result-panel hidden"></div>
+                </div>
+              </div>
+            </div>
+
+            <div id="ticketChatPane" class="ticket-pane-view" style="display:none;">
+              <div style="background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);border-radius:12px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                <div style="font-size:13px;color:var(--text-main);">
+                  <b>Свободный диалог с Gemini / ChatGPT:</b> Задавайте любые вопросы, просите переписать текст, найти ошибку или объяснить проблему.
+                </div>
+                <button type="button" class="button primary" onclick="openModule('aichat', 'AI Чат (ChatGPT / Gemini)')" style="padding:6px 14px;font-size:12px;">Открыть на весь экран ›</button>
+              </div>
+              <div class="chat-wrapper card" style="height:520px;">
+                <div id="ticketChatMessages" class="chat-messages">
+                  <div class="chat-msg ai-msg">
+                    <div class="msg-avatar">🤖</div>
+                    <div class="msg-body">
+                      <div class="msg-author">BahonIQ AI</div>
+                      <div class="msg-text">Здравствуйте! Напишите мне любой текст или вопрос. Я помогу составить официальное обращение, объясню причину ошибки или просто поговорю на любую тему.</div>
+                    </div>
+                  </div>
+                </div>
+                <form id="ticketChatForm" class="chat-input-bar">
+                  <textarea id="ticketChatInput" rows="2" placeholder="Напишите сообщение ИИ…" required></textarea>
+                  <button type="submit" class="button primary chat-send-btn">
+                    <span>Отправить</span>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  </button>
+                </form>
               </div>
             </div>
           </section>
@@ -647,7 +743,7 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261113_v30_clipboard_fixed"></script>
+  <script src="/assets/app.js?v=20261113_v35_aichat_added"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
