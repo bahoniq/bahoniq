@@ -539,10 +539,11 @@ async def excel_convert_xls(workbook: UploadFile = File(...)):
                 "created": time.time(),
                 "directory": directory,
                 "output": destination,
+                "complete": True,
             }
         return {
             "status": "ready",
-            "download_url": f"/api/download/{token}",
+            "download_url": f"/api/download/{token}/excel",
             "filename": out_name,
         }
     except HTTPException:
