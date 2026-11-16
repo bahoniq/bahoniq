@@ -9,6 +9,7 @@ import sqlite3
 import tempfile
 import threading
 import time
+import uuid
 import zipfile
 from dataclasses import asdict
 from pathlib import Path
