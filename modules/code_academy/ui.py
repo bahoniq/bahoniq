@@ -51,7 +51,7 @@ def open_code_academy(parent: tk.Misc | None = None) -> tk.Toplevel:
     border_col = "#1E3352"
 
     win = tk.Toplevel(parent)
-    win.title("BahonIQ Academy — AI-Платформа обучения (Gemini Flash 24/7)")
+    win.title("BahonIQ Academy — AI-Платформа обучения (BahonIQ AI 24/7)")
     win.geometry("1360x840")
     win.minsize(1060, 680)
     win.configure(bg=bg_main)
@@ -81,7 +81,7 @@ def open_code_academy(parent: tk.Misc | None = None) -> tk.Toplevel:
 
     tk.Label(
         title_row,
-        text="  GEMINI FLASH 24/7  ",
+        text="  BAHONIQ AI 24/7  ",
         font=("Segoe UI", 8, "bold"),
         bg=bg_tab_active,
         fg=accent,

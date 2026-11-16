@@ -1730,7 +1730,7 @@ recForm?.addEventListener('submit', async e => {
       lastRawAnswer = data.answer || '';
       if (answerProviderLabel) {
         answerProviderLabel.textContent = data.provider === 'gemini'
-          ? 'Ответ эксперта ИИ (Gemini Flash • строго по базе знаний)'
+          ? 'Ответ эксперта ИИ (BahonIQ AI • строго по базе знаний)'
           : 'Ответ по базе инструкций Platonus';
       }
       if (answerContent) {
@@ -2062,11 +2062,11 @@ recForm?.addEventListener('submit', async e => {
   async function openLesson(lessonId, forceRefresh = false) {
     try {
       if (lessonTitle) lessonTitle.textContent = 'ИИ формирует урок под тему...';
-      if (lessonSummary) lessonSummary.textContent = 'Gemini Flash подготавливает уникальные микрошаги и задачу...';
+      if (lessonSummary) lessonSummary.textContent = 'BahonIQ AI подготавливает уникальные микрошаги и задачу...';
       if (trainerFeed) {
         trainerFeed.innerHTML = `
           <div class="acad-msg-bubble acad-msg-trainer">
-            <div class="acad-msg-author">🤖 ИИ-тренер Gemini Flash</div>
+            <div class="acad-msg-author">🤖 ИИ-тренер BahonIQ AI</div>
             <div>Секунду! Подготавливаю эксклюзивный интерактивный материал строго по этой теме...</div>
           </div>
         `;
@@ -2213,7 +2213,7 @@ recForm?.addEventListener('submit', async e => {
     const concept1 = currentLesson.step1_concept || currentLesson.ai_theory;
     html += `
       <div class="acad-msg-bubble acad-msg-trainer">
-        <div class="acad-msg-author">🤖 ИИ-тренер Gemini Flash • Шаг 1: Чтение кода</div>
+        <div class="acad-msg-author">🤖 ИИ-тренер BahonIQ AI • Шаг 1: Чтение кода</div>
         <div>${formatText(concept1)}</div>
         <div class="acad-trap-card">
           <div class="acad-trap-header">🔍 «Поймай ловушку» (Внимательно прочитай 3 строчки кода)</div>
@@ -2237,7 +2237,7 @@ recForm?.addEventListener('submit', async e => {
     if (currentLesson.step1_passed) {
       html += `
         <div class="acad-msg-bubble acad-msg-trainer">
-          <div class="acad-msg-author">🤖 ИИ-тренер Gemini Flash • Разбор под микроскопом</div>
+          <div class="acad-msg-author">🤖 ИИ-тренер BahonIQ AI • Разбор под микроскопом</div>
           <div>Отлично подмечено! Ловушка успешно пройдена.</div>
           <div class="acad-trainer-rule">
             <span class="acad-rule-icon">📌</span>
@@ -2251,7 +2251,7 @@ recForm?.addEventListener('submit', async e => {
       const task2 = currentLesson.step2_task_prompt || currentLesson.task_prompt;
       html += `
         <div class="acad-msg-bubble acad-msg-trainer">
-          <div class="acad-msg-author">🤖 ИИ-тренер Gemini Flash • Шаг 2: Практика в редакторе</div>
+          <div class="acad-msg-author">🤖 ИИ-тренер BahonIQ AI • Шаг 2: Практика в редакторе</div>
           <div>${formatText(concept2)}</div>
           <div style="margin-top:10px;padding:12px;background:rgba(0,229,255,0.06);border-radius:8px;border-left:3px solid var(--cyan-neon);">
             <strong>Практическая задача:</strong> ${formatText(task2)}
@@ -2271,7 +2271,7 @@ recForm?.addEventListener('submit', async e => {
       if (currentLesson.step2_passed) {
         html += `
           <div class="acad-msg-bubble acad-msg-trainer">
-            <div class="acad-msg-author">🤖 ИИ-тренер Gemini Flash • Вердикт по коду</div>
+            <div class="acad-msg-author">🤖 ИИ-тренер BahonIQ AI • Вердикт по коду</div>
             <div>${formatText(currentLesson.mentor_feedback || 'Код написан чисто и выполнился без ошибок!')}</div>
             <div class="acad-trainer-rule">
               <span class="acad-rule-icon">📌</span>
@@ -2282,7 +2282,7 @@ recForm?.addEventListener('submit', async e => {
       } else if (currentLesson.step2_code && currentLesson.mentor_feedback) {
         html += `
           <div class="acad-msg-bubble acad-msg-trainer" style="border-color: rgba(255, 82, 82, 0.45); background: rgba(255, 82, 82, 0.05);">
-            <div class="acad-msg-author" style="color: #ff5252;">🤖 ИИ-тренер Gemini Flash • Разбор решения под микроскопом</div>
+            <div class="acad-msg-author" style="color: #ff5252;">🤖 ИИ-тренер BahonIQ AI • Разбор решения под микроскопом</div>
             <div>${formatText(currentLesson.mentor_feedback)}</div>
           </div>
         `;
@@ -2290,7 +2290,7 @@ recForm?.addEventListener('submit', async e => {
     } else if (currentLesson.step1_answer && currentLesson.step1_feedback) {
       html += `
         <div class="acad-msg-bubble acad-msg-trainer" style="border-color: rgba(255, 171, 0, 0.45); background: rgba(255, 171, 0, 0.05);">
-          <div class="acad-msg-author" style="color: #ffab00;">🤖 ИИ-тренер Gemini Flash • Разбор ответа под микроскопом</div>
+          <div class="acad-msg-author" style="color: #ffab00;">🤖 ИИ-тренер BahonIQ AI • Разбор ответа под микроскопом</div>
           <div>${formatText(currentLesson.step1_feedback)}</div>
         </div>
       `;

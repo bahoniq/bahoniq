@@ -4,7 +4,7 @@ import logging
 from .mentor_core import build_messages
 
 LOGGER = logging.getLogger("bahoniq.ai_tutor")
-PROVIDER_LABELS = {"gemini": "Gemini · облако", "ollama": "Ollama · локально (резерв)"}
+PROVIDER_LABELS = {"gemini": "BahonIQ AI", "ollama": "BahonIQ AI (резерв)"}
 
 
 def ask_tutor_detailed(question, filename='', code='', model='', timeout=180,
@@ -83,7 +83,7 @@ def ask_tutor_stream(question, filename='', code='', model='', timeout=180,
                 yield f"data: {json.dumps({'type': 'chunk', 'text': chunk}, ensure_ascii=False)}\n\n"
 
         full_answer = "".join(chunks).strip()
-        yield f"data: {json.dumps({'type': 'done', 'answer': full_answer, 'provider': 'gemini', 'provider_label': 'Gemini · облако (стриминг)'}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'type': 'done', 'answer': full_answer, 'provider': 'gemini', 'provider_label': 'BahonIQ AI'}, ensure_ascii=False)}\n\n"
     except Exception as exc:
         LOGGER.error('AI mentor stream failed: %s', exc)
         yield f"data: {json.dumps({'type': 'error', 'error': f'ИИ временно недоступен: {exc}'}, ensure_ascii=False)}\n\n"

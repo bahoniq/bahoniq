@@ -545,7 +545,7 @@ async def academy_mentor_ask_post(request: Request):
         )
 
     system_inst = (
-        "Ты — персональный ИИ-ментор BahonIQ Academy (Gemini Flash 24/7). "
+        "Ты — персональный ИИ-ментор BahonIQ Academy (BahonIQ AI 24/7). "
         "Ученик задаёт вопрос во время изучения урока. "
         "Отвечай дружелюбно, на простых примерах из жизни или проекта BahonIQ. "
         "НЕ РЕШАЙ ВСЮ ЗАДАЧУ ЗА НЕГО, но понятно объясни механику."

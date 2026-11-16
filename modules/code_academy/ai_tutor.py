@@ -4,7 +4,7 @@ import logging
 from .mentor_core import build_messages
 
 LOGGER = logging.getLogger("bahoniq.ai_tutor")
-PROVIDER_LABELS = {"gemini": "Gemini · облако", "ollama": "Ollama · локально (резерв)"}
+PROVIDER_LABELS = {"gemini": "BahonIQ AI", "ollama": "BahonIQ AI (резерв)"}
 
 
 def ask_tutor_detailed(question, filename='', code='', model='', timeout=180,
