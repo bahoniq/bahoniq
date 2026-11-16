@@ -15,3 +15,4 @@ reportlab>=4.2.0
 matplotlib>=3.8.0
 xlrd>=2.0.1
 xlsxwriter>=3.2.0
+edge-tts>=7.0.0

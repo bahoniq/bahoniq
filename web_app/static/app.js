@@ -557,18 +557,6 @@ function showPlan(html) {
   if (planEl) {
     planEl.className = '';
     planEl.innerHTML = html;
-    const barWrap = document.createElement('div');
-    barWrap.id = 'excelPlanVoiceBar';
-    barWrap.className = 'excel-plan-voice-bar';
-    planEl.prepend(barWrap);
-    window.BahonIQVoice?.createVoiceBar({
-      container: barWrap,
-      moduleId: 'excel',
-      labelText: 'Озвучить план',
-      showAutoSpeak: true,
-      getText: () => planEl.innerText || ''
-    });
-    window.BahonIQVoice?.autoSpeakIfEnabled(planEl.innerText || '', 'excel');
   }
   document.querySelector('[data-tab="excelPlan"]')?.click();
 }
@@ -740,7 +728,6 @@ $('#ticketForm')?.addEventListener('submit', async e => {
       if (doneData.title) titleInput.value = doneData.title;
       if (doneData.description) descInput.value = doneData.description;
       showResult(resPanel, '✅ Заявка сформирована BahonIQ AI (мгновенный стриминг).');
-      window.BahonIQVoice?.autoSpeakIfEnabled(`${titleInput.value}. ${descInput.value}`, 'ticket');
     },
     async (err) => {
       try {
@@ -748,7 +735,6 @@ $('#ticketForm')?.addEventListener('submit', async e => {
         titleInput.value = data.title || '';
         descInput.value = data.description || '';
         showResult(resPanel, 'Заявка сформирована BahonIQ AI.');
-        window.BahonIQVoice?.autoSpeakIfEnabled(`${titleInput.value}. ${descInput.value}`, 'ticket');
       } catch (fbErr) {
         showResult(resPanel, esc(fbErr.message || err.message), true);
       } finally {
@@ -758,7 +744,7 @@ $('#ticketForm')?.addEventListener('submit', async e => {
   );
 });
 
-// Ticket Writer Voice Integration
+// Ticket Writer Voice Integration (Microphone Input)
 setTimeout(() => {
   const probInput = document.getElementById('ticketProblem');
   if (probInput && !document.getElementById('ticketInputVoiceBar')) {
@@ -769,19 +755,6 @@ setTimeout(() => {
       container: barWrap,
       moduleId: 'ticket',
       inputEl: probInput
-    });
-  }
-  const copyBtn = document.getElementById('copyTicket');
-  if (copyBtn && !document.getElementById('ticketOutputVoiceBar')) {
-    const barWrap = document.createElement('div');
-    barWrap.id = 'ticketOutputVoiceBar';
-    copyBtn.insertAdjacentElement('afterend', barWrap);
-    window.BahonIQVoice?.createVoiceBar({
-      container: barWrap,
-      moduleId: 'ticket',
-      labelText: 'Озвучить заявку',
-      showAutoSpeak: true,
-      getText: () => `${$('#ticketTitle')?.value || ''}. ${$('#ticketDescription')?.value || ''}`
     });
   }
 }, 100);
@@ -1851,7 +1824,6 @@ convertForm?.addEventListener('submit', async e => {
         answerContent.innerHTML = formatRichText(lastRawAnswer);
       }
       window.BahonIQVoice?.stop();
-      window.BahonIQVoice?.autoSpeakIfEnabled(lastRawAnswer, 'wiki');
 
       const sources = data.sources || [];
       if (sources.length && sourcesList && sourcesWrap) {
@@ -1926,7 +1898,6 @@ convertForm?.addEventListener('submit', async e => {
         container: ansBarWrap,
         moduleId: 'wiki',
         labelText: 'Озвучить ответ',
-        showAutoSpeak: true,
         getText: () => lastRawAnswer || answerContent?.innerText || ''
       });
     }
@@ -2468,8 +2439,7 @@ convertForm?.addEventListener('submit', async e => {
     window.BahonIQVoice?.createVoiceBar({
       container: vBar,
       moduleId: 'code',
-      labelText: 'Озвучить тренера',
-      showAutoSpeak: true,
+      labelText: 'Озвучить объяснение',
       getText: () => {
         const bubbles = trainerFeed.querySelectorAll('.acad-msg-trainer');
         if (bubbles.length) {
@@ -2478,12 +2448,6 @@ convertForm?.addEventListener('submit', async e => {
         return '';
       }
     });
-
-    const trainerBubbles = trainerFeed.querySelectorAll('.acad-msg-trainer');
-    if (trainerBubbles.length > 0) {
-      const latestMsg = trainerBubbles[trainerBubbles.length - 1].innerText || '';
-      window.BahonIQVoice?.autoSpeakIfEnabled(latestMsg, 'code');
-    }
 
     trainerFeed.scrollTop = trainerFeed.scrollHeight;
   }

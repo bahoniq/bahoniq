@@ -1,20 +1,90 @@
 // ============================================================================
-// BahonIQ Voice v1 — Unified Client-Side Voice System (Web Speech API)
-// Provides Speech Synthesis (ru-RU), Speech Recognition (ru-RU), Text Cleaner,
-// Auto-Speak Management, and UI Controller Bindings across all BahonIQ modules.
+// BahonIQ Voice v2 — Unified Neural Text-to-Speech & Speech Recognition Engine
+// Powered by Microsoft Edge Neural Voices (ru-RU-DmitryNeural, ru-RU-SvetlanaNeural)
+// with HTML5 Audio Element streaming, In-Memory Client Cache, AbortController,
+// Sequential Chunking for Long Texts (>4000 chars), and strictly user-confirmed
+// Emergency Fallback to Web Speech API.
 // ============================================================================
 (() => {
   'use strict';
 
-  // --- Voice State ---
-  let cachedRussianVoice = null;
-  let voicesLoaded = false;
-  let currentUtterance = null;
+  // --- Storage Keys ---
+  const VOICE_KEY = 'bahoniq_voice_selected_voice';
+  const RATE_KEY = 'bahoniq_voice_selected_rate';
+
+  // --- Voice State & Sequential Queue ---
+  let currentAudio = null;
+  let currentAudioUrl = null;
+  let currentAbortController = null;
   let currentController = null;
   let activeRecognition = null;
   let currentState = 'stopped'; // 'stopped' | 'loading' | 'playing' | 'paused' | 'error'
 
-  // --- Support Checks ---
+  let activeQueue = [];
+  let currentQueueIndex = 0;
+  let isPlayingQueue = false;
+  let currentQueueOptions = {};
+
+  // --- In-Memory Client Blob Cache (Max 30 items) ---
+  const clientBlobCache = new Map();
+  const MAX_CLIENT_CACHE = 30;
+
+  function getClientCachedBlob(cacheKey) {
+    if (clientBlobCache.has(cacheKey)) {
+      const blob = clientBlobCache.get(cacheKey);
+      clientBlobCache.delete(cacheKey);
+      clientBlobCache.set(cacheKey, blob);
+      return blob;
+    }
+    return null;
+  }
+
+  function setClientCachedBlob(cacheKey, blob) {
+    if (clientBlobCache.has(cacheKey)) {
+      clientBlobCache.delete(cacheKey);
+    }
+    clientBlobCache.set(cacheKey, blob);
+    if (clientBlobCache.size > MAX_CLIENT_CACHE) {
+      const oldestKey = clientBlobCache.keys().next().value;
+      clientBlobCache.delete(oldestKey);
+    }
+  }
+
+  // --- Settings Getters & Setters ---
+  function getSelectedVoice() {
+    const val = localStorage.getItem(VOICE_KEY);
+    return (val === 'ru-RU-SvetlanaNeural') ? 'ru-RU-SvetlanaNeural' : 'ru-RU-DmitryNeural';
+  }
+
+  function setSelectedVoice(voice) {
+    const valid = (voice === 'ru-RU-SvetlanaNeural') ? 'ru-RU-SvetlanaNeural' : 'ru-RU-DmitryNeural';
+    localStorage.setItem(VOICE_KEY, valid);
+    document.querySelectorAll('.bv-voice-select').forEach(sel => {
+      sel.value = valid;
+    });
+  }
+
+  function getSelectedRate() {
+    const val = localStorage.getItem(RATE_KEY);
+    if (val === '0.9' || val === '1.1') return val;
+    return '1.0';
+  }
+
+  function setSelectedRate(rate) {
+    const valid = (rate === '0.9' || rate === '1.1') ? rate : '1.0';
+    localStorage.setItem(RATE_KEY, valid);
+    document.querySelectorAll('.bv-rate-select').forEach(sel => {
+      sel.value = valid;
+    });
+  }
+
+  function rateToPercent(rateStr) {
+    if (rateStr === '0.9') return '-10%';
+    if (rateStr === '1.1') return '+10%';
+    return '+0%';
+  }
+
+  // --- Web Speech API Support Checks ---
   const isSpeechSupported = () => {
     return typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
   };
@@ -23,31 +93,6 @@
     return typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
   };
 
-  // --- Voice Initialization ---
-  function initVoices() {
-    if (!isSpeechSupported()) return;
-    const voices = window.speechSynthesis.getVoices();
-    if (!voices || voices.length === 0) return;
-
-    // Prefer high quality Russian voices
-    const ruVoices = voices.filter(v => v.lang && (v.lang.toLowerCase() === 'ru-ru' || v.lang.toLowerCase().startsWith('ru')));
-    if (ruVoices.length > 0) {
-      // Prioritize natural / cloud / local modern voices
-      const preferred = ruVoices.find(v => /google|natural|yandex|irina|pavel|dmitry/i.test(v.name)) || ruVoices[0];
-      cachedRussianVoice = preferred;
-    } else {
-      cachedRussianVoice = voices.find(v => v.default) || voices[0];
-    }
-    voicesLoaded = true;
-  }
-
-  if (isSpeechSupported()) {
-    initVoices();
-    if (window.speechSynthesis.onvoiceschanged !== undefined) {
-      window.speechSynthesis.onvoiceschanged = initVoices;
-    }
-  }
-
   // --- Text Preparation / Sanitization Engine ---
   function prepareText(text, module = 'general') {
     if (!text) return '';
@@ -55,35 +100,30 @@
 
     // 1. Module-specific preprocessing
     if (module === 'code') {
-      // Replace code blocks with spoken note
       s = s.replace(/```[\s\S]*?```/g, ' Пример кода показан на экране. ');
       s = s.replace(/`([^`]+)`/g, '$1');
     } else if (module === 'ticket') {
-      // Strip ticket service metadata lines
       s = s.replace(/^(ТЕМА|ОПИСАНИЕ|ПРИОРИТЕТ|СИСТЕМА|МОДУЛЬ):\s*/gim, '');
     } else if (module === 'wiki') {
-      // Strip markdown link URLs, keep anchor text
       s = s.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
       s = s.replace(/https?:\/\/\S+/g, '');
     } else if (module === 'excel' || module === 'excel_ai') {
-      // Keep formulas and functions, but avoid reading raw huge tables row-by-row
       s = s.replace(/https?:\/\/\S+/g, '');
-      s = s.replace(/\|[^\n]+\|/g, ' '); // remove markdown table lines
+      s = s.replace(/\|[^\n]+\|/g, ' ');
     } else if (module === 'design') {
-      // Strip internal coordinate IDs
       s = s.replace(/\[obj_\w+\]/g, '');
       s = s.replace(/x=\d+,\s*y=\d+/gi, '');
     }
 
     // 2. Universal Markdown & HTML cleaning
-    s = s.replace(/<[^>]+>/g, ' '); // strip HTML tags
-    s = s.replace(/```[\s\S]*?```/g, ' '); // any remaining code blocks
-    s = s.replace(/`([^`]+)`/g, '$1'); // inline backticks
-    s = s.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // links
-    s = s.replace(/https?:\/\/\S+/g, ''); // bare URLs
-    s = s.replace(/[*_~#>]+/g, ' '); // markdown header/bold/italic chars
+    s = s.replace(/<[^>]+>/g, ' ');
+    s = s.replace(/```[\s\S]*?```/g, ' ');
+    s = s.replace(/`([^`]+)`/g, '$1');
+    s = s.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+    s = s.replace(/https?:\/\/\S+/g, '');
+    s = s.replace(/[*_~#>]+/g, ' ');
 
-    // 3. Technical symbols sanitization (preserve mathematical symbols for excel)
+    // 3. Technical symbols sanitization
     if (module !== 'excel' && module !== 'excel_ai') {
       s = s.replace(/[{}\[\]\\\/^=<>|~]/g, ' ');
     } else {
@@ -92,25 +132,89 @@
 
     // 4. Whitespace normalization
     s = s.replace(/\s+/g, ' ').trim();
-
-    // 5. Reasonable length limit per run (approx 1200 characters)
-    if (s.length > 1200) {
-      s = s.slice(0, 1200) + '... Текст сокращен для удобства прослушивания.';
-    }
-
     return s;
   }
 
-  // --- Speech Synthesis API ---
-  function stop() {
-    if (!isSpeechSupported()) return;
-    try {
-      window.speechSynthesis.cancel();
-    } catch (e) {
-      console.warn('Speech cancel error:', e);
+  // --- Safe Text Chunking (>3500 chars) for Long Wiki Answers ---
+  function splitIntoChunks(text, maxLen = 3200) {
+    if (!text || text.length <= maxLen) return [text];
+    const chunks = [];
+    let remaining = text.trim();
+
+    while (remaining.length > 0) {
+      if (remaining.length <= maxLen) {
+        chunks.push(remaining);
+        break;
+      }
+
+      const slice = remaining.slice(0, maxLen);
+      let splitIdx = -1;
+
+      // Split on paragraph break
+      const pIdx = slice.lastIndexOf('\n');
+      if (pIdx > maxLen * 0.5) {
+        splitIdx = pIdx + 1;
+      } else {
+        // Split on sentence boundary
+        const lastPeriod = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('! '), slice.lastIndexOf('? '));
+        if (lastPeriod > maxLen * 0.4) {
+          splitIdx = lastPeriod + 2;
+        }
+      }
+
+      // Fallback: split on space
+      if (splitIdx === -1) {
+        const spaceIdx = slice.lastIndexOf(' ');
+        splitIdx = (spaceIdx > maxLen * 0.3) ? spaceIdx + 1 : maxLen;
+      }
+
+      const chunk = remaining.slice(0, splitIdx).trim();
+      if (chunk) chunks.push(chunk);
+      remaining = remaining.slice(splitIdx).trim();
     }
+
+    return chunks;
+  }
+
+  // --- Audio Control API (Stop / Pause / Resume) ---
+  function stop() {
+    activeQueue = [];
+    currentQueueIndex = 0;
+    isPlayingQueue = false;
+
+    // 1. Abort active network synthesis
+    if (currentAbortController) {
+      try {
+        currentAbortController.abort();
+      } catch (e) {}
+      currentAbortController = null;
+    }
+
+    // 2. Stop HTMLAudioElement
+    if (currentAudio) {
+      try {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+      } catch (e) {}
+      currentAudio = null;
+    }
+
+    // 3. Revoke Blob Object URL
+    if (currentAudioUrl) {
+      try {
+        URL.revokeObjectURL(currentAudioUrl);
+      } catch (e) {}
+      currentAudioUrl = null;
+    }
+
+    // 4. Cancel browser fallback speech if active
+    if (isSpeechSupported()) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
+    }
+
     currentState = 'stopped';
-    currentUtterance = null;
     if (currentController && typeof currentController.onStateChange === 'function') {
       currentController.onStateChange('stopped');
     }
@@ -118,64 +222,68 @@
   }
 
   function pause() {
-    if (!isSpeechSupported()) return;
-    if (currentState === 'playing') {
+    if (currentState === 'playing' && currentAudio) {
+      try {
+        currentAudio.pause();
+        currentState = 'paused';
+        if (currentController && typeof currentController.onStateChange === 'function') {
+          currentController.onStateChange('paused');
+        }
+      } catch (e) {
+        console.warn('Audio pause error:', e);
+      }
+    } else if (currentState === 'playing' && isSpeechSupported()) {
       try {
         window.speechSynthesis.pause();
         currentState = 'paused';
         if (currentController && typeof currentController.onStateChange === 'function') {
           currentController.onStateChange('paused');
         }
-      } catch (e) {
-        console.warn('Speech pause error:', e);
-      }
+      } catch (e) {}
     }
   }
 
   function resume() {
-    if (!isSpeechSupported()) return;
-    if (currentState === 'paused') {
+    if (currentState === 'paused' && currentAudio) {
+      try {
+        currentAudio.play().then(() => {
+          currentState = 'playing';
+          if (currentController && typeof currentController.onStateChange === 'function') {
+            currentController.onStateChange('playing');
+          }
+        }).catch(err => {
+          console.warn('Audio resume error:', err);
+        });
+      } catch (e) {
+        console.warn('Audio resume exception:', e);
+      }
+    } else if (currentState === 'paused' && isSpeechSupported()) {
       try {
         window.speechSynthesis.resume();
         currentState = 'playing';
         if (currentController && typeof currentController.onStateChange === 'function') {
           currentController.onStateChange('playing');
         }
-      } catch (e) {
-        console.warn('Speech resume error:', e);
-      }
+      } catch (e) {}
     }
   }
 
-  function speak(rawText, options = {}) {
+  // --- Fallback Browser Speech Synthesis (Only upon explicit user confirmation) ---
+  function speakFallback(cleanText, options = {}) {
     if (!isSpeechSupported()) {
-      if (options.onError) options.onError('Синтез речи не поддерживается в этом браузере.');
-      return false;
+      alert('Синтез речи не поддерживается браузером.');
+      stop();
+      return;
     }
 
-    // Always stop previous speech before starting new
-    stop();
-
-    const textToSpeak = prepareText(rawText, options.module || 'general');
-    if (!textToSpeak) {
-      return false;
-    }
-
-    initVoices();
-
-    const u = new SpeechSynthesisUtterance(textToSpeak);
+    const u = new SpeechSynthesisUtterance(cleanText);
     u.lang = 'ru-RU';
-    if (cachedRussianVoice) {
-      u.voice = cachedRussianVoice;
-    }
-    u.rate = options.rate || 1.0;
-    u.pitch = options.pitch || 1.0;
+    u.rate = parseFloat(getSelectedRate()) || 1.0;
 
-    currentUtterance = u;
-    currentController = options.controller || null;
-    currentState = 'loading';
-    if (currentController && typeof currentController.onStateChange === 'function') {
-      currentController.onStateChange('loading');
+    const voices = window.speechSynthesis.getVoices() || [];
+    const ruVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('ru'));
+    if (ruVoices.length > 0) {
+      u.voice = ruVoices.find(v => /google|natural|yandex|irina|pavel|dmitry/i.test(v.name)) || ruVoices[0];
     }
 
     u.onstart = () => {
@@ -191,7 +299,6 @@
       if (currentController && typeof currentController.onStateChange === 'function') {
         currentController.onStateChange('paused');
       }
-      if (options.onPause) options.onPause();
     };
 
     u.onresume = () => {
@@ -199,38 +306,194 @@
       if (currentController && typeof currentController.onStateChange === 'function') {
         currentController.onStateChange('playing');
       }
-      if (options.onResume) options.onResume();
     };
 
     u.onend = () => {
-      currentState = 'stopped';
-      currentUtterance = null;
-      if (currentController && typeof currentController.onStateChange === 'function') {
-        currentController.onStateChange('stopped');
-      }
-      currentController = null;
+      stop();
       if (options.onEnd) options.onEnd();
     };
 
-    u.onerror = (err) => {
-      currentState = 'error';
-      currentUtterance = null;
-      if (currentController && typeof currentController.onStateChange === 'function') {
-        currentController.onStateChange('error');
-      }
-      currentController = null;
-      if (options.onError) options.onError(err);
+    u.onerror = (e) => {
+      stop();
+      if (options.onError) options.onError(e);
     };
 
     try {
       window.speechSynthesis.speak(u);
-      return true;
-    } catch (e) {
-      console.error('SpeechSynthesis error:', e);
-      currentState = 'error';
-      if (options.onError) options.onError(e);
-      return false;
+    } catch (err) {
+      console.error('Fallback speech error:', err);
+      stop();
     }
+  }
+
+  // --- Fetch & Play a Single Audio Chunk ---
+  async function playSingleChunk(chunkText, options = {}, queueInfo = null) {
+    if (!chunkText) return false;
+
+    currentState = 'loading';
+    if (currentController && typeof currentController.onStateChange === 'function') {
+      currentController.onStateChange('loading', queueInfo);
+    }
+
+    const voice = options.voice || getSelectedVoice();
+    const rateStr = getSelectedRate();
+    const rateParam = rateToPercent(rateStr);
+
+    const cacheKey = `${voice}|${rateParam}|${chunkText.length}|${chunkText.slice(0, 50)}`;
+    let audioBlob = getClientCachedBlob(cacheKey);
+
+    if (!audioBlob) {
+      currentAbortController = new AbortController();
+      const signal = currentAbortController.signal;
+
+      try {
+        const response = await fetch('/api/voice/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: chunkText,
+            voice: voice,
+            rate: rateParam,
+            pitch: '+0Hz'
+          }),
+          signal: signal
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.detail || `HTTP ${response.status}`);
+        }
+
+        audioBlob = await response.blob();
+        setClientCachedBlob(cacheKey, audioBlob);
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          return false;
+        }
+
+        console.warn('Neural TTS request failed:', err.message);
+        currentState = 'stopped';
+        if (currentController && typeof currentController.onStateChange === 'function') {
+          currentController.onStateChange('stopped');
+        }
+
+        const confirmFallback = confirm(
+          'Нейроголос недоступен. Использовать системный голос?'
+        );
+
+        if (confirmFallback) {
+          speakFallback(chunkText, options);
+          return true;
+        } else {
+          stop();
+          if (options.onError) options.onError(err);
+          return false;
+        }
+      } finally {
+        currentAbortController = null;
+      }
+    }
+
+    if (!audioBlob) return false;
+
+    return new Promise((resolve) => {
+      try {
+        if (currentAudioUrl) {
+          try { URL.revokeObjectURL(currentAudioUrl); } catch (e) {}
+        }
+
+        currentAudioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(currentAudioUrl);
+        currentAudio = audio;
+
+        audio.onplay = () => {
+          currentState = 'playing';
+          if (currentController && typeof currentController.onStateChange === 'function') {
+            currentController.onStateChange('playing', queueInfo);
+          }
+          if (options.onStart) options.onStart();
+        };
+
+        audio.onpause = () => {
+          if (currentState === 'playing') {
+            currentState = 'paused';
+            if (currentController && typeof currentController.onStateChange === 'function') {
+              currentController.onStateChange('paused', queueInfo);
+            }
+            if (options.onPause) options.onPause();
+          }
+        };
+
+        audio.onended = () => {
+          if (currentAudioUrl) {
+            try { URL.revokeObjectURL(currentAudioUrl); } catch (e) {}
+            currentAudioUrl = null;
+          }
+          currentAudio = null;
+          resolve(true);
+        };
+
+        audio.onerror = (e) => {
+          console.warn('HTMLAudio error:', e);
+          if (currentAudioUrl) {
+            try { URL.revokeObjectURL(currentAudioUrl); } catch (e) {}
+            currentAudioUrl = null;
+          }
+          currentAudio = null;
+          resolve(false);
+        };
+
+        audio.play().catch(playErr => {
+          if (playErr.name === 'AbortError') {
+            resolve(false);
+            return;
+          }
+          console.warn('Audio play rejection:', playErr);
+          resolve(false);
+        });
+      } catch (err) {
+        console.warn('Audio setup error:', err);
+        resolve(false);
+      }
+    });
+  }
+
+  // --- Sequential Queue Runner for Long Texts ---
+  async function runQueue() {
+    isPlayingQueue = true;
+    while (isPlayingQueue && currentQueueIndex < activeQueue.length) {
+      const idx = currentQueueIndex;
+      const chunk = activeQueue[idx];
+      const queueInfo = activeQueue.length > 1 ? { current: idx + 1, total: activeQueue.length } : null;
+
+      const success = await playSingleChunk(chunk, currentQueueOptions, queueInfo);
+      if (!success || !isPlayingQueue) {
+        break;
+      }
+      currentQueueIndex++;
+    }
+
+    if (isPlayingQueue && currentQueueIndex >= activeQueue.length) {
+      stop();
+      if (currentQueueOptions.onEnd) currentQueueOptions.onEnd();
+    }
+  }
+
+  // --- Primary Neural TTS speak() Engine ---
+  async function speak(rawText, options = {}) {
+    stop();
+
+    const textToSpeak = prepareText(rawText, options.module || 'general');
+    if (!textToSpeak) return false;
+
+    currentController = options.controller || null;
+    currentQueueOptions = options;
+
+    activeQueue = splitIntoChunks(textToSpeak, 3200);
+    currentQueueIndex = 0;
+
+    runQueue();
+    return true;
   }
 
   // --- Speech Recognition (Voice Input) ---
@@ -247,7 +510,7 @@
     rec.lang = 'ru-RU';
     rec.interimResults = true;
     rec.maxAlternatives = 1;
-    rec.continuous = false; // user speaks sentence, recognition completes
+    rec.continuous = false;
 
     activeRecognition = rec;
 
@@ -293,35 +556,13 @@
     if (activeRecognition) {
       try {
         activeRecognition.stop();
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
       activeRecognition = null;
     }
   }
 
-  // --- Auto-Speak Preferences ---
-  const AUTO_SPEAK_KEY = 'bahoniq_voice_auto_';
-
-  function isAutoSpeakEnabled(moduleId) {
-    if (!moduleId) return false;
-    return localStorage.getItem(AUTO_SPEAK_KEY + moduleId) === 'true';
-  }
-
-  function setAutoSpeakEnabled(moduleId, boolVal) {
-    if (!moduleId) return;
-    localStorage.setItem(AUTO_SPEAK_KEY + moduleId, boolVal ? 'true' : 'false');
-  }
-
-  function autoSpeakIfEnabled(text, moduleId, options = {}) {
-    if (!isAutoSpeakEnabled(moduleId)) return false;
-    if (!text || text.length > 800) return false; // don't auto-read massive dumps
-    return speak(text, { ...options, module: moduleId });
-  }
-
   // --- UI Component Controller & Factory ---
   function createVoiceBar(config = {}) {
-    // config: { container, moduleId, getText, inputEl, showAutoSpeak, labelText }
     const container = typeof config.container === 'string' ? document.querySelector(config.container) : config.container;
     if (!container) return null;
 
@@ -330,11 +571,14 @@
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', 'Голосовое управление');
 
+    let currentQueueInfo = null;
+
     // Controller state
     const controller = {
       state: 'stopped',
-      onStateChange: (newState) => {
+      onStateChange: (newState, queueInfo = null) => {
         controller.state = newState;
+        if (queueInfo) currentQueueInfo = queueInfo;
         updateUI();
       }
     };
@@ -344,7 +588,7 @@
     btnSpeak.type = 'button';
     btnSpeak.className = 'bv-btn bv-btn-speak';
     btnSpeak.setAttribute('aria-label', 'Озвучить текст голосом');
-    btnSpeak.title = 'Озвучить текст голосом';
+    btnSpeak.title = 'Озвучить нейросетевым голосом';
 
     // 2. Stop Button
     const btnStop = document.createElement('button');
@@ -357,14 +601,16 @@
 
     function updateUI() {
       btnSpeak.className = 'bv-btn bv-btn-speak ' + controller.state;
+      const partStr = currentQueueInfo && currentQueueInfo.total > 1 ? ` (${currentQueueInfo.current}/${currentQueueInfo.total})` : '';
+
       if (controller.state === 'playing') {
-        btnSpeak.innerHTML = '<span>⏸ Пауза</span>';
+        btnSpeak.innerHTML = `<span>⏸ Пауза${partStr}</span>`;
         btnStop.disabled = false;
       } else if (controller.state === 'paused') {
-        btnSpeak.innerHTML = '<span>▶ Продолжить</span>';
+        btnSpeak.innerHTML = `<span>▶ Продолжить${partStr}</span>`;
         btnStop.disabled = false;
       } else if (controller.state === 'loading') {
-        btnSpeak.innerHTML = '<span>⏳ Загрузка...</span>';
+        btnSpeak.innerHTML = `<span>⏳ Готовлю голос…${partStr}</span>`;
         btnStop.disabled = false;
       } else {
         btnSpeak.innerHTML = `<span>🔊 ${config.labelText || 'Озвучить'}</span>`;
@@ -397,7 +643,60 @@
     bar.appendChild(btnSpeak);
     bar.appendChild(btnStop);
 
-    // 3. Microphone Button (if input element provided)
+    // 3. Compact Voice Selector (Дмитрий — основной, Светлана)
+    const voiceSelect = document.createElement('select');
+    voiceSelect.className = 'bv-select bv-voice-select';
+    voiceSelect.setAttribute('aria-label', 'Выбор нейроголоса');
+    voiceSelect.title = 'Выбор нейросетевого голоса';
+
+    const optDmitry = document.createElement('option');
+    optDmitry.value = 'ru-RU-DmitryNeural';
+    optDmitry.textContent = '👨 Дмитрий';
+
+    const optSvetlana = document.createElement('option');
+    optSvetlana.value = 'ru-RU-SvetlanaNeural';
+    optSvetlana.textContent = '👩 Светлана';
+
+    voiceSelect.appendChild(optDmitry);
+    voiceSelect.appendChild(optSvetlana);
+    voiceSelect.value = getSelectedVoice();
+
+    voiceSelect.onchange = () => {
+      setSelectedVoice(voiceSelect.value);
+    };
+
+    bar.appendChild(voiceSelect);
+
+    // 4. Compact Speed Selector (0.9x / 1.0x / 1.1x)
+    const rateSelect = document.createElement('select');
+    rateSelect.className = 'bv-select bv-rate-select';
+    rateSelect.setAttribute('aria-label', 'Скорость речи');
+    rateSelect.title = 'Скорость речи';
+
+    const opt09 = document.createElement('option');
+    opt09.value = '0.9';
+    opt09.textContent = '0.9x';
+
+    const opt10 = document.createElement('option');
+    opt10.value = '1.0';
+    opt10.textContent = '1.0x';
+
+    const opt11 = document.createElement('option');
+    opt11.value = '1.1';
+    opt11.textContent = '1.1x';
+
+    rateSelect.appendChild(opt09);
+    rateSelect.appendChild(opt10);
+    rateSelect.appendChild(opt11);
+    rateSelect.value = getSelectedRate();
+
+    rateSelect.onchange = () => {
+      setSelectedRate(rateSelect.value);
+    };
+
+    bar.appendChild(rateSelect);
+
+    // 5. Microphone Button (if input element provided)
     if (config.inputEl) {
       const input = typeof config.inputEl === 'string' ? document.querySelector(config.inputEl) : config.inputEl;
       if (input && isRecognitionSupported()) {
@@ -417,7 +716,6 @@
             btnMic.classList.remove('listening');
             btnMic.innerHTML = '<span>🎙 Голос</span>';
           } else {
-            // Stop any playing speech before listening to avoid echo
             stop();
             btnMic.classList.add('listening');
             btnMic.innerHTML = '<span>🎙 Слушаю...</span>';
@@ -454,27 +752,6 @@
       }
     }
 
-    // 4. Auto-speak Toggle
-    if (config.showAutoSpeak && config.moduleId) {
-      const autoLabel = document.createElement('label');
-      autoLabel.className = 'bv-auto-speak-wrap';
-      autoLabel.title = 'Автоматически озвучивать ответы ИИ при их получении';
-
-      const chk = document.createElement('input');
-      chk.type = 'checkbox';
-      chk.checked = isAutoSpeakEnabled(config.moduleId);
-      chk.onchange = () => {
-        setAutoSpeakEnabled(config.moduleId, chk.checked);
-      };
-
-      const txt = document.createElement('span');
-      txt.textContent = 'Автоозвучка';
-
-      autoLabel.appendChild(chk);
-      autoLabel.appendChild(txt);
-      bar.appendChild(autoLabel);
-    }
-
     container.appendChild(bar);
     return { bar, controller };
   }
@@ -495,14 +772,16 @@
     resume,
     stop,
     getState: () => currentState,
+    getSelectedVoice,
+    setSelectedVoice,
+    getSelectedRate,
+    setSelectedRate,
     startRecognition,
     stopRecognition,
     isSpeechSupported,
     isRecognitionSupported,
     prepareText,
-    isAutoSpeakEnabled,
-    setAutoSpeakEnabled,
-    autoSpeakIfEnabled,
+    autoSpeakIfEnabled: () => false, // Auto-speak permanently disabled as per user instruction
     createVoiceBar
   };
 })();

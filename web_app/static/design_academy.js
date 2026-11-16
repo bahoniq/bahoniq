@@ -37,21 +37,6 @@
   function renderLessonList(filter=''){const list=state.curriculum.lessons.filter(x=>x.stage_id===state.stageId&&(!filter||`${x.title} ${x.summary}`.toLowerCase().includes(filter.toLowerCase())));q('#dasLessonList').innerHTML=list.map(x=>`<button class="das-lesson ${state.lesson?.id===x.id?'active':''} ${state.done.has(x.id)?'done':''}" data-das-lesson="${x.id}"><i>${state.done.has(x.id)?'✓':x.number}</i><span>${esc(x.title)}</span></button>`).join('');qa('[data-das-lesson]').forEach(b=>b.onclick=()=>openLesson(b.dataset.dasLesson));const stage=state.curriculum.stages.find(x=>x.id===state.stageId);q('#dasStageTitle').textContent=`ЭТАП ${state.stageId}`;q('#dasStageCount').textContent=`${[...state.done].filter(x=>x.startsWith(state.stageId+'-')).length}/${stage?.lessons||0}`}
   function openLesson(id){if(state.lesson)save();state.lesson=state.curriculum.lessons.find(x=>x.id===id);if(!state.lesson)return;restore(id);q('#dasLessonBadge').textContent=`ЭТАП 1 · УРОК ${state.lesson.number}`;q('#dasLessonTitle').textContent=state.lesson.title;q('#dasLessonSummary').textContent=state.lesson.summary;q('#dasTheory').textContent=state.lesson.theory;q('#dasTask').textContent=state.lesson.task;q('#dasLessonSteps').innerHTML=(state.lesson.steps||[]).map(x=>`<li>${esc(x)}</li>`).join('');q('#dasMentorFeed').innerHTML='<p>Этот диалог относится только к текущему уроку. Я подскажу следующий шаг, но не выполню работу вместо вас.</p>';q('#dasMentorProvider').textContent='Контекст урока подключён';state.reference=false;q('#dasOverlay').innerHTML='';q('#dasShowReference').textContent='Показать эталон';renderLessonList();render();switchStep(state.done.has(id)?'practice':'learn');
     window.BahonIQVoice?.stop();
-    let dasLearnVoice = q('#dasLearnVoiceBar');
-    if (!dasLearnVoice) {
-      dasLearnVoice = document.createElement('div');
-      dasLearnVoice.id = 'dasLearnVoiceBar';
-      q('#dasLessonSteps')?.insertAdjacentElement('afterend', dasLearnVoice);
-    }
-    if (dasLearnVoice) {
-      dasLearnVoice.innerHTML = '';
-      window.BahonIQVoice?.createVoiceBar({
-        container: dasLearnVoice,
-        moduleId: 'design',
-        labelText: 'Озвучить урок',
-        getText: () => `Главная идея: ${state.lesson.theory}. Задание: ${state.lesson.task}. Порядок работы: ${(state.lesson.steps||[]).join('. ')}`
-      });
-    }
     let dasMentorVoice = q('#dasMentorVoiceBar');
     if (!dasMentorVoice && q('#dasMentorQuestion')) {
       dasMentorVoice = document.createElement('div');
@@ -61,8 +46,7 @@
         container: dasMentorVoice,
         moduleId: 'design',
         inputEl: '#dasMentorQuestion',
-        showAutoSpeak: true,
-        labelText: 'Озвучить наставника',
+        labelText: 'Озвучить объяснение',
         getText: () => {
           const pList = qa('#dasMentorFeed p');
           return pList.length ? pList[pList.length - 1].textContent : '';
@@ -74,7 +58,7 @@
   async function validate(){if(!state.lesson)return;const btn=q('#dasValidate');btn.disabled=true;btn.textContent='Проверяю...';try{const data=await api(`/api/design-academy/validate/${state.lesson.id}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({document:{objects:state.objects}})});showReview(data)}catch(e){mentorMessage(e.message)}finally{btn.disabled=false;btn.textContent='Проверить работу'}}
   function showReview(data){switchStep('review');q('#dasScore').textContent=data.score+'%';q('#dasReviewHint').textContent=data.passed?'Все технические требования выполнены. Завершите урок, чтобы сохранить прогресс.':'Исправьте отмеченные пункты и вернитесь к повторной проверке.';q('#dasResults').innerHTML=data.results.map(x=>`<div class="das-result ${x.passed?'ok':''}">${x.passed?'✓':'○'} ${esc(x.message)}</div>`).join('');q('#dasComplete').classList.toggle('hidden',!data.passed);mentorMessage(data.passed?'Проверка пройдена на 100%. Теперь можно завершить урок.':`Проверка: ${data.passed_count} из ${data.total}. Урок ещё не завершён — исправьте первый отмеченный пункт.`)}
   function mentorMessage(text){const p=document.createElement('p');p.textContent=text;q('#dasMentorFeed')?.append(p);p.scrollIntoView({block:'end'})}
-  async function askMentor(){const b=q('#dasMentorAsk');b.disabled=true;b.textContent='Анализирую...';try{const d=await api(`/api/design-academy/mentor/${state.lesson.id}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:q('#dasMentorMode').value,question:q('#dasMentorQuestion').value,document:{objects:state.objects}})});mentorMessage(d.answer);window.BahonIQVoice?.autoSpeakIfEnabled(d.answer, 'design');q('#dasMentorProvider').textContent=d.provider;q('#dasMentorQuestion').value=''}catch(e){mentorMessage(e.message)}finally{b.disabled=false;b.textContent='Спросить наставника'}}
+  async function askMentor(){const b=q('#dasMentorAsk');b.disabled=true;b.textContent='Анализирую...';try{const d=await api(`/api/design-academy/mentor/${state.lesson.id}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:q('#dasMentorMode').value,question:q('#dasMentorQuestion').value,document:{objects:state.objects}})});mentorMessage(d.answer);q('#dasMentorProvider').textContent=d.provider;q('#dasMentorQuestion').value=''}catch(e){mentorMessage(e.message)}finally{b.disabled=false;b.textContent='Спросить наставника'}}
   function toggleReference(){state.reference=!state.reference;const h=q('#dasOverlay');h.classList.toggle('das-reference',state.reference);h.innerHTML=state.reference?'<rect x="120" y="105" width="360" height="140" rx="16" fill="none" stroke="#f472b6" stroke-width="2"/><ellipse cx="174" cy="175" rx="24" ry="24" fill="none" stroke="#f472b6" stroke-width="2"/><rect x="220" y="140" width="170" height="18" fill="none" stroke="#f472b6"/><rect x="220" y="178" width="220" height="12" fill="none" stroke="#f472b6"/>':'';q('#dasShowReference').textContent=state.reference?'Скрыть эталон':'Показать эталон'}
   function exportSvg(){const clone=q('#dasCanvas').cloneNode(true);clone.querySelector('#dasOverlay')?.remove();clone.querySelectorAll('.selected').forEach(x=>x.classList.remove('selected'));const blob=new Blob([new XMLSerializer().serializeToString(clone)],{type:'image/svg+xml'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='design-academy-project.svg';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
   function setZoom(value){state.zoom=Math.max(.5,Math.min(1.8,value));const svg=q('#dasCanvas');svg.style.width=`${900*state.zoom}px`;svg.style.height=`${560*state.zoom}px`;q('#dasZoomLabel').textContent=Math.round(state.zoom*100)+'%'}

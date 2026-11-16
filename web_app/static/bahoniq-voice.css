@@ -195,3 +195,48 @@ body.theme-day .bv-btn-mic.listening {
 body.theme-day .bv-auto-speak-wrap {
   color: #506176;
 }
+
+/* Compact Voice & Rate Selectors */
+.bv-select {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border, rgba(43, 64, 84, 0.2));
+  background: var(--bg-card, #0f1d30);
+  color: var(--text-main, #f8fafc);
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.bv-select:hover {
+  border-color: var(--cyan-neon, #00E5FF);
+}
+
+.bv-select:focus-visible {
+  outline: 2px solid var(--border-focus, #087F8C);
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .bv-select {
+    min-height: 44px;
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+}
+
+body.theme-day .bv-select {
+  background: #E7EDF2;
+  border-color: rgba(43, 64, 84, 0.18);
+  color: #172436;
+}
+
+body.theme-day .bv-select:hover {
+  background: #DEE7ED;
+  border-color: rgba(8, 127, 140, 0.42);
+}
