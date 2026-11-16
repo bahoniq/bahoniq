@@ -9,6 +9,32 @@
   const q = s => document.querySelector(s);
   const qa = s => [...document.querySelectorAll(s)];
   const KEY_PREFIX = 'bahoniq_excel_academy_office_it_v3_';
+  const OLD_PROGRESS_KEY = 'bahoniq_excel_academy_done';
+  const PROGRESS_KEY = 'bahoniq_excel_academy_progress_v3';
+  const MIGRATION_FLAG_KEY = 'bahoniq_excel_academy_progress_reset_2026_11_16';
+
+  // Одноразовая миграция: сброс только прогресса Excel Academy Studio
+  (() => {
+    try {
+      if (!localStorage.getItem(MIGRATION_FLAG_KEY)) {
+        localStorage.removeItem(OLD_PROGRESS_KEY);
+        localStorage.removeItem('bahoniq_excel_academy_progress');
+        localStorage.setItem(PROGRESS_KEY, '[]');
+        localStorage.setItem(MIGRATION_FLAG_KEY, '1');
+      }
+    } catch (e) {
+      console.warn('Excel Academy migration notice:', e);
+    }
+  })();
+
+  function getSavedDone() {
+    try {
+      const raw = localStorage.getItem(PROGRESS_KEY);
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set();
+    }
+  }
 
   // State
   const state = {
@@ -27,7 +53,7 @@
     resizeStartX: 0,
     resizeStartWidth: 96,
     book: null,
-    done: new Set(JSON.parse(localStorage.getItem('bahoniq_excel_academy_done') || '[]')),
+    done: getSavedDone(),
     history: [],
     future: []
   };
@@ -1300,7 +1326,7 @@
 
   function complete() {
     state.done.add(state.lesson.id);
-    localStorage.setItem('bahoniq_excel_academy_done', JSON.stringify([...state.done]));
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify([...state.done]));
     updateProgress();
     renderLessons();
 
@@ -1311,6 +1337,30 @@
       renderStages();
       openLesson(n.id);
     }
+  }
+
+  function resetCourseProgress() {
+    if (!confirm('Сбросить весь прогресс Excel Academy? Это действие нельзя отменить.')) {
+      return;
+    }
+    state.done.clear();
+    try {
+      localStorage.setItem(PROGRESS_KEY, '[]');
+      localStorage.removeItem(OLD_PROGRESS_KEY);
+      localStorage.removeItem('bahoniq_excel_academy_progress');
+      if (state.course && Array.isArray(state.course.lessons)) {
+        state.course.lessons.forEach(l => {
+          localStorage.removeItem(KEY_PREFIX + l.id);
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to clear Excel Academy progress:', e);
+    }
+    state.stage = 1;
+    updateProgress();
+    renderStages();
+    renderLessons();
+    openLesson('1-1');
   }
 
   function updateProgress() {
@@ -1371,6 +1421,7 @@
     q('#eaSearch').oninput = e => renderLessons(e.target.value);
 
     q('#eaResetLesson') && (q('#eaResetLesson').onclick = resetCurrentLesson);
+    q('#eaResetProgressBtn') && (q('#eaResetProgressBtn').onclick = resetCourseProgress);
 
     q('#eaImport').onchange = e => e.target.files[0] && importXlsx(e.target.files[0]);
     q('#eaExport').onclick = exportXlsx;

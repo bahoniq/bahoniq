@@ -3,9 +3,11 @@
 .ea-header h1{margin:0;font-size:26px}
 .ea-header p{margin:5px 0 0;color:var(--muted)}
 .ea-pill{font-size:11px;color:#86efac;border:1px solid #22c55e66;border-radius:99px;padding:5px 9px}
-.ea-progress{width:270px}
+.ea-progress{width:270px;display:flex;flex-direction:column;gap:5px}
 .ea-progress div{height:7px;background:#17283d;border-radius:9px;overflow:hidden}
 .ea-progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,#22c55e,#06b6d4)}
+.ea-reset-progress-btn{margin-top:4px;font-size:11px;padding:4px 10px;min-height:28px;opacity:0.85;cursor:pointer;border-radius:6px;align-self:flex-start;background:transparent;border:1px solid var(--line,#29405e);color:var(--muted,#94a3b8);transition:all .2s ease}
+.ea-reset-progress-btn:hover{opacity:1;color:#f87171;border-color:rgba(239,68,68,0.45);background:rgba(239,68,68,0.08)}
 .ea-stages{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
 .ea-stage{min-width:0;text-align:left;padding:13px;border:1px solid var(--line);border-radius:12px;background:#0f1d30;color:inherit}
 .ea-stage.active{border-color:#22c55e;box-shadow:0 0 0 1px #22c55e55}
