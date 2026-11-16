@@ -2284,6 +2284,31 @@ body.theme-day .acad-lesson-search {
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.acad-regen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  color: var(--cyan-neon);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 6px;
+}
+.acad-regen-btn:hover {
+  background: rgba(0, 229, 255, 0.18);
+  border-color: var(--cyan-neon);
+}
+.acad-regen-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .acad-stage-badge {
@@ -2386,7 +2411,11 @@ body.theme-day .acad-lesson-search {
   gap: 14px;
   max-height: 480px;
   overflow-y: auto;
-  padding-right: 6px;
+  overflow-x: hidden;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 12px 4px 4px;
 }
 
 .acad-msg-bubble {
@@ -2394,6 +2423,11 @@ body.theme-day .acad-lesson-search {
   border-radius: 12px;
   font-size: 14px;
   line-height: 1.55;
+  box-sizing: border-box;
+  max-width: 85%;
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   animation: acadFadeIn 0.25s ease;
 }
 @keyframes acadFadeIn {
@@ -2406,6 +2440,10 @@ body.theme-day .acad-lesson-search {
   border: 1px solid rgba(0, 229, 255, 0.2);
   color: var(--text-main);
   border-top-left-radius: 3px;
+  align-self: flex-start;
+  width: 100%;
+  max-width: 95%;
+  box-sizing: border-box;
 }
 body.theme-day .acad-msg-trainer {
   background: #f0f7fb;
@@ -2419,6 +2457,17 @@ body.theme-day .acad-msg-trainer {
   align-self: flex-end;
   border-top-right-radius: 3px;
   max-width: 85%;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.acad-msg-user pre.acad-trap-code {
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-x: auto;
 }
 body.theme-day .acad-msg-user {
   background: #e2e8f0;

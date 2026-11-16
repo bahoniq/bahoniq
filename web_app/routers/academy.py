@@ -20,6 +20,7 @@ from ..modules.code_academy.db import (
     save_step1_result,
     save_step2_result,
     save_user_attempt,
+    update_lesson_ai_content,
 )
 from ..modules.code_academy.pathway import run_sql
 from ..modules.code_academy.pdf_book_generator import build_academy_pdf_book
@@ -87,12 +88,73 @@ def _mentor_evaluate_code_sync(lesson: dict[str, Any], user_code: str, exec_resu
     return _evaluate_step2_sync(lesson, user_code, exec_result)
 
 
+def _generate_unique_lesson_content(
+    stage_id: int,
+    stage_title: str,
+    lesson_id: int,
+    lesson_title: str,
+    lesson_summary: str,
+    language: str,
+) -> dict[str, Any] | None:
+    """Генерирует уникальный микроурок (ловушку, код, практическую задачу и критерии) через Gemini Flash API."""
+    prompt = (
+        f"Этап: {stage_title} (ID {stage_id})\n"
+        f"Урок {lesson_id}: {lesson_title}\n"
+        f"Суть темы: {lesson_summary}\n"
+        f"Язык программирования: {language} (python / sql)\n\n"
+        "СОЗДАЙ СТРОГО ПО ЭТОЙ КОНКРЕТНОЙ ТЕМЕ МИКРОШАГИ ДЛЯ ОБУЧЕНИЯ (БЕЗ ШАБЛОНОВ-ЗАГЛУШЕК):\n"
+        "1. step1_concept: Короткое живое объяснение именно этой механики простыми словами (2-3 предложения, объясняя каждый знак, команду и назначение).\n"
+        "2. step1_trap_code: Короткий код (3-5 строк) СТРОГО по теме урока с наглядной ловушкой или деталью чтения.\n"
+        "3. step1_trap_question: Вопрос ученику («Что выведет этот код?», «В чём ошибка?», «Что вернёт запрос?»).\n"
+        "4. step1_trap_expected: Эталонный ответ для строгой проверки ИИ (что должен подметить ученик).\n"
+        "5. step1_rule: Главное правило тренера (1 ёмкое практическое предложение с советом).\n"
+        "6. step2_concept: Вводная фраза перед практикой в редакторе кода (1-2 предложения).\n"
+        "7. step2_task_prompt: Чёткая практическая задача в редакторе СТРОГО по этой теме (на 2-5 строк кода). Укажи точные имена таблиц/колонок/переменных и что требуется сделать.\n"
+        "8. step2_starter_code: Начальный шаблон кода или комментарий-подсказка для редактора.\n"
+        "9. step2_expected_criteria: 2-3 строгих критерия правильного решения (что обязательно должно присутствовать в коде ученика).\n"
+        "10. step2_rule: Практическое правило/совет для шага 2.\n\n"
+        "Ответь СТРОГО в формате JSON без markdown-разметки:\n"
+        "{\n"
+        '  "step1_concept": "...",\n'
+        '  "step1_trap_code": "...",\n'
+        '  "step1_trap_question": "...",\n'
+        '  "step1_trap_expected": "...",\n'
+        '  "step1_rule": "...",\n'
+        '  "step2_concept": "...",\n'
+        '  "step2_task_prompt": "...",\n'
+        '  "step2_starter_code": "...",\n'
+        '  "step2_expected_criteria": "...",\n'
+        '  "step2_rule": "..."\n'
+        "}"
+    )
+
+    try:
+        raw = generate_text(
+            prompt=prompt,
+            system_instruction="Ты — методист и AI-тренер BahonIQ Academy. Верни чистый JSON строго по теме конкретного урока.",
+            temperature=0.3,
+            timeout=35,
+        )
+        cleaned = str(raw).strip()
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        m = re.search(r"\{.*\}", cleaned, flags=re.DOTALL)
+        if m:
+            data = json.loads(m.group(0))
+            if isinstance(data.get("step2_expected_criteria"), list):
+                data["step2_expected_criteria"] = "; ".join(str(c) for c in data["step2_expected_criteria"])
+            return data
+    except Exception as exc:
+        LOGGER.error("Failed to generate unique lesson via Gemini Flash: %s", exc)
+    return None
+
+
 # ============================================================================
 # ОЦЕНКА МИКРОШАГА 1: ЧТЕНИЕ КОДА («ПОЙМАЙ ЛОВУШКУ»)
 # ============================================================================
 
 def _evaluate_step1_sync(lesson: dict[str, Any], user_answer: str) -> dict[str, Any]:
-    """Оценивает понимание учеником чтения кода и ловушки через Gemini Flash."""
+    """Строгая оценка ответа ученика по шагу чтения кода через Gemini Flash."""
     clean_answer = (user_answer or "").strip()
     if not clean_answer:
         return {
@@ -102,100 +164,24 @@ def _evaluate_step1_sync(lesson: dict[str, Any], user_answer: str) -> dict[str, 
         }
 
     system_inst = (
-        "Ты — проницательный, дружелюбный и внимательный ИИ-тренер BahonIQ Academy. "
-        "Ученик выполняет микрошаг Типа А («Чтение кода / Поймай ловушку»). "
-        "Он должен был понять, что выведет код на экран и в чём подвох/механика.\n\n"
-        "ПРАВИЛА ОЦЕНКИ ПОД МИКРОСКОПОМ:\n"
-        "1. Если ученик понял суть и ответил в целом правильно: "
-        "похвали его живой короткой фразой (1-2 предложения) и подтверди правильность вывода.\n"
-        "2. Если ученик ошибся или не заметил подвох (например, перепутал строку и число, забыл про регистр, не понял кавычки): "
-        "НЕ РУГАЙ и НЕ ВЫДАВАЙ готовый правильный ответ целиком! "
-        "Мягко укажи, на какую именно деталь обратить внимание (например: «Посмотри внимательно на кавычки во второй строке — это текст или переменная?»), "
-        "и попроси подумать ещё разок.\n"
+        "Ты — строгий, проницательный, справедливый и доброжелательный ИИ-тренер BahonIQ Academy.\n"
+        "Ученик выполняет микрошаг Типа А («Чтение кода / Поймай ловушку»).\n\n"
+        "СТРОЖАЙШИЕ ПРАВИЛА ПРОВЕРКИ ПОД МИКРОСКОПОМ:\n"
+        "1. Сравни ответ ученика СТРОГО с эталонным смыслом и кодом ловушки.\n"
+        "2. Если ученик ответил не по теме, угадал наугад, пропустил ключевой подвох (перепутал тип данных, кавычки, имя переменной или условие) — passed ОБЯЗАН быть false!\n"
+        "   НЕ ругай и НЕ выдавай готовый ответ целиком! Доброжелательно укажи на конкретную строчку/знак, объясни в чём сомнение и попроси сформулировать точнее.\n"
+        "3. ТОЛЬКО если ученик действительно понял логику кода и верно ответил на вопрос тренера — ставь passed: true и похвали его за внимательность.\n\n"
         "Ответь СТРОГО в формате JSON:\n"
-        '{"passed": true/false, "feedback": "Твой живой дружелюбный разбор ответа ученика"}'
+        '{"passed": false/true, "feedback": "Твой живой разбор ответа ученика"}'
     )
 
     prompt = (
-        f"Тема урока: {lesson['title']}\n"
+        f"Тема урока: {lesson['title']} ({lesson.get('stage_title', '')})\n"
         f"Код ловушки:\n{lesson.get('step1_trap_code')}\n\n"
         f"Вопрос тренера:\n{lesson.get('step1_trap_question')}\n\n"
         f"Эталонный смысл правильного ответа:\n{lesson.get('step1_trap_expected')}\n\n"
         f"Ответ ученика:\n{clean_answer}\n\n"
-        "Оцени ответ ученика и верни JSON {\"passed\": bool, \"feedback\": string}:"
-    )
-
-    passed = False
-    feedback = ""
-    try:
-        raw_ai = generate_text(
-            prompt=prompt,
-            system_instruction=system_inst,
-            temperature=0.25,
-            timeout=30,
-        )
-        cleaned = str(raw_ai).strip()
-        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\s*```$", "", cleaned)
-        m = re.search(r"\{.*\}", cleaned, flags=re.DOTALL)
-        if m:
-            data = json.loads(m.group(0))
-            passed = bool(data.get("passed", False))
-            feedback = str(data.get("feedback", "")).strip()
-        else:
-            feedback = cleaned
-            passed = len(clean_answer) >= 15
-    except Exception as exc:
-        LOGGER.warning("Ошибка оценки шага 1 через Gemini: %s", exc)
-        passed = len(clean_answer) >= 15
-        feedback = (
-            "Отличный ответ! Ты уловил суть механики."
-            if passed
-            else "Попробуй описать чуть подробнее: что появится на экране при выполнении этих строк?"
-        )
-
-    return {
-        "passed": passed,
-        "feedback": feedback,
-        "rule": lesson.get("step1_rule") or "",
-    }
-
-
-# ============================================================================
-# ОЦЕНКА МИКРОШАГА 2: НАПИСАНИЕ КОДА (ПРАКТИКА)
-# ============================================================================
-
-def _evaluate_step2_sync(
-    lesson: dict[str, Any],
-    user_code: str,
-    exec_result: dict[str, Any],
-) -> dict[str, Any]:
-    """Оценка написанного кода ученика через запуск + разбор Gemini Flash под микроскопом."""
-    stdout_str = (exec_result.get("stdout") or "").strip()
-    stderr_str = (exec_result.get("stderr") or "").strip()
-    has_runtime_error = bool(stderr_str) or exec_result.get("returncode", 0) != 0
-
-    system_inst = (
-        "Ты — опытный, чуткий и поддерживающий ИИ-ментор курса программирования BahonIQ Academy. "
-        "Твоя задача — оценить практический код ученика на микрошаге 2.\n\n"
-        "ПРАВИЛА ОЦЕНКИ ПОД МИКРОСКОПОМ:\n"
-        "1. Если в коде есть синтаксическая или логическая ошибка: "
-        "КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выдавать готовый правильный код целиком! "
-        "По-человечески разбери ошибку под микроскопом (несовпадение регистра, опечатка в имени, кавычки вместо числа, двоеточие, отступ), "
-        "объясни на пальцах и дай точную наводящую подсказку для исправления.\n"
-        "2. Если решение верное: искренне похвали ученика, отметь чистоту решения и подчеркни ключевое правило темы.\n"
-        "Ответь СТРОГО в формате JSON:\n"
-        '{"passed": true/false, "feedback": "Твой живой разбор кода ученика"}'
-    )
-
-    prompt = (
-        f"Урок: {lesson['title']} ({lesson.get('stage_title', '')})\n"
-        f"Язык: {lesson['language']}\n"
-        f"Задание шага 2:\n{lesson.get('step2_task_prompt') or lesson.get('task_prompt')}\n\n"
-        f"Код ученика:\n{user_code}\n\n"
-        f"Вывод программы (stdout):\n{stdout_str or '(нет вывода)'}\n\n"
-        f"Ошибки выполнения (stderr):\n{stderr_str or '(ошибок нет)'}\n\n"
-        "Оцени решение и верни JSON {\"passed\": bool, \"feedback\": string}:"
+        "Оцени ответ ученика строго и верни JSON {\"passed\": bool, \"feedback\": string}:"
     )
 
     passed = False
@@ -216,19 +202,104 @@ def _evaluate_step2_sync(
             passed = bool(data.get("passed", False))
             feedback = str(data.get("feedback", "")).strip()
         else:
-            feedback = cleaned
-            passed = (not has_runtime_error) and bool(stdout_str)
+            passed = False
+            feedback = "Ответ требует уточнения: внимательнее прочитайте вопрос тренера и объясните логику кода."
+    except Exception as exc:
+        LOGGER.warning("Fallback оценки шага 1: %s", exc)
+        passed = False
+        feedback = "ИИ-тренер временно обрабатывает запросы. Проверьте ваш ответ и попробуйте отправить ещё раз."
+
+    return {
+        "passed": passed,
+        "feedback": feedback,
+        "rule": lesson.get("step1_rule") or "",
+    }
+
+
+# ============================================================================
+# ОЦЕНКА МИКРОШАГА 2: НАПИСАНИЕ КОДА (ПРАКТИКА СТРОГО ПО ЗАДАНИЮ)
+# ============================================================================
+
+def _evaluate_step2_sync(
+    lesson: dict[str, Any],
+    user_code: str,
+    exec_result: dict[str, Any],
+) -> dict[str, Any]:
+    """Строгая оценка практического кода ученика: сравнение СТРОГО с условием задачи + разбор по пунктам."""
+    clean_code = (user_code or "").strip()
+    if not clean_code:
+        return {
+            "passed": False,
+            "feedback": "Код пуст. Напишите решение в редакторе перед отправкой на проверку.",
+            "rule": lesson.get("step2_rule") or "",
+        }
+
+    stdout_str = (exec_result.get("stdout") or "").strip()
+    stderr_str = (exec_result.get("stderr") or "").strip()
+    has_runtime_error = bool(stderr_str) or exec_result.get("returncode", 0) != 0
+
+    task_prompt = lesson.get("step2_task_prompt") or lesson.get("task_prompt") or ""
+    criteria = lesson.get("step2_expected_criteria") or ""
+
+    system_inst = (
+        "Ты — строгий, бескомпромиссный, справедливый и доброжелательный ИИ-тренер по программированию BahonIQ Academy.\n"
+        "Твоя обязанность — проверить практический код ученика под микроскопом СТРОГО по условию задачи.\n\n"
+        "СТРОЖАЙШИЕ ПРАВИЛА ПРОВЕРКИ:\n"
+        "1. ТОЧНОЕ СООТВЕТСТВИЕ УСЛОВИЮ ЗАДАЧИ:\n"
+        "   - Сравнивай код СТРОГО с поставленной задачей и обязательными критериями.\n"
+        "   - Если задача требовала выбрать ВСЕ колонки (SELECT * FROM ...), а ученик написал конкретную колонку (например SELECT facults или SELECT name) — это ГРУБАЯ ОШИБКА! passed ОБЯЗАН быть false!\n"
+        "   - Если задача требовала создать таблицу (CREATE TABLE), а ученик выполнил SELECT или забыл поля — passed ОБЯЗАН быть false!\n"
+        "   - Если задача требовала определённые типы или значения DEFAULT/NOT NULL, а ученик их пропустил — passed ОБЯЗАН быть false!\n"
+        "   - Если код решает совершенно другую задачу или написан наугад — passed ОБЯЗАН быть false!\n"
+        "2. РАЗБОР ПО ПУНКТАМ:\n"
+        "   Если решение неверно, разбери ошибки доброжелательно и чётко по пунктам:\n"
+        "   1. Что требовалось в задании.\n"
+        "   2. Что написано у тебя и в чём нестыковка (синтаксис, регистр, кавычки, имена полей/переменных, логика).\n"
+        "   3. Наводящая подсказка, как исправить (КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выдавать готовый код целиком!).\n"
+        "3. ЗАСЧИТЫВАНИЕ (passed = true):\n"
+        "   Ставь passed: true ТОЛЬКО если код не содержит ошибок и ДЕЙСТВИТЕЛЬНО решает поставленную задачу целиком. Похвали за точность решения!\n\n"
+        "Ответь СТРОГО в формате JSON:\n"
+        '{"passed": false/true, "feedback": "Твой детальный разбор по пунктам"}'
+    )
+
+    prompt = (
+        f"Урок: {lesson['title']} ({lesson.get('stage_title', '')})\n"
+        f"Язык: {lesson['language']}\n"
+        f"УСЛОВИЕ ЗАДАЧИ:\n{task_prompt}\n\n"
+        f"ОБЯЗАТЕЛЬНЫЕ КРИТЕРИИ ПРОВЕРКИ:\n{criteria or 'Код должен точно решать поставленную задачу без ошибок.'}\n\n"
+        f"КОД УЧЕНИКА:\n{clean_code}\n\n"
+        f"Вывод программы (stdout):\n{stdout_str or '(нет вывода)'}\n\n"
+        f"Ошибки выполнения (stderr):\n{stderr_str or '(ошибок нет)'}\n\n"
+        "Оцени решение ученика строго по условию и верни JSON {\"passed\": bool, \"feedback\": string}:"
+    )
+
+    passed = False
+    feedback = ""
+    try:
+        raw_ai = generate_text(
+            prompt=prompt,
+            system_instruction=system_inst,
+            temperature=0.2,
+            timeout=35,
+        )
+        cleaned = str(raw_ai).strip()
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        m = re.search(r"\{.*\}", cleaned, flags=re.DOTALL)
+        if m:
+            data = json.loads(m.group(0))
+            passed = bool(data.get("passed", False))
+            feedback = str(data.get("feedback", "")).strip()
+        else:
+            passed = False
+            feedback = "Решение требует доработки: проверьте соответствие кода условию практической задачи."
     except Exception as exc:
         LOGGER.warning("Fallback оценки шага 2: %s", exc)
+        passed = False
         if has_runtime_error:
-            passed = False
-            feedback = f"Код вызвал ошибку выполнения:\n{stderr_str}\n\nПроверьте названия переменных и синтаксис."
-        elif not stdout_str:
-            passed = False
-            feedback = "Код выполнился, но ничего не вывел. Добавьте вызов print() или SELECT для отображения результата."
+            feedback = f"Код вызвал ошибку выполнения:\n{stderr_str}\n\nИсправьте синтаксис и запустите снова."
         else:
-            passed = True
-            feedback = f"Отличная работа! Код успешно вывел результат:\n{stdout_str}"
+            feedback = "Не удалось автоматически проверить код через ИИ. Убедитесь, что код полностью выполняет условие задачи."
 
     if has_runtime_error:
         passed = False
@@ -238,7 +309,6 @@ def _evaluate_step2_sync(
         "feedback": feedback,
         "rule": lesson.get("step2_rule") or "",
     }
-
 
 # ============================================================================
 # РОУТЫ BAHONIQ ACADEMY API
@@ -257,6 +327,54 @@ async def academy_lesson_get(lesson_id: int):
     if not lesson:
         raise HTTPException(404, "Урок не найден.")
     return lesson
+
+
+@router.post("/start-lesson")
+async def academy_start_lesson_post(request: Request):
+    """Старт урока: генерация уникального объяснения и задачи от Gemini Flash в реальном времени с кэшированием в SQLite."""
+    body = await _parse_body(request)
+    lesson_id = int(body.get("lesson_id") or 1)
+    force_refresh = bool(body.get("force_refresh", False))
+    stage_id = int(body.get("stage_id") or 1)
+    stage_title = str(body.get("stage_title") or f"Этап {stage_id}").strip()
+    lesson_title = str(body.get("lesson_title") or "").strip()
+    lesson_summary = str(body.get("lesson_summary") or "").strip()
+
+    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
+    if not lesson:
+        raise HTTPException(404, "Урок не найден.")
+
+    if not lesson_title:
+        lesson_title = lesson["title"]
+    if not lesson_summary:
+        lesson_summary = lesson["summary"]
+    if not stage_title:
+        stage_title = lesson.get("stage_title", f"Этап {lesson['stage_id']}")
+
+    # Проверяем наличие закэшированного сгенерированного ИИ урока
+    is_cached = bool(lesson.get("is_ai_generated", 0)) and bool(lesson.get("step1_trap_code"))
+    if is_cached and not force_refresh:
+        return lesson
+
+    # Генерируем уникальный урок в реальном времени через Gemini Flash
+    ai_content = await run_in_threadpool(
+        _generate_unique_lesson_content,
+        stage_id=stage_id,
+        stage_title=stage_title,
+        lesson_id=lesson_id,
+        lesson_title=lesson_title,
+        lesson_summary=lesson_summary,
+        language=lesson["language"],
+    )
+
+    if ai_content:
+        await run_in_threadpool(update_lesson_ai_content, lesson_id, ai_content)
+        refreshed = await run_in_threadpool(get_lesson_by_id, lesson_id)
+        if refreshed:
+            lesson = refreshed
+
+    return lesson
+
 
 
 @router.post("/step1/evaluate")

@@ -98,6 +98,8 @@ def init_academy_db() -> None:
                     "step2_task_prompt": "TEXT DEFAULT ''",
                     "step2_starter_code": "TEXT DEFAULT ''",
                     "step2_rule": "TEXT DEFAULT ''",
+                    "step2_expected_criteria": "TEXT DEFAULT ''",
+                    "is_ai_generated": "INTEGER DEFAULT 0",
                     "quiz_data_json": "TEXT DEFAULT '[]'",
                 },
             )
@@ -170,15 +172,15 @@ def init_academy_db() -> None:
                         starter_code = excluded.starter_code,
                         expected_hint = excluded.expected_hint,
                         file_path = excluded.file_path,
-                        step1_concept = excluded.step1_concept,
-                        step1_trap_code = excluded.step1_trap_code,
-                        step1_trap_question = excluded.step1_trap_question,
-                        step1_trap_expected = excluded.step1_trap_expected,
-                        step1_rule = excluded.step1_rule,
-                        step2_concept = excluded.step2_concept,
-                        step2_task_prompt = excluded.step2_task_prompt,
-                        step2_starter_code = excluded.step2_starter_code,
-                        step2_rule = excluded.step2_rule,
+                        step1_concept = CASE WHEN academy_lessons.is_ai_generated = 1 THEN academy_lessons.step1_concept ELSE excluded.step1_concept END,
+                        step1_trap_code = CASE WHEN academy_lessons.is_ai_generated = 1 THEN academy_lessons.step1_trap_code ELSE excluded.step1_trap_code END,
+                        step1_trap_question = CASE WHEN academy_lessons.is_ai_generated = 1 THEN academy_lessons.step1_trap_question ELSE excluded.step1_trap_question END,
+                        step1_trap_expected = CASE WHEN academy_lessons.is_ai_generated = 1 THEN academy_lessons.step1_trap_expected ELSE excluded.step1_trap_expected END,
+                        step1_rule = CASE WHEN academy_lessons.is_ai_generated = 1 THEN academy_lessons.step1_rule ELSE excluded.step1_rule END,
+                        step2_concept = CASE WHEN academy_lessons.is_ai_generated = 1 THEN academy_lessons.step2_concept ELSE excluded.step2_concept END,
+                        step2_task_prompt = CASE WHEN academy_lessons.is_ai_generated = 1 THEN academy_lessons.step2_task_prompt ELSE excluded.step2_task_prompt END,
+                        step2_starter_code = CASE WHEN academy_lessons.is_ai_generated = 1 THEN academy_lessons.step2_starter_code ELSE excluded.step2_starter_code END,
+                        step2_rule = CASE WHEN academy_lessons.is_ai_generated = 1 THEN academy_lessons.step2_rule ELSE excluded.step2_rule END,
                         quiz_data_json = excluded.quiz_data_json;
                     """,
                     (
@@ -326,19 +328,50 @@ def get_lesson_by_id(lesson_id: int) -> dict[str, Any] | None:
     except Exception:
         data["quiz_data"] = []
 
-    # Фрагмент реального файла репозитория (для уроков с file_path)
-    repo_source = ""
-    if data.get("file_path"):
-        target = PROJECT_ROOT / data["file_path"]
-        if target.is_file():
-            try:
-                raw = target.read_text(encoding="utf-8", errors="replace")
-                lines = raw.splitlines()[:95]
-                repo_source = "\n".join(lines)
-            except Exception:
-                repo_source = ""
-    data["repo_source_preview"] = repo_source
+    data["repo_source_preview"] = ""
+    data["file_path"] = ""
     return data
+
+
+
+def update_lesson_ai_content(lesson_id: int, ai_data: dict[str, Any]) -> None:
+    """Сохраняет сгенерированный ИИ уникальный интерактивный микроурок в базу данных."""
+    with _db_lock:
+        conn = _get_conn()
+        try:
+            conn.execute(
+                """
+                UPDATE academy_lessons
+                SET step1_concept = ?,
+                    step1_trap_code = ?,
+                    step1_trap_question = ?,
+                    step1_trap_expected = ?,
+                    step1_rule = ?,
+                    step2_concept = ?,
+                    step2_task_prompt = ?,
+                    step2_starter_code = ?,
+                    step2_expected_criteria = ?,
+                    step2_rule = ?,
+                    is_ai_generated = 1
+                WHERE id = ?
+                """,
+                (
+                    str(ai_data.get("step1_concept") or "").strip(),
+                    str(ai_data.get("step1_trap_code") or "").strip(),
+                    str(ai_data.get("step1_trap_question") or "").strip(),
+                    str(ai_data.get("step1_trap_expected") or "").strip(),
+                    str(ai_data.get("step1_rule") or "").strip(),
+                    str(ai_data.get("step2_concept") or "").strip(),
+                    str(ai_data.get("step2_task_prompt") or "").strip(),
+                    str(ai_data.get("step2_starter_code") or "").strip(),
+                    str(ai_data.get("step2_expected_criteria") or "").strip(),
+                    str(ai_data.get("step2_rule") or "").strip(),
+                    lesson_id,
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
 
 def save_step1_result(lesson_id: int, answer: str, feedback: str, passed: bool) -> None:

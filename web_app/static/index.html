@@ -599,6 +599,9 @@
                     <div class="acad-badges-row">
                       <span id="acadLessonStageBadge" class="acad-stage-badge">Этап 1</span>
                       <span id="acadLessonStatusBadge" class="acad-status-badge">В процессе</span>
+                      <button id="acadRegenAiBtn" class="acad-regen-btn" title="Сгенерировать новый уникальный пример и задачу от Gemini Flash">
+                        <span class="acad-regen-icon">🔄</span> Новый пример от ИИ
+                      </button>
                     </div>
                     <h2 id="acadLessonTitle" class="acad-lesson-title">Загрузка урока...</h2>
                     <p id="acadLessonSummary" class="acad-lesson-summary"></p>
@@ -628,13 +631,7 @@
                   <!-- Сообщения тренера, ловушки, правила и ответы пользователя -->
                 </div>
 
-                <!-- Блок реального файла репозитория (для Этапа 3: Архитектура BahonIQ) -->
-                <div id="acadRepoFileBox" class="acad-repo-file-box hidden">
-                  <div class="acad-repo-file-head">
-                    <span>📂 Реальный файл проекта BahonIQ: <strong id="acadRepoFileName"></strong></span>
-                  </div>
-                  <pre id="acadRepoFileCode" class="acad-repo-code-preview"></pre>
-                </div>
+
 
                 <!-- Нижний интерактивный док ответа -->
                 <div class="acad-answer-dock">

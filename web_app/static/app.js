@@ -1768,11 +1768,12 @@ recForm?.addEventListener('submit', async e => {
   const stepPill1 = document.getElementById('acadStepPill1');
   const stepPill2 = document.getElementById('acadStepPill2');
   const stepPill3 = document.getElementById('acadStepPill3');
+  const regenAiBtn = document.getElementById('acadRegenAiBtn');
 
   const trainerFeed = document.getElementById('acadTrainerFeed');
-  const repoFileBox = document.getElementById('acadRepoFileBox');
-  const repoFileName = document.getElementById('acadRepoFileName');
-  const repoFileCode = document.getElementById('acadRepoFileCode');
+  const repoFileBox = null;
+  const repoFileName = null;
+  const repoFileCode = null;
 
   // Доки ответов
   const step1Dock = document.getElementById('acadStep1Dock');
@@ -1901,11 +1902,49 @@ recForm?.addEventListener('submit', async e => {
     });
   }
 
-  // 2. Открытие конкретного урока
-  async function openLesson(lessonId) {
+  // 2. Открытие конкретного урока (генерация уникального микроурока через Gemini Flash в реальном времени)
+  async function openLesson(lessonId, forceRefresh = false) {
     try {
-      const res = await fetch(`/api/academy/lesson/${lessonId}`);
-      if (!res.ok) throw new Error('Не удалось загрузить урок');
+      if (lessonTitle) lessonTitle.textContent = 'ИИ формирует урок под тему...';
+      if (lessonSummary) lessonSummary.textContent = 'Gemini Flash подготавливает уникальные микрошаги и задачу...';
+      if (trainerFeed) {
+        trainerFeed.innerHTML = `
+          <div class="acad-msg-bubble acad-msg-trainer">
+            <div class="acad-msg-author">🤖 ИИ-тренер Gemini Flash</div>
+            <div>Секунду! Подготавливаю эксклюзивный интерактивный материал строго по этой теме...</div>
+          </div>
+        `;
+      }
+
+      let stageMeta = null;
+      let lessonMeta = null;
+      if (roadmapData && roadmapData.stages) {
+        for (const st of roadmapData.stages) {
+          const found = (st.lessons || []).find(l => l.id === lessonId);
+          if (found) {
+            stageMeta = st;
+            lessonMeta = found;
+            break;
+          }
+        }
+      }
+
+      const payload = {
+        lesson_id: lessonId,
+        stage_id: stageMeta ? stageMeta.id : 1,
+        stage_title: stageMeta ? stageMeta.title : '',
+        lesson_title: lessonMeta ? lessonMeta.title : '',
+        lesson_summary: lessonMeta ? lessonMeta.summary : '',
+        force_refresh: Boolean(forceRefresh),
+      };
+
+      const res = await fetch('/api/academy/start-lesson', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error('Не удалось запустить урок');
       currentLesson = await res.json();
       currentStageId = currentLesson.stage_id;
       userQuizAnswers = {};
@@ -1914,6 +1953,18 @@ recForm?.addEventListener('submit', async e => {
       renderCurrentLessonWorkspace();
     } catch (err) {
       console.error('Ошибка открытия урока:', err);
+      try {
+        const fallbackRes = await fetch(`/api/academy/lesson/${lessonId}`);
+        if (fallbackRes.ok) {
+          currentLesson = await fallbackRes.json();
+          currentStageId = currentLesson.stage_id;
+          userQuizAnswers = {};
+          renderRoadmapUI();
+          renderCurrentLessonWorkspace();
+        }
+      } catch (e) {
+        console.error('Критическая ошибка загрузки урока:', e);
+      }
     }
   }
 
@@ -2072,7 +2123,21 @@ recForm?.addEventListener('submit', async e => {
             </div>
           </div>
         `;
+      } else if (currentLesson.step2_code && currentLesson.mentor_feedback) {
+        html += `
+          <div class="acad-msg-bubble acad-msg-trainer" style="border-color: rgba(255, 82, 82, 0.45); background: rgba(255, 82, 82, 0.05);">
+            <div class="acad-msg-author" style="color: #ff5252;">🤖 ИИ-тренер Gemini Flash • Разбор решения под микроскопом</div>
+            <div>${formatText(currentLesson.mentor_feedback)}</div>
+          </div>
+        `;
       }
+    } else if (currentLesson.step1_answer && currentLesson.step1_feedback) {
+      html += `
+        <div class="acad-msg-bubble acad-msg-trainer" style="border-color: rgba(255, 171, 0, 0.45); background: rgba(255, 171, 0, 0.05);">
+          <div class="acad-msg-author" style="color: #ffab00;">🤖 ИИ-тренер Gemini Flash • Разбор ответа под микроскопом</div>
+          <div>${formatText(currentLesson.step1_feedback)}</div>
+        </div>
+      `;
     }
 
     if (currentLesson.completed) {
@@ -2086,6 +2151,21 @@ recForm?.addEventListener('submit', async e => {
 
     trainerFeed.innerHTML = html;
     trainerFeed.scrollTop = trainerFeed.scrollHeight;
+  }
+
+  // Кнопка регенерации примера от ИИ
+  if (regenAiBtn) {
+    regenAiBtn.addEventListener('click', async () => {
+      if (!currentLesson) return;
+      regenAiBtn.disabled = true;
+      regenAiBtn.innerHTML = '<span class="acad-regen-icon">⏳</span> Генерирую...';
+      try {
+        await openLesson(currentLesson.id, true);
+      } finally {
+        regenAiBtn.disabled = false;
+        regenAiBtn.innerHTML = '<span class="acad-regen-icon">🔄</span> Новый пример от ИИ';
+      }
+    });
   }
 
   // 4. Отправка ответа на Шаг 1
@@ -2113,16 +2193,13 @@ recForm?.addEventListener('submit', async e => {
 
         currentLesson.step1_answer = answer;
         currentLesson.step1_passed = data.passed;
+        currentLesson.step1_feedback = data.feedback;
         if (data.roadmap) roadmapData = data.roadmap;
 
         step1Input.value = '';
         renderRoadmapUI();
         updateStepTrackerUI();
         renderTrainerDialogueFeed();
-
-        if (!data.passed) {
-          alert('Ответ тренера: ' + data.feedback);
-        }
       } catch (err) {
         alert('Не удалось отправить ответ: ' + err.message);
       } finally {
@@ -2195,10 +2272,6 @@ recForm?.addEventListener('submit', async e => {
         renderRoadmapUI();
         updateStepTrackerUI();
         renderTrainerDialogueFeed();
-
-        if (!data.passed) {
-          alert('Разбор от ментора: ' + data.feedback);
-        }
       } catch (err) {
         alert('Ошибка при отправке: ' + err.message);
       } finally {

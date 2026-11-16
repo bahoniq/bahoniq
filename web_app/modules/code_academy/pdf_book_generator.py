@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Генератор персональной PDF-книги «От А до Я: Архитектура BahonIQ Work Center и полный курс разработки».
+"""Генератор персональной PDF-книги «От А до Я: Архитектура веб-приложений и полный курс разработки».
 
 Создаёт структурированную, увлекательную книгу для новичка:
 - Архитектура реального проекта от клика пользователя до Gemini Flash и SQLite;
@@ -89,79 +89,37 @@ def _xml_escape(text: str) -> str:
 
 
 def _inspect_live_files() -> list[dict[str, Any]]:
-    """Читает реальные ключевые файлы репозитория BahonIQ Work Center для архитектурного разбора."""
-    files_meta = [
-        (
-            "config.py",
-            "Конфигурация, темы оформления и системные константы",
-            "Сердце настроек проекта: определяет цветовую палитру тёмной темы (Dark Slate) и мягкой дневной темы (Soft Mist / Cool Slate), порты серверов и ссылки на университетские сервисы.",
-            "Архитектурный секрет: единый источник правды для цветовых палитр и ссылок предотвращает рассинхронизацию между веб-версией и десктопом.",
-        ),
-        (
-            "ai_service.py",
-            "Единый ИИ-шлюз к облачной модели Google Gemini Flash 24/7",
-            "Изолирует все вызовы искусственного интеллекта в проекте. Использует официальную библиотеку google-genai, управляет таймаутами, системными инструкциями и потоковой генерацией.",
-            "Архитектурный секрет: изоляция работы с LLM в одном сервисе позволяет мгновенно менять параметры модели или переключаться на новые версии без правок в других модулях.",
-        ),
-        (
-            "web_app/server.py",
-            "Главный серверный узел FastAPI и диспетчер маршрутов",
-            "Принимает все HTTP-запросы из браузера и настольного клиента. Монтирует раздачу статических файлов (HTML, CSS, JS), настраивает CORS и объединяет роутеры модулей (Wiki, Phonebook, Academy).",
-            "Архитектурный секрет: использование асинхронного фреймворка FastAPI позволяет серверу на скромном облачном тарифе Render удерживать сотни одновременных подключений.",
-        ),
-        (
-            "web_app/modules/wiki/service.py",
-            "База знаний Platonus Wiki AI и архитектурный паттерн RAG",
-            "Реализует технологию RAG (Retrieval-Augmented Generation): при вопросе пользователя сервис сначала ищет релевантные статьи в SQLite (по ключевым словам и заголовкам), а затем передаёт их текст в Gemini Flash как строгий контекст.",
-            "Архитектурный секрет: RAG полностью исключает галлюцинации нейросети — ИИ отвечает строго по утверждённым инструкциям университета.",
-        ),
-        (
-            "web_app/modules/code_academy/db.py",
-            "Слой данных Академии: 4 этапа, 60 уроков и микрошаги",
-            "Управляет структурой обучения, сохраняет прогресс прохождения тем, ответы на ловушки (Шаг 1), код практических задач (Шаг 2) и баллы контрольных тестов.",
-            "Архитектурный секрет: режим WAL (Write-Ahead Logging) в SQLite защищает базу от блокировок при одновременных запросах от нескольких пользователей.",
-        ),
-        (
-            "web_app/static/index.html",
-            "Единый каркас веб-интерфейса (Single Page Application)",
-            "Содержит разметку всех модулей в одном файле. Переключение между Dashboard, Wiki, Телефонным справочником и Академией происходит мгновенно через JavaScript без перезагрузки страницы.",
-            "Архитектурный секрет: встроенный в head скрипт проверяет тему в localStorage до отрисовки DOM, полностью предотвращая неприятное белое мерцание (FOUC).",
-        ),
-        (
-            "web_app/static/app.js",
-            "Клиентский движок: интерактивность, темы и связь с бэкендом",
-            "Отвечает за отправку асинхронных fetch-запросов к FastAPI, рендеринг диалога с ИИ-тренером, запуск интерактивных тестов и плавное переключение дневного/ночного оформления.",
-            "Архитектурный секрет: отказ от тяжёлых фреймворков (React, Vue) в пользу чистого Vanilla JS даёт моментальную загрузку страницы за 0.05 секунды даже на слабых устройствах.",
-        ),
+    """Возвращает фундаментальные архитектурные компоненты современного веб-приложения (без раскрытия приватного кода)."""
+    return [
+        {
+            "name": "Модуль конфигурации (settings.py / .env)",
+            "title": "Управление окружением и разделение конфигурации",
+            "role": "Определяет переменные окружения (.env), ключи API, порты серверов и параметры подключения к базам данных.",
+            "secret": "Архитектурный принцип: 12-Factor App требует строгого хранения секретов и настроек в переменных окружения, а не в коде.",
+            "code": "# settings.py\nfrom pydantic_settings import BaseSettings\n\nclass Settings(BaseSettings):\n    app_name: str = 'Modern Web API'\n    gemini_api_key: str\n    database_url: str = 'sqlite:///./data.db'\n    debug: bool = False\n\nsettings = Settings()",
+        },
+        {
+            "name": "ИИ-интеграция (ai_service.py)",
+            "title": "Шлюз взаимодействия с нейросетями (LLM API)",
+            "role": "Изолирует все сетевые вызовы к языковым моделям (Gemini Flash), управляет системными инструкциями, таймаутами и обработкой ошибок.",
+            "secret": "Архитектурный принцип: изоляция работы с ИИ в выделенном сервисном слое позволяет обновлять логику генерации без правок роутеров.",
+            "code": "# ai_client.py\nfrom google import genai\n\ndef ask_ai(prompt: str, system_prompt: str) -> str:\n    client = genai.Client()\n    response = client.models.generate_content(\n        model='gemini-2.5-flash',\n        contents=prompt,\n        config={'system_instruction': system_prompt}\n    )\n    return response.text",
+        },
+        {
+            "name": "Серверный узел (main.py / FastAPI)",
+            "title": "Асинхронный диспетчер маршрутов и валидация данных",
+            "role": "Принимает входящие HTTP-запросы, валидирует схемы Pydantic, распределяет маршрутизацию и формирует стандартные JSON-ответы.",
+            "secret": "Архитектурный принцип: асинхронная неблокирующая модель (async/await) позволяет одному инстансу обслуживать тысячи соединений.",
+            "code": "# main.py\nfrom fastapi import FastAPI, HTTPException\nfrom pydantic import BaseModel\n\napp = FastAPI(title='Modern Web API')\n\nclass Item(BaseModel):\n    title: str\n    price: float\n\n@app.post('/api/items')\nasync def create_item(item: Item):\n    return {'status': 'created', 'data': item}",
+        },
+        {
+            "name": "Слой хранения данных (database.py / SQLite)",
+            "title": "Реляционное хранилище и транзакционная надёжность",
+            "role": "Обеспечивает свойства ACID, изолирует чтение и запись с помощью WAL-режима (Write-Ahead Logging) и защищает от инъекций через плейсхолдеры.",
+            "secret": "Архитектурный принцип: параметризованные запросы исключают SQL-инъекции, а индексы ускоряют поиск в сотни раз.",
+            "code": "# database.py\nimport sqlite3\n\ndef get_user_by_id(user_id: int):\n    with sqlite3.connect('app.db') as conn:\n        conn.row_factory = sqlite3.Row\n        return conn.execute(\n            'SELECT id, username FROM users WHERE id = ?', (user_id,)\n        ).fetchone()",
+        },
     ]
-
-    inspected = []
-    for rel_path, title, role_desc, secret in files_meta:
-        target = PROJECT_ROOT / rel_path
-        if not target.is_file():
-            continue
-        try:
-            raw = target.read_text(encoding="utf-8", errors="replace")
-            lines = raw.splitlines()
-            total_lines = len(lines)
-            signatures = [
-                ln.strip() for ln in lines
-                if re.match(r"^(@app\.(get|post|put|delete)|def\s+|async\s+def\s+|class\s+)", ln.strip())
-            ][:10]
-            snippet = "\n".join(lines[:28])
-            inspected.append({
-                "path": rel_path,
-                "title": title,
-                "role": role_desc,
-                "secret": secret,
-                "total_lines": total_lines,
-                "signatures": "\n".join(signatures) if signatures else "Файл разметки или конфигурации",
-                "snippet": snippet,
-            })
-        except Exception:
-            continue
-    return inspected
-
 
 def build_academy_pdf_book() -> bytes:
     """Собирает персональную иллюстрированную книгу «От А до Я: Архитектура BahonIQ»."""
@@ -179,7 +137,7 @@ def build_academy_pdf_book() -> bytes:
         rightMargin=14 * mm,
         topMargin=14 * mm,
         bottomMargin=14 * mm,
-        title="BahonIQ Work Center: Архитектура от А до Я",
+        title="Архитектура современных веб-приложений от А до Я",
         author="BahonIQ AI Academy & Google Gemini Flash",
     )
 
@@ -295,7 +253,7 @@ def build_academy_pdf_book() -> bytes:
 
     # Сводная таблица паспорта системы
     stats_data = [
-        ["Параметр", "Значение в проекте BahonIQ Work Center"],
+        ["Параметр", "Рекомендуемый отраслевой стандарт"],
         ["Основной язык", "Python 3.14 (современные аннотации, match/case, async/await)"],
         ["Бэкенд-фреймворк", "FastAPI (ASGI) + Uvicorn"],
         ["Искусственный интеллект", "Google Gemini 2.5 Flash 24/7 (единый модуль ai_service.py)"],
@@ -329,7 +287,7 @@ def build_academy_pdf_book() -> bytes:
     story.append(Paragraph("Глава 1. Архитектура с высоты птичьего полета", st_h1))
     story.append(
         Paragraph(
-            "Когда новичок смотрит на работающее приложение BahonIQ Work Center, оно кажется единым монолитом. "
+            "Когда новичок смотрит на работающее современное веб-приложение, оно кажется единым монолитом. "
             "Но стоит заглянуть под капот, как перед нами открывается строгая, элегантная и логичная модульная структура. "
             "Приложение спроектировано по принципу **минимального сопротивления и нулевого оверхеда**: "
             "здесь нет громоздких фреймворков вроде React или Angular, которые весят сотни мегабайт и тормозят на слабых офисных ПК. "
@@ -343,7 +301,7 @@ def build_academy_pdf_book() -> bytes:
 
     story.append(
         Paragraph(
-            "<b>Схема потоков данных в BahonIQ Work Center:</b><br/>"
+            "<b>Схема потоков данных в современном веб-приложении:</b><br/>"
             "[Браузер / Десктоп Клиент]<br/>"
             "  │  (HTTP Fetch, JSON, заголовки)<br/>"
             "  ▼<br/>"
@@ -390,7 +348,7 @@ def build_academy_pdf_book() -> bytes:
     story.append(Paragraph("Глава 3. Анатомия ключевых файлов репозитория «От А до Я»", st_h1))
     story.append(
         Paragraph(
-            "В этой главе мы разберём реальные исходные файлы проекта BahonIQ Work Center. "
+            "В этой главе мы разберём типовую архитектуру и ключевые строительные блоки современного сервиса. "
             "Вы увидите, какую роль играет каждый файл и какие архитектурные решения делают его надёжным.",
             st_body,
         )
