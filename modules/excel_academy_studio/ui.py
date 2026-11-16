@@ -483,9 +483,23 @@ def open_excel_academy(parent: tk.Misc | None = None) -> tk.Toplevel:
         txt_task.configure(text=lesson.get("task", ""))
         txt_theory.configure(state="normal")
         txt_theory.delete("1.0", "end")
-        theory_content = f"{lesson.get('theory', '')}\n\nПорядок выполнения:\n"
-        for i, step in enumerate(lesson.get("steps", []), 1):
-            theory_content += f"{i}. {step}\n"
+        theory_parts = []
+        if lesson.get("goal"):
+            theory_parts.append(f"Цель: {lesson['goal']}")
+        if lesson.get("work_situation"):
+            theory_parts.append(f"Контекст: {lesson['work_situation']}")
+        if lesson.get("theory"):
+            theory_parts.append(f"Теория:\n{lesson['theory']}")
+        if lesson.get("example"):
+            theory_parts.append(f"Пример:\n{lesson['example']}")
+        if lesson.get("steps"):
+            theory_parts.append("Порядок выполнения:\n" + "\n".join(f"{i}. {s}" for i, s in enumerate(lesson["steps"], 1)))
+        if lesson.get("common_errors"):
+            theory_parts.append("Типичные ошибки:\n" + "\n".join(f"• {e}" for e in lesson["common_errors"]))
+        if lesson.get("professional_tip"):
+            theory_parts.append(f"Совет профи: {lesson['professional_tip']}")
+
+        theory_content = "\n\n".join(theory_parts)
         txt_theory.insert("1.0", theory_content)
         txt_theory.configure(state="disabled")
 

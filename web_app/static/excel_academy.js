@@ -165,9 +165,37 @@
   function save() {
     if (!state.lesson) return;
     state.book.columnWidths = state.book.columnWidths || {};
-    localStorage.setItem(KEY_PREFIX + state.lesson.id, JSON.stringify(state.book));
-    const st = q('#eaStatus');
-    if (st) st.textContent = 'Сохранено в ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    try {
+      const cleanBook = {
+        activeSheet: state.book.activeSheet || 0,
+        sheets: (state.book.sheets || []).map(sh => {
+          const sparseCells = {};
+          for (const [addr, cell] of Object.entries(sh.cells || {})) {
+            const hasVal = cell.value !== '' && cell.value != null;
+            const hasForm = Boolean(cell.formula);
+            const hasSt = Boolean(cell.style && Object.keys(cell.style).length > 0);
+            if (hasVal || hasForm || hasSt) {
+              sparseCells[addr] = cell;
+            }
+          }
+          return { name: sh.name, cells: sparseCells };
+        }),
+        operations: state.book.operations || [],
+        charts: state.book.charts || [],
+        pivots: state.book.pivots || [],
+        filters: state.book.filters || {},
+        columnWidths: state.book.columnWidths || {}
+      };
+      localStorage.setItem(KEY_PREFIX + state.lesson.id, JSON.stringify(cleanBook));
+      const st = q('#eaStatus');
+      if (st) st.textContent = 'Сохранено в ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    } catch (err) {
+      if (err.name === 'QuotaExceededError' || err.code === 22) {
+        mentor('Внимание: память браузера заполнена. Рекомендуется сбросить неактивные уроки.');
+      } else {
+        console.warn('Save failed:', err);
+      }
+    }
   }
 
   function restore() {
@@ -349,10 +377,14 @@
   // FORMULA ENGINE
   // ==========================================================================
   function evaluateCell(addr, seen = new Set()) {
-    if (seen.has(addr)) return '#CYCLE!';
-    seen.add(addr);
+    const cleanAddr = String(addr).toUpperCase().replace(/\$/g, '');
+    const currentSheetName = state.book.sheets[state.active]?.name || String(state.active);
+    const cycleKey = currentSheetName + '!' + cleanAddr;
 
-    const c = getCell(addr);
+    if (seen.has(cycleKey)) return '#CIRCULAR!';
+    seen.add(cycleKey);
+
+    const c = getCell(cleanAddr);
     const f = c.formula;
     if (!f) return c.value;
     if (!f.startsWith('=')) return f;
@@ -424,6 +456,18 @@
         const n = Number(runFormula(rawArgs[0], seen)) || 0;
         const d = Number(rawArgs[1] != null ? runFormula(rawArgs[1], seen) : 0) || 0;
         return Number(n.toFixed(d));
+      }
+      if (name === 'ROUNDUP') {
+        const n = Number(runFormula(rawArgs[0], seen)) || 0;
+        const d = Number(rawArgs[1] != null ? runFormula(rawArgs[1], seen) : 0) || 0;
+        const factor = Math.pow(10, d);
+        return Math.sign(n) * (Math.ceil(Math.abs(n) * factor) / factor);
+      }
+      if (name === 'ROUNDDOWN') {
+        const n = Number(runFormula(rawArgs[0], seen)) || 0;
+        const d = Number(rawArgs[1] != null ? runFormula(rawArgs[1], seen) : 0) || 0;
+        const factor = Math.pow(10, d);
+        return Math.sign(n) * (Math.floor(Math.abs(n) * factor) / factor);
       }
 
       // IF
@@ -574,19 +618,34 @@
       return parts.map(p => runFormula(p.trim(), seen)).join('');
     }
 
-    // 3. Math Expression with Cell References
-    let safe = expr.replace(/\$?([A-Z]+)\$?(\d+)/g, (_, c, r) => {
-      const v = evaluateCell(c + r, new Set(seen));
+    // 3. Math Expression with Cell References & Cross-Sheet References
+    let cellError = null;
+    let safe = expr.replace(/(?:(?:'([^']+)'|([A-Za-zА-Яа-я0-9_]+))!)?\$?([A-Z]+)\$?(\d+)/g, (full) => {
+      const v = evaluateRef(full, new Set(seen));
+      if (typeof v === 'string' && v.startsWith('#')) {
+        cellError = v;
+      }
       return typeof v === 'number' ? v : JSON.stringify(v);
     });
+
+    if (cellError) return cellError;
+    if (safe.includes('#DIV/0!')) return '#DIV/0!';
+    if (safe.includes('#CIRCULAR!')) return '#CIRCULAR!';
 
     if (!/^[\d\s+\-*/().<>=!"']+$/.test(safe)) {
       return expr;
     }
 
+    if (/\/\s*0(?![.\d])/.test(safe)) {
+      return '#DIV/0!';
+    }
+
     try {
       const sanitized = safe.replace(/([^!<>=])=([^=])/g, '$1==$2');
-      return Function('"use strict"; return (' + sanitized + ')')();
+      const res = Function('"use strict"; return (' + sanitized + ')')();
+      if (res === Infinity || res === -Infinity) return '#DIV/0!';
+      if (Number.isNaN(res)) return '#VALUE!';
+      return res;
     } catch {
       return expr;
     }
@@ -601,7 +660,7 @@
       if (!inQuote) {
         if (ch === '(') depth++;
         if (ch === ')') depth--;
-        if (ch === ',' && depth === 0) {
+        if ((ch === ',' || ch === ';') && depth === 0) {
           args.push(cur.trim());
           cur = '';
           continue;
@@ -653,9 +712,35 @@
   const COLS_COUNT = 14;
   const ROWS_COUNT = 40;
 
+  function resetFilter() {
+    state.filter = null;
+    state.book.filters = {};
+    mentor('Фильтр сброшен: отображаются все строки.');
+    renderGrid();
+    save();
+  }
+
   function renderGrid() {
     const table = q('#eaGrid');
     if (!table) return;
+
+    const wrap = q('.ea-grid-wrap');
+    let banner = q('#eaFilterBanner');
+    if (state.filter) {
+      if (!banner && wrap) {
+        banner = document.createElement('div');
+        banner.id = 'eaFilterBanner';
+        banner.className = 'ea-filter-banner';
+        wrap.prepend(banner);
+      }
+      if (banner) {
+        banner.innerHTML = `<span>⚡ Фильтр активен: Столбец <b>${state.filter.column}</b> (${state.filter.condition} «${esc(state.filter.value || '')}»)</span><button id="eaResetFilterBtn" class="button secondary" style="padding:2px 8px;font-size:11px;margin-left:12px;cursor:pointer">Сбросить фильтр</button>`;
+        const btn = q('#eaResetFilterBtn');
+        if (btn) btn.onclick = resetFilter;
+      }
+    } else if (banner) {
+      banner.remove();
+    }
 
     state.book.columnWidths = state.book.columnWidths || {};
 
@@ -679,7 +764,22 @@
     const b = getRangeBounds(state.selection.start, state.selection.end);
 
     for (let r = 1; r <= ROWS_COUNT; r++) {
-      html += `<tr><th class="row-head">${r}</th>`;
+      let isHidden = false;
+      if (r > 1 && state.filter) {
+        const cellVal = evaluateCell(state.filter.column + r);
+        const sVal = (cellVal == null ? '' : String(cellVal)).trim();
+        const fVal = (state.filter.value || '').trim();
+        const cond = state.filter.condition;
+
+        if (cond === 'eq') isHidden = (sVal.toLowerCase() !== fVal.toLowerCase());
+        else if (cond === 'neq') isHidden = (sVal.toLowerCase() === fVal.toLowerCase());
+        else if (cond === 'contains') isHidden = !sVal.toLowerCase().includes(fVal.toLowerCase());
+        else if (cond === 'gt') isHidden = !(Number(sVal) > Number(fVal));
+        else if (cond === 'lt') isHidden = !(Number(sVal) < Number(fVal));
+        else if (cond === 'empty') isHidden = (sVal !== '');
+        else if (cond === 'not_empty') isHidden = (sVal === '');
+      }
+      html += `<tr style="${isHidden ? 'display:none;' : ''}"><th class="row-head">${r}</th>`;
       for (let c = 1; c <= COLS_COUNT; c++) {
         const addr = toCell(c, r);
         const cellData = getCell(addr);
@@ -1070,33 +1170,149 @@
   }
 
   function runOperation(name) {
-    commit();
     const s = currentSheet();
     const entries = Object.entries(s.cells);
 
     if (name === 'sort') {
+      const defaultCol = (state.selected || 'A1').replace(/\d+/g, '') || 'A';
+      const colName = (prompt('Столбец для сортировки (A, B, C...):', defaultCol) || '').toUpperCase().trim();
+      if (!colName) return;
+      const targetCol = colNameToIdx(colName);
+      if (targetCol < 1 || targetCol > COLS_COUNT) {
+        alert('Некорректный столбец');
+        return;
+      }
+      const dir = (prompt('Порядок сортировки (asc — по возрастанию, desc — по убыванию):', 'asc') || 'asc').toLowerCase().trim();
+      commit();
+
       const used = entries.map(([a]) => parseCell(a));
       const maxRow = Math.max(1, ...used.map(x => x.r)), maxCol = Math.max(1, ...used.map(x => x.c));
       const rows = [];
-      for (let r = 2; r <= maxRow; r++) rows.push(Array.from({ length: maxCol }, (_, i) => structuredClone(getCell(toCell(i + 1, r)))));
-      rows.sort((a, b) => String(a[0].value).localeCompare(String(b[0].value), 'ru', { numeric: true }));
-      rows.forEach((row, i) => row.forEach((value, j) => { s.cells[toCell(j + 1, i + 2)] = value; }));
-      mentor('Строки таблицы отсортированы по первому столбцу; заголовок сохранён.');
+      for (let r = 2; r <= maxRow; r++) {
+        rows.push(Array.from({ length: maxCol }, (_, i) => structuredClone(getCell(toCell(i + 1, r)))));
+      }
+
+      rows.sort((rowA, rowB) => {
+        const valA = rowA[targetCol - 1]?.value ?? '';
+        const valB = rowB[targetCol - 1]?.value ?? '';
+        const numA = Number(valA);
+        const numB = Number(valB);
+        let cmp = 0;
+        if (!isNaN(numA) && !isNaN(numB) && valA !== '' && valB !== '') {
+          cmp = numA - numB;
+        } else {
+          cmp = String(valA).localeCompare(String(valB), 'ru', { numeric: true, sensitivity: 'base' });
+        }
+        return dir === 'desc' ? -cmp : cmp;
+      });
+
+      rows.forEach((row, i) => {
+        row.forEach((cellData, j) => {
+          s.cells[toCell(j + 1, i + 2)] = cellData;
+        });
+      });
+
+      if (!state.book.operations.includes('sort')) state.book.operations.push('sort');
+      const sortOp = `sort:${colName}:${dir}`;
+      if (!state.book.operations.includes(sortOp)) state.book.operations.push(sortOp);
+      mentor(`Столбец ${colName} отсортирован (${dir === 'desc' ? 'по убыванию' : 'по возрастанию'}), заголовок сохранён.`);
+      renderGrid();
+      save();
+      return;
     }
+
     if (name === 'deduplicate') {
+      const defaultCol = (state.selected || 'A1').replace(/\d+/g, '') || 'A';
+      const colInput = (prompt('Столбец для поиска дубликатов (A, B... или * для всей строки):', defaultCol) || '').toUpperCase().trim();
+      if (!colInput) return;
+      const targetCol = colInput === '*' ? 0 : colNameToIdx(colInput);
+
       const used = entries.map(([a]) => parseCell(a));
       const maxRow = Math.max(1, ...used.map(x => x.r)), maxCol = Math.max(1, ...used.map(x => x.c));
-      const seen = new Set(); let delCount = 0;
+
+      const seen = new Set();
+      let dupCount = 0;
+      const uniqueRows = [];
+
       for (let r = 2; r <= maxRow; r++) {
-        const signature = Array.from({ length: maxCol }, (_, i) => String(getRaw(toCell(i + 1, r))).trim().toLowerCase()).join('\u241f');
-        if (signature && seen.has(signature)) {
-          for (let col = 1; col <= maxCol; col++) delete s.cells[toCell(col, r)];
-          delCount++;
-        } else if (signature) seen.add(signature);
+        let key = '';
+        if (targetCol === 0) {
+          key = Array.from({ length: maxCol }, (_, i) => String(getRaw(toCell(i + 1, r))).trim().toLowerCase()).join('\u241f');
+        } else {
+          key = String(getRaw(toCell(targetCol, r))).trim().toLowerCase();
+        }
+
+        const isRowEmpty = Array.from({ length: maxCol }, (_, i) => getRaw(toCell(i + 1, r))).every(v => v === '' || v == null);
+        if (isRowEmpty) continue;
+
+        if (seen.has(key)) {
+          dupCount++;
+        } else {
+          seen.add(key);
+          const rowData = Array.from({ length: maxCol }, (_, i) => structuredClone(getCell(toCell(i + 1, r))));
+          uniqueRows.push(rowData);
+        }
       }
-      mentor(`Удалено полностью повторяющихся строк: ${delCount}.`);
+
+      if (dupCount === 0) {
+        mentor('Повторяющихся строк не обнаружено.');
+        return;
+      }
+
+      if (!confirm(`Найдено дубликатов: ${dupCount}.\nУдалить повторяющиеся строки и уплотнить таблицу без пропусков?`)) {
+        return;
+      }
+
+      commit();
+
+      for (let r = 2; r <= maxRow; r++) {
+        for (let c = 1; c <= maxCol; c++) {
+          delete s.cells[toCell(c, r)];
+        }
+      }
+
+      uniqueRows.forEach((row, i) => {
+        row.forEach((cellData, j) => {
+          if (cellData.value !== '' && cellData.value != null || cellData.formula) {
+            s.cells[toCell(j + 1, i + 2)] = cellData;
+          }
+        });
+      });
+
+      if (!state.book.operations.includes('deduplicate')) state.book.operations.push('deduplicate');
+      const dedupOp = `deduplicate:${colInput}`;
+      if (!state.book.operations.includes(dedupOp)) state.book.operations.push(dedupOp);
+      mentor(`Удалено дубликатов: ${dupCount}. Таблица уплотнена без пропусков (осталось записей: ${uniqueRows.length}).`);
+      renderGrid();
+      save();
+      return;
     }
+
+    if (name === 'filter') {
+      const defaultCol = (state.selected || 'A1').replace(/\d+/g, '') || 'A';
+      const col = (prompt('Столбец для фильтрации (A, B, C...):', defaultCol) || '').toUpperCase().trim();
+      if (!col) return;
+      const cond = (prompt('Условие: contains, eq, neq, gt, lt, empty, not_empty', 'contains') || 'contains').toLowerCase().trim();
+      let val = '';
+      if (cond !== 'empty' && cond !== 'not_empty') {
+        val = prompt(`Значение для фильтрации («${cond}»):`, '') || '';
+      }
+      state.filter = { column: col, condition: cond, value: val };
+      state.book.filters = state.book.filters || {};
+      state.book.filters[col] = { condition: cond, value: val };
+
+      if (!state.book.operations.includes('filter')) state.book.operations.push('filter');
+      const opTag = `filter:${col}`;
+      if (!state.book.operations.includes(opTag)) state.book.operations.push(opTag);
+
+      mentor(`Фильтр применён к столбцу ${col} (${cond} ${val}). Несоответствующие строки скрыты.`);
+      renderGrid();
+      save();
+      return;
+    }
+
     if (name === 'remove_blanks') {
+      commit();
       let delCount = 0;
       for (const [addr, c] of entries) {
         if (c.value === '' || c.value == null) {
@@ -1106,9 +1322,11 @@
       }
       mentor(`Очищено пустых ячеек: ${delCount}.`);
     }
+
     if (name === 'replace') {
       const from = prompt('Что заменить?');
       if (from != null) {
+        commit();
         const to = prompt('На что заменить?', '') || '';
         for (const c of Object.values(s.cells)) {
           c.value = String(c.value).replaceAll(from, to);
@@ -1116,11 +1334,9 @@
         mentor(`Заменено: «${from}» → «${to}».`);
       }
     }
-    if (name === 'filter') {
-      q('#eaGrid')?.classList.toggle('filtered');
-      mentor('Режим фильтра переключен.');
-    }
+
     if (name === 'conditional') {
+      commit();
       const b = getRangeBounds(state.selection.start, state.selection.end);
       for (let r = b.r1; r <= b.r2; r++) for (let c = b.c1; c <= b.c2; c++) {
         const item = getCell(toCell(c, r));
@@ -1136,19 +1352,48 @@
 
   function createChart(type) {
     const s = currentSheet();
-    const values = Object.entries(s.cells)
-      .filter(([, c]) => typeof c.value === 'number')
-      .slice(0, 12)
-      .map(([label, c]) => ({ label, value: c.value }));
+    const b = getRangeBounds(state.selection.start, state.selection.end);
+    const selectedVals = [];
+
+    for (let r = b.r1; r <= b.r2; r++) {
+      for (let c = b.c1; c <= b.c2; c++) {
+        const addr = toCell(c, r);
+        const cell = getCell(addr);
+        const num = Number(cell.value);
+        if (typeof cell.value === 'number' || (!isNaN(num) && cell.value !== '' && cell.value != null)) {
+          selectedVals.push({ label: addr, value: typeof cell.value === 'number' ? cell.value : num });
+        }
+      }
+    }
+
+    let chartData = selectedVals;
+    if (!chartData.length) {
+      const fallbackVals = Object.entries(s.cells)
+        .filter(([addr, c]) => {
+          const r = Number(addr.match(/\d+/)?.[0] || 0);
+          return r > 1 && (typeof c.value === 'number' || (!isNaN(Number(c.value)) && c.value !== '' && c.value != null));
+        })
+        .slice(0, 15)
+        .map(([addr, c]) => ({ label: addr, value: Number(c.value) }));
+
+      if (!fallbackVals.length) {
+        alert('Для построения диаграммы выделите ячейки с числовыми значениями (например, показатели продаж или оклады)!');
+        mentor('Диаграмма не создана: выделите диапазон ячеек с числами.');
+        return;
+      }
+      chartData = fallbackVals;
+    }
 
     state.book.charts.push({
       type,
       title: 'Диаграмма ' + (state.book.charts.length + 1),
-      data: values.length ? values : [{ label: 'A', value: 10 }, { label: 'B', value: 25 }, { label: 'C', value: 18 }]
+      sourceRange: `${state.selection.start}:${state.selection.end}`,
+      data: chartData
     });
 
     if (!state.book.operations.includes('chart')) state.book.operations.push('chart');
     showChartModal(state.book.charts.at(-1));
+    mentor(`Построена диаграмма (${type}) на основе числовых данных (${chartData.length} точек).`);
     save();
   }
 
@@ -1166,16 +1411,72 @@
   }
 
   function createPivot() {
-    const vals = {};
-    for (const [addr, c] of Object.entries(currentSheet().cells)) {
-      const r = addr.match(/\d+/)[0];
-      if (addr.startsWith('A') && c.value) {
-        vals[c.value] = (vals[c.value] || 0) + (Number(getCell('B' + r).value) || 0);
+    commit();
+    const s = currentSheet();
+    const rowCol = (prompt('Поле строк (столбец категорий, напр. A):', 'A') || 'A').toUpperCase().trim();
+    const valCol = (prompt('Поле значений (столбец чисел, напр. B):', 'B') || 'B').toUpperCase().trim();
+    const agg = (prompt('Агрегация: sum (сумма), count (количество), avg (среднее):', 'sum') || 'sum').toLowerCase().trim();
+
+    const aggMap = {};
+    const countMap = {};
+
+    for (const [addr, c] of Object.entries(s.cells)) {
+      if (addr.startsWith(rowCol) && c.value) {
+        const r = addr.match(/\d+/)[0];
+        if (Number(r) < 2) continue;
+        const cat = String(c.value).trim();
+        const valCell = getCell(valCol + r);
+        const num = Number(valCell.value) || 0;
+
+        aggMap[cat] = (aggMap[cat] || 0) + (agg === 'count' ? 1 : num);
+        countMap[cat] = (countMap[cat] || 0) + 1;
       }
     }
-    state.book.pivots.push({ fields: ['A', 'B'], values: vals });
+
+    if (agg === 'avg' || agg === 'average') {
+      for (const cat of Object.keys(aggMap)) {
+        aggMap[cat] = Number((aggMap[cat] / (countMap[cat] || 1)).toFixed(2));
+      }
+    }
+
+    let pivotNum = 1;
+    while (state.book.sheets.some(sh => sh.name === `Сводная_${pivotNum}`)) {
+      pivotNum++;
+    }
+    const pivotSheetName = `Сводная_${pivotNum}`;
+    const pivotSheet = { name: pivotSheetName, cells: {} };
+
+    pivotSheet.cells['A1'] = { value: `Поле: ${rowCol}`, style: { bold: true, background: '#123525' } };
+    pivotSheet.cells['B1'] = { value: `${agg.toUpperCase()}(${valCol})`, style: { bold: true, background: '#123525' } };
+
+    let rIdx = 2;
+    let totalVal = 0;
+    for (const [cat, val] of Object.entries(aggMap)) {
+      pivotSheet.cells['A' + rIdx] = { value: cat };
+      pivotSheet.cells['B' + rIdx] = { value: val };
+      totalVal += (typeof val === 'number' ? val : 0);
+      rIdx++;
+    }
+
+    pivotSheet.cells['A' + rIdx] = { value: 'Итого', style: { bold: true } };
+    pivotSheet.cells['B' + rIdx] = { value: agg === 'avg' ? Number((totalVal / Math.max(1, Object.keys(aggMap).length)).toFixed(2)) : totalVal, style: { bold: true } };
+
+    state.book.sheets.push(pivotSheet);
+    state.active = state.book.sheets.length - 1;
+    state.book.activeSheet = state.active;
+
+    state.book.pivots.push({
+      sheet: pivotSheetName,
+      fields: [rowCol, valCol],
+      rows: rowCol,
+      values: valCol,
+      agg: agg,
+      results: aggMap
+    });
+
     if (!state.book.operations.includes('pivot')) state.book.operations.push('pivot');
-    mentor('Сводная таблица сформирована: ' + Object.entries(vals).map(x => x.join(' — ')).join(', '));
+    mentor(`Сводная таблица сформирована на листе «${pivotSheetName}»: ${Object.keys(aggMap).length} категорий.`);
+    renderGrid();
     save();
   }
 
@@ -1227,9 +1528,60 @@
     q('#eaBadge').textContent = `ЭТАП ${state.stage} · УРОК ${state.lesson.number} · ${state.lesson.level || 'Практика'}`;
     q('#eaTitle').textContent = state.lesson.title;
     q('#eaSummary').textContent = state.lesson.summary;
-    q('#eaTheory').textContent = state.lesson.theory;
-    q('#eaTask').textContent = state.lesson.task;
-    q('#eaSteps').innerHTML = state.lesson.steps.map(x => `<li>${esc(x)}</li>`).join('');
+
+    const learnEl = q('#eaLearn');
+    if (learnEl) {
+      const l = state.lesson;
+      let html = '';
+
+      if (l.goal) {
+        html += `<div class="ea-goal-card"><b>🎯 Цель навыка:</b> <span>${esc(l.goal)}</span></div>`;
+      }
+      if (l.work_situation) {
+        html += `<div class="ea-situation-card"><b>🏢 Реальная офисная/IT-ситуация:</b> <p>${esc(l.work_situation)}</p></div>`;
+      }
+
+      html += `<details class="ea-accordion" open>
+        <summary>💡 Теория и концепция</summary>
+        <div class="ea-acc-body"><p id="eaTheory">${esc(l.theory || '')}</p></div>
+      </details>`;
+
+      if (l.example) {
+        html += `<details class="ea-accordion" open>
+          <summary>📋 Пример использования и синтаксис</summary>
+          <div class="ea-acc-body"><pre class="ea-example-box">${esc(l.example)}</pre></div>
+        </details>`;
+      }
+
+      html += `<div class="ea-task"><b>📌 Практическое задание</b><p id="eaTask">${esc(l.task || '')}</p></div>`;
+
+      html += `<details class="ea-accordion" open>
+        <summary>📝 Пошаговый порядок действий</summary>
+        <div class="ea-acc-body"><ol id="eaSteps">${(l.steps || []).map(s => `<li>${esc(s)}</li>`).join('')}</ol></div>
+      </details>`;
+
+      if (Array.isArray(l.common_errors) && l.common_errors.length) {
+        html += `<details class="ea-accordion">
+          <summary>⚠️ Типичные ошибки новичков (${l.common_errors.length})</summary>
+          <div class="ea-acc-body"><ul class="ea-errors-list">${l.common_errors.map(e => `<li>${esc(e)}</li>`).join('')}</ul></div>
+        </details>`;
+      }
+
+      if (l.result) {
+        html += `<div class="ea-result-card"><b>🏁 Ожидаемый результат:</b> <span>${esc(l.result)}</span></div>`;
+      }
+
+      if (l.professional_tip) {
+        html += `<div class="ea-protip-box"><b>⭐ Совет профессионала (Pro Tip):</b> <p>${esc(l.professional_tip)}</p></div>`;
+      }
+
+      html += `<button id="eaStart" class="button primary ea-start-btn">Перейти к таблице →</button>`;
+      learnEl.innerHTML = html;
+
+      const startBtn = q('#eaStart');
+      if (startBtn) startBtn.onclick = () => setStep('practice');
+    }
+
     q('#eaMentorFeed').innerHTML = '<p>ИИ-наставник видит вашу рабочую книгу, формулы и действия. Начните выполнять шаг за шагом!</p>';
 
     renderLessons();
@@ -1303,7 +1655,7 @@
   }
 
   function resetCourseProgress() {
-    if (!confirm('Сбросить весь прогресс Excel Academy? Это действие нельзя отменить.')) {
+    if (!confirm('Будут удалены прогресс и все сохранённые учебные книги Excel Academy. Настройки темы и другие академии не изменятся.')) {
       return;
     }
     state.done.clear();
