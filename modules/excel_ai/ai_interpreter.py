@@ -56,6 +56,7 @@ SUPPORTED_TYPES = {
     "apply_formula",
     "split_cell_values_to_rows",
     "extract_split_values_to_sheet",
+    "combine_columns",
 }
 
 
@@ -118,6 +119,10 @@ TYPE_ALIASES = {
 
     "merge": "merge_sheets",
     "combine_sheets": "merge_sheets",
+    "merge_columns": "combine_columns",
+    "concat_columns": "combine_columns",
+    "join_columns": "combine_columns",
+    "concatenate_columns": "combine_columns",
 
     "count": "summary_count",
     "count_rows": "summary_count",
@@ -2713,7 +2718,30 @@ def _normalize_operation(original: dict, index: int) -> dict:
     if isinstance(operation.get("columns"), str):
         operation["columns"] = [operation["columns"]]
 
-    if operation_type == "group_by_aggregate":
+    if operation_type == "combine_columns":
+        if not operation.get("source_columns"):
+            operation["source_columns"] = operation.get("columns")
+        if isinstance(operation.get("source_columns"), str):
+            operation["source_columns"] = [operation["source_columns"]]
+        if not operation.get("target_column"):
+            for alias in ("output_column", "new_column", "result_column", "новый_столбец"):
+                if operation.get(alias):
+                    operation["target_column"] = operation[alias]
+                    break
+        if not operation.get("source_columns") or len(operation["source_columns"]) < 2:
+            raise ValueError(
+                f"Операция {index} (combine_columns): нужны минимум два исходных столбца."
+            )
+        if not str(operation.get("target_column") or "").strip():
+            raise ValueError(
+                f"Операция {index} (combine_columns): укажите имя нового столбца."
+            )
+        operation.setdefault("separator", " ")
+        operation.setdefault("skip_empty", True)
+        operation.setdefault("trim_result", True)
+        operation.setdefault("position", "first")
+
+    elif operation_type == "group_by_aggregate":
         if not operation.get("column"):
             for alias in ("group_column", "group_by", "группировать_по"):
                 if operation.get(alias):
@@ -3154,6 +3182,54 @@ def _safe_local_plan(task, analysis, selected_sheet=None):
             hs={_sort_word_stem(w) for w in hw}
             if hs and hs.issubset(stems): result.append(h)
         return result
+
+    # Deterministic creation of a new combined column. The destination is an
+    # output name and must never be searched among the source headers.
+    wants_combine = bool(re.search(
+        r"(?:объедин|соедин|скле|слить|состав).{0,90}(?:столб|колон|фамил|фио)",
+        text,
+    ))
+    if wants_combine:
+        normalized_headers = {_normalize_header_text(h): h for h in headers}
+        fio_sources = []
+        for expected in ("фамилия", "имя", "отчество"):
+            exact = normalized_headers.get(expected)
+            if exact:
+                fio_sources.append(exact)
+        quoted = re.findall(r"[«\"]([^»\"]+)[»\"]", str(task))
+        quoted_sources = [
+            h for h in headers
+            if any(_normalize_header_text(h) == _normalize_header_text(q) for q in quoted)
+        ]
+        sources = fio_sources if len(fio_sources) >= 2 else quoted_sources[:3]
+        target = "ФИО" if fio_sources else "Объединено"
+        target_match = re.search(
+            r"(?:нов(?:ый|ого)\s+)?столб(?:ец|ца)|колонк(?:у|а)"
+            r"\s*[«\"]?([\wА-Яа-яЁёІіҢңҒғҮүҰұҚқӨөҺһ ._-]{2,40})",
+            str(task), re.IGNORECASE,
+        )
+        if target_match and target_match.group(1):
+            candidate = target_match.group(1).strip(" .,:;»\"")
+            if candidate and _normalize_header_text(candidate) not in {
+                _normalize_header_text(x) for x in sources
+            }:
+                target = candidate
+        if len(sources) >= 2:
+            return {
+                "operations": [{
+                    "type": "combine_columns", "sheet": name,
+                    "source_columns": sources, "target_column": target,
+                    "separator": " ", "skip_empty": True,
+                    "trim_result": True, "position": "first",
+                }],
+                "questions": [], "mode": "operations",
+                "explanation": (
+                    f"Создать новый столбец «{target}» из: "
+                    + ", ".join(f"«{x}»" for x in sources)
+                    + ". Пустые части пропускаются, двойные пробелы не создаются."
+                ),
+                "deterministic_route": True,
+            }
 
     # Запрет локального поиска пустых ячеек при явном отрицании
     if re.search(r"\bне\s+(?:ищи|искать|проверяй|выполняй)\b.*\bпуст\w*", text):

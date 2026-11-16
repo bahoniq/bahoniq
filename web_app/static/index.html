@@ -15,9 +15,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=20261116_pro_v4">
-  <link rel="stylesheet" href="/assets/design_academy.css?v=20261116_pro_v4">
-  <link rel="stylesheet" href="/assets/design_academy_pro.css?v=20261116_pro_v4">
+  <link rel="stylesheet" href="/assets/app.css?v=20261116_pro_v5">
+  <link rel="stylesheet" href="/assets/design_academy.css?v=20261116_pro_v5">
+  <link rel="stylesheet" href="/assets/design_academy_pro.css?v=20261116_pro_v5">
+  <link rel="stylesheet" href="/assets/excel_academy.css?v=20261116_pro_v5">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
@@ -330,6 +331,20 @@
               </div>
               <div class="tool-arrow" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
+            </div>
+
+            <!-- 12. Excel Academy Studio -->
+            <div class="tool-tile" data-open="excelAcademy">
+              <div class="tool-icon icon-teal">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/><path d="m7 13 2 2 4-5"/></svg>
+              </div>
+              <div class="tool-meta">
+                <div class="tool-name">Excel Academy Studio</div>
+                <div class="tool-desc">Профессиональное обучение Excel: формулы, очистка, сводные таблицы, диаграммы и проекты с ИИ-наставником.</div>
+              </div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m9 18 6-6-6-6"/></svg>
               </div>
             </div>
           </div>
@@ -817,6 +832,29 @@
             </div>
           </section>
 
+          <!-- EXCEL ACADEMY STUDIO -->
+          <section id="excelAcademy" class="module-page excel-academy">
+            <div class="ea-header card"><div><h1>Excel Academy Studio <span class="ea-pill">ИИ-наставник • PRO</span></h1><p>Освойте Excel через реальные книги, формулы, очистку, анализ и дашборды.</p></div><div class="ea-progress"><span>Прогресс курса</span><strong id="eaProgressText">0 / 72 (0%)</strong><div><i id="eaProgressFill"></i></div></div></div>
+            <div id="eaStages" class="ea-stages"></div>
+            <div class="ea-layout">
+              <aside class="card ea-sidebar"><div class="ea-stage-label"><b id="eaStageLabel">ЭТАП 1</b><span id="eaStageCount">0/12</span></div><input id="eaSearch" type="search" placeholder="Поиск урока..."><div id="eaLessons" class="ea-lessons"></div></aside>
+              <main class="card ea-main">
+                <header class="ea-lesson-head"><div><small id="eaBadge">ЭТАП 1 · УРОК 1</small><h2 id="eaTitle">Загрузка...</h2><p id="eaSummary"></p></div><div class="ea-tabs"><button class="active" data-ea-step="learn">1 Изучение</button><button data-ea-step="practice">2 Практика</button><button data-ea-step="review">3 Проверка</button></div></header>
+                <div id="eaLearn" class="ea-learn"><h3>Главная идея</h3><p id="eaTheory"></p><div class="ea-task"><b>Задание</b><p id="eaTask"></p></div><b>Порядок работы</b><ol id="eaSteps"></ol><button id="eaStart" class="button primary">Перейти к таблице →</button></div>
+                <div id="eaEditor" class="ea-editor hidden">
+                  <div class="ea-toolbar"><button id="eaBold"><b>B</b></button><button id="eaCenter">По центру</button><button id="eaMoney">₸ Формат</button><label title="Заливка">🎨 <input id="eaFill" type="color" value="#14532d"></label><button data-ea-op="sort">Сортировка</button><button data-ea-op="filter">Фильтр</button><button data-ea-op="replace">Замена</button><button data-ea-op="remove_blanks">Пустые</button><button data-ea-op="deduplicate">Дубликаты</button><button data-ea-op="conditional">Условное</button><span></span><button data-ea-chart="bar">▥</button><button data-ea-chart="line">⌁</button><button data-ea-chart="pie">◕</button><button id="eaPivot">Сводная</button><label class="button secondary">Импорт XLSX<input id="eaImport" type="file" accept=".xlsx,.xlsm" hidden></label><button id="eaExport">Экспорт XLSX</button></div>
+                  <div class="ea-formula"><b id="eaNameBox">A1</b><span>fx</span><input id="eaFormula" placeholder="Введите значение или формулу =SUM(A1:A5)"></div>
+                  <div class="ea-grid-wrap"><table id="eaGrid" class="ea-grid"></table></div>
+                  <div class="ea-sheets"><div id="eaSheetTabs" class="ea-sheet-tabs"></div><button id="eaAddSheet">＋ лист</button><span id="eaStatus" class="ea-status">Автосохранение включено</span></div>
+                  <div class="das-editor-footer"><button id="eaValidate" class="button primary">Проверить работу</button></div>
+                </div>
+                <div id="eaReview" class="ea-review hidden"><div id="eaScore" class="ea-score">0%</div><h3>Результат проверки</h3><div id="eaResults" class="ea-results"></div><button id="eaBack" class="button secondary">← Вернуться к таблице</button><button id="eaComplete" class="button primary hidden">Завершить урок →</button></div>
+              </main>
+              <aside class="card ea-mentor"><h3>ИИ-наставник</h3><small>Видит текущую книгу и формулы</small><div id="eaMentorFeed" class="ea-mentor-feed"></div><textarea id="eaQuestion" placeholder="Спросите о формуле или ошибке..."></textarea><button id="eaAsk" class="button primary">Спросить наставника</button></aside>
+            </div>
+            <div id="eaChartModal" class="ea-chart-modal"><div><h3 id="eaChartTitle">Диаграмма</h3><div id="eaChartView" class="ea-chart-view"></div><button id="eaChartClose" class="button secondary">Закрыть</button></div></div>
+          </section>
+
           <!-- ЗАМЕТКИ -->
           <section id="notes" class="module-page">
             <div class="page-heading">
@@ -1036,9 +1074,10 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261116_pro_v4"></script>
-  <script src="/assets/design_academy.js?v=20261116_pro_v4"></script>
-  <script src="/assets/design_academy_pro.js?v=20261116_pro_v4"></script>
+  <script src="/assets/app.js?v=20261116_pro_v5"></script>
+  <script src="/assets/design_academy.js?v=20261116_pro_v5"></script>
+  <script src="/assets/design_academy_pro.js?v=20261116_pro_v5"></script>
+  <script src="/assets/excel_academy.js?v=20261116_pro_v5"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
