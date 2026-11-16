@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="/assets/app.css?v=20261116_pro_v5">
   <link rel="stylesheet" href="/assets/design_academy.css?v=20261116_pro_v5">
   <link rel="stylesheet" href="/assets/design_academy_pro.css?v=20261116_pro_v5">
-  <link rel="stylesheet" href="/assets/excel_academy.css?v=20261116_pro_v5">
+  <link rel="stylesheet" href="/assets/excel_academy.css?v=20261116_engine_v6">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
@@ -842,10 +842,10 @@
                 <header class="ea-lesson-head"><div><small id="eaBadge">ЭТАП 1 · УРОК 1</small><h2 id="eaTitle">Загрузка...</h2><p id="eaSummary"></p></div><div class="ea-tabs"><button class="active" data-ea-step="learn">1 Изучение</button><button data-ea-step="practice">2 Практика</button><button data-ea-step="review">3 Проверка</button></div></header>
                 <div id="eaLearn" class="ea-learn"><h3>Главная идея</h3><p id="eaTheory"></p><div class="ea-task"><b>Задание</b><p id="eaTask"></p></div><b>Порядок работы</b><ol id="eaSteps"></ol><button id="eaStart" class="button primary">Перейти к таблице →</button></div>
                 <div id="eaEditor" class="ea-editor hidden">
-                  <div class="ea-toolbar"><button id="eaBold"><b>B</b></button><button id="eaCenter">По центру</button><button id="eaMoney">₸ Формат</button><label title="Заливка">🎨 <input id="eaFill" type="color" value="#14532d"></label><button data-ea-op="sort">Сортировка</button><button data-ea-op="filter">Фильтр</button><button data-ea-op="replace">Замена</button><button data-ea-op="remove_blanks">Пустые</button><button data-ea-op="deduplicate">Дубликаты</button><button data-ea-op="conditional">Условное</button><span></span><button data-ea-chart="bar">▥</button><button data-ea-chart="line">⌁</button><button data-ea-chart="pie">◕</button><button id="eaPivot">Сводная</button><label class="button secondary">Импорт XLSX<input id="eaImport" type="file" accept=".xlsx,.xlsm" hidden></label><button id="eaExport">Экспорт XLSX</button></div>
+                  <div class="ea-toolbar"><button id="eaBold"><b>B</b></button><button id="eaCenter">По центру</button><button id="eaMoney">₸ Формат</button><label title="Заливка">🎨 <input id="eaFill" type="color" value="#14532d"></label><button data-ea-op="sort">Сортировка</button><button data-ea-op="filter">Фильтр</button><button data-ea-op="replace">Замена</button><button data-ea-op="remove_blanks">Пустые</button><button data-ea-op="deduplicate">Дубликаты</button><button data-ea-op="conditional">Условное</button><button id="eaResetLesson" title="Сбросить ячейки к исходным данным текущего урока">↺ Сброс урока</button><span></span><button data-ea-chart="bar">▥</button><button data-ea-chart="line">⌁</button><button data-ea-chart="pie">◕</button><button id="eaPivot">Сводная</button><label class="button secondary">Импорт XLSX<input id="eaImport" type="file" accept=".xlsx,.xlsm" hidden></label><button id="eaExport">Экспорт XLSX</button></div>
                   <div class="ea-formula"><b id="eaNameBox">A1</b><span>fx</span><input id="eaFormula" placeholder="Введите значение или формулу =SUM(A1:A5)"></div>
                   <div class="ea-grid-wrap"><table id="eaGrid" class="ea-grid"></table></div>
-                  <div class="ea-sheets"><div id="eaSheetTabs" class="ea-sheet-tabs"></div><button id="eaAddSheet">＋ лист</button><span id="eaStatus" class="ea-status">Автосохранение включено</span></div>
+                  <div class="ea-sheets"><div id="eaSheetTabs" class="ea-sheet-tabs"></div><button id="eaAddSheet">＋ лист</button><div id="eaStatsBar" class="ea-stats-bar"><span>Выделено: <b id="eaStatCount">1</b></span><span>Сумма: <b id="eaStatSum">0</b></span><span>Среднее: <b id="eaStatAvg">0</b></span></div><span id="eaStatus" class="ea-status">Автосохранение включено</span></div>
                   <div class="das-editor-footer"><button id="eaValidate" class="button primary">Проверить работу</button></div>
                 </div>
                 <div id="eaReview" class="ea-review hidden"><div id="eaScore" class="ea-score">0%</div><h3>Результат проверки</h3><div id="eaResults" class="ea-results"></div><button id="eaBack" class="button secondary">← Вернуться к таблице</button><button id="eaComplete" class="button primary hidden">Завершить урок →</button></div>
@@ -1077,7 +1077,7 @@
   <script src="/assets/app.js?v=20261116_pro_v5"></script>
   <script src="/assets/design_academy.js?v=20261116_pro_v5"></script>
   <script src="/assets/design_academy_pro.js?v=20261116_pro_v5"></script>
-  <script src="/assets/excel_academy.js?v=20261116_pro_v5"></script>
+  <script src="/assets/excel_academy.js?v=20261116_engine_v6"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
