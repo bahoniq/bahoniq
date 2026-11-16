@@ -2848,3 +2848,37 @@ body.theme-day .acad-quiz-card {
     max-height: 260px;
   }
 }
+
+/* ============================================================ */
+/* EXCEL AI — ГОТОВЫЕ ШАБЛОНЫ ЗАДАЧ (ЧИПСЫ)                     */
+/* ============================================================ */
+.template-chip {
+  background: rgba(15, 29, 51, 0.75);
+  border: 1px solid #1E3352;
+  color: #F8FAFC;
+  padding: 8px 12px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  font-family: inherit;
+}
+.template-chip:hover {
+  border-color: #00E5FF;
+  background: rgba(0, 229, 255, 0.1);
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 12px rgba(0, 229, 255, 0.16);
+  color: #FFFFFF;
+}
+.template-chip.active {
+  border-color: #00E5FF;
+  background: rgba(0, 229, 255, 0.18);
+  color: #00E5FF;
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.28);
+}
+

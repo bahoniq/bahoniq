@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=20261116_das_v2">
+  <link rel="stylesheet" href="/assets/app.css?v=20261116_excel_tpl_v1">
   <link rel="stylesheet" href="/assets/design_academy.css?v=20261116_das_v2">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
@@ -262,34 +262,6 @@
               </div>
             </div>
 
-            <!-- 5. Дубликаты (Красный - операции с диском) -->
-            <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="Дубликаты" data-desc="Побайтовое сканирование накопителей компьютера и поиск одинаковых тяжёлых файлов. Доступно в установленном приложении BahonIQ.">
-              <div class="tool-icon icon-red">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-              </div>
-              <div class="tool-meta">
-                <div class="tool-name">Дубликаты <span class="desktop-badge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Только на рабочем столе</span></div>
-                <div class="tool-desc">Поиск и безопасное удаление повторяющихся файлов на дисках компьютера.</div>
-              </div>
-              <div class="tool-arrow tool-lock" aria-hidden="true" title="Доступно в настольном приложении">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              </div>
-            </div>
-
-            <!-- 6. AnyDesk (Янтарный - системная функция) -->
-            <div class="tool-tile desktop-only-tile" data-desktop-only="true" data-title="AnyDesk" data-desc="Быстрый запуск AnyDesk для удалённого подключения и дистанционной технической поддержки рабочих станций через локальный клиент AnyDesk.exe.">
-              <div class="tool-icon icon-amber">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/><path d="m9 10 3-3 3 3"/><path d="M12 13V7"/></svg>
-              </div>
-              <div class="tool-meta">
-                <div class="tool-name">AnyDesk <span class="desktop-badge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Только на рабочем столе</span></div>
-                <div class="tool-desc">Удалённый доступ и оперативная дистанционная техническая поддержка.</div>
-              </div>
-              <div class="tool-arrow tool-lock" aria-hidden="true" title="Доступно в настольном приложении">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              </div>
-            </div>
-
             <!-- 7. PDF Center (Бирюзовый) -->
             <div class="tool-tile" data-open="pdf">
               <div class="tool-icon icon-teal">
@@ -439,6 +411,82 @@
 
               <form id="excelForm">
                 <label>Excel-файл<input id="excelFile" type="file" accept=".xls,.xlsx,.xlsm" required></label>
+
+                <!-- ВИТРИНА ГОТОВЫХ ШАБЛОНОВ ДЛЯ EXCEL AI -->
+                <div class="excel-templates-box" style="background:rgba(8,17,32,0.85);border:1px solid #1E3352;border-radius:12px;padding:16px;margin:14px 0 16px 0;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#00E5FF;display:flex;align-items:center;gap:6px;">
+                      <span>⚡ Готовые шаблоны задач (в 1 клик):</span>
+                    </div>
+                    <span style="font-size:11.5px;color:#94A3B8;">Кликните на шаблон для мгновенной подстановки</span>
+                  </div>
+
+                  <!-- Группа 1: Очистка и дедупликация -->
+                  <div style="margin-bottom:10px;">
+                    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#64748B;margin-bottom:6px;">
+                      🧹 Очистка и дедупликация:
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                      <button type="button" class="template-chip" data-template="dedup">
+                        <span style="color:#E879F9;">⧉</span> Удалить дубликаты по ИИН
+                      </button>
+                      <button type="button" class="template-chip" data-template="clean_fio">
+                        <span style="color:#00E5FF;">🔤</span> Очистить ФИО и регистр
+                      </button>
+                      <button type="button" class="template-chip" data-template="validate_iin">
+                        <span style="color:#00E676;">✓</span> Валидация длины ИИН (12 цифр)
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Группа 2: Структурирование и сплит -->
+                  <div style="margin-bottom:10px;">
+                    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#64748B;margin-bottom:6px;">
+                      📂 Структурирование и группировка:
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                      <button type="button" class="template-chip" data-template="split_faculty">
+                        <span style="color:#F59E0B;">📑</span> Разделить по листам (Факультеты)
+                      </button>
+                      <button type="button" class="template-chip" data-template="merge_fio">
+                        <span style="color:#38BDF8;">🧩</span> Слить столбцы (Ф + И + О)
+                      </button>
+                      <button type="button" class="template-chip" data-template="filter_grant">
+                        <span style="color:#A78BFA;">🎓</span> Выборка: Очники на Гранте
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Группа 3: Аналитика и аудит -->
+                  <div>
+                    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#64748B;margin-bottom:6px;">
+                      📊 Аналитика, сводки и аудит:
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                      <button type="button" class="template-chip" data-template="pivot_courses">
+                        <span style="color:#00E676;">📈</span> Сводка по курсам с % и итогами
+                      </button>
+                      <button type="button" class="template-chip" data-template="audit_blanks">
+                        <span style="color:#F43F5E;">🔍</span> Поиск пропусков (Телефоны/Email)
+                      </button>
+                      <button type="button" class="template-chip" data-template="chart_distribution">
+                        <span style="color:#FBBF24;">🥧</span> Круговая диаграмма контингента
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Блок описания формируемого результата (при выборе шаблона) -->
+                <div id="excelTemplatePreviewCard" class="hidden" style="background:rgba(8,17,32,0.9);border:1px solid #1E3352;border-radius:10px;padding:12px 16px;margin-bottom:14px;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <span style="font-size:12px;font-weight:700;color:#00E676;display:flex;align-items:center;gap:6px;">
+                      <span>✨</span> Что сформирует Excel AI по этому шаблону:
+                    </span>
+                    <span id="excelTemplateTag" style="font-size:11px;background:#1E3352;color:#94A3B8;padding:2px 8px;border-radius:4px;"></span>
+                  </div>
+                  <div id="excelTemplateDesc" style="font-size:12.5px;color:#CBD5E1;line-height:1.5;"></div>
+                </div>
+
                 <label>Опишите задачу своими словами<textarea id="excelInstruction" rows="10" required placeholder="Например: выведи ФИО на отдельный лист, отсортируй по специальности…"></textarea></label>
                 <p class="helper">Сначала строится безопасный план. Исходный файл не изменяется.</p>
                 <button class="button primary" type="submit">Разобрать задачу и подготовить план</button>
@@ -965,7 +1013,7 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261116_das_v2"></script>
+  <script src="/assets/app.js?v=20261116_excel_tpl_v1"></script>
   <script src="/assets/design_academy.js?v=20261116_das_v2"></script>
   <script>
     if ('serviceWorker' in navigator) {
