@@ -1,433 +1,900 @@
-"""BahonIQ Code Academy: six integrated learning workspaces."""
-import json
+# -*- coding: utf-8 -*-
+"""Десктопное окно BahonIQ Academy (Строгая тёмная тема + 4 этапа + Живой ИИ-ментор Gemini Flash + PDF-книга От А до Я)."""
+
+from __future__ import annotations
+
+import os
+import re
 import threading
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
-from .studio_core import Workspace
-from .architecture import list_project_files, read_project_file, describe_code
-from .architecture_book import CHAPTERS, chapter_source
-from .architecture_pro import explain_line, explain_block, import_map, safe_copy_target
-from .ai_tutor import ask_tutor_detailed, PROVIDER_LABELS
-from .mentor_core import MentorSession
-from .studio_v4 import build_studio, _enable_editor_shortcuts
-from .editor import CodeEditor
+from tkinter import filedialog, messagebox
 
-GREEN='#009246'; RED='#CE2B37'; DARK='#17352A'; BG='#F3F7F5'; WHITE='#FFFFFF'; INK='#162A23'
+from ai_service import generate_text
+from web_app.modules.code_academy.db import (
+    get_lesson_by_id,
+    get_roadmap_data,
+    init_academy_db,
+    save_lesson_theory,
+    save_user_attempt,
+)
+from web_app.modules.code_academy.pdf_book_generator import build_academy_pdf_book
+from web_app.routers.academy import (
+    _execute_lesson_code,
+    _generate_live_theory_sync,
+    _mentor_evaluate_code_sync,
+)
 
-class PageRouter:
-    def __init__(self,container):self.container=container;self.pages={};self.buttons={};self.current=None
-    def add(self,key,title,page,button):self.pages[key]=page;self.buttons[key]=button
-    def select(self,page):
-        key=next((k for k,v in self.pages.items() if v is page),None)
-        if key is None or str(self.buttons[key].cget('state'))=='disabled':return
-        for name,frame in self.pages.items():frame.pack_forget();self.buttons[name].config(bg='#20493C' if name!=key else GREEN,fg='white')
-        page.pack(fill='both',expand=True);self.current=key
-    def set_enabled(self,key,enabled):self.buttons[key].config(state='normal' if enabled else 'disabled')
 
-class AcademyWindow:
-    def __init__(self,parent):
-        self.parent=parent; self.workspace=Workspace(); self.current_lesson=0;self.quiz_index=0;self.quiz_score=0
-        self.progress_path=Path.home()/'.bahoniq_code_academy_progress.json'
-        self.completed=self._load_progress()
-        self.verified=self._load_verified()
-        self._studio_closers=[]
-        self._studio_routes={}
-        self.win=tk.Toplevel(parent);self.win.title('BahonIQ Code Academy — Studio Edition')
-        self.win.geometry('1440x900');self.win.minsize(1050,690);self.win.configure(bg=BG)
-        self.win.protocol('WM_DELETE_WINDOW',self._close)
-        try:
-            ico=Path(__file__).resolve().parents[2]/'assets'/'bahoniq_italy.ico'
-            if ico.is_file():self.win.iconbitmap(str(ico))
-        except (OSError,tk.TclError):pass
-        flag=tk.Frame(self.win,height=5);flag.pack(fill='x')
-        for c in (GREEN,'white',RED):tk.Frame(flag,bg=c).pack(side='left',fill='both',expand=True)
-        head=tk.Frame(self.win,bg=WHITE);head.pack(fill='x')
-        tk.Label(head,text='BahonIQ  /  CODE ACADEMY',bg=WHITE,fg=GREEN,font=('Segoe UI',20,'bold')).pack(side='left',padx=20,pady=13)
-        self.status=tk.Label(head,text='',bg=WHITE,fg=DARK,font=('Segoe UI',10));self.status.pack(side='right',padx=20)
-        shell=tk.Frame(self.win,bg=BG);shell.pack(fill='both',expand=True)
-        nav=tk.Frame(shell,bg='#17352A',width=230);nav.pack(side='left',fill='y');nav.pack_propagate(False)
-        content=tk.Frame(shell,bg=WHITE);content.pack(side='left',fill='both',expand=True)
-        self.tabs=PageRouter(content)
-        self.pages={}
-        items=[('python','1 · PYTHON'),('sql','2 · SQL'),('architecture','3 · КНИГА И КОД'),('builder','4 · КОНСТРУКТОР'),('practice','ПРАКТИЧЕСКИЕ ЗАНЯТИЯ'),('tests','ТЕСТЫ И АТТЕСТАЦИЯ'),('tutor','ИИ-НАСТАВНИК')]
-        tk.Label(nav,text='УЧЕБНЫЙ МАРШРУТ',bg='#17352A',fg='#8DE3B8',font=('Segoe UI',11,'bold')).pack(fill='x',padx=15,pady=(22,12))
-        for key,title in items:
-            page=tk.Frame(content,bg=WHITE);self.pages[key]=page
-            button=tk.Button(nav,text=title,anchor='w',bg='#20493C',fg='white',bd=0,relief='flat',font=('Segoe UI',10,'bold'),padx=15,pady=13)
-            button.config(command=lambda p=page:self.tabs.select(p));button.pack(fill='x',padx=8,pady=2)
-            self.tabs.add(key,title,page,button)
-        build_studio(self,'python');build_studio(self,'sql');self._build_architecture();self._build_builder();self._build_tutor();self._build_tests();self._update_status()
-        from .learning_hub import build_practice_catalogue
-        build_practice_catalogue(self)
-        self.tabs.select(self.pages['python'])
-    def _load_progress(self):
-        try:return set(json.loads(self.progress_path.read_text(encoding='utf-8')).get('completed',[]))
-        except (OSError,ValueError,TypeError):return set()
-    def _close(self):
-        try:
-            for close in self._studio_closers:close()
-        except OSError as exc:
-            messagebox.showerror('Черновики',f'Не удалось сохранить черновик: {exc}',parent=self.win)
-            return
-        self.win.destroy()
-    def _save_progress(self):
-        try:self.progress_path.write_text(json.dumps({'completed':sorted(self.completed),'verified_practice':sorted(self.verified),'practice_version':2},ensure_ascii=False),encoding='utf-8')
-        except OSError:messagebox.showwarning('Прогресс','Не удалось сохранить прогресс',parent=self.win)
-    def _load_verified(self):
-        try:return set(json.loads(self.progress_path.read_text(encoding='utf-8')).get('verified_practice',[]))
-        except (OSError,ValueError,TypeError):return set()
-    def _update_status(self):
-        from .professional_curriculum import PYTHON,SQL
-        py=sum('route-'+x.slug in self.completed for x in PYTHON);sq=sum('route-'+x.slug in self.completed for x in SQL)
-        book=sum('book-'+str(i) in self.completed for i in range(len(CHAPTERS)))
-        verified=sum(x.slug in self.verified for x in (*PYTHON,*SQL))
-        self.status.config(text=f'Python {py}/{len(PYTHON)} · SQL {sq}/{len(SQL)} · Книга {book}/{len(CHAPTERS)} · Практика {verified}/{len(PYTHON)+len(SQL)}')
-        # Progress is informational only. Every workspace is available from the
-        # first launch, so learners may study in the order that suits them.
-        for key in ('python', 'sql', 'architecture', 'builder', 'tutor', 'tests'):
-            self.tabs.set_enabled(key, True)
-    def _label(self,parent,text,size=11):return tk.Label(parent,text=text,bg=WHITE,fg=DARK,font=('Segoe UI',size,'bold'),anchor='w')
-    def _btn(self,parent,text,command,primary=False):return tk.Button(parent,text=text,command=command,bg=GREEN if primary else '#E8F5EE',fg='white' if primary else DARK,relief='flat',padx=12,pady=7,cursor='hand2')
-    def _editor(self,parent,height=12):
-        return CodeEditor(parent,height=height)
-    def _readonly(self,parent,height=6):
-        return _enable_editor_shortcuts(tk.Text(parent,height=height,font=('Consolas',10),bg=BG,fg=DARK,wrap='word',padx=10,pady=8))
-    def _set(self,widget,text):widget.config(state='normal');widget.delete('1.0','end');widget.insert('1.0',text);widget.config(state='disabled')
-    def _build_architecture(self):
-        page = self.pages['architecture']
-        tabs = ttk.Notebook(page)
-        tabs.pack(fill='both', expand=True, padx=10, pady=10)
-        book = tk.Frame(tabs, bg=WHITE)
-        explorer = tk.Frame(tabs, bg=WHITE)
-        tabs.add(book, text='  Книга BahonIQ  ')
-        tabs.add(explorer, text='  Architecture Explorer Pro  ')
+def open_code_academy(parent: tk.Misc | None = None) -> tk.Toplevel:
+    """Открывает поэтапную AI-платформу обучения BahonIQ Academy в строгом тёмном стиле."""
+    init_academy_db()
 
-        # Book: searchable chapter catalog with source-grounded explanatory reading.
-        from .architecture_book import chapter_reading
-        sidebar = tk.Frame(book, bg=WHITE, width=310)
-        sidebar.pack(side='left', fill='y', padx=10, pady=10)
-        sidebar.pack_propagate(False)
-        self._label(sidebar, 'КНИГА BAHONIQ · ОТ А ДО Я').pack(fill='x', pady=7)
-        search_var = tk.StringVar()
-        tk.Entry(sidebar, textvariable=search_var, font=('Segoe UI', 11)).pack(fill='x', pady=5)
-        counter = tk.Label(sidebar, bg=WHITE, fg=DARK, anchor='w')
-        counter.pack(fill='x')
-        chapters = tk.Listbox(sidebar, font=('Segoe UI', 10), exportselection=False,
-                              selectbackground=GREEN, activestyle='none')
-        chapters.pack(fill='both', expand=True)
-        visible = []
-        content = tk.Frame(book, bg=WHITE)
-        content.pack(side='left', fill='both', expand=True, padx=10, pady=10)
-        book_title = self._label(content, '', 15)
-        book_title.pack(fill='x')
-        reading = self._readonly(content, 19)
-        reading.pack(fill='both', expand=True, pady=7)
-        scroll_reading = ttk.Scrollbar(reading, orient='vertical', command=reading.yview)
-        reading.configure(yscrollcommand=scroll_reading.set)
-        scroll_reading.pack(side='right', fill='y')
-        self._label(content, 'ИСХОДНЫЙ КОД · ТОЛЬКО ЧТЕНИЕ', 10).pack(fill='x')
-        book_code = self._editor(content, 13)
-        book_code.pack(fill='both', expand=True, pady=6)
-        scroll_code = ttk.Scrollbar(book_code, orient='vertical', command=book_code.yview)
-        book_code.configure(yscrollcommand=scroll_code.set)
-        scroll_code.pack(side='right', fill='y')
-        book_code.configure(state='disabled')
-        book_current = {'file': '', 'line': 1, 'index': 0}
-        def refresh_chapters(*args):
-            query=search_var.get().casefold().strip()
-            chapters.delete(0,'end');visible.clear()
-            for chapter in CHAPTERS:
-                if query and query not in (chapter.title+' '+chapter.file+' '+chapter.section).casefold():
-                    continue
-                visible.append(chapter)
-                chapters.insert('end', f'{chapter.section} / {chapter.title}')
-            counter.configure(text=f'Глав: {len(visible)} из {len(CHAPTERS)} · файлов: {len(set(c.file for c in CHAPTERS))}')
-        def open_chapter(event=None):
-            selected=chapters.curselection()
-            if not selected:return
-            chapter=visible[selected[0]]
-            try:
-                source,lineno,warning=chapter_source(chapter)
-                text=chapter_reading(chapter)
-            except (OSError,ValueError) as exc:
-                self._set(reading, f'Исходный файл недоступен: {exc}')
-                return
-            book_title.configure(text=chapter.title)
-            self._set(reading,text)
-            reading.yview_moveto(0)
-            book_code.configure(state='normal')
-            book_code.delete('1.0','end')
-            book_code.insert('1.0',source)
-            book_code.set_language(chapter.file)
-            book_code.tag_remove('focus','1.0','end')
-            if lineno:
-                book_code.tag_add('focus',f'{lineno}.0',f'{lineno}.end')
-                book_code.tag_config('focus',background='#35664E')
-                book_code.see(f'{lineno}.0')
-            book_code.configure(state='disabled')
-            book_current.update(file=chapter.file,line=lineno or 1,index=CHAPTERS.index(chapter))
-        search_var.trace_add('write',refresh_chapters)
-        chapters.bind('<<ListboxSelect>>',open_chapter)
-        def move_chapter(delta):
-            selected=chapters.curselection()
-            if not visible:return
-            idx=max(0,min(len(visible)-1,(selected[0] if selected else 0)+delta))
-            chapters.selection_clear(0,'end');chapters.selection_set(idx)
-            chapters.see(idx);open_chapter()
-        nav=tk.Frame(sidebar,bg=WHITE);nav.pack(fill='x',pady=5)
-        self._btn(nav,'← Назад',lambda:move_chapter(-1)).pack(side='left')
-        self._btn(nav,'Далее →',lambda:move_chapter(1)).pack(side='right')
-        self._btn(sidebar,'Открыть в исследователе',lambda:(tabs.select(explorer),select_file(book_current['file'],book_current['line']))).pack(fill='x',pady=6)
-        def complete_chapter():
-            self.completed.add('book-'+str(book_current['index']));self._save_progress();self._update_status()
-            counter.configure(text=counter.cget('text')+' · глава изучена')
-        self._btn(sidebar,'✓ Глава прочитана',complete_chapter,True).pack(fill='x',pady=3)
-        refresh_chapters()
-        if visible:chapters.selection_set(0);open_chapter()
+    # Строгая фирменная тёмная палитра BahonIQ Work Center (никаких белых блоков!)
+    bg_main = "#060E1B"
+    bg_sidebar = "#0A1526"
+    bg_card = "#0F1D33"
+    bg_input = "#081120"
+    bg_tab = "#13233E"
+    bg_tab_active = "#163B5C"
+    bg_item = "#0B1628"
+    bg_item_hover = "#142847"
+    bg_item_active = "#183A5A"
+    fg_text = "#F8FAFC"
+    fg_muted = "#A9BDD3"
+    fg_sub = "#647D96"
+    accent = "#00B4D8"
+    accent_hover = "#0096C7"
+    green_btn = "#009246"
+    green_hover = "#007A3D"
+    amber_col = "#F59E0B"
+    border_col = "#1E3352"
 
-        # Explorer: source browser, deterministic AST explanations, import links, tutor.
-        left = tk.Frame(explorer, bg=WHITE, width=290)
-        left.pack(side='left', fill='y', padx=8, pady=8)
-        left.pack_propagate(False)
-        self._label(left, 'ФАЙЛЫ WORK CENTER').pack(fill='x', pady=6)
-        tree = ttk.Treeview(left, show='tree')
-        tree.pack(fill='both', expand=True)
-        right = tk.Frame(explorer, bg=WHITE)
-        right.pack(side='left', fill='both', expand=True, padx=8, pady=8)
-        self._label(right, 'КОД · НАЖМИ НА СТРОКУ').pack(fill='x')
-        source_view = self._editor(right, 18)
-        source_view.pack(fill='both', expand=True, pady=6)
-        source_view.configure(state='disabled')
-        self._label(right, 'ОБЪЯСНЕНИЕ / СВЯЗИ').pack(fill='x')
-        details = self._readonly(right, 8)
-        details.pack(fill='x', pady=5)
-        current = {'name': '', 'source': '', 'line': 1}
-        def select_file(relative, lineno=1):
-            if not relative:
-                return
-            try:
-                from .builder import TEMPLATES
-                source = TEMPLATES[relative] if relative in TEMPLATES else read_project_file(relative)
-            except (OSError, ValueError) as exc:
-                self._set(details, str(exc))
-                return
-            current.update(name=relative, source=source, line=lineno)
-            source_view.configure(state='normal')
-            source_view.delete('1.0', 'end')
-            source_view.insert('1.0', source)
-            source_view.set_language(relative)
-            source_view.configure(state='disabled')
-            source_view.see(f'{lineno}.0')
-            show_line(lineno)
-        def show_line(lineno):
-            current['line'] = lineno
-            source = current['source']
-            name = current['name']
-            if not source:
-                return
-            if name.endswith('.py'):
-                text = explain_line(source, lineno)
-                deps = import_map(source, name)
-                text += '\n\nИМПОРТЫ:\n' + ('\n'.join(f'• {a} → {b}' for a, b in deps[:30]) or 'Нет импортов')
-            else:
-                text = 'Файл данных или настроек. Выбери Python-файл для AST-разбора.'
-            self._set(details, f'{name} · строка {lineno}\n\n{text}')
-        def click_line(event=None):
-            if current['source']:
-                show_line(int(source_view.index('insert').split('.')[0]))
-        source_view.bind('<ButtonRelease-1>', click_line)
-        def refresh():
-            tree.delete(*tree.get_children())
-            nodes = {}
-            for relative in list_project_files():
-                parts = relative.split('/')
-                parent = ''
-                for i, part in enumerate(parts):
-                    key = '/'.join(parts[:i+1])
-                    if key not in nodes:
-                        nodes[key] = tree.insert(parent, 'end', text=part, values=(key,))
-                    parent = nodes[key]
-        def selected(event=None):
-            node = tree.focus()
-            values = tree.item(node, 'values')
-            if values and '.' in values[0].split('/')[-1]:
-                select_file(values[0])
-        tree.bind('<<TreeviewSelect>>', selected)
-        def explain_selected_block():
-            if not current['name'].endswith('.py'):
-                return
-            description, code = explain_block(current['source'], current['line'])
-            self._set(details, description + '\n\n' + code[:5000])
-        def ask_ai():
-            if not current['source']:
-                return
-            description, code = explain_block(current['source'], current['line']) if current['name'].endswith('.py') else ('Файл', current['source'][:1500])
-            self.tabs.select(self.pages['tutor'])
-            self.tutor_question.delete('1.0', 'end')
-            self.tutor_question.insert('1.0', f'Объясни простыми словами этот блок из {current["name"]}, зачем он нужен и как связан с остальным приложением.\n{description}\n```python\n{code[:1700]}\n```')
-        def make_copy():
-            if not current['name'].endswith('.py'):
-                messagebox.showinfo('Учебная копия', 'Выбери Python-файл.', parent=self.win)
-                return
-            folder = filedialog.askdirectory(parent=self.win, title='Выбери отдельную папку для учебной копии')
-            if not folder:
-                return
-            try:
-                target = safe_copy_target(folder, current['name'])
-                if target.exists():
-                    raise ValueError('Учебная копия уже существует; перезапись запрещена.')
-                target.parent.mkdir(parents=True, exist_ok=True)
-                with target.open('x', encoding='utf-8') as output:
-                    output.write(current['source'])
-                messagebox.showinfo('Учебная копия', f'Сохранено: {target}', parent=self.win)
-            except (OSError, ValueError) as exc:
-                messagebox.showerror('Учебная копия', str(exc), parent=self.win)
-        actions = tk.Frame(right, bg=WHITE)
-        actions.pack(fill='x', pady=4)
-        self._btn(actions, 'Объяснить блок def / class', explain_selected_block).pack(side='left', padx=3)
-        self._btn(actions, 'Спросить ИИ', ask_ai, True).pack(side='left', padx=3)
-        self._btn(actions, 'Создать учебную копию', make_copy).pack(side='left', padx=3)
-        self._btn(left, 'Обновить дерево', refresh).pack(fill='x', pady=7)
-        refresh()
-        chapters.selection_set(0)
-        open_chapter()
-    def _build_builder(self):
-        from .builder_pro_ui import build_builder
-        build_builder(self)
-    def _build_tutor(self):
-        page = self.pages['tutor']
-        self.mentor_session = MentorSession(Path.home() / '.bahoniq_academy' / 'mentor_history.json')
-        frame = tk.Frame(page, bg='#EDF3F0')
-        frame.pack(fill='both', expand=True)
-        banner = tk.Frame(frame, bg='#172C27')
-        banner.pack(fill='x')
-        tk.Label(banner, text='AI MENTOR  /  УЧЕБНЫЙ НАСТАВНИК', bg='#172C27', fg='white',
-                 font=('Segoe UI', 16, 'bold')).pack(side='left', padx=20, pady=16)
-        self.mentor_banner = tk.Label(banner, text='Gemini · облако  +  Ollama резерв · история сохраняется', bg='#172C27',
-                 fg='#A7D4BD')
-        self.mentor_banner.pack(side='right', padx=20)
-        panes = tk.PanedWindow(frame, orient='horizontal', sashwidth=6, bg='#EDF3F0')
-        panes.pack(fill='both', expand=True, padx=12, pady=12)
-        left = tk.Frame(panes, bg=WHITE)
-        right = tk.Frame(panes, bg=WHITE)
-        panes.add(left, minsize=440, width=800)
-        panes.add(right, minsize=300, width=380)
-        self._label(left, 'ИСТОРИЯ ОБУЧЕНИЯ', 12).pack(anchor='w', padx=14, pady=(12, 5))
-        self.tutor_history = self._readonly(left, 18)
-        self.tutor_history.pack(fill='both', expand=True, padx=12, pady=5)
-        self._label(left, 'ВОПРОС НАСТАВНИКУ', 11).pack(anchor='w', padx=14, pady=(10, 0))
-        self.tutor_question = self._editor(left, 5)
-        self.tutor_question.set_language('plain')
-        self.tutor_question.pack(fill='x', padx=12, pady=8)
-        options = tk.Frame(left, bg=WHITE)
-        options.pack(fill='x', padx=12, pady=8)
-        self.tutor_mode = tk.StringVar(value='hint')
-        ttk.Combobox(options, textvariable=self.tutor_mode, state='readonly', width=18,
-                     values=['hint', 'explain', 'review', 'solution', 'quiz']).pack(side='left')
-        import os
-        self.tutor_model = tk.StringVar(value=os.getenv('OLLAMA_MODEL', 'qwen2.5:7b'))
-        tk.Label(options, text='Резерв:', bg=WHITE, fg='#53665D').pack(side='left', padx=(10, 2))
-        ttk.Combobox(options, textvariable=self.tutor_model, width=14,
-                     values=['qwen2.5:7b', 'qwen2.5:3b']).pack(side='left', padx=(0, 8))
-        self.tutor_timeout = tk.StringVar(value='180')
-        ttk.Combobox(options, textvariable=self.tutor_timeout, state='readonly', width=6,
-                     values=['90', '180', '300', '600']).pack(side='left')
-        self.tutor_send = self._btn(options, 'Отправить вопрос', self._send_tutor, True)
-        self.tutor_send.pack(side='right')
-        self._btn(options, 'Очистить историю', self._clear_mentor).pack(side='right', padx=8)
-        self._label(right, 'КОНТЕКСТ УРОКА', 12).pack(anchor='w', padx=12, pady=(12, 6))
-        self.mentor_area = tk.StringVar(value='Python Studio')
-        self.mentor_lesson = tk.StringVar()
-        self.mentor_file = tk.StringVar()
-        self.mentor_error = tk.StringVar()
-        for caption, variable in [('Раздел', self.mentor_area), ('Тема урока', self.mentor_lesson),
-                                  ('Имя файла', self.mentor_file), ('Текст ошибки', self.mentor_error)]:
-            tk.Label(right, text=caption, bg=WHITE, fg='#53665D').pack(anchor='w', padx=12, pady=(9, 2))
-            ttk.Entry(right, textvariable=variable).pack(fill='x', padx=12)
-        tk.Label(right, text='Код для разбора (можно вставить свой)', bg=WHITE,
-                 fg='#53665D').pack(anchor='w', padx=12, pady=(12, 3))
-        self.mentor_code = self._editor(right, 14)
-        self.mentor_code.pack(fill='both', expand=True, padx=12, pady=(0, 12))
-        self._refresh_mentor_history()
+    win = tk.Toplevel(parent)
+    win.title("BahonIQ Academy — AI-Платформа обучения (Gemini Flash 24/7)")
+    win.geometry("1360x840")
+    win.minsize(1060, 680)
+    win.configure(bg=bg_main)
 
-    def _refresh_mentor_history(self):
-        lines = []
-        for item in self.mentor_session.messages:
-            lines.append(('ВЫ: ' if item['role'] == 'user' else 'НАСТАВНИК: ') + item['content'])
-        self._set(self.tutor_history, '\n\n'.join(lines) if lines else 'Задай первый вопрос. История сохраняется между запусками.')
+    # Верхняя неоновая полоса
+    tk.Frame(win, bg=accent, height=3).pack(fill="x", side="top")
 
-    def _clear_mentor(self):
-        if messagebox.askyesno('История наставника', 'Очистить историю вопросов и ответов?', parent=self.win):
-            self.mentor_session.clear()
-            self._refresh_mentor_history()
+    # =========================================================================
+    # 1. ШАПКА: Заголовок + Визуальный прогресс-бар по 4 этапам + Кнопка PDF-книги
+    # =========================================================================
+    header = tk.Frame(win, bg=bg_sidebar, padx=20, pady=12, highlightthickness=1, highlightbackground=border_col)
+    header.pack(fill="x", side="top")
 
-    def _ask_from_editor(self, editor, filename):
-        self.tabs.select(self.pages['tutor'])
-        self.mentor_file.set(filename)
-        self.mentor_code.set_language(filename)
-        self.mentor_code.delete('1.0', 'end')
-        self.mentor_code.insert('1.0', editor.get('1.0', 'end-1c')[:6000])
-        self.tutor_question.delete('1.0', 'end')
-        self.tutor_question.insert('1.0', 'Объясни этот код построчно и предложи упражнение.')
+    title_col = tk.Frame(header, bg=bg_sidebar)
+    title_col.pack(side="left")
 
-    def _ask_architecture(self, name, viewer):
-        if name:
-            self._ask_from_editor(viewer, name)
-            self.mentor_area.set('Architecture Explorer')
+    title_row = tk.Frame(title_col, bg=bg_sidebar)
+    title_row.pack(anchor="w")
 
-    def _send_tutor(self):
-        question = self.tutor_question.get('1.0', 'end-1c').strip()
-        if not question:
-            return
-        context = {'area': self.mentor_area.get(), 'lesson': self.mentor_lesson.get(),
-                   'file': self.mentor_file.get(), 'error': self.mentor_error.get(),
-                   'code': self.mentor_code.get('1.0', 'end-1c')}
-        mode = self.tutor_mode.get()
-        model = self.tutor_model.get()
-        timeout = int(self.tutor_timeout.get())
-        history = list(self.mentor_session.messages)
-        self.tutor_send.config(state='disabled')
-        self._set(self.tutor_history, 'Ожидание ответа ИИ (Gemini → Ollama)...\n\n' +
-                  '\n\n'.join(('ВЫ: ' if m['role']=='user' else 'НАСТАВНИК: ') + m['content'] for m in history))
-        def worker():
-            try:
-                answer, provider = ask_tutor_detailed(question, model=model, timeout=timeout, mode=mode,
-                                                      context=context, history=history)
-                error = None
-            except Exception as exc:
-                answer, provider, error = '', '', str(exc)
-            def done():
-                if not self.win.winfo_exists():
-                    return
-                self.tutor_send.config(state='normal')
-                if provider:
-                    self.mentor_banner.config(text=PROVIDER_LABELS.get(provider, provider) + '  ·  история сохраняется')
-                if error:
-                    messagebox.showwarning('ИИ-наставник', error, parent=self.win)
+    tk.Label(
+        title_row,
+        text="🎓  BahonIQ Academy",
+        font=("Segoe UI", 16, "bold"),
+        bg=bg_sidebar,
+        fg=fg_text,
+    ).pack(side="left")
+
+    tk.Label(
+        title_row,
+        text="  GEMINI FLASH 24/7  ",
+        font=("Segoe UI", 8, "bold"),
+        bg=bg_tab_active,
+        fg=accent,
+        padx=8,
+        pady=2,
+    ).pack(side="left", padx=(10, 0))
+
+    tk.Label(
+        title_col,
+        text="Поэтапное обучение с живым ИИ-наставником: Основы Python • SQL и SQLite • Архитектура проекта • Боевой полигон",
+        font=("Segoe UI", 9),
+        bg=bg_sidebar,
+        fg=fg_muted,
+    ).pack(anchor="w", pady=(2, 0))
+
+    # Правая часть шапки: Кнопка PDF-книги + Прогресс-бар
+    right_hdr = tk.Frame(header, bg=bg_sidebar)
+    right_hdr.pack(side="right")
+
+    pdf_btn = tk.Button(
+        right_hdr,
+        text="📘  Сгенерировать мою PDF-книгу (От А до Я)",
+        font=("Segoe UI", 10, "bold"),
+        bg=green_btn,
+        fg="#FFFFFF",
+        activebackground=green_hover,
+        activeforeground="#FFFFFF",
+        relief="flat",
+        bd=0,
+        padx=16,
+        pady=9,
+        cursor="hand2",
+    )
+    pdf_btn.pack(side="right", padx=(16, 0))
+
+    prog_box = tk.Frame(right_hdr, bg=bg_sidebar)
+    prog_box.pack(side="right")
+
+    prog_lbl = tk.Label(
+        prog_box,
+        text="Общий прогресс: 0 / 29 (0%)",
+        font=("Segoe UI", 9, "bold"),
+        bg=bg_sidebar,
+        fg=accent,
+    )
+    prog_lbl.pack(anchor="e", pady=(0, 4))
+
+    prog_canvas = tk.Canvas(prog_box, width=210, height=8, bg=bg_input, bd=0, highlightthickness=1, highlightbackground=border_col)
+    prog_canvas.pack(anchor="e")
+    prog_rect = prog_canvas.create_rectangle(0, 0, 0, 8, fill=green_btn, width=0)
+
+    # =========================================================================
+    # 2. ПАНЕЛЬ 4 ОБЯЗАТЕЛЬНЫХ ЭТАПОВ
+    # =========================================================================
+    stages_bar = tk.Frame(win, bg=bg_main, padx=16, pady=10)
+    stages_bar.pack(fill="x", side="top")
+    for c_idx in range(4):
+        stages_bar.grid_columnconfigure(c_idx, weight=1, uniform="stagecol")
+
+    # =========================================================================
+    # 3. ОСНОВНАЯ 3-КОЛОНОЧНАЯ РАБОЧАЯ ОБЛАСТЬ
+    # =========================================================================
+    workspace = tk.Frame(win, bg=bg_main, padx=16, pady=4)
+    workspace.pack(fill="both", expand=True)
+
+    # --- Левая колонка: Темы выбранного этапа (280px) ---
+    left_col = tk.Frame(workspace, bg=bg_sidebar, width=285, padx=12, pady=12, highlightthickness=1, highlightbackground=border_col)
+    left_col.pack(side="left", fill="y", padx=(0, 12))
+    left_col.pack_propagate(False)
+
+    stage_side_lbl = tk.Label(
+        left_col,
+        text="ТЕМЫ ЭТАПА 1",
+        font=("Segoe UI", 8, "bold"),
+        bg=bg_sidebar,
+        fg=fg_sub,
+    )
+    stage_side_lbl.pack(anchor="w", pady=(0, 6))
+
+    search_wrap = tk.Frame(left_col, bg=bg_input, highlightthickness=1, highlightbackground=border_col, padx=8, pady=5)
+    search_wrap.pack(fill="x", pady=(0, 8))
+
+    tk.Label(search_wrap, text="🔍", font=("Segoe UI", 9), bg=bg_input, fg=fg_sub).pack(side="left", padx=(0, 5))
+    filter_var = tk.StringVar()
+    tk.Entry(
+        search_wrap,
+        textvariable=filter_var,
+        font=("Segoe UI", 9),
+        bg=bg_input,
+        fg=fg_text,
+        insertbackground=fg_text,
+        relief="flat",
+        bd=0,
+    ).pack(side="left", fill="x", expand=True)
+
+    lessons_canvas_wrap = tk.Frame(left_col, bg=bg_sidebar)
+    lessons_canvas_wrap.pack(fill="both", expand=True)
+
+    lessons_canvas = tk.Canvas(lessons_canvas_wrap, bg=bg_sidebar, bd=0, highlightthickness=0)
+    lessons_scroll = tk.Scrollbar(lessons_canvas_wrap, orient="vertical", command=lessons_canvas.yview)
+    lessons_inner = tk.Frame(lessons_canvas, bg=bg_sidebar)
+
+    lessons_inner_id = lessons_canvas.create_window((0, 0), window=lessons_inner, anchor="nw")
+    lessons_canvas.configure(yscrollcommand=lessons_scroll.set)
+    lessons_canvas.pack(side="left", fill="both", expand=True)
+    lessons_scroll.pack(side="right", fill="y")
+
+    lessons_inner.bind("<Configure>", lambda _e: lessons_canvas.configure(scrollregion=lessons_canvas.bbox("all")))
+    lessons_canvas.bind("<Configure>", lambda e: lessons_canvas.itemconfig(lessons_inner_id, width=e.width))
+
+    # --- Правая колонка: Встроенный чат «Задать вопрос по уроку» (310px) ---
+    right_col = tk.Frame(workspace, bg=bg_sidebar, width=315, padx=14, pady=14, highlightthickness=1, highlightbackground=border_col)
+    right_col.pack(side="right", fill="y", padx=(12, 0))
+    right_col.pack_propagate(False)
+
+    tk.Label(
+        right_col,
+        text="💬  Чат с ИИ-ментором",
+        font=("Segoe UI", 12, "bold"),
+        bg=bg_sidebar,
+        fg=fg_text,
+    ).pack(anchor="w")
+
+    tk.Label(
+        right_col,
+        text="Видит ваш текущий урок, задачу и код",
+        font=("Segoe UI", 8),
+        bg=bg_sidebar,
+        fg=fg_sub,
+    ).pack(anchor="w", pady=(0, 8))
+
+    # Быстрые кнопки вопросов ментору
+    quick_q_frame = tk.Frame(right_col, bg=bg_sidebar)
+    quick_q_frame.pack(fill="x", pady=(0, 8))
+
+    chat_input_wrap = tk.Frame(right_col, bg=bg_sidebar)
+    chat_input_wrap.pack(side="bottom", fill="x", pady=(8, 0))
+
+    chat_send_btn = tk.Button(
+        chat_input_wrap,
+        text="Спросить ИИ-ментора  ➔",
+        font=("Segoe UI", 9, "bold"),
+        bg=accent,
+        fg="#FFFFFF",
+        activebackground=accent_hover,
+        activeforeground="#FFFFFF",
+        relief="flat",
+        bd=0,
+        pady=8,
+        cursor="hand2",
+    )
+    chat_send_btn.pack(side="bottom", fill="x", pady=(6, 0))
+
+    chat_entry = tk.Text(
+        chat_input_wrap,
+        height=3,
+        font=("Segoe UI", 9),
+        bg=bg_input,
+        fg=fg_text,
+        insertbackground=fg_text,
+        relief="flat",
+        bd=0,
+        padx=8,
+        pady=6,
+        wrap="word",
+        highlightthickness=1,
+        highlightbackground=border_col,
+    )
+    chat_entry.pack(side="top", fill="x")
+
+    chat_log = tk.Text(
+        right_col,
+        font=("Segoe UI", 9),
+        bg=bg_input,
+        fg=fg_text,
+        relief="flat",
+        bd=0,
+        padx=10,
+        pady=10,
+        wrap="word",
+        state="disabled",
+        highlightthickness=1,
+        highlightbackground=border_col,
+    )
+    chat_log.pack(fill="both", expand=True)
+    chat_log.tag_configure("user", font=("Segoe UI", 9, "bold"), foreground=accent, spacing1=6, spacing3=2)
+    chat_log.tag_configure("ai_hdr", font=("Segoe UI", 9, "bold"), foreground=green_btn, spacing1=6, spacing3=2)
+    chat_log.tag_configure("ai_body", font=("Segoe UI", 9), foreground=fg_text, spacing3=6)
+
+    def _append_chat(sender: str, message: str) -> None:
+        chat_log.configure(state="normal")
+        if sender == "user":
+            chat_log.insert("end", f"Вы:\n", "user")
+            chat_log.insert("end", f"{message}\n\n", "ai_body")
+        else:
+            chat_log.insert("end", f"ИИ-ментор Gemini Flash:\n", "ai_hdr")
+            chat_log.insert("end", f"{message}\n\n", "ai_body")
+        chat_log.configure(state="disabled")
+        chat_log.yview_moveto(1.0)
+
+    _append_chat("ai", "Привет! Я твой живой наставник по курсу. Если непонятна строка кода или нужна подсказка — напиши мне!")
+
+    # --- Центральная колонка: Теория + Задание + Редактор + Проверка ментором ---
+    center_col = tk.Frame(workspace, bg=bg_card, padx=18, pady=14, highlightthickness=1, highlightbackground=border_col)
+    center_col.pack(side="left", fill="both", expand=True)
+
+    # Шапка урока
+    les_top = tk.Frame(center_col, bg=bg_card)
+    les_top.pack(fill="x", pady=(0, 8))
+
+    regen_btn = tk.Button(
+        les_top,
+        text="🔄 Объяснить иначе (ИИ)",
+        font=("Segoe UI", 9, "bold"),
+        bg=bg_tab,
+        fg=accent,
+        activebackground=bg_tab_active,
+        activeforeground="#FFFFFF",
+        relief="flat",
+        bd=0,
+        padx=12,
+        pady=6,
+        cursor="hand2",
+    )
+    regen_btn.pack(side="right")
+
+    les_meta_box = tk.Frame(les_top, bg=bg_card)
+    les_meta_box.pack(side="left", fill="x", expand=True)
+
+    les_stage_pill = tk.Label(
+        les_meta_box,
+        text="ЭТАП 1  •  В ПРОЦЕССЕ",
+        font=("Segoe UI", 8, "bold"),
+        bg=bg_card,
+        fg=accent,
+    )
+    les_stage_pill.pack(anchor="w")
+
+    les_title_lbl = tk.Label(
+        les_meta_box,
+        text="Загрузка урока...",
+        font=("Segoe UI", 14, "bold"),
+        bg=bg_card,
+        fg=fg_text,
+        anchor="w",
+    )
+    les_title_lbl.pack(anchor="w", pady=(2, 0))
+
+    # 1. Живая теория + Практическое задание (верхняя прокручиваемая панель)
+    theory_wrap = tk.Frame(center_col, bg=bg_input, highlightthickness=1, highlightbackground=border_col)
+    theory_wrap.pack(fill="both", expand=True, pady=(0, 10))
+
+    theory_scroll = tk.Scrollbar(theory_wrap, orient="vertical")
+    theory_text = tk.Text(
+        theory_wrap,
+        height=10,
+        font=("Segoe UI", 10),
+        bg=bg_input,
+        fg=fg_text,
+        relief="flat",
+        bd=0,
+        padx=14,
+        pady=12,
+        wrap="word",
+        spacing1=3,
+        spacing2=2,
+        spacing3=5,
+        yscrollcommand=theory_scroll.set,
+        state="disabled",
+    )
+    theory_scroll.configure(command=theory_text.yview)
+    theory_text.pack(side="left", fill="both", expand=True)
+    theory_scroll.pack(side="right", fill="y")
+
+    theory_text.tag_configure("sec", font=("Segoe UI", 9, "bold"), foreground=accent, spacing1=4, spacing3=4)
+    theory_text.tag_configure("bold", font=("Segoe UI", 10, "bold"), foreground=accent)
+    theory_text.tag_configure("code", font=("Consolas", 9), background="#11223B", foreground="#E2E8F0")
+    theory_text.tag_configure("task_box", font=("Segoe UI", 10, "bold"), foreground="#10B981", spacing1=8, spacing3=4)
+
+    # 2. Редактор кода
+    editor_hdr = tk.Frame(center_col, bg=bg_card)
+    editor_hdr.pack(fill="x", pady=(0, 4))
+
+    lang_lbl = tk.Label(
+        editor_hdr,
+        text="РЕДАКТОР КОДА  •  PYTHON 3",
+        font=("Segoe UI", 8, "bold"),
+        bg=bg_card,
+        fg=green_btn,
+    )
+    lang_lbl.pack(side="left")
+
+    reset_btn = tk.Label(
+        editor_hdr,
+        text="Сбросить стартовый код",
+        font=("Segoe UI", 8, "underline"),
+        bg=bg_card,
+        fg=fg_sub,
+        cursor="hand2",
+    )
+    reset_btn.pack(side="right")
+
+    code_editor = tk.Text(
+        center_col,
+        height=8,
+        font=("Consolas", 11),
+        bg=bg_input,
+        fg="#E2E8F0",
+        insertbackground=accent,
+        relief="flat",
+        bd=0,
+        padx=12,
+        pady=10,
+        wrap="none",
+        undo=True,
+        highlightthickness=1,
+        highlightbackground=border_col,
+    )
+    code_editor.pack(fill="x", pady=(0, 8))
+
+    # 3. Кнопки действий (Запустить / Проверить с ментором / Следующий урок)
+    actions_row = tk.Frame(center_col, bg=bg_card)
+    actions_row.pack(fill="x", pady=(0, 8))
+
+    run_btn = tk.Button(
+        actions_row,
+        text="▶  Запустить код",
+        font=("Segoe UI", 9, "bold"),
+        bg=bg_tab,
+        fg=fg_text,
+        activebackground=bg_tab_active,
+        activeforeground="#FFFFFF",
+        relief="flat",
+        bd=0,
+        padx=14,
+        pady=8,
+        cursor="hand2",
+    )
+    run_btn.pack(side="left", padx=(0, 8))
+
+    check_btn = tk.Button(
+        actions_row,
+        text="✨  Проверить с ментором",
+        font=("Segoe UI", 10, "bold"),
+        bg=green_btn,
+        fg="#FFFFFF",
+        activebackground=green_hover,
+        activeforeground="#FFFFFF",
+        relief="flat",
+        bd=0,
+        padx=18,
+        pady=8,
+        cursor="hand2",
+    )
+    check_btn.pack(side="left", padx=(0, 8))
+
+    next_btn = tk.Button(
+        actions_row,
+        text="Следующий урок  ➔",
+        font=("Segoe UI", 9, "bold"),
+        bg=accent,
+        fg="#FFFFFF",
+        activebackground=accent_hover,
+        activeforeground="#FFFFFF",
+        relief="flat",
+        bd=0,
+        padx=14,
+        pady=8,
+        cursor="hand2",
+    )
+
+    # 4. Нижняя панель: Консоль вывода + Разбор ошибок от ИИ-ментора
+    verdict_wrap = tk.Frame(center_col, bg=bg_input, highlightthickness=1, highlightbackground=border_col)
+    verdict_wrap.pack(fill="both", expand=True)
+
+    verdict_scroll = tk.Scrollbar(verdict_wrap, orient="vertical")
+    verdict_text = tk.Text(
+        verdict_wrap,
+        height=7,
+        font=("Segoe UI", 10),
+        bg=bg_input,
+        fg=fg_text,
+        relief="flat",
+        bd=0,
+        padx=14,
+        pady=10,
+        wrap="word",
+        yscrollcommand=verdict_scroll.set,
+        state="disabled",
+    )
+    verdict_scroll.configure(command=verdict_text.yview)
+    verdict_text.pack(side="left", fill="both", expand=True)
+    verdict_scroll.pack(side="right", fill="y")
+
+    verdict_text.tag_configure("pass_hdr", font=("Segoe UI", 10, "bold"), foreground="#10B981", spacing3=4)
+    verdict_text.tag_configure("fail_hdr", font=("Segoe UI", 10, "bold"), foreground=amber_col, spacing3=4)
+    verdict_text.tag_configure("console_hdr", font=("Segoe UI", 9, "bold"), foreground=fg_sub, spacing3=2)
+    verdict_text.tag_configure("mono", font=("Consolas", 9), foreground=fg_muted, spacing3=6)
+
+    # =========================================================================
+    # ЛОГИКА СОСТОЯНИЯ И ВЗАИМОДЕЙСТВИЯ
+    # =========================================================================
+    state_rm: dict = {"stages": [], "total_lessons": 29, "completed_lessons": 0, "overall_percent": 0}
+    active_stage_id = [1]
+    active_lesson: list[dict | None] = [None]
+
+    def _set_verdict_content(header_str: str, is_pass: bool | None, console_str: str, mentor_str: str) -> None:
+        verdict_text.configure(state="normal")
+        verdict_text.delete("1.0", "end")
+        if console_str:
+            verdict_text.insert("end", "ВЫВОД ПРОГРАММЫ (КОНСОЛЬ):\n", "console_hdr")
+            verdict_text.insert("end", console_str.strip() + "\n\n", "mono")
+        if header_str:
+            tag = "pass_hdr" if is_pass is True else ("fail_hdr" if is_pass is False else "console_hdr")
+            verdict_text.insert("end", header_str + "\n", tag)
+        if mentor_str:
+            verdict_text.insert("end", mentor_str.strip() + "\n")
+        verdict_text.configure(state="disabled")
+
+    def _render_theory_and_task(les: dict) -> None:
+        theory_text.configure(state="normal")
+        theory_text.delete("1.0", "end")
+
+        theory_text.insert("end", "1 · ЖИВОЕ ОБЪЯСНЕНИЕ МЕНТОРА (ТЕОРИЯ)\n", "sec")
+        raw_t = les.get("ai_theory") or ""
+        for line in raw_t.splitlines():
+            if line.strip().startswith("```"):
+                continue
+            parts = re.split(r"(\*\*[^*]+\*\*)", line)
+            for p in parts:
+                if p.startswith("**") and p.endswith("**"):
+                    theory_text.insert("end", p[2:-2], "bold")
                 else:
-                    try:
-                        self.mentor_session.add_exchange(question, answer, context)
-                    except OSError as exc:
-                        messagebox.showwarning('История', str(exc), parent=self.win)
-                    self._refresh_mentor_history()
-            try:
-                self.win.after(0, done)
-            except RuntimeError:
-                pass
+                    theory_text.insert("end", p)
+            theory_text.insert("end", "\n")
+
+        if les.get("repo_source_preview"):
+            theory_text.insert("end", f"\n📂 РЕАЛЬНЫЙ ФАЙЛ ПРОЕКТА BAHONIQ ({les.get('file_path')}):\n", "sec")
+            theory_text.insert("end", les["repo_source_preview"][:1500] + "\n", "code")
+
+        theory_text.insert("end", "\n2 · ПРАКТИЧЕСКАЯ ЗАДАЧА НА ЗАКРЕПЛЕНИЕ:\n", "task_box")
+        theory_text.insert("end", (les.get("task_prompt") or "") + "\n")
+
+        theory_text.configure(state="disabled")
+        theory_text.yview_moveto(0.0)
+
+    def render_all_navigation() -> None:
+        done = state_rm.get("completed_lessons", 0)
+        tot = state_rm.get("total_lessons", 29)
+        pct = state_rm.get("overall_percent", 0)
+        prog_lbl.configure(text=f"Общий прогресс: {done} / {tot} ({pct}%)")
+        prog_canvas.coords(prog_rect, 0, 0, int(2.1 * pct), 8)
+
+        # Отрисовка 4 карточек этапов
+        for w in stages_bar.winfo_children():
+            w.destroy()
+
+        for idx, st in enumerate(state_rm.get("stages", [])):
+            sid = int(st["id"])
+            is_act = sid == active_stage_id[0]
+            card_bg = bg_tab_active if is_act else bg_card
+            b_col = accent if is_act else border_col
+
+            st_card = tk.Frame(
+                stages_bar,
+                bg=card_bg,
+                padx=12,
+                pady=8,
+                cursor="hand2",
+                highlightthickness=1,
+                highlightbackground=b_col,
+            )
+            st_card.grid(row=0, column=idx, sticky="nsew", padx=4)
+
+            top_r = tk.Frame(st_card, bg=card_bg)
+            top_r.pack(fill="x")
+
+            l1 = tk.Label(top_r, text=f"ЭТАП {st['order_index']}", font=("Segoe UI", 8, "bold"), bg=card_bg, fg=accent)
+            l1.pack(side="left")
+
+            l2 = tk.Label(
+                top_r,
+                text=f"{st['completed_lessons']}/{st['total_lessons']}",
+                font=("Segoe UI", 8, "bold"),
+                bg=bg_input,
+                fg=fg_muted,
+                padx=6,
+            )
+            l2.pack(side="right")
+
+            short_t = re.sub(r"^Этап\s+\d+:\s*", "", st["title"])
+            l3 = tk.Label(st_card, text=short_t, font=("Segoe UI", 10, "bold"), bg=card_bg, fg=fg_text, anchor="w")
+            l3.pack(fill="x", pady=(2, 0))
+
+            l4 = tk.Label(st_card, text=st["subtitle"], font=("Segoe UI", 8), bg=card_bg, fg=fg_muted, anchor="w")
+            l4.pack(fill="x")
+
+            for widget in (st_card, top_r, l1, l2, l3, l4):
+                widget.bind("<Button-1>", lambda _e, s_id=sid: switch_stage(s_id))
+
+        render_lessons_sidebar(filter_var.get())
+
+    def render_lessons_sidebar(filter_q: str = "") -> None:
+        for w in lessons_inner.winfo_children():
+            w.destroy()
+
+        st_obj = next((s for s in state_rm.get("stages", []) if int(s["id"]) == active_stage_id[0]), None)
+        if not st_obj:
+            return
+        stage_side_lbl.configure(text=st_obj["title"].upper())
+
+        q = filter_q.strip().lower()
+        for les in st_obj.get("lessons", []):
+            if q and q not in les["title"].lower() and q not in les["summary"].lower():
+                continue
+            lid = int(les["id"])
+            is_sel = bool(active_lesson[0] and int(active_lesson[0]["id"]) == lid)
+            is_done = bool(les.get("completed"))
+
+            r_bg = bg_item_active if is_sel else bg_item
+            r_fg = fg_text if is_sel else fg_muted
+            mark = "✓" if is_done else str(les["order_index"])
+            mark_fg = "#10B981" if is_done else accent
+
+            row = tk.Frame(
+                lessons_inner,
+                bg=r_bg,
+                padx=10,
+                pady=8,
+                cursor="hand2",
+                highlightthickness=1,
+                highlightbackground=accent if is_sel else border_col,
+            )
+            row.pack(fill="x", pady=3)
+
+            m_lbl = tk.Label(row, text=mark, font=("Segoe UI", 9, "bold"), bg=r_bg, fg=mark_fg, width=2)
+            m_lbl.pack(side="left", anchor="n")
+
+            t_lbl = tk.Label(
+                row,
+                text=les["title"],
+                font=("Segoe UI", 9, "bold" if is_sel else "normal"),
+                bg=r_bg,
+                fg=r_fg,
+                anchor="w",
+                justify="left",
+                wraplength=215,
+                cursor="hand2",
+            )
+            t_lbl.pack(side="left", fill="x", expand=True)
+
+            for widget in (row, m_lbl, t_lbl):
+                widget.bind("<Button-1>", lambda _e, l_id=lid: select_lesson_id(l_id))
+
+        lessons_inner.update_idletasks()
+        lessons_canvas.configure(scrollregion=lessons_canvas.bbox("all"))
+
+    filter_var.trace_add("write", lambda *_: render_lessons_sidebar(filter_var.get()))
+
+    def switch_stage(sid: int) -> None:
+        active_stage_id[0] = sid
+        st_obj = next((s for s in state_rm.get("stages", []) if int(s["id"]) == sid), None)
+        if st_obj and st_obj.get("lessons"):
+            first_inc = next((x for x in st_obj["lessons"] if not x.get("completed")), st_obj["lessons"][0])
+            select_lesson_id(int(first_inc["id"]))
+        else:
+            render_all_navigation()
+
+    def select_lesson_id(lid: int) -> None:
+        les = get_lesson_by_id(lid)
+        if not les:
+            return
+        active_lesson[0] = les
+        active_stage_id[0] = int(les["stage_id"])
+
+        status_txt = "✓ ПРОЙДЕНО" if les.get("completed") else "В ПРОЦЕССЕ"
+        les_stage_pill.configure(
+            text=f"{les['stage_title'].upper()}  •  {status_txt}",
+            fg="#10B981" if les.get("completed") else accent,
+        )
+        les_title_lbl.configure(text=les["title"])
+        lang_lbl.configure(
+            text="РЕДАКТОР КОДА  •  SQLITE / SQL" if les["language"] == "sql" else "РЕДАКТОР КОДА  •  PYTHON 3"
+        )
+
+        _render_theory_and_task(les)
+
+        code_editor.delete("1.0", "end")
+        code_editor.insert("1.0", les.get("user_code") or les.get("starter_code") or "")
+
+        if les.get("completed") and les.get("next_lesson_id"):
+            next_btn.pack(side="left", padx=(0, 8))
+        else:
+            next_btn.pack_forget()
+
+        if les.get("mentor_feedback"):
+            _set_verdict_content(
+                "✓ РАЗБОР ОТ ИИ-МЕНТОРА:" if les.get("completed") else "💡 ПОДСКАЗКА ОТ ИИ-МЕНТОРА:",
+                bool(les.get("completed")),
+                "",
+                les["mentor_feedback"],
+            )
+        else:
+            _set_verdict_content("Нажмите «▶ Запустить код» или «✨ Проверить с ментором».", None, "", "")
+
+        render_all_navigation()
+
+    def on_reset_code(_event: object = None) -> None:
+        if not active_lesson[0]:
+            return
+        code_editor.delete("1.0", "end")
+        code_editor.insert("1.0", active_lesson[0].get("starter_code") or "")
+
+    reset_btn.bind("<Button-1>", on_reset_code)
+
+    def on_run_code() -> None:
+        if not active_lesson[0]:
+            return
+        code = code_editor.get("1.0", "end").strip()
+        lang = active_lesson[0]["language"]
+        run_btn.configure(state="disabled", text="⏳ Запуск...")
+
+        def worker() -> None:
+            res = _execute_lesson_code(lang, code)
+            out = (res.get("stdout") or "") + ("\n" + res["stderr"] if res.get("stderr") else "")
+            win.after(0, lambda: _on_run_done(out.strip() or "(Код выполнился без вывода)"))
+
         threading.Thread(target=worker, daemon=True).start()
 
-    def _build_tests(self):
-        from .learning_hub import build_knowledge_quiz
-        from .adaptive_assessment_ui import build_adaptive_assessment
-        page=self.pages['tests']
-        tabs=ttk.Notebook(page);tabs.pack(fill='both',expand=True,padx=10,pady=10)
-        knowledge=tk.Frame(tabs);practical=tk.Frame(tabs)
-        tabs.add(knowledge,text='  Тесты на понимание  ')
-        tabs.add(practical,text='  Практическая аттестация  ')
-        build_knowledge_quiz(self,knowledge)
-        self.pages['tests']=practical
-        build_adaptive_assessment(self)
-        self.pages['tests']=page
+    def _on_run_done(out_str: str) -> None:
+        run_btn.configure(state="normal", text="▶  Запустить код")
+        _set_verdict_content("", None, out_str, "")
 
-def open_code_academy(parent):return AcademyWindow(parent)
+    run_btn.configure(command=on_run_code)
+
+    def on_check_mentor() -> None:
+        if not active_lesson[0]:
+            return
+        les = active_lesson[0]
+        code = code_editor.get("1.0", "end").strip()
+        check_btn.configure(state="disabled", text="⏳ Ментор анализирует код...")
+        _set_verdict_content("⏳ ИИ-ментор Gemini Flash проверяет ваше решение...", None, "", "Пожалуйста, подождите 2–3 секунды...")
+
+        def worker() -> None:
+            exec_res = _execute_lesson_code(les["language"], code)
+            eval_res = _mentor_evaluate_code_sync(les, code, exec_res)
+            save_user_attempt(int(les["id"]), code, eval_res["feedback"], eval_res["passed"])
+            rm = get_roadmap_data()
+            win.after(0, lambda: _on_check_done(exec_res, eval_res, rm))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_check_done(exec_res: dict, eval_res: dict, rm: dict) -> None:
+        check_btn.configure(state="normal", text="✨  Проверить с ментором")
+        state_rm.clear()
+        state_rm.update(rm)
+
+        passed = bool(eval_res.get("passed"))
+        out = ((exec_res.get("stdout") or "") + ("\n" + exec_res["stderr"] if exec_res.get("stderr") else "")).strip()
+        hdr = "🎉 ОТЛИЧНО! УРОК ЗАСЧИТАН ИИ-МЕНТОРОМ:" if passed else "💡 РАЗБОР ОШИБКИ И ПОДСКАЗКА ОТ ИИ-МЕНТОРА:"
+        _set_verdict_content(hdr, passed, out, eval_res.get("feedback") or "")
+
+        if active_lesson[0]:
+            if passed:
+                active_lesson[0]["completed"] = True
+                les_stage_pill.configure(text=f"{active_lesson[0]['stage_title'].upper()}  •  ✓ ПРОЙДЕНО", fg="#10B981")
+                if active_lesson[0].get("next_lesson_id"):
+                    next_btn.pack(side="left", padx=(0, 8))
+        render_all_navigation()
+
+    check_btn.configure(command=on_check_mentor)
+
+    def on_next_lesson() -> None:
+        if active_lesson[0] and active_lesson[0].get("next_lesson_id"):
+            select_lesson_id(int(active_lesson[0]["next_lesson_id"]))
+
+    next_btn.configure(command=on_next_lesson)
+
+    def on_regen_theory() -> None:
+        if not active_lesson[0]:
+            return
+        les = active_lesson[0]
+        regen_btn.configure(state="disabled", text="⏳ ИИ пишет пример...")
+
+        def worker() -> None:
+            try:
+                fresh = _generate_live_theory_sync(les)
+                if fresh:
+                    save_lesson_theory(int(les["id"]), fresh)
+                    les["ai_theory"] = fresh
+            except Exception:
+                pass
+            win.after(0, _on_regen_done)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_regen_done() -> None:
+        regen_btn.configure(state="normal", text="🔄 Объяснить иначе (ИИ)")
+        if active_lesson[0]:
+            _render_theory_and_task(active_lesson[0])
+
+    regen_btn.configure(command=on_regen_theory)
+
+    # Встроенный чат с ментором
+    def send_chat_q(custom_q: str | None = None) -> None:
+        q = (custom_q if custom_q is not None else chat_entry.get("1.0", "end")).strip()
+        if not q or not active_lesson[0]:
+            return
+        if custom_q is None:
+            chat_entry.delete("1.0", "end")
+        _append_chat("user", q)
+        chat_send_btn.configure(state="disabled", text="⏳ Ментор отвечает...")
+
+        les = active_lesson[0]
+        curr_code = code_editor.get("1.0", "end").strip()
+
+        def worker() -> None:
+            try:
+                ans = generate_text(
+                    prompt=(
+                        f"Урок: {les['title']} ({les['stage_title']})\n"
+                        f"Задание: {les['task_prompt']}\n"
+                        f"Код ученика:\n{curr_code}\n\n"
+                        f"Вопрос ученика: {q}"
+                    ),
+                    system_instruction=(
+                        "Ты — дружелюбный ИИ-наставник BahonIQ Academy. Отвечай понятно, коротко и по существу "
+                        "в контексте текущего урока и кода ученика."
+                    ),
+                    temperature=0.3,
+                    timeout=35,
+                )
+                win.after(0, lambda: _on_chat_ans(str(ans).strip()))
+            except Exception as exc:
+                win.after(0, lambda: _on_chat_ans(f"Ошибка: {exc}"))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_chat_ans(ans_str: str) -> None:
+        chat_send_btn.configure(state="normal", text="Спросить ИИ-ментора  ➔")
+        _append_chat("ai", ans_str)
+
+    chat_send_btn.configure(command=lambda: send_chat_q(None))
+    chat_entry.bind("<Return>", lambda e: (send_chat_q(None), "break")[1] if not (e.state & 0x1) else None)
+
+    for lbl_txt, q_txt in [
+        ("На другом примере", "Объясни эту тему ещё проще на другом жизненном примере."),
+        ("Подсказка", "Дай небольшую наводящую подсказку по задаче, не раскрывая весь код."),
+        ("Разбери мой код", "Объясни, что делает каждая строчка в моём текущем коде."),
+    ]:
+        b = tk.Label(
+            quick_q_frame,
+            text=lbl_txt,
+            font=("Segoe UI", 8, "bold"),
+            bg=bg_tab,
+            fg=fg_muted,
+            padx=7,
+            pady=3,
+            cursor="hand2",
+        )
+        b.pack(side="left", padx=(0, 4))
+        b.bind("<Button-1>", lambda _e, qt=q_txt: send_chat_q(qt))
+
+    # Генерация персональной PDF-книги «От А до Я»
+    def on_export_pdf() -> None:
+        save_path = filedialog.asksaveasfilename(
+            parent=win,
+            title="Сохранить персональную PDF-книгу «От А до Я»",
+            defaultextension=".pdf",
+            initialfile="BahonIQ_Academy_Book_A_to_Z.pdf",
+            filetypes=[("PDF-документ", "*.pdf")],
+        )
+        if not save_path:
+            return
+
+        pdf_btn.configure(state="disabled", text="⏳ Генерирую PDF-книгу...")
+
+        def worker() -> None:
+            try:
+                pdf_bytes = build_academy_pdf_book()
+                Path(save_path).write_bytes(pdf_bytes)
+                win.after(0, lambda: _on_pdf_done(save_path, None))
+            except Exception as exc:
+                win.after(0, lambda: _on_pdf_done("", exc))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_pdf_done(saved_file: str, err: Exception | None) -> None:
+        pdf_btn.configure(state="normal", text="📘  Сгенерировать мою PDF-книгу (От А до Я)")
+        if err:
+            messagebox.showerror("Ошибка генерации PDF", str(err), parent=win)
+            return
+        if messagebox.askyesno(
+            "PDF-книга готова!",
+            f"Персональная книга-учебник «От А до Я» успешно сохранена:\n{saved_file}\n\nОткрыть PDF-книгу сейчас?",
+            parent=win,
+        ):
+            try:
+                os.startfile(saved_file)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+
+    pdf_btn.configure(command=on_export_pdf)
+
+    # Первичная загрузка данных
+    rm_init = get_roadmap_data()
+    state_rm.update(rm_init)
+    first_st = rm_init.get("stages", [{}])[0]
+    first_lessons = first_st.get("lessons", [])
+    if first_lessons:
+        first_inc = next((x for x in first_lessons if not x.get("completed")), first_lessons[0])
+        select_lesson_id(int(first_inc["id"]))
+    else:
+        render_all_navigation()
+
+    return win
