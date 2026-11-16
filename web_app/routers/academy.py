@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Роутер BahonIQ Academy (FastAPI + Gemini Flash 24/7 + SQLite + PDF-книга От А до Я)."""
+"""Роутер BahonIQ Academy (FastAPI + Gemini Flash 24/7 + 60 уроков + микрошаги + тесты + PDF-книга)."""
 
 from __future__ import annotations
 
@@ -16,6 +16,9 @@ from ..modules.code_academy.db import (
     get_lesson_by_id,
     get_roadmap_data,
     save_lesson_theory,
+    save_quiz_result,
+    save_step1_result,
+    save_step2_result,
     save_user_attempt,
 )
 from ..modules.code_academy.pathway import run_sql
@@ -36,7 +39,7 @@ async def _parse_body(request: Request) -> dict[str, Any]:
 
 
 def _execute_lesson_code(language: str, code: str, stdin: str = "") -> dict[str, Any]:
-    """Запускает Python-код или SQL-запрос в изолированной учебной среде и возвращает вывод/ошибки."""
+    """Запускает Python-код или SQL-запрос в изолированной учебной среде."""
     clean_code = (code or "").strip()
     if not clean_code:
         return {"stdout": "", "stderr": "Код пуст. Напишите решение в редакторе.", "returncode": 1}
@@ -60,68 +63,115 @@ def _execute_lesson_code(language: str, code: str, stdin: str = "") -> dict[str,
         return {"stdout": "", "stderr": str(exc), "returncode": 1}
 
 
-def _generate_live_theory_sync(lesson: dict[str, Any]) -> str:
-    """Генерирует живое, понятное объяснение темы через Gemini Flash на жизненных аналогиях."""
+# ============================================================================
+# ОЦЕНКА МИКРОШАГА 1: ЧТЕНИЕ КОДА («ПОЙМАЙ ЛОВУШКУ»)
+# ============================================================================
+
+def _evaluate_step1_sync(lesson: dict[str, Any], user_answer: str) -> dict[str, Any]:
+    """Оценивает понимание учеником чтения кода и ловушки через Gemini Flash."""
+    clean_answer = (user_answer or "").strip()
+    if not clean_answer:
+        return {
+            "passed": False,
+            "feedback": "Напишите своими словами, что выведет этот код на экран и почему.",
+            "rule": lesson.get("step1_rule") or "",
+        }
+
     system_inst = (
-        "Ты — живой, дружелюбный ИИ-наставник BahonIQ Academy. "
-        "Объясняй тему простым человеческим языком без скучной академической воды: "
-        "используй понятные аналогии из жизни и работы университетского IT-центра BahonIQ / АИС Platonus, "
-        "покажи короткий и наглядный пример кода и объясни каждую строчку."
+        "Ты — проницательный, дружелюбный и внимательный ИИ-тренер BahonIQ Academy. "
+        "Ученик выполняет микрошаг Типа А («Чтение кода / Поймай ловушку»). "
+        "Он должен был понять, что выведет код на экран и в чём подвох/механика.\n\n"
+        "ПРАВИЛА ОЦЕНКИ ПОД МИКРОСКОПОМ:\n"
+        "1. Если ученик понял суть и ответил в целом правильно: "
+        "похвали его живой короткой фразой (1-2 предложения) и подтверди правильность вывода.\n"
+        "2. Если ученик ошибся или не заметил подвох (например, перепутал строку и число, забыл про регистр, не понял кавычки): "
+        "НЕ РУГАЙ и НЕ ВЫДАВАЙ готовый правильный ответ целиком! "
+        "Мягко укажи, на какую именно деталь обратить внимание (например: «Посмотри внимательно на кавычки во второй строке — это текст или переменная?»), "
+        "и попроси подумать ещё разок.\n"
+        "Ответь СТРОГО в формате JSON:\n"
+        '{"passed": true/false, "feedback": "Твой живой дружелюбный разбор ответа ученика"}'
     )
-    repo_ctx = ""
-    if lesson.get("repo_source_preview"):
-        repo_ctx = f"\n\nФрагмент реального файла проекта ({lesson.get('file_path')}):\n{lesson['repo_source_preview'][:2200]}"
 
     prompt = (
-        f"Этап: {lesson['stage_title']}\n"
         f"Тема урока: {lesson['title']}\n"
-        f"Краткая суть: {lesson['summary']}\n"
-        f"Практическая задача урока: {lesson['task_prompt']}"
-        f"{repo_ctx}\n\n"
-        "Сгенерируй живое, увлекательное объяснение этой темы (3-4 коротких абзаца + короткий пример кода в блоке ```), "
-        "чтобы ученик с первого раза понял суть и легко решил практическую задачу."
+        f"Код ловушки:\n{lesson.get('step1_trap_code')}\n\n"
+        f"Вопрос тренера:\n{lesson.get('step1_trap_question')}\n\n"
+        f"Эталонный смысл правильного ответа:\n{lesson.get('step1_trap_expected')}\n\n"
+        f"Ответ ученика:\n{clean_answer}\n\n"
+        "Оцени ответ ученика и верни JSON {\"passed\": bool, \"feedback\": string}:"
     )
-    text = generate_text(
-        prompt=prompt,
-        system_instruction=system_inst,
-        temperature=0.35,
-        timeout=35,
-    )
-    return str(text).strip()
+
+    passed = False
+    feedback = ""
+    try:
+        raw_ai = generate_text(
+            prompt=prompt,
+            system_instruction=system_inst,
+            temperature=0.25,
+            timeout=30,
+        )
+        cleaned = str(raw_ai).strip()
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        m = re.search(r"\{.*\}", cleaned, flags=re.DOTALL)
+        if m:
+            data = json.loads(m.group(0))
+            passed = bool(data.get("passed", False))
+            feedback = str(data.get("feedback", "")).strip()
+        else:
+            feedback = cleaned
+            passed = len(clean_answer) >= 15
+    except Exception as exc:
+        LOGGER.warning("Ошибка оценки шага 1 через Gemini: %s", exc)
+        passed = len(clean_answer) >= 15
+        feedback = (
+            "Отличный ответ! Ты уловил суть механики."
+            if passed
+            else "Попробуй описать чуть подробнее: что появится на экране при выполнении этих строк?"
+        )
+
+    return {
+        "passed": passed,
+        "feedback": feedback,
+        "rule": lesson.get("step1_rule") or "",
+    }
 
 
-def _mentor_evaluate_code_sync(
+# ============================================================================
+# ОЦЕНКА МИКРОШАГА 2: НАПИСАНИЕ КОДА (ПРАКТИКА)
+# ============================================================================
+
+def _evaluate_step2_sync(
     lesson: dict[str, Any],
     user_code: str,
     exec_result: dict[str, Any],
 ) -> dict[str, Any]:
-    """Умная проверка кода и разбор ошибок через Gemini Flash."""
+    """Оценка написанного кода ученика через запуск + разбор Gemini Flash под микроскопом."""
     stdout_str = (exec_result.get("stdout") or "").strip()
     stderr_str = (exec_result.get("stderr") or "").strip()
     has_runtime_error = bool(stderr_str) or exec_result.get("returncode", 0) != 0
 
     system_inst = (
-        "Ты — опытный и поддерживающий ИИ-ментор курса программирования BahonIQ Academy. "
-        "Твоя задача — проверить код ученика по условию урока.\n"
-        "ПРАВИЛА ПРОВЕРКИ:\n"
-        "1. Если в коде есть синтаксическая или логическая ошибка (или условие задачи не выполнено): "
+        "Ты — опытный, чуткий и поддерживающий ИИ-ментор курса программирования BahonIQ Academy. "
+        "Твоя задача — оценить практический код ученика на микрошаге 2.\n\n"
+        "ПРАВИЛА ОЦЕНКИ ПОД МИКРОСКОПОМ:\n"
+        "1. Если в коде есть синтаксическая или логическая ошибка: "
         "КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выдавать готовый правильный код целиком! "
-        "По-человечески объясни, в какой строке и почему произошел сбой, разжуй логику и дай наводящую подсказку, "
-        "чтобы ученик исправил ошибку сам.\n"
-        "2. Если решение верное и выводит ожидаемый результат: искренне похвали ученика, коротко покажи, "
-        "почему его решение работает хорошо (или как можно сделать код ещё чище), и поздравь с прохождением темы.\n"
-        "Ответь СТРОГО в формате JSON без обёрток ```json:\n"
-        '{"passed": true/false, "feedback": "Подробный живой ответ ментора на русском языке"}'
+        "По-человечески разбери ошибку под микроскопом (несовпадение регистра, опечатка в имени, кавычки вместо числа, двоеточие, отступ), "
+        "объясни на пальцах и дай точную наводящую подсказку для исправления.\n"
+        "2. Если решение верное: искренне похвали ученика, отметь чистоту решения и подчеркни ключевое правило темы.\n"
+        "Ответь СТРОГО в формате JSON:\n"
+        '{"passed": true/false, "feedback": "Твой живой разбор кода ученика"}'
     )
 
     prompt = (
-        f"Урок: {lesson['title']} ({lesson['stage_title']})\n"
+        f"Урок: {lesson['title']} ({lesson.get('stage_title', '')})\n"
         f"Язык: {lesson['language']}\n"
-        f"Условие задачи:\n{lesson['task_prompt']}\n\n"
-        f"Код пользователя:\n{user_code}\n\n"
-        f"Вывод программы (stdout):\n{stdout_str or '(пусто)'}\n\n"
+        f"Задание шага 2:\n{lesson.get('step2_task_prompt') or lesson.get('task_prompt')}\n\n"
+        f"Код ученика:\n{user_code}\n\n"
+        f"Вывод программы (stdout):\n{stdout_str or '(нет вывода)'}\n\n"
         f"Ошибки выполнения (stderr):\n{stderr_str or '(ошибок нет)'}\n\n"
-        "Оцени решение и верни JSON {\"passed\": ..., \"feedback\": \"...\"}:"
+        "Оцени решение и верни JSON {\"passed\": bool, \"feedback\": string}:"
     )
 
     passed = False
@@ -131,83 +181,98 @@ def _mentor_evaluate_code_sync(
             prompt=prompt,
             system_instruction=system_inst,
             temperature=0.2,
-            timeout=35,
+            timeout=30,
         )
         cleaned = str(raw_ai).strip()
         cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"\s*```$", "", cleaned)
-        start = cleaned.find("{")
-        end = cleaned.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            parsed = json.loads(cleaned[start : end + 1])
-            passed = bool(parsed.get("passed", False))
-            feedback = str(parsed.get("feedback", "")).strip()
+        m = re.search(r"\{.*\}", cleaned, flags=re.DOTALL)
+        if m:
+            data = json.loads(m.group(0))
+            passed = bool(data.get("passed", False))
+            feedback = str(data.get("feedback", "")).strip()
         else:
             feedback = cleaned
             passed = (not has_runtime_error) and bool(stdout_str)
     except Exception as exc:
-        LOGGER.warning("Fallback проверки ментора: %s", exc)
+        LOGGER.warning("Fallback оценки шага 2: %s", exc)
         if has_runtime_error:
             passed = False
-            feedback = (
-                f"При выполнении кода возникла ошибка:\n`{stderr_str}`\n\n"
-                f"**Подсказка ментора:** {lesson.get('expected_hint') or 'Проверьте синтаксис и названия переменных.'}"
-            )
+            feedback = f"Код вызвал ошибку выполнения:\n{stderr_str}\n\nПроверьте названия переменных и синтаксис."
         elif not stdout_str:
             passed = False
-            feedback = (
-                "Код выполнился без ошибок, но ничего не вывел на экран.\n\n"
-                f"**Подсказка ментора:** {lesson.get('expected_hint') or 'Используйте print() или SELECT для вывода результата.'}"
-            )
+            feedback = "Код выполнился, но ничего не вывел. Добавьте вызов print() или SELECT для отображения результата."
         else:
             passed = True
-            feedback = (
-                f"Отличная работа! Код выполнился корректно и вывел результат:\n`{stdout_str}`\n\n"
-                "Урок засчитан — можешь переходить к следующей теме!"
-            )
+            feedback = f"Отличная работа! Код успешно вывел результат:\n{stdout_str}"
 
-    # Дополнительная страховка: если была явная ошибка интерпретатора Python/SQL, урок не может быть засчитан
     if has_runtime_error:
         passed = False
 
-    return {"passed": passed, "feedback": feedback}
+    return {
+        "passed": passed,
+        "feedback": feedback,
+        "rule": lesson.get("step2_rule") or "",
+    }
 
+
+# ============================================================================
+# РОУТЫ BAHONIQ ACADEMY API
+# ============================================================================
 
 @router.get("/roadmap")
 async def academy_roadmap_get():
-    """Возвращает структуру всех 4 этапов, список уроков и прогресс пользователя."""
+    """Возвращает дорожную карту всех 4 этапов, 60 уроков и общий прогресс."""
     return await run_in_threadpool(get_roadmap_data)
 
 
 @router.get("/lesson/{lesson_id}")
-async def academy_lesson_get(lesson_id: int, regenerate: bool = False):
-    """Возвращает данные конкретного урока и его живую теорию."""
+async def academy_lesson_get(lesson_id: int):
+    """Возвращает урок с микрошагами 1 и 2, вопросами теста и кодом проекта."""
     lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
     if not lesson:
         raise HTTPException(404, "Урок не найден.")
-    if regenerate:
-        try:
-            fresh_theory = await run_in_threadpool(_generate_live_theory_sync, lesson)
-            if fresh_theory:
-                await run_in_threadpool(save_lesson_theory, lesson_id, fresh_theory)
-                lesson["ai_theory"] = fresh_theory
-        except Exception as exc:
-            LOGGER.warning("Не удалось перегенерировать теорию урока %d: %s", lesson_id, exc)
     return lesson
 
 
-@router.post("/lesson")
-async def academy_lesson_post(request: Request):
-    """Получение или генерация живого объяснения урока через Gemini Flash."""
+@router.post("/step1/evaluate")
+async def academy_step1_eval_post(request: Request):
+    """Проверка микрошага 1: чтение кода («Поймай ловушку») с живым разбором Gemini Flash."""
     body = await _parse_body(request)
     lesson_id = int(body.get("lesson_id") or 1)
-    regenerate = bool(body.get("regenerate", False))
-    return await academy_lesson_get(lesson_id, regenerate=regenerate)
+    answer = str(body.get("answer") or "").strip()
+
+    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
+    if not lesson:
+        raise HTTPException(404, "Урок не найден.")
+
+    eval_res = await run_in_threadpool(_evaluate_step1_sync, lesson, answer)
+    await run_in_threadpool(
+        save_step1_result,
+        lesson_id,
+        answer,
+        eval_res["feedback"],
+        eval_res["passed"],
+    )
+
+    roadmap = await run_in_threadpool(get_roadmap_data)
+    updated_lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
+
+    return {
+        "lesson_id": lesson_id,
+        "step": 1,
+        "passed": eval_res["passed"],
+        "feedback": eval_res["feedback"],
+        "rule": eval_res.get("rule") or lesson.get("step1_rule", ""),
+        "current_step": updated_lesson.get("current_step", 1),
+        "roadmap": roadmap,
+    }
 
 
+@router.post("/step2/evaluate")
 @router.post("/check")
-async def academy_check_post(request: Request):
-    """Умная проверка кода с ИИ-ментором (запуск кода + разбор ошибок или зачёт урока в SQLite)."""
+async def academy_step2_eval_post(request: Request):
+    """Проверка микрошага 2: написание кода (запуск + разбор ошибок под микроскопом)."""
     body = await _parse_body(request)
     lesson_id = int(body.get("lesson_id") or 1)
     user_code = str(body.get("code") or "")
@@ -224,25 +289,82 @@ async def academy_check_post(request: Request):
         stdin_str,
     )
     eval_res = await run_in_threadpool(
-        _mentor_evaluate_code_sync,
+        _evaluate_step2_sync,
         lesson,
         user_code,
         exec_res,
     )
 
-    passed = eval_res["passed"]
-    feedback = eval_res["feedback"]
+    await run_in_threadpool(
+        save_step2_result,
+        lesson_id,
+        user_code,
+        eval_res["feedback"],
+        eval_res["passed"],
+    )
 
-    await run_in_threadpool(save_user_attempt, lesson_id, user_code, feedback, passed)
+    roadmap = await run_in_threadpool(get_roadmap_data)
+    updated_lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
+
+    return {
+        "lesson_id": lesson_id,
+        "step": 2,
+        "passed": eval_res["passed"],
+        "feedback": eval_res["feedback"],
+        "rule": eval_res.get("rule") or lesson.get("step2_rule", ""),
+        "stdout": exec_res["stdout"],
+        "stderr": exec_res["stderr"],
+        "returncode": exec_res["returncode"],
+        "current_step": updated_lesson.get("current_step", 2),
+        "roadmap": roadmap,
+    }
+
+
+@router.post("/quiz/submit")
+async def academy_quiz_submit_post(request: Request):
+    """Проверка ответов интерактивного теста из 5 вопросов и зачёт урока."""
+    body = await _parse_body(request)
+    lesson_id = int(body.get("lesson_id") or 1)
+    answers = body.get("answers") or {}  # формат {"0": 1, "1": 0, ...}
+
+    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
+    if not lesson:
+        raise HTTPException(404, "Урок не найден.")
+
+    quiz_items = lesson.get("quiz_data") or []
+    if not quiz_items:
+        raise HTTPException(400, "Для данного урока тест не настроен.")
+
+    score = 0
+    detailed: list[dict[str, Any]] = []
+    for idx, q in enumerate(quiz_items):
+        user_choice = answers.get(str(idx))
+        if user_choice is None:
+            user_choice = answers.get(idx)
+        user_choice_int = int(user_choice) if user_choice is not None else -1
+        correct_idx = int(q.get("correct_index", 0))
+        is_correct = (user_choice_int == correct_idx)
+        if is_correct:
+            score += 1
+        detailed.append({
+            "question_index": idx,
+            "user_choice": user_choice_int,
+            "correct_index": correct_idx,
+            "is_correct": is_correct,
+            "explanation": q.get("explanation", ""),
+        })
+
+    # Тест засчитывается при результате 4 из 5 или 5 из 5 (>= 80%)
+    passed = score >= 4
+    await run_in_threadpool(save_quiz_result, lesson_id, score, passed)
     roadmap = await run_in_threadpool(get_roadmap_data)
 
     return {
         "lesson_id": lesson_id,
+        "score": score,
+        "total": len(quiz_items),
         "passed": passed,
-        "feedback": feedback,
-        "stdout": exec_res["stdout"],
-        "stderr": exec_res["stderr"],
-        "returncode": exec_res["returncode"],
+        "detailed": detailed,
         "next_lesson_id": lesson.get("next_lesson_id"),
         "next_lesson_title": lesson.get("next_lesson_title"),
         "roadmap": roadmap,
@@ -251,34 +373,34 @@ async def academy_check_post(request: Request):
 
 @router.post("/mentor-ask")
 async def academy_mentor_ask_post(request: Request):
-    """Встроенный контекстный чат «Задать вопрос по уроку» (видит текущую тему, задачу и код на экране)."""
+    """Живой диалог с ИИ-ментором по уроку (контекстный ответ без раскрытия спойлеров)."""
     body = await _parse_body(request)
     lesson_id = int(body.get("lesson_id") or 1)
     question = str(body.get("question") or "").strip()
     current_code = str(body.get("code") or "").strip()
-    current_output = str(body.get("output") or "").strip()
 
     if not question:
-        raise HTTPException(400, "Введите вопрос для ИИ-ментора.")
+        raise HTTPException(400, "Введите вопрос для наставника.")
 
     lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
     lesson_ctx = ""
     if lesson:
         lesson_ctx = (
-            f"Текущий этап: {lesson['stage_title']}\n"
-            f"Текущий урок: {lesson['title']}\n"
-            f"Задание урока: {lesson['task_prompt']}\n"
+            f"Тема: {lesson['title']} ({lesson.get('stage_title', '')})\n"
+            f"Суть: {lesson['summary']}\n"
+            f"Шаг 1: {lesson.get('step1_concept', '')}\n"
+            f"Шаг 2: {lesson.get('step2_concept', '')}\n"
         )
 
     system_inst = (
-        "Ты — персональный ИИ-ментор BahonIQ Academy. Ученик задаёт вопрос прямо во время выполнения урока. "
-        "Отвечай дружелюбно, понятно, на живых примерах, строго в контексте текущего урока и кода ученика. "
-        "Не решай всю задачу за ученика, но ясно объясни нужную концепцию или синтаксис."
+        "Ты — персональный ИИ-ментор BahonIQ Academy (Gemini Flash 24/7). "
+        "Ученик задаёт вопрос во время изучения урока. "
+        "Отвечай дружелюбно, на простых примерах из жизни или проекта BahonIQ. "
+        "НЕ РЕШАЙ ВСЮ ЗАДАЧУ ЗА НЕГО, но понятно объясни механику."
     )
     prompt = (
         f"{lesson_ctx}\n"
-        f"Код ученика сейчас на экране:\n{current_code or '(пусто)'}\n\n"
-        f"Вывод консоли:\n{current_output or '(нет вывода)'}\n\n"
+        f"Код на экране ученика:\n{current_code or '(пусто)'}\n\n"
         f"Вопрос ученика: {question}"
     )
 
@@ -288,24 +410,24 @@ async def academy_mentor_ask_post(request: Request):
             prompt=prompt,
             system_instruction=system_inst,
             temperature=0.3,
-            timeout=35,
+            timeout=30,
         )
         return {"answer": str(answer).strip()}
     except Exception as exc:
-        raise HTTPException(400, f"Не удалось получить ответ ментора: {exc}") from exc
+        raise HTTPException(400, f"Ошибка ментора: {exc}") from exc
 
 
 @router.get("/export-pdf")
 @router.post("/export-pdf")
 async def academy_export_pdf():
-    """Генерирует и отдаёт персональную PDF-книгу «От А до Я: Python, SQL и Архитектура BahonIQ»."""
+    """Генерирует и отдаёт персональную PDF-книгу «От А до Я: Архитектура BahonIQ Work Center»."""
     try:
         pdf_bytes = await run_in_threadpool(build_academy_pdf_book)
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": 'attachment; filename="BahonIQ_Academy_Book_A_to_Z.pdf"',
+                "Content-Disposition": 'attachment; filename="BahonIQ_Architecture_Book_A_to_Z.pdf"',
                 "Cache-Control": "no-store",
             },
         )

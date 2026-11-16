@@ -1745,48 +1745,56 @@ recForm?.addEventListener('submit', async e => {
 })();
 
 // ============================================================================
-// МОДУЛЬ: BAHONIQ AI ACADEMY (4 ЭТАПА + ЖИВОЙ ИИ-МЕНТОР GEMINI FLASH + PDF-КНИГА)
+// ============================================================================
+// МОДУЛЬ: BAHONIQ AI ACADEMY (60 УРОКОВ + ЖИВОЙ ИИ-ТРЕНЕР + МИКРОШАГИ + ТЕСТЫ + PDF)
 // ============================================================================
 (function initBahonIQAcademyModule() {
-  const overallText = $('#acadOverallText');
-  const overallFill = $('#acadOverallFill');
-  const exportPdfBtn = $('#acadExportPdfBtn');
-  const stagesNav = $('#acadStagesNav');
+  const overallText = document.getElementById('acadOverallText');
+  const overallFill = document.getElementById('acadOverallFill');
+  const exportPdfBtn = document.getElementById('acadExportPdfBtn');
+  const stagesNav = document.getElementById('acadStagesNav');
 
-  const currentStageLabel = $('#acadCurrentStageLabel');
-  const lessonFilter = $('#acadLessonFilter');
-  const lessonsList = $('#acadLessonsList');
+  const currentStageLabel = document.getElementById('acadCurrentStageLabel');
+  const stageLessonsCount = document.getElementById('acadStageLessonsCount');
+  const lessonFilter = document.getElementById('acadLessonFilter');
+  const lessonsList = document.getElementById('acadLessonsList');
 
-  const lessonStageBadge = $('#acadLessonStageBadge');
-  const lessonStatusBadge = $('#acadLessonStatusBadge');
-  const lessonTitle = $('#acadLessonTitle');
-  const regenTheoryBtn = $('#acadRegenTheoryBtn');
-  const theoryContent = $('#acadTheoryContent');
+  const lessonStageBadge = document.getElementById('acadLessonStageBadge');
+  const lessonStatusBadge = document.getElementById('acadLessonStatusBadge');
+  const lessonTitle = document.getElementById('acadLessonTitle');
+  const lessonSummary = document.getElementById('acadLessonSummary');
 
-  const repoFileBox = $('#acadRepoFileBox');
-  const repoFileName = $('#acadRepoFileName');
-  const repoFileCode = $('#acadRepoFileCode');
+  const stepPill1 = document.getElementById('acadStepPill1');
+  const stepPill2 = document.getElementById('acadStepPill2');
+  const stepPill3 = document.getElementById('acadStepPill3');
 
-  const taskPrompt = $('#acadTaskPrompt');
-  const editorLangTag = $('#acadEditorLangTag');
-  const resetCodeBtn = $('#acadResetCodeBtn');
-  const codeEditor = $('#acadCodeEditor');
-  const runCodeBtn = $('#acadRunCodeBtn');
-  const checkMentorBtn = $('#acadCheckMentorBtn');
-  const nextLessonBtn = $('#acadNextLessonBtn');
-  const consoleOutput = $('#acadConsoleOutput');
+  const trainerFeed = document.getElementById('acadTrainerFeed');
+  const repoFileBox = document.getElementById('acadRepoFileBox');
+  const repoFileName = document.getElementById('acadRepoFileName');
+  const repoFileCode = document.getElementById('acadRepoFileCode');
 
-  const verdictBox = $('#acadMentorVerdictBox');
-  const verdictTitle = $('#acadVerdictTitle');
-  const verdictText = $('#acadVerdictText');
+  // Доки ответов
+  const step1Dock = document.getElementById('acadStep1Dock');
+  const step1Input = document.getElementById('acadStep1Input');
+  const submitStep1Btn = document.getElementById('acadSubmitStep1Btn');
 
-  const chatMessages = $('#acadChatMessages');
-  const chatInput = $('#acadChatInput');
-  const chatSendBtn = $('#acadChatSendBtn');
+  const step2Dock = document.getElementById('acadStep2Dock');
+  const codeEditor = document.getElementById('acadCodeEditor');
+  const editorLangTag = document.getElementById('acadEditorLangTag');
+  const resetCodeBtn = document.getElementById('acadResetCodeBtn');
+  const runCodeBtn = document.getElementById('acadRunCodeBtn');
+  const submitStep2Btn = document.getElementById('acadSubmitStep2Btn');
+  const consoleOutput = document.getElementById('acadConsoleOutput');
+
+  const step3Dock = document.getElementById('acadStep3Dock');
+  const quizQuestionsContainer = document.getElementById('acadQuizQuestionsContainer');
+  const submitQuizBtn = document.getElementById('acadSubmitQuizBtn');
+  const nextLessonBtn = document.getElementById('acadNextLessonBtn');
 
   let roadmapData = null;
   let currentStageId = 1;
   let currentLesson = null;
+  let userQuizAnswers = {};
 
   function escapeHtml(str) {
     return String(str || '')
@@ -1796,14 +1804,17 @@ recForm?.addEventListener('submit', async e => {
       .replace(/"/g, '&quot;');
   }
 
-  function formatMarkdownText(raw) {
+  function formatText(raw) {
     let s = escapeHtml(raw || '');
-    s = s.replace(/```([a-zA-Z]*)\n([\s\S]*?)```/g, '<pre class="code-output" style="margin:8px 0;padding:10px 12px;">$2</pre>');
+    s = s.replace(/```([a-zA-Z]*)
+([\s\S]*?)```/g, '<pre class="acad-trap-code">$2</pre>');
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    s = s.replace(/\n/g, '<br/>');
     return s;
   }
 
+  // 1. Отрисовка дорожной карты и прогресса
   function renderRoadmapUI() {
     if (!roadmapData) return;
     if (overallText) {
@@ -1822,311 +1833,549 @@ recForm?.addEventListener('submit', async e => {
               <span class="acad-stage-num">ЭТАП ${st.order_index}</span>
               <span class="acad-stage-count">${st.completed_lessons} / ${st.total_lessons}</span>
             </div>
-            <div class="acad-stage-tab-title">${escapeHtml(st.title.replace(/^Этап \d+:\s*/, ''))}</div>
+            <div class="acad-stage-tab-title">${escapeHtml(st.title.replace(/^Этап \d+:\s*/i, ''))}</div>
             <div class="acad-stage-tab-sub">${escapeHtml(st.subtitle)}</div>
           </button>
         `;
       }).join('');
+
+      stagesNav.querySelectorAll('.acad-stage-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const sid = parseInt(btn.dataset.stageId, 10);
+          switchStage(sid);
+        });
+      });
     }
 
-    renderStageLessons(lessonFilter?.value || '');
+    renderLessonsSidebar();
   }
 
-  function renderStageLessons(filterStr = '') {
-    if (!lessonsList || !roadmapData) return;
-    const stageObj = (roadmapData.stages || []).find(s => s.id === currentStageId) || roadmapData.stages?.[0];
-    if (!stageObj) return;
+  function switchStage(stageId) {
+    currentStageId = stageId;
+    renderRoadmapUI();
+    const st = roadmapData?.stages?.find(s => s.id === stageId);
+    if (st && st.lessons?.length) {
+      const firstIncomplete = st.lessons.find(l => !l.completed) || st.lessons[0];
+      openLesson(firstIncomplete.id);
+    }
+  }
+
+  function renderLessonsSidebar() {
+    if (!roadmapData || !lessonsList) return;
+    const st = roadmapData.stages?.find(s => s.id === currentStageId);
+    if (!st) return;
 
     if (currentStageLabel) {
-      currentStageLabel.textContent = stageObj.title.toUpperCase();
+      currentStageLabel.textContent = st.title.toUpperCase();
+    }
+    if (stageLessonsCount) {
+      stageLessonsCount.textContent = `${st.completed_lessons}/${st.total_lessons} пройдено`;
     }
 
-    const q = (filterStr || '').trim().toLowerCase();
-    const filtered = (stageObj.lessons || []).filter(l => !q || l.title.toLowerCase().includes(q) || l.summary.toLowerCase().includes(q));
+    const q = (lessonFilter?.value || '').trim().toLowerCase();
+    const filtered = (st.lessons || []).filter(l => {
+      if (!q) return true;
+      return l.title.toLowerCase().includes(q) || (l.summary || '').toLowerCase().includes(q);
+    });
 
     lessonsList.innerHTML = filtered.map(les => {
-      const isAct = currentLesson && currentLesson.id === les.id ? 'active' : '';
-      const isDone = les.completed ? 'done' : '';
-      const checkSymbol = les.completed ? '✓' : les.order_index;
+      const isCur = currentLesson && currentLesson.id === les.id ? 'active' : '';
+      const isDone = les.completed ? 'completed' : '';
+      const icon = les.completed
+        ? '<span class="acad-lesson-status-icon done">✔</span>'
+        : `<span class="acad-lesson-status-icon pending">${les.order_index}</span>`;
+
       return `
-        <button type="button" class="acad-lesson-btn ${isAct} ${isDone}" data-lesson-id="${les.id}">
-          <span class="acad-lesson-check">${checkSymbol}</span>
-          <span>${escapeHtml(les.title)}</span>
+        <button type="button" class="acad-lesson-item ${isCur} ${isDone}" data-lesson-id="${les.id}">
+          ${icon}
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(les.title)}</span>
         </button>
       `;
-    }).join('') || `<div style="padding:10px;font-size:12.5px;color:var(--text-sub);">Темы не найдены.</div>`;
+    }).join('');
+
+    lessonsList.querySelectorAll('.acad-lesson-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const lid = parseInt(btn.dataset.lessonId, 10);
+        openLesson(lid);
+      });
+    });
   }
 
-  async function openLesson(lessonId, regenerate = false) {
+  // 2. Открытие конкретного урока
+  async function openLesson(lessonId) {
     try {
-      if (regenerate && theoryContent) {
-        theoryContent.innerHTML = '⏳ ИИ-ментор Gemini Flash генерирует новое живое объяснение с примером...';
-      }
-      const res = await fetch('/api/academy/lesson', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lesson_id: lessonId, regenerate }),
-      });
+      const res = await fetch(`/api/academy/lesson/${lessonId}`);
       if (!res.ok) throw new Error('Не удалось загрузить урок');
-      const les = await res.json();
-      currentLesson = les;
-      currentStageId = les.stage_id;
+      currentLesson = await res.json();
+      currentStageId = currentLesson.stage_id;
+      userQuizAnswers = {};
 
-      if (lessonStageBadge) lessonStageBadge.textContent = les.stage_title || `Этап ${les.stage_id}`;
-      if (lessonStatusBadge) {
-        lessonStatusBadge.textContent = les.completed ? '✓ Пройдено' : 'В процессе';
-        lessonStatusBadge.classList.toggle('done', Boolean(les.completed));
+      renderRoadmapUI();
+      renderCurrentLessonWorkspace();
+    } catch (err) {
+      console.error('Ошибка открытия урока:', err);
+    }
+  }
+
+  function renderCurrentLessonWorkspace() {
+    if (!currentLesson) return;
+
+    // Шапка темы
+    if (lessonStageBadge) {
+      lessonStageBadge.textContent = currentLesson.stage_title || `Этап ${currentLesson.stage_id}`;
+    }
+    if (lessonStatusBadge) {
+      if (currentLesson.completed) {
+        lessonStatusBadge.textContent = '✔ Тема пройдена';
+        lessonStatusBadge.className = 'acad-status-badge done';
+      } else {
+        lessonStatusBadge.textContent = 'В процессе';
+        lessonStatusBadge.className = 'acad-status-badge';
       }
-      if (lessonTitle) lessonTitle.textContent = les.title || '';
-      if (theoryContent) theoryContent.innerHTML = formatMarkdownText(les.ai_theory || '');
+    }
+    if (lessonTitle) lessonTitle.textContent = currentLesson.title;
+    if (lessonSummary) lessonSummary.textContent = currentLesson.summary;
 
-      if (les.repo_source_preview && repoFileBox && repoFileName && repoFileCode) {
-        repoFileName.textContent = les.file_path;
-        repoFileCode.textContent = les.repo_source_preview;
+    if (editorLangTag) {
+      editorLangTag.textContent = currentLesson.language === 'sql' ? 'SQL (SQLite)' : 'PYTHON 3.14';
+    }
+
+    // Блок файла проекта репозитория (для Этапа 3)
+    if (repoFileBox && repoFileName && repoFileCode) {
+      if (currentLesson.file_path && currentLesson.repo_source_preview) {
+        repoFileName.textContent = currentLesson.file_path;
+        repoFileCode.textContent = currentLesson.repo_source_preview;
         repoFileBox.classList.remove('hidden');
       } else {
-        repoFileBox?.classList.add('hidden');
+        repoFileBox.classList.add('hidden');
       }
+    }
 
-      if (taskPrompt) taskPrompt.innerHTML = formatMarkdownText(les.task_prompt || '');
-      if (editorLangTag) {
-        editorLangTag.textContent = les.language === 'sql' ? 'SQLITE / SQL' : 'PYTHON 3';
-      }
-      if (!regenerate && codeEditor) {
-        codeEditor.value = les.user_code || les.starter_code || '';
-      }
+    // Редактор кода стартовый шаблон
+    if (codeEditor) {
+      codeEditor.value = currentLesson.user_code || currentLesson.step2_starter_code || currentLesson.starter_code || '';
+    }
+    if (consoleOutput) {
+      consoleOutput.textContent = 'Нажмите «Запустить» или «Отправить код тренеру».';
+    }
 
-      if (!regenerate) {
-        if (consoleOutput) {
-          consoleOutput.textContent = 'Нажмите «▶ Запустить код» или «✨ Проверить с ментором».';
-        }
-        if (les.mentor_feedback && verdictBox && verdictText && verdictTitle) {
-          verdictBox.className = `acad-verdict-box ${les.completed ? 'passed' : 'failed'}`;
-          verdictTitle.textContent = les.completed ? '✓ Решение зачтено ИИ-ментором' : '💡 Подсказка и разбор от ИИ-ментора';
-          verdictText.innerHTML = formatMarkdownText(les.mentor_feedback);
-          verdictBox.classList.remove('hidden');
-        } else {
-          verdictBox?.classList.add('hidden');
-        }
-        if (nextLessonBtn) {
-          if (les.completed && les.next_lesson_id) {
-            nextLessonBtn.classList.remove('hidden');
-          } else {
-            nextLessonBtn.classList.add('hidden');
-          }
-        }
-      }
+    // Определяем текущий шаг урока
+    updateStepTrackerUI();
+    renderTrainerDialogueFeed();
+  }
 
-      renderRoadmapUI();
-    } catch (err) {
-      if (theoryContent) theoryContent.textContent = `Ошибка: ${err.message}`;
+  function updateStepTrackerUI() {
+    if (!currentLesson) return;
+    const isStep1Done = Boolean(currentLesson.step1_passed);
+    const isStep2Done = Boolean(currentLesson.step2_passed);
+    const isCompleted = Boolean(currentLesson.completed);
+
+    // Сброс классов
+    stepPill1.className = 'acad-step-pill';
+    stepPill2.className = 'acad-step-pill';
+    stepPill3.className = 'acad-step-pill';
+
+    if (isStep1Done) stepPill1.classList.add('passed');
+    if (isStep2Done) stepPill2.classList.add('passed');
+    if (isCompleted) stepPill3.classList.add('passed');
+
+    // Прячем все доки
+    step1Dock.classList.add('hidden');
+    step2Dock.classList.add('hidden');
+    step3Dock.classList.add('hidden');
+
+    if (!isStep1Done) {
+      stepPill1.classList.add('active');
+      step1Dock.classList.remove('hidden');
+    } else if (!isStep2Done) {
+      stepPill2.classList.add('active');
+      step2Dock.classList.remove('hidden');
+    } else {
+      stepPill3.classList.add('active');
+      step3Dock.classList.remove('hidden');
+      renderQuizUI();
     }
   }
 
-  stagesNav?.addEventListener('click', (e) => {
-    const tab = e.target.closest('.acad-stage-tab');
-    if (!tab || !roadmapData) return;
-    const stId = Number(tab.dataset.stageId);
-    if (!stId) return;
-    currentStageId = stId;
-    const stObj = (roadmapData.stages || []).find(s => s.id === stId);
-    if (stObj && stObj.lessons?.length) {
-      const firstIncomplete = stObj.lessons.find(l => !l.completed) || stObj.lessons[0];
-      openLesson(firstIncomplete.id);
-    } else {
-      renderRoadmapUI();
+  // 3. Формирование живого диалога в потоке
+  function renderTrainerDialogueFeed() {
+    if (!currentLesson || !trainerFeed) return;
+    let html = '';
+
+    // Реплика 1: Тренер объясняет механику шага 1
+    const concept1 = currentLesson.step1_concept || currentLesson.ai_theory;
+    html += `
+      <div class="acad-msg-bubble acad-msg-trainer">
+        <div class="acad-msg-author">🤖 ИИ-тренер Gemini Flash • Шаг 1: Чтение кода</div>
+        <div>${formatText(concept1)}</div>
+        <div class="acad-trap-card">
+          <div class="acad-trap-header">🔍 «Поймай ловушку» (Внимательно прочитай 3 строчки кода)</div>
+          <pre class="acad-trap-code">${escapeHtml(currentLesson.step1_trap_code || '')}</pre>
+          <div class="acad-trap-q">Вопрос тренера: ${escapeHtml(currentLesson.step1_trap_question || 'Что выведет этот код на экран и почему?')}</div>
+        </div>
+      </div>
+    `;
+
+    // Если ученик уже отвечал на шаг 1
+    if (currentLesson.step1_answer) {
+      html += `
+        <div class="acad-msg-bubble acad-msg-user">
+          <div class="acad-msg-author">Вы • Ответ на ловушку</div>
+          <div>${escapeHtml(currentLesson.step1_answer)}</div>
+        </div>
+      `;
     }
-  });
 
-  lessonsList?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.acad-lesson-btn');
-    if (!btn) return;
-    const id = Number(btn.dataset.lessonId);
-    if (id) openLesson(id);
-  });
+    // Если шаг 1 пройден — вердикт + правило тренера + переход к шагу 2
+    if (currentLesson.step1_passed) {
+      html += `
+        <div class="acad-msg-bubble acad-msg-trainer">
+          <div class="acad-msg-author">🤖 ИИ-тренер Gemini Flash • Разбор под микроскопом</div>
+          <div>Отлично подмечено! Ловушка успешно пройдена.</div>
+          <div class="acad-trainer-rule">
+            <span class="acad-rule-icon">📌</span>
+            <div><strong>Главное правило тренера:</strong> ${escapeHtml(currentLesson.step1_rule || 'Внимательно следите за кавычками и типами данных.')}</div>
+          </div>
+        </div>
+      `;
 
-  lessonFilter?.addEventListener('input', () => {
-    renderStageLessons(lessonFilter.value);
-  });
+      // Шаг 2: Написание кода
+      const concept2 = currentLesson.step2_concept || 'Теперь закрепим эту механику на практике написанием собственного кода.';
+      const task2 = currentLesson.step2_task_prompt || currentLesson.task_prompt;
+      html += `
+        <div class="acad-msg-bubble acad-msg-trainer">
+          <div class="acad-msg-author">🤖 ИИ-тренер Gemini Flash • Шаг 2: Практика в редакторе</div>
+          <div>${formatText(concept2)}</div>
+          <div style="margin-top:10px;padding:12px;background:rgba(0,229,255,0.06);border-radius:8px;border-left:3px solid var(--cyan-neon);">
+            <strong>Практическая задача:</strong> ${formatText(task2)}
+          </div>
+        </div>
+      `;
 
-  regenTheoryBtn?.addEventListener('click', async () => {
-    if (!currentLesson) return;
-    regenTheoryBtn.disabled = true;
-    regenTheoryBtn.textContent = '⏳ ИИ пишет пример...';
-    await openLesson(currentLesson.id, true);
-    regenTheoryBtn.disabled = false;
-    regenTheoryBtn.textContent = '🔄 Объяснить иначе (ИИ)';
-  });
+      if (currentLesson.step2_code) {
+        html += `
+          <div class="acad-msg-bubble acad-msg-user">
+            <div class="acad-msg-author">Вы • Отправленный код</div>
+            <pre class="acad-trap-code">${escapeHtml(currentLesson.step2_code)}</pre>
+          </div>
+        `;
+      }
 
-  resetCodeBtn?.addEventListener('click', () => {
-    if (!currentLesson || !codeEditor) return;
-    codeEditor.value = currentLesson.starter_code || '';
-  });
-
-  // Запуск кода без проверки
-  runCodeBtn?.addEventListener('click', async () => {
-    if (!currentLesson || !codeEditor) return;
-    runCodeBtn.disabled = true;
-    if (consoleOutput) consoleOutput.textContent = '⏳ Выполнение кода...';
-    try {
-      const fd = new FormData();
-      fd.append('language', currentLesson.language === 'sql' ? 'sql' : 'python');
-      fd.append('code', codeEditor.value);
-      const res = await fetch('/api/academy/run', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Ошибка запуска');
-      const out = [data.output, data.error].filter(Boolean).join('\n').trim();
-      if (consoleOutput) consoleOutput.textContent = out || '(Код выполнился без вывода)';
-    } catch (err) {
-      if (consoleOutput) consoleOutput.textContent = `Ошибка: ${err.message}`;
-    } finally {
-      runCodeBtn.disabled = false;
+      if (currentLesson.step2_passed) {
+        html += `
+          <div class="acad-msg-bubble acad-msg-trainer">
+            <div class="acad-msg-author">🤖 ИИ-тренер Gemini Flash • Вердикт по коду</div>
+            <div>${formatText(currentLesson.mentor_feedback || 'Код написан чисто и выполнился без ошибок!')}</div>
+            <div class="acad-trainer-rule">
+              <span class="acad-rule-icon">📌</span>
+              <div><strong>Главное правило тренера:</strong> ${escapeHtml(currentLesson.step2_rule || 'Решение работает надёжно и эффективно.')}</div>
+            </div>
+          </div>
+        `;
+      }
     }
-  });
 
-  // Умная проверка кода с ИИ-ментором Gemini Flash
-  checkMentorBtn?.addEventListener('click', async () => {
-    if (!currentLesson || !codeEditor) return;
-    checkMentorBtn.disabled = true;
-    const origText = checkMentorBtn.textContent;
-    checkMentorBtn.textContent = '⏳ Ментор анализирует код...';
-    verdictBox?.classList.remove('hidden');
-    if (verdictTitle) verdictTitle.textContent = '⏳ ИИ-ментор проверяет ваше решение...';
-    if (verdictText) verdictText.textContent = 'Запускаем код и анализируем логику с помощью Gemini Flash...';
-
-    try {
-      const res = await fetch('/api/academy/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lesson_id: currentLesson.id,
-          code: codeEditor.value,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Ошибка проверки');
-
-      const out = [data.stdout, data.stderr].filter(Boolean).join('\n').trim();
-      if (consoleOutput) consoleOutput.textContent = out || '(Вывод пуст)';
-
-      if (verdictBox && verdictTitle && verdictText) {
-        verdictBox.className = `acad-verdict-box ${data.passed ? 'passed' : 'failed'}`;
-        verdictTitle.textContent = data.passed
-          ? '🎉 Отлично! Урок засчитан ИИ-ментором'
-          : '💡 Разбор ошибки и наводящая подсказка от ИИ-ментора';
-        verdictText.innerHTML = formatMarkdownText(data.feedback || '');
-      }
-
-      if (data.roadmap) {
-        roadmapData = data.roadmap;
-      }
-      currentLesson.completed = Boolean(data.passed || currentLesson.completed);
-      if (lessonStatusBadge) {
-        lessonStatusBadge.textContent = currentLesson.completed ? '✓ Пройдено' : 'В процессе';
-        lessonStatusBadge.classList.toggle('done', currentLesson.completed);
-      }
-      if (nextLessonBtn) {
-        if (data.passed && data.next_lesson_id) {
-          nextLessonBtn.dataset.nextId = String(data.next_lesson_id);
-          nextLessonBtn.classList.remove('hidden');
-        }
-      }
-      renderRoadmapUI();
-    } catch (err) {
-      if (verdictText) verdictText.textContent = `Ошибка: ${err.message}`;
-    } finally {
-      checkMentorBtn.disabled = false;
-      checkMentorBtn.textContent = origText;
+    if (currentLesson.completed) {
+      html += `
+        <div class="acad-msg-bubble acad-msg-trainer" style="border-color:rgba(0,230,118,0.4);background:rgba(0,230,118,0.07);">
+          <div class="acad-msg-author" style="color:var(--green-neon);">🎉 Тема успешно освоена!</div>
+          <div>Поздравляю! Ты прошел микрошаг чтения, решил практическую задачу и справился с тестом по теме. Можешь двигаться дальше!</div>
+        </div>
+      `;
     }
-  });
 
-  nextLessonBtn?.addEventListener('click', () => {
-    const nextId = Number(nextLessonBtn.dataset.nextId || currentLesson?.next_lesson_id);
-    if (nextId) openLesson(nextId);
-  });
+    trainerFeed.innerHTML = html;
+    trainerFeed.scrollTop = trainerFeed.scrollHeight;
+  }
 
-  // Встроенный чат «Задать вопрос по уроку»
-  async function sendMentorQuestion(customQ) {
-    const q = (customQ ?? chatInput?.value ?? '').trim();
-    if (!q || !currentLesson) return;
-    if (!customQ && chatInput) chatInput.value = '';
-
-    if (chatMessages) {
-      const userDiv = document.createElement('div');
-      userDiv.className = 'acad-msg acad-msg-user';
-      userDiv.textContent = q;
-      chatMessages.appendChild(userDiv);
-
-      const loadDiv = document.createElement('div');
-      loadDiv.className = 'acad-msg acad-msg-ai';
-      loadDiv.textContent = '⏳ Ментор печатает ответ...';
-      chatMessages.appendChild(loadDiv);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+  // 4. Отправка ответа на Шаг 1
+  if (submitStep1Btn && step1Input) {
+    submitStep1Btn.addEventListener('click', async () => {
+      const answer = (step1Input.value || '').trim();
+      if (!answer) {
+        alert('Пожалуйста, напишите ваш ответ на вопрос тренера.');
+        return;
+      }
+      submitStep1Btn.disabled = true;
+      submitStep1Btn.innerHTML = '<span>Проверка ИИ...</span>';
 
       try {
-        const res = await fetch('/api/academy/mentor-ask', {
+        const res = await fetch('/api/academy/step1/evaluate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             lesson_id: currentLesson.id,
-            question: q,
-            code: codeEditor?.value || '',
-            output: consoleOutput?.textContent || '',
+            answer: answer,
+          }),
+        });
+        if (!res.ok) throw new Error('Ошибка сервера при проверке');
+        const data = await res.json();
+
+        currentLesson.step1_answer = answer;
+        currentLesson.step1_passed = data.passed;
+        if (data.roadmap) roadmapData = data.roadmap;
+
+        step1Input.value = '';
+        renderRoadmapUI();
+        updateStepTrackerUI();
+        renderTrainerDialogueFeed();
+
+        if (!data.passed) {
+          alert('Ответ тренера: ' + data.feedback);
+        }
+      } catch (err) {
+        alert('Не удалось отправить ответ: ' + err.message);
+      } finally {
+        submitStep1Btn.disabled = false;
+        submitStep1Btn.innerHTML = '<span>Отправить ответ ➔</span>';
+      }
+    });
+  }
+
+  // 5. Запуск кода Шага 2 (песочница)
+  if (runCodeBtn && codeEditor) {
+    runCodeBtn.addEventListener('click', async () => {
+      const code = codeEditor.value;
+      runCodeBtn.disabled = true;
+      runCodeBtn.textContent = 'Запуск...';
+      try {
+        const res = await fetch('/api/academy/step2/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lesson_id: currentLesson.id,
+            code: code,
           }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Ошибка');
-        loadDiv.innerHTML = formatMarkdownText(data.answer || '');
+        if (consoleOutput) {
+          consoleOutput.textContent = data.stderr
+            ? `Ошибка:\n${data.stderr}`
+            : (data.stdout || '(программа ничего не вывела)');
+        }
       } catch (err) {
-        loadDiv.textContent = `Ошибка: ${err.message}`;
+        if (consoleOutput) consoleOutput.textContent = 'Ошибка выполнения: ' + err.message;
+      } finally {
+        runCodeBtn.disabled = false;
+        runCodeBtn.textContent = '▶ Запустить (проверить вывод)';
       }
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
+  }
+
+  // 6. Отправка кода на проверку тренеру (Шаг 2)
+  if (submitStep2Btn && codeEditor) {
+    submitStep2Btn.addEventListener('click', async () => {
+      const code = codeEditor.value;
+      submitStep2Btn.disabled = true;
+      submitStep2Btn.innerHTML = '<span>ИИ проверяет код...</span>';
+
+      try {
+        const res = await fetch('/api/academy/step2/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lesson_id: currentLesson.id,
+            code: code,
+          }),
+        });
+        if (!res.ok) throw new Error('Ошибка сервера при проверке кода');
+        const data = await res.json();
+
+        currentLesson.step2_code = code;
+        currentLesson.step2_passed = data.passed;
+        currentLesson.mentor_feedback = data.feedback;
+        if (data.roadmap) roadmapData = data.roadmap;
+
+        if (consoleOutput) {
+          consoleOutput.textContent = data.stderr
+            ? `Ошибка:\n${data.stderr}`
+            : (data.stdout || '(код выполнился без вывода)');
+        }
+
+        renderRoadmapUI();
+        updateStepTrackerUI();
+        renderTrainerDialogueFeed();
+
+        if (!data.passed) {
+          alert('Разбор от ментора: ' + data.feedback);
+        }
+      } catch (err) {
+        alert('Ошибка при отправке: ' + err.message);
+      } finally {
+        submitStep2Btn.disabled = false;
+        submitStep2Btn.innerHTML = '🚀 Отправить код тренеру';
+      }
+    });
+  }
+
+  // 7. Отрисовка интерактивного теста (Шаг 3: 5 вопросов)
+  function renderQuizUI() {
+    if (!currentLesson || !quizQuestionsContainer) return;
+    const questions = currentLesson.quiz_data || [];
+    if (!questions.length) {
+      quizQuestionsContainer.innerHTML = '<div style="color:var(--text-muted);">Тест для этого урока формируется...</div>';
+      return;
+    }
+
+    quizQuestionsContainer.innerHTML = questions.map((q, qIdx) => {
+      const userChoice = userQuizAnswers[qIdx];
+      const optsHtml = (q.options || []).map((opt, optIdx) => {
+        const isSelected = userChoice === optIdx ? 'selected' : '';
+        const letters = ['A', 'B', 'C', 'D'];
+        return `
+          <div class="acad-quiz-opt ${isSelected}" data-q="${qIdx}" data-opt="${optIdx}">
+            <span class="acad-quiz-opt-letter">${letters[optIdx] || optIdx + 1}</span>
+            <span>${escapeHtml(opt)}</span>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="acad-quiz-card" id="quizCard_${qIdx}">
+          <div class="acad-quiz-q-title">${qIdx + 1}. ${escapeHtml(q.question)}</div>
+          <div class="acad-quiz-options">${optsHtml}</div>
+          <div id="quizExp_${qIdx}" class="acad-quiz-explanation hidden"></div>
+        </div>
+      `;
+    }).join('');
+
+    quizQuestionsContainer.querySelectorAll('.acad-quiz-opt').forEach(optEl => {
+      optEl.addEventListener('click', () => {
+        const qIdx = parseInt(optEl.dataset.q, 10);
+        const optIdx = parseInt(optEl.dataset.opt, 10);
+        userQuizAnswers[qIdx] = optIdx;
+
+        const parent = optEl.closest('.acad-quiz-options');
+        parent.querySelectorAll('.acad-quiz-opt').forEach(o => o.classList.remove('selected'));
+        optEl.classList.add('selected');
+      });
+    });
+
+    if (nextLessonBtn) {
+      if (currentLesson.completed && currentLesson.next_lesson_id) {
+        nextLessonBtn.classList.remove('hidden');
+        nextLessonBtn.onclick = () => openLesson(currentLesson.next_lesson_id);
+      } else {
+        nextLessonBtn.classList.add('hidden');
+      }
     }
   }
 
-  chatSendBtn?.addEventListener('click', () => sendMentorQuestion());
-  chatInput?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMentorQuestion();
-    }
-  });
+  // 8. Проверка ответов теста (Шаг 3)
+  if (submitQuizBtn) {
+    submitQuizBtn.addEventListener('click', async () => {
+      const questions = currentLesson?.quiz_data || [];
+      if (!questions.length) return;
 
-  document.querySelectorAll('.acad-quick-q').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const q = btn.dataset.q;
-      if (q) sendMentorQuestion(q);
-    });
-  });
-
-  // Генерация персональной PDF-книги «От А до Я»
-  exportPdfBtn?.addEventListener('click', async () => {
-    exportPdfBtn.disabled = true;
-    const orig = exportPdfBtn.innerHTML;
-    exportPdfBtn.innerHTML = '<span>⏳ Генерирую PDF-книгу (От А до Я)...</span>';
-    try {
-      const res = await fetch('/api/academy/export-pdf', { method: 'POST' });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || 'Не удалось сгенерировать PDF-книгу');
+      if (Object.keys(userQuizAnswers).length < questions.length) {
+        alert('Пожалуйста, ответьте на все 5 вопросов теста перед отправкой.');
+        return;
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'BahonIQ_Academy_Book_A_to_Z.pdf';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-    } catch (err) {
-      alert(err.message || 'Ошибка выгрузки PDF');
-    } finally {
-      exportPdfBtn.disabled = false;
-      exportPdfBtn.innerHTML = orig;
-    }
-  });
 
+      submitQuizBtn.disabled = true;
+      submitQuizBtn.textContent = 'Проверка теста...';
+
+      try {
+        const res = await fetch('/api/academy/quiz/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lesson_id: currentLesson.id,
+            answers: userQuizAnswers,
+          }),
+        });
+        if (!res.ok) throw new Error('Ошибка сервера при проверке теста');
+        const result = await res.json();
+
+        // Подсвечиваем результаты вопросов
+        (result.detailed || []).forEach(d => {
+          const card = document.getElementById(`quizCard_${d.question_index}`);
+          const expBox = document.getElementById(`quizExp_${d.question_index}`);
+          if (card) {
+            const opts = card.querySelectorAll('.acad-quiz-opt');
+            opts.forEach(opt => {
+              const optIdx = parseInt(opt.dataset.opt, 10);
+              if (optIdx === d.correct_index) {
+                opt.classList.add('correct');
+              } else if (optIdx === d.user_choice && !d.is_correct) {
+                opt.classList.add('wrong');
+              }
+            });
+          }
+          if (expBox && d.explanation) {
+            expBox.textContent = 'Пояснение: ' + d.explanation;
+            expBox.classList.remove('hidden');
+          }
+        });
+
+        if (result.roadmap) roadmapData = result.roadmap;
+        currentLesson.completed = result.passed;
+
+        renderRoadmapUI();
+        renderTrainerDialogueFeed();
+
+        if (result.passed) {
+          alert(`🎉 Поздравляем! Результат: ${result.score} из ${result.total}. Тема засчитана!`);
+          if (nextLessonBtn && result.next_lesson_id) {
+            nextLessonBtn.classList.remove('hidden');
+            nextLessonBtn.onclick = () => openLesson(result.next_lesson_id);
+          }
+        } else {
+          alert(`Результат: ${result.score} из ${result.total}. Для зачёта темы требуется минимум 4 верных ответа. Попробуйте еще раз!`);
+        }
+      } catch (err) {
+        alert('Ошибка при проверке теста: ' + err.message);
+      } finally {
+        submitQuizBtn.disabled = false;
+        submitQuizBtn.textContent = 'Завершить тест и проверить ответы';
+      }
+    });
+  }
+
+  // 9. Сброс кода к стартовому
+  if (resetCodeBtn && codeEditor) {
+    resetCodeBtn.addEventListener('click', () => {
+      if (currentLesson) {
+        codeEditor.value = currentLesson.step2_starter_code || currentLesson.starter_code || '';
+      }
+    });
+  }
+
+  // 10. Фильтрация списка уроков в сайдбаре
+  if (lessonFilter) {
+    lessonFilter.addEventListener('input', () => {
+      renderLessonsSidebar();
+    });
+  }
+
+  // 11. Скачивание персональной PDF-книги
+  if (exportPdfBtn) {
+    exportPdfBtn.addEventListener('click', async () => {
+      const orig = exportPdfBtn.innerHTML;
+      exportPdfBtn.disabled = true;
+      exportPdfBtn.innerHTML = '<span>Сборка книги...</span>';
+      try {
+        const res = await fetch('/api/academy/export-pdf', { method: 'POST' });
+        if (!res.ok) throw new Error('Ошибка сборки PDF');
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'BahonIQ_Architecture_Book_A_to_Z.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        alert('Не удалось сгенерировать PDF-книгу: ' + err.message);
+      } finally {
+        exportPdfBtn.disabled = false;
+        exportPdfBtn.innerHTML = orig;
+      }
+    });
+  }
+
+  // 12. Первичная инициализация
   async function initAcademyPlatform() {
     try {
       const res = await fetch('/api/academy/roadmap');

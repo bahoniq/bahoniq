@@ -547,19 +547,19 @@
             <dialog id="contactDialog"><form id="contactForm" method="dialog"><h2 id="contactHeading">Контакт</h2><input id="contactId" type="hidden"><div class="contact-grid"><label>Подразделение<input name="department"></label><label>Должность<input name="position"></label><label>ФИО<input name="name" required></label><label>Расположение<input name="location"></label><label>Городской номер<input name="city_phone"></label><label>Внутренний номер<input name="extension"></label><label>Мобильный<input name="mobile"></label><label>Email<input name="email" type="email"></label></div><div class="button-row"><button class="button secondary" value="cancel">Отмена</button><button id="saveContact" class="button primary" value="default">Сохранить</button></div></form></dialog>
           </section>
 
-          <!-- BAHONIQ AI ACADEMY (4 ЭТАПА + ЖИВОЙ МЕНТОР GEMINI FLASH 24/7 + PDF-КНИГА ОТ А ДО Я) -->
+          <!-- BAHONIQ AI ACADEMY (60 УРОКОВ + ЖИВОЙ ИИ-ТРЕНЕР GEMINI FLASH + МИКРОШАГИ + ТЕСТЫ + PDF-КНИГА) -->
           <section id="academy" class="module-page">
             <div class="acad-top-header card">
               <div class="acad-top-title-group">
                 <h1>BahonIQ Academy <span class="acad-ai-pill">Gemini Flash 24/7</span></h1>
-                <p>Интерактивное обучение с живым ИИ-наставником: Python, SQL (SQLite), реальная архитектура BahonIQ и боевой полигон.</p>
+                <p>Интерактивный диалог с живым ИИ-тренером: микрошаги «от А до Я», чтение кода, практика и контрольные тесты.</p>
               </div>
 
               <div class="acad-top-right">
                 <div class="acad-progress-widget">
                   <div class="acad-progress-labels">
                     <span>Общий прогресс курса</span>
-                    <strong id="acadOverallText">0 / 29 (0%)</strong>
+                    <strong id="acadOverallText">0 / 60 (0%)</strong>
                   </div>
                   <div class="acad-progress-bar-bg">
                     <div id="acadOverallFill" class="acad-progress-bar-fill" style="width:0%"></div>
@@ -577,12 +577,13 @@
               <!-- Заполняется динамически из /api/academy/roadmap -->
             </div>
 
-            <!-- Главная рабочая область урока (Список тем + Урок/Редактор + Чат с ментором) -->
-            <div class="acad-main-grid">
-              <!-- 1. Левая панель: темы выбранного этапа -->
+            <!-- Главная 2-колоночная рабочая область (Сайдбар 60 уроков + Живой поток ИИ-тренера) -->
+            <div class="acad-workspace-grid">
+              <!-- Левая колонка: 60 уроков по 4 этапам -->
               <aside class="card acad-lessons-sidebar">
                 <div class="acad-sidebar-head">
-                  <span id="acadCurrentStageLabel">ТЕМЫ ЭТАПА</span>
+                  <span id="acadCurrentStageLabel">ЭТАП 1: PYTHON ОТ А ДО Я</span>
+                  <span id="acadStageLessonsCount" class="acad-badge-pill">18 тем</span>
                 </div>
                 <input id="acadLessonFilter" type="search" class="acad-lesson-search" placeholder="Поиск темы урока...">
                 <div id="acadLessonsList" class="acad-lessons-list">
@@ -590,92 +591,105 @@
                 </div>
               </aside>
 
-              <!-- 2. Центральная область: живая теория, практика, редактор и разбор ошибок -->
-              <div class="acad-lesson-center">
-                <div class="card acad-theory-card">
-                  <div class="acad-lesson-top-row">
-                    <div>
+              <!-- Правая главная колонка: Живой интерактивный тренер с микрошагами -->
+              <div class="card acad-trainer-card">
+                <!-- Верхняя полоса информации о теме и прогресс шагов -->
+                <div class="acad-trainer-header">
+                  <div class="acad-trainer-meta">
+                    <div class="acad-badges-row">
                       <span id="acadLessonStageBadge" class="acad-stage-badge">Этап 1</span>
                       <span id="acadLessonStatusBadge" class="acad-status-badge">В процессе</span>
-                      <h2 id="acadLessonTitle" class="acad-lesson-title">Загрузка урока...</h2>
                     </div>
-                    <button id="acadRegenTheoryBtn" class="button secondary acad-small-btn" type="button" title="Попросить ИИ-ментора объяснить эту тему другими словами и с новым примером">
-                      🔄 Объяснить иначе (ИИ)
-                    </button>
+                    <h2 id="acadLessonTitle" class="acad-lesson-title">Загрузка урока...</h2>
+                    <p id="acadLessonSummary" class="acad-lesson-summary"></p>
                   </div>
 
-                  <div class="acad-section-tag">1 · ЖИВОЕ ОБЪЯСНЕНИЕ МЕНТОРА (ТЕОРИЯ)</div>
-                  <div id="acadTheoryContent" class="acad-theory-content"></div>
-
-                  <!-- Блок реального кода из репозитория (для Этапа 3: Архитектура) -->
-                  <div id="acadRepoFileBox" class="acad-repo-file-box hidden">
-                    <div class="acad-repo-file-head">
-                      <span>📂 Реальный файл проекта BahonIQ: <strong id="acadRepoFileName"></strong></span>
+                  <!-- Пошаговый трекер текущей темы -->
+                  <div class="acad-step-tracker">
+                    <div id="acadStepPill1" class="acad-step-pill active">
+                      <span class="acad-step-num">1</span>
+                      <span class="acad-step-text">Чтение кода</span>
                     </div>
-                    <pre id="acadRepoFileCode" class="acad-repo-code-preview"></pre>
+                    <div class="acad-step-line"></div>
+                    <div id="acadStepPill2" class="acad-step-pill">
+                      <span class="acad-step-num">2</span>
+                      <span class="acad-step-text">Написание кода</span>
+                    </div>
+                    <div class="acad-step-line"></div>
+                    <div id="acadStepPill3" class="acad-step-pill">
+                      <span class="acad-step-num">3</span>
+                      <span class="acad-step-text">Финальный тест</span>
+                    </div>
                   </div>
                 </div>
 
-                <!-- Практическая задача + Редактор кода + Проверка ментором -->
-                <div class="card acad-practice-card">
-                  <div class="acad-section-tag">2 · ПРАКТИЧЕСКАЯ ЗАДАЧА НА ЗАКРЕПЛЕНИЕ</div>
-                  <div id="acadTaskPrompt" class="acad-task-prompt"></div>
+                <!-- Поток живого диалога с ИИ-тренером -->
+                <div id="acadTrainerFeed" class="acad-trainer-feed">
+                  <!-- Сообщения тренера, ловушки, правила и ответы пользователя -->
+                </div>
 
-                  <div class="acad-editor-header">
-                    <span id="acadEditorLangTag" class="acad-lang-pill">PYTHON 3</span>
-                    <div class="acad-editor-tools">
-                      <button id="acadResetCodeBtn" class="acad-tool-link" type="button">Сбросить шаблон</button>
+                <!-- Блок реального файла репозитория (для Этапа 3: Архитектура BahonIQ) -->
+                <div id="acadRepoFileBox" class="acad-repo-file-box hidden">
+                  <div class="acad-repo-file-head">
+                    <span>📂 Реальный файл проекта BahonIQ: <strong id="acadRepoFileName"></strong></span>
+                  </div>
+                  <pre id="acadRepoFileCode" class="acad-repo-code-preview"></pre>
+                </div>
+
+                <!-- Нижний интерактивный док ответа -->
+                <div class="acad-answer-dock">
+                  <!-- Режим Шага 1: Ответ своими словами на вопрос ловушки -->
+                  <div id="acadStep1Dock" class="acad-dock-panel">
+                    <div class="acad-dock-prompt">
+                      <span>💬 <strong>Ваш ответ тренеру:</strong> опишите своими словами, что выведет код и почему.</span>
+                    </div>
+                    <div class="acad-text-reply-row">
+                      <textarea id="acadStep1Input" class="acad-reply-textarea" rows="2" placeholder="Например: В первой строке выведет x, так как это строка в кавычках, а во второй..."></textarea>
+                      <button id="acadSubmitStep1Btn" class="button primary acad-submit-btn" type="button">
+                        <span>Отправить ответ ➔</span>
+                      </button>
                     </div>
                   </div>
-                  <textarea id="acadCodeEditor" class="code-editor acad-code-textarea" rows="8" spellcheck="false" placeholder="Напишите ваш код здесь..."></textarea>
 
-                  <div class="acad-action-bar">
-                    <button id="acadRunCodeBtn" class="button secondary" type="button">▶ Запустить код</button>
-                    <button id="acadCheckMentorBtn" class="button primary acad-check-btn" type="button">✨ Проверить с ментором</button>
-                    <button id="acadNextLessonBtn" class="button secondary hidden" type="button">Следующий урок →</button>
-                  </div>
-
-                  <div class="acad-console-wrap">
-                    <div class="acad-console-title">Вывод выполнения (Консоль / SQLite):</div>
-                    <pre id="acadConsoleOutput" class="code-output acad-console-pre">Нажмите «Запустить код» или «Проверить с ментором».</pre>
-                  </div>
-
-                  <!-- Блок умного разбора ошибок и вердикта от ИИ-ментора -->
-                  <div id="acadMentorVerdictBox" class="acad-verdict-box hidden">
-                    <div class="acad-verdict-head">
-                      <strong id="acadVerdictTitle">Разбор от ИИ-ментора</strong>
+                  <!-- Режим Шага 2: Практический редактор кода (Python / SQL) -->
+                  <div id="acadStep2Dock" class="acad-dock-panel hidden">
+                    <div class="acad-editor-toolbar">
+                      <span id="acadEditorLangTag" class="acad-lang-pill">PYTHON 3</span>
+                      <div class="acad-toolbar-actions">
+                        <button id="acadResetCodeBtn" class="acad-tool-link" type="button">Сбросить код</button>
+                      </div>
                     </div>
-                    <div id="acadVerdictText" class="acad-verdict-body"></div>
+                    <textarea id="acadCodeEditor" class="code-editor acad-code-textarea" rows="6" spellcheck="false" placeholder="# Напишите ваш код здесь..."></textarea>
+                    
+                    <div class="acad-editor-btn-row">
+                      <button id="acadRunCodeBtn" class="button secondary" type="button">▶ Запустить (проверить вывод)</button>
+                      <button id="acadSubmitStep2Btn" class="button primary acad-submit-btn" type="button">🚀 Отправить код тренеру</button>
+                    </div>
+
+                    <div class="acad-console-wrap">
+                      <div class="acad-console-title">Вывод консоли:</div>
+                      <pre id="acadConsoleOutput" class="code-output acad-console-pre">Нажмите «Запустить» или «Отправить код тренеру».</pre>
+                    </div>
+                  </div>
+
+                  <!-- Режим Шага 3: Интерактивный мини-тест (5 вопросов) -->
+                  <div id="acadStep3Dock" class="acad-dock-panel hidden">
+                    <div class="acad-quiz-box">
+                      <div class="acad-quiz-header">
+                        <h3>🧪 Контрольный тест по теме (5 вопросов)</h3>
+                        <p>Ответьте на все 5 вопросов для завершения темы и зачёта в прогресс.</p>
+                      </div>
+                      <div id="acadQuizQuestionsContainer" class="acad-quiz-list">
+                        <!-- Вопросы генерируются через JS -->
+                      </div>
+                      <div class="acad-quiz-footer">
+                        <button id="acadSubmitQuizBtn" class="button primary acad-submit-btn" type="button">Завершить тест и проверить ответы</button>
+                        <button id="acadNextLessonBtn" class="button secondary hidden" type="button">Следующая тема ➔</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-
-              <!-- 3. Правая панель: встроенный контекстный чат «Задать вопрос по уроку» -->
-              <aside class="card acad-mentor-chat">
-                <div class="acad-chat-header">
-                  <div>
-                    <h3>💬 Чат с ИИ-ментором</h3>
-                    <small>Видит ваш текущий урок и код в редакторе</small>
-                  </div>
-                </div>
-
-                <div class="acad-chat-quick">
-                  <button type="button" class="acad-quick-q" data-q="Объясни эту тему ещё проще на другом примере.">На другом примере</button>
-                  <button type="button" class="acad-quick-q" data-q="Дай небольшую наводящую подсказку по задаче, не раскрывая весь код.">Наводящая подсказка</button>
-                  <button type="button" class="acad-quick-q" data-q="Что делает каждая строчка в моём текущем коде?">Разбери мой код</button>
-                </div>
-
-                <div id="acadChatMessages" class="acad-chat-messages">
-                  <div class="acad-msg acad-msg-ai">
-                    Привет! Я твой ИИ-наставник Gemini Flash. Если что-то в теории или коде непонятно — спроси меня прямо здесь!
-                  </div>
-                </div>
-
-                <div class="acad-chat-input-row">
-                  <textarea id="acadChatInput" class="acad-chat-textarea" rows="2" placeholder="Спросите по уроку (например: почему здесь нужны скобки?)..."></textarea>
-                  <button id="acadChatSendBtn" class="button primary acad-chat-send-btn" type="button">Спросить</button>
-                </div>
-              </aside>
             </div>
           </section>
 

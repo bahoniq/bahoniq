@@ -1988,6 +1988,10 @@ body.theme-day .wiki-form-input, body.theme-day .wiki-form-textarea {
 /* ==========================================================================
    BAHONIQ AI ACADEMY (4 ЭТАПА + ЖИВОЙ ИИ-МЕНТОР GEMINI FLASH + PDF-КНИГА)
    ========================================================================== */
+/* ==========================================================================
+   BAHONIQ ACADEMY (60 УРОКОВ + ЖИВОЙ ИИ-ТРЕНЕР + МИКРОШАГИ + ТЕСТЫ)
+   ========================================================================== */
+
 .acad-top-header {
   display: flex;
   align-items: center;
@@ -2081,7 +2085,6 @@ body.theme-day .acad-progress-bar-bg {
 }
 
 .acad-stage-tab {
-  position: relative;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -2128,40 +2131,53 @@ body.theme-day .acad-progress-bar-bg {
 }
 
 .acad-stage-tab-title {
-  font-size: 14.5px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-main);
 }
 
 .acad-stage-tab-sub {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--text-sub);
   line-height: 1.35;
 }
 
-/* Основная 3-колоночная сетка урока */
-.acad-main-grid {
+/* Главная 2-колоночная сетка */
+.acad-workspace-grid {
   display: grid;
-  grid-template-columns: 270px minmax(0, 1fr) 310px;
-  gap: 16px;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 18px;
   align-items: start;
 }
 
+/* Левый сайдбар тем */
 .acad-lessons-sidebar {
   padding: 14px !important;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: calc(100vh - 230px);
+  max-height: calc(100vh - 220px);
   overflow: hidden;
 }
 
 .acad-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
   color: var(--text-sub);
   flex-shrink: 0;
+}
+
+.acad-badge-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(0, 229, 255, 0.12);
+  color: var(--cyan-neon);
 }
 
 .acad-lesson-search {
@@ -2171,8 +2187,12 @@ body.theme-day .acad-progress-bar-bg {
   font-size: 12.5px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: var(--bg-input);
+  background: rgba(0, 0, 0, 0.2);
   color: var(--text-main);
+  outline: none;
+}
+body.theme-day .acad-lesson-search {
+  background: #ffffff;
 }
 
 .acad-lessons-list {
@@ -2185,186 +2205,407 @@ body.theme-day .acad-progress-bar-bg {
   padding-right: 4px;
 }
 
-.acad-lesson-btn {
-  width: 100%;
-  flex-shrink: 0;
+.acad-lesson-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-sub);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 9px;
-  padding: 9px 10px;
-  text-align: left;
-  color: var(--text-muted);
-  font-size: 12.5px;
-  line-height: 1.38;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  line-height: 1.35;
 }
-.acad-lesson-btn:hover {
-  background: rgba(0, 229, 255, 0.07);
+.acad-lesson-item:hover {
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text-main);
 }
-.acad-lesson-btn.active {
-  background: rgba(0, 229, 255, 0.14);
-  border-color: rgba(0, 229, 255, 0.35);
-  color: var(--text-main);
-  font-weight: 700;
+.acad-lesson-item.active {
+  background: rgba(0, 229, 255, 0.12);
+  border-color: rgba(0, 229, 255, 0.32);
+  color: var(--cyan-neon);
+  font-weight: 600;
+}
+.acad-lesson-item.completed {
+  border-left: 3px solid var(--green-neon);
 }
 
-.acad-lesson-check {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  font-size: 11px;
-  font-weight: 800;
+.acad-lesson-status-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  margin-top: 1px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-sub);
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 800;
 }
-.acad-lesson-btn.done .acad-lesson-check {
-  background: rgba(16, 185, 129, 0.2);
-  color: #10b981;
+.acad-lesson-status-icon.done {
+  background: rgba(0, 230, 118, 0.2);
+  color: var(--green-neon);
+}
+.acad-lesson-status-icon.pending {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
 }
 
-/* Центральная колонка урока */
-.acad-lesson-center {
+/* Правая карточка ИИ-тренера */
+.acad-trainer-card {
+  padding: 20px 24px !important;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  min-width: 0;
+  gap: 18px;
+  min-height: calc(100vh - 220px);
 }
 
-.acad-theory-card, .acad-practice-card {
-  padding: 20px 22px !important;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.acad-lesson-top-row {
+.acad-trainer-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
 
+.acad-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
 .acad-stage-badge {
-  display: inline-block;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
+  text-transform: uppercase;
   color: var(--cyan-neon);
-  background: rgba(0, 229, 255, 0.1);
-  padding: 3px 9px;
+  background: rgba(0, 229, 255, 0.12);
+  padding: 2px 8px;
   border-radius: 6px;
-  margin-right: 6px;
 }
 
 .acad-status-badge {
-  display: inline-block;
   font-size: 11px;
   font-weight: 700;
-  padding: 3px 9px;
+  padding: 2px 8px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text-muted);
 }
 .acad-status-badge.done {
-  background: rgba(16, 185, 129, 0.16);
-  color: #10b981;
+  background: rgba(0, 230, 118, 0.16);
+  color: var(--green-neon);
 }
 
 .acad-lesson-title {
   font-size: 20px;
   font-weight: 800;
   color: var(--text-main);
-  margin-top: 8px;
-  line-height: 1.3;
+  margin-bottom: 4px;
 }
 
-.acad-small-btn {
-  padding: 7px 12px;
+.acad-lesson-summary {
+  font-size: 13.5px;
+  color: var(--text-sub);
+  line-height: 1.45;
+}
+
+/* Пошаговый трекер темы */
+.acad-step-tracker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.acad-step-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
   font-size: 12px;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+.acad-step-pill.active {
+  background: rgba(0, 229, 255, 0.14);
+  border-color: rgba(0, 229, 255, 0.4);
+  color: var(--cyan-neon);
+  font-weight: 700;
+}
+.acad-step-pill.passed {
+  background: rgba(0, 230, 118, 0.12);
+  border-color: rgba(0, 230, 118, 0.3);
+  color: var(--green-neon);
 }
 
-.acad-section-tag {
+.acad-step-num {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  background: rgba(255, 255, 255, 0.1);
+}
+.acad-step-pill.active .acad-step-num {
+  background: var(--cyan-neon);
+  color: #0b101b;
+}
+.acad-step-pill.passed .acad-step-num {
+  background: var(--green-neon);
+  color: #0b101b;
+}
+
+.acad-step-line {
+  width: 14px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Поток сообщений с тренером */
+.acad-trainer-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.acad-msg-bubble {
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.55;
+  animation: acadFadeIn 0.25s ease;
+}
+@keyframes acadFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.acad-msg-trainer {
+  background: rgba(0, 229, 255, 0.05);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  color: var(--text-main);
+  border-top-left-radius: 3px;
+}
+body.theme-day .acad-msg-trainer {
+  background: #f0f7fb;
+  border-color: rgba(2, 132, 199, 0.22);
+}
+
+.acad-msg-user {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  align-self: flex-end;
+  border-top-right-radius: 3px;
+  max-width: 85%;
+}
+body.theme-day .acad-msg-user {
+  background: #e2e8f0;
+}
+
+.acad-msg-author {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--cyan-neon);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
-
-.acad-theory-content {
-  padding: 16px 18px;
-  border-radius: 11px;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  font-size: 14.5px;
-  line-height: 1.68;
-  color: var(--text-main);
-  white-space: pre-wrap;
-}
-
-.acad-repo-file-box {
-  margin-top: 4px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--bg-input);
-}
-
-.acad-repo-file-head {
-  padding: 8px 14px;
-  font-size: 12.5px;
-  background: rgba(0, 229, 255, 0.08);
-  border-bottom: 1px solid var(--border);
-  color: var(--text-main);
-}
-
-.acad-repo-code-preview {
-  max-height: 220px;
-  overflow: auto;
-  padding: 12px 14px;
-  font-family: Consolas, Monaco, monospace;
-  font-size: 12px;
-  line-height: 1.5;
+.acad-msg-user .acad-msg-author {
   color: var(--text-muted);
 }
 
-.acad-task-prompt {
-  padding: 14px 16px;
-  border-radius: 10px;
-  background: rgba(0, 229, 255, 0.06);
-  border-left: 3px solid var(--cyan-neon);
-  font-size: 14px;
-  line-height: 1.58;
-  color: var(--text-main);
-  white-space: pre-wrap;
+/* Карточка ловушки / чтения кода */
+.acad-trap-card {
+  margin: 10px 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 171, 0, 0.35);
+}
+body.theme-day .acad-trap-card {
+  background: #fefce8;
+  border-color: #fde047;
 }
 
-.acad-editor-header {
+.acad-trap-header {
+  font-size: 12px;
+  font-weight: 800;
+  color: #ffab00;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+body.theme-day .acad-trap-header {
+  color: #b45309;
+}
+
+.acad-trap-code {
+  background: #06090e;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: #e2e8f0;
+  margin: 6px 0;
+  overflow-x: auto;
+}
+body.theme-day .acad-trap-code {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.acad-trap-q {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-top: 6px;
+}
+
+/* Правило тренера */
+.acad-trainer-rule {
+  margin: 12px 0 6px 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: rgba(0, 230, 118, 0.09);
+  border: 1px solid rgba(0, 230, 118, 0.32);
+  color: var(--text-main);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+body.theme-day .acad-trainer-rule {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.acad-rule-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+/* Блок реального файла репозитория */
+.acad-repo-file-box {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.acad-repo-file-head {
+  font-size: 12px;
+  color: var(--cyan-neon);
+  margin-bottom: 6px;
+}
+.acad-repo-code-preview {
+  background: #06090e;
+  border-radius: 6px;
+  padding: 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  max-height: 200px;
+  overflow: auto;
+  color: #cbd5e1;
+}
+
+/* Нижний док ответов */
+.acad-answer-dock {
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: auto;
+}
+body.theme-day .acad-answer-dock {
+  background: #f8fafc;
+}
+
+.acad-dock-prompt {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.acad-dock-prompt strong {
+  color: var(--text-main);
+}
+
+.acad-text-reply-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.acad-reply-textarea {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  color: var(--text-main);
+  resize: vertical;
+  min-height: 48px;
+  outline: none;
+}
+body.theme-day .acad-reply-textarea {
+  background: #ffffff;
+}
+.acad-reply-textarea:focus {
+  border-color: var(--cyan-neon);
+}
+
+.acad-submit-btn {
+  padding: 11px 20px;
+  font-size: 13.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Панель редактора кода */
+.acad-editor-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 8px;
 }
-
 .acad-lang-pill {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.05em;
-  color: var(--green-neon);
+  background: rgba(0, 229, 255, 0.12);
+  color: var(--cyan-neon);
+  padding: 3px 8px;
+  border-radius: 6px;
 }
-
 .acad-tool-link {
-  background: transparent;
-  border: 0;
-  color: var(--text-sub);
+  background: none;
+  border: none;
+  color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
   text-decoration: underline;
@@ -2375,192 +2616,169 @@ body.theme-day .acad-progress-bar-bg {
 
 .acad-code-textarea {
   width: 100%;
-  min-height: 185px;
-  font-family: Consolas, "Courier New", monospace;
+  font-family: var(--font-mono);
   font-size: 13.5px;
-  line-height: 1.55;
-  padding: 14px;
-  border-radius: 10px;
+  padding: 12px;
+  border-radius: 8px;
   border: 1px solid var(--border);
-  background: var(--bg-input);
-  color: var(--text-main);
+  background: #080d15;
+  color: #f1f5f9;
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+}
+body.theme-day .acad-code-textarea {
+  background: #0f172a;
+  color: #f8fafc;
 }
 
-.acad-action-bar {
+.acad-editor-btn-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 10px;
   flex-wrap: wrap;
-}
-
-.acad-check-btn {
-  padding: 11px 20px;
-  font-weight: 700;
 }
 
 .acad-console-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  margin-top: 12px;
 }
-
 .acad-console-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-sub);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 4px;
 }
-
 .acad-console-pre {
-  min-height: 64px;
-  max-height: 200px;
+  background: #05080e;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: #94a3b8;
+  max-height: 120px;
   overflow: auto;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--bg-input);
-  font-family: Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+/* Интерактивный мини-тест (Шаг 3) */
+.acad-quiz-box {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.acad-quiz-header h3 {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+.acad-quiz-header p {
   font-size: 13px;
-  color: var(--text-main);
-  white-space: pre-wrap;
+  color: var(--text-muted);
 }
 
-.acad-verdict-box {
-  padding: 16px 18px;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 229, 255, 0.35);
-  background: rgba(0, 229, 255, 0.07);
+.acad-quiz-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-.acad-verdict-box.passed {
-  border-color: rgba(16, 185, 129, 0.45);
-  background: rgba(16, 185, 129, 0.1);
-}
-.acad-verdict-box.failed {
-  border-color: rgba(245, 158, 11, 0.45);
-  background: rgba(245, 158, 11, 0.08);
+  gap: 14px;
 }
 
-.acad-verdict-head {
+.acad-quiz-card {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+body.theme-day .acad-quiz-card {
+  background: #ffffff;
+}
+
+.acad-quiz-q-title {
   font-size: 14px;
-  color: var(--text-main);
-}
-
-.acad-verdict-body {
-  font-size: 14px;
-  line-height: 1.62;
-  color: var(--text-main);
-  white-space: pre-wrap;
-}
-
-/* Правая панель чата с ИИ-ментором */
-.acad-mentor-chat {
-  padding: 16px !important;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  height: calc(100vh - 230px);
-  max-height: calc(100vh - 230px);
-  overflow: hidden;
-}
-
-.acad-chat-header h3 {
-  font-size: 15px;
   font-weight: 700;
   color: var(--text-main);
-  margin-bottom: 2px;
-}
-.acad-chat-header small {
-  font-size: 12px;
-  color: var(--text-sub);
+  margin-bottom: 10px;
 }
 
-.acad-chat-quick {
+.acad-quiz-options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+}
+
+.acad-quiz-opt {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.acad-quick-q {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 11.5px;
-  cursor: pointer;
-}
-.acad-quick-q:hover {
-  border-color: var(--cyan-neon);
-  color: var(--text-main);
-}
-
-.acad-chat-messages {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 10px;
-  padding-right: 4px;
-}
-
-.acad-msg {
-  padding: 10px 12px;
-  border-radius: 10px;
-  font-size: 13px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-}
-.acad-msg-ai {
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  color: var(--text-main);
-}
-.acad-msg-user {
-  background: rgba(0, 229, 255, 0.13);
-  border: 1px solid rgba(0, 229, 255, 0.3);
-  color: var(--text-main);
-  align-self: flex-end;
-}
-
-.acad-chat-input-row {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.acad-chat-textarea {
-  width: 100%;
-  padding: 9px 11px;
-  font-size: 13px;
+  padding: 9px 12px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: var(--bg-input);
-  color: var(--text-main);
-  resize: none;
-}
-
-.acad-chat-send-btn {
-  width: 100%;
-  padding: 9px;
+  background: rgba(255, 255, 255, 0.03);
   font-size: 13px;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.acad-quiz-opt:hover {
+  border-color: var(--cyan-neon);
+  background: rgba(0, 229, 255, 0.05);
+}
+.acad-quiz-opt.selected {
+  border-color: var(--cyan-neon);
+  background: rgba(0, 229, 255, 0.12);
+  font-weight: 600;
+}
+.acad-quiz-opt.correct {
+  border-color: var(--green-neon) !important;
+  background: rgba(0, 230, 118, 0.18) !important;
+  color: var(--green-neon) !important;
   font-weight: 700;
 }
+.acad-quiz-opt.wrong {
+  border-color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #fca5a5 !important;
+}
 
-@media (max-width: 1200px) {
+.acad-quiz-opt-letter {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.acad-quiz-explanation {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 6px 10px;
+  border-radius: 6px;
+  line-height: 1.4;
+}
+
+.acad-quiz-footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+/* Адаптивность */
+@media (max-width: 1100px) {
   .acad-stages-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  .acad-main-grid {
-    grid-template-columns: 250px minmax(0, 1fr);
-  }
-  .acad-mentor-chat {
-    grid-column: 1 / -1;
-    height: 360px;
+  .acad-workspace-grid {
+    grid-template-columns: 240px minmax(0, 1fr);
   }
 }
 
@@ -2568,10 +2786,10 @@ body.theme-day .acad-progress-bar-bg {
   .acad-stages-grid {
     grid-template-columns: 1fr;
   }
-  .acad-main-grid {
+  .acad-workspace-grid {
     grid-template-columns: 1fr;
   }
   .acad-lessons-sidebar {
-    max-height: 280px;
+    max-height: 260px;
   }
 }
