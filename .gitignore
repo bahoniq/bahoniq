@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+CLOUD_ACCESS_CREDENTIALS.md
 
 # Python cache and local environments
 __pycache__/
@@ -15,10 +16,15 @@ env/
 *.log
 *.tmp
 *.temp
-data/
+data/*
+!data/wiki_seed.json
+!data/wiki.db
 
 # Local databases and generated reports
 *.db
+!data/wiki.db
+!web_app/data/wiki.db
+!web_app/data/wiki_seed.json
 *.sqlite
 *.sqlite3
 *.pdf

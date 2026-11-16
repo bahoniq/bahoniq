@@ -776,7 +776,7 @@ class MainWindow:
             ("✦", "Ticket Writer AI", "Название и описание обращения", ITALY_GREEN),
             ("✎", "Заметки", "Быстрые записи и идеи", "#597A91"),
             ("▤", "Excel AI", "Умная обработка таблиц", ITALY_RED),
-            ("⌁", "Очистка", "Освобождение места и обслуживание", "#D29A18"),
+            ("📖", "Platonus Wiki AI", "База инструкций и умный поиск Platonus", "#0284C7"),
             ("⌕", "Дубликаты", "Поиск повторяющихся файлов", "#6F63A8"),
             ("◉", "AnyDesk", "Удалённая техническая поддержка", "#D14B56"),
             ("▧", "PDF Center", "Объединение и обработка PDF", "#2D7F79"),
@@ -1447,6 +1447,11 @@ class MainWindow:
 
         if name == "Телефонный справочник":
             open_phonebook(self.root)
+            return
+
+        if name == "Platonus Wiki AI":
+            from modules.platonus_wiki import open_platonus_wiki
+            open_platonus_wiki(self.root)
             return
 
         if name == "Очистка":

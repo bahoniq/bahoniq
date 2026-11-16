@@ -71,6 +71,7 @@ function openModule(modId, label) {
   location.hash = modId;
   if (modId === 'notes') loadNotes();
   if (modId === 'academy') loadAcademy();
+  if (modId === 'platonus' && typeof window.loadPlatonusWiki === 'function') window.loadPlatonusWiki();
   dashView.classList.add('hidden');
   $$('.module-page').forEach(p => p.classList.remove('active'));
   target.classList.add('active');
@@ -1242,4 +1243,496 @@ recForm?.addEventListener('submit', async e => {
       }
     }
   });
+})();
+
+// ============================================================================
+// МОДУЛЬ: PLATONUS WIKI AI (Единая серверная база знаний SQLite + Gemini Flash)
+// ============================================================================
+(function initPlatonusWikiModule() {
+  const treeContainer = $('#wikiTopicsTree');
+  const treeSearchInput = $('#wikiTreeSearchInput');
+  const totalStatsText = $('#wikiTotalStatsText');
+
+  const askPanel = $('#wikiAskPanel');
+  const questionInput = $('#wikiQuestionInput');
+  const askBtn = $('#wikiAskBtn');
+  const answerBox = $('#wikiAnswerBox');
+  const answerContent = $('#wikiAnswerContent');
+  const answerProviderLabel = $('#wikiAnswerProviderLabel');
+  const copyAnswerBtn = $('#wikiCopyAnswerBtn');
+  const sourcesWrap = $('#wikiSourcesWrap');
+  const sourcesList = $('#wikiSourcesList');
+
+  const articleCard = $('#wikiArticleCard');
+  const backToSearchBtn = $('#wikiBackToSearchBtn');
+  const copyArticleBtn = $('#wikiCopyArticleBtn');
+  const editArticleBtn = $('#wikiEditArticleBtn');
+  const deleteArticleBtn = $('#wikiDeleteArticleBtn');
+
+  const articleViewMode = $('#wikiArticleViewMode');
+  const articleTopicBadge = $('#wikiArticleTopicBadge');
+  const articleSourceFile = $('#wikiArticleSourceFile');
+  const articleTitleEl = $('#wikiArticleTitle');
+  const articleBodyEl = $('#wikiArticleBody');
+
+  const articleEditMode = $('#wikiArticleEditMode');
+  const editFormHeading = $('#wikiEditFormHeading');
+  const editTopicInput = $('#wikiEditTopicInput');
+  const editTitleInput = $('#wikiEditTitleInput');
+  const editContentInput = $('#wikiEditContentInput');
+  const cancelEditBtn = $('#wikiCancelEditBtn');
+  const saveArticleBtn = $('#wikiSaveArticleBtn');
+  const addManualBtn = $('#wikiAddManualBtn');
+
+  const uploadModal = $('#wikiUploadModal');
+  const openUploadModalBtn = $('#wikiOpenUploadModalBtn');
+  const closeUploadModalBtn = $('#wikiCloseUploadModalBtn');
+  const cancelUploadBtn = $('#wikiCancelUploadBtn');
+  const dropZone = $('#wikiDropZone');
+  const filesInput = $('#wikiFilesInput');
+  const selectedFilesBox = $('#wikiSelectedFilesBox');
+  const uploadProgressWrap = $('#wikiUploadProgressWrap');
+  const uploadProgressBar = $('#wikiUploadProgressBar');
+  const uploadStatusText = $('#wikiUploadStatusText');
+  const uploadResultBox = $('#wikiUploadResultBox');
+  const startUploadBtn = $('#wikiStartUploadBtn');
+
+  let cachedTree = { total_topics: 0, total_articles: 0, topics: [] };
+  let activeArticle = null;
+  let isCreatingNewArticle = false;
+  let lastRawAnswer = '';
+  let pendingUploadFiles = [];
+
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function formatRichText(text) {
+    let safe = escapeHtml(text || '');
+    safe = safe.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
+    return safe;
+  }
+
+  async function copyText(text, btn, doneText = '✓ Скопировано') {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = doneText;
+      setTimeout(() => { btn.textContent = orig; }, 1800);
+    }
+  }
+
+  // 1. Загрузка и отрисовка дерева разделов и инструкций
+  async function fetchWikiTree() {
+    try {
+      const res = await fetch('/api/wiki/tree');
+      if (!res.ok) throw new Error('Ошибка загрузки дерева базы знаний');
+      cachedTree = await res.json();
+      if (totalStatsText) {
+        totalStatsText.textContent = `Разделов: ${cachedTree.total_topics} • Инструкций: ${cachedTree.total_articles}`;
+      }
+      renderWikiTree(treeSearchInput?.value || '');
+    } catch (err) {
+      if (treeContainer) {
+        treeContainer.innerHTML = `<div style="padding:12px;color:var(--text-sub);font-size:12.5px;">Не удалось загрузить список инструкций.</div>`;
+      }
+    }
+  }
+
+  function renderWikiTree(filterQuery = '') {
+    if (!treeContainer) return;
+    const q = (filterQuery || '').trim().toLowerCase();
+    const topics = cachedTree.topics || [];
+
+    if (!topics.length) {
+      treeContainer.innerHTML = `<div style="padding:14px;color:var(--text-sub);font-size:12.5px;">База пуста. Нажмите «+ Загрузить инструкции», чтобы добавить файлы.</div>`;
+      return;
+    }
+
+    let html = '';
+    topics.forEach((topic) => {
+      const matchedArticles = (topic.articles || []).filter(a => {
+        if (!q) return true;
+        return a.title.toLowerCase().includes(q) || topic.name.toLowerCase().includes(q);
+      });
+      if (!matchedArticles.length) return;
+
+      const articlesHtml = matchedArticles.map(art => {
+        const isActive = activeArticle && activeArticle.id === art.id ? 'active' : '';
+        return `<button type="button" class="wiki-article-item ${isActive}" data-article-id="${art.id}">${escapeHtml(art.title)}</button>`;
+      }).join('');
+
+      html += `
+        <div class="wiki-topic-block" data-topic-id="${topic.id}">
+          <button type="button" class="wiki-topic-header">
+            <span>${escapeHtml(topic.name)}</span>
+            <span class="wiki-topic-count">${matchedArticles.length}</span>
+          </button>
+          <div class="wiki-topic-articles">
+            ${articlesHtml}
+          </div>
+        </div>
+      `;
+    });
+
+    treeContainer.innerHTML = html || `<div style="padding:12px;color:var(--text-sub);font-size:12.5px;">По запросу «${escapeHtml(filterQuery)}» статей не найдено.</div>`;
+  }
+
+  treeContainer?.addEventListener('click', (e) => {
+    const header = e.target.closest('.wiki-topic-header');
+    if (header) {
+      const block = header.closest('.wiki-topic-block');
+      block?.classList.toggle('collapsed');
+      return;
+    }
+    const artBtn = e.target.closest('.wiki-article-item');
+    if (artBtn) {
+      const id = Number(artBtn.dataset.articleId);
+      if (id) openArticleById(id);
+    }
+  });
+
+  treeSearchInput?.addEventListener('input', () => {
+    renderWikiTree(treeSearchInput.value);
+  });
+
+  // 2. Просмотр, редактирование, создание и удаление статьи
+  async function openArticleById(articleId) {
+    try {
+      const res = await fetch(`/api/wiki/articles/${articleId}`);
+      if (!res.ok) throw new Error('Статья не найдена');
+      const art = await res.json();
+      activeArticle = art;
+      isCreatingNewArticle = false;
+
+      if (articleTopicBadge) articleTopicBadge.textContent = art.topic_name || 'Раздел';
+      if (articleSourceFile) {
+        articleSourceFile.textContent = art.source_filename ? `Источник: ${art.source_filename}` : '';
+      }
+      if (articleTitleEl) articleTitleEl.textContent = art.title || '';
+      if (articleBodyEl) articleBodyEl.innerHTML = formatRichText(art.content || '');
+
+      articleViewMode?.classList.remove('hidden');
+      articleEditMode?.classList.add('hidden');
+      askPanel?.classList.add('hidden');
+      articleCard?.classList.remove('hidden');
+
+      renderWikiTree(treeSearchInput?.value || '');
+    } catch (err) {
+      alert(err.message || 'Ошибка открытия инструкции');
+    }
+  }
+
+  function showSearchWorkspace() {
+    activeArticle = null;
+    isCreatingNewArticle = false;
+    articleCard?.classList.add('hidden');
+    askPanel?.classList.remove('hidden');
+    renderWikiTree(treeSearchInput?.value || '');
+  }
+
+  backToSearchBtn?.addEventListener('click', showSearchWorkspace);
+
+  copyArticleBtn?.addEventListener('click', () => {
+    if (!activeArticle) return;
+    copyText(`${activeArticle.title}\n\n${activeArticle.content}`, copyArticleBtn);
+  });
+
+  editArticleBtn?.addEventListener('click', () => {
+    if (!activeArticle) return;
+    isCreatingNewArticle = false;
+    if (editFormHeading) editFormHeading.textContent = 'Редактирование инструкции';
+    if (editTopicInput) editTopicInput.value = activeArticle.topic_name || '';
+    if (editTitleInput) editTitleInput.value = activeArticle.title || '';
+    if (editContentInput) editContentInput.value = activeArticle.content || '';
+    articleViewMode?.classList.add('hidden');
+    articleEditMode?.classList.remove('hidden');
+  });
+
+  addManualBtn?.addEventListener('click', () => {
+    activeArticle = null;
+    isCreatingNewArticle = true;
+    if (editFormHeading) editFormHeading.textContent = 'Новая текстовая инструкция';
+    if (editTopicInput) {
+      editTopicInput.value = cachedTree.topics?.[0]?.name || 'Раздел 3: Журнал, оценки и Рубежный контроль (РК)';
+    }
+    if (editTitleInput) editTitleInput.value = '';
+    if (editContentInput) editContentInput.value = '';
+    askPanel?.classList.add('hidden');
+    articleCard?.classList.remove('hidden');
+    articleViewMode?.classList.add('hidden');
+    articleEditMode?.classList.remove('hidden');
+  });
+
+  cancelEditBtn?.addEventListener('click', () => {
+    if (isCreatingNewArticle) {
+      showSearchWorkspace();
+    } else {
+      articleEditMode?.classList.add('hidden');
+      articleViewMode?.classList.remove('hidden');
+    }
+  });
+
+  saveArticleBtn?.addEventListener('click', async () => {
+    const topicName = (editTopicInput?.value || '').trim();
+    const title = (editTitleInput?.value || '').trim();
+    const content = (editContentInput?.value || '').trim();
+    if (!title || !content) {
+      alert('Заполните заголовок и текст инструкции.');
+      return;
+    }
+
+    saveArticleBtn.disabled = true;
+    try {
+      const url = isCreatingNewArticle
+        ? '/api/wiki/articles'
+        : `/api/wiki/articles/${activeArticle.id}`;
+      const method = isCreatingNewArticle ? 'POST' : 'PUT';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic_name: topicName, title, content }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Ошибка сохранения');
+      await fetchWikiTree();
+      await openArticleById(data.id);
+    } catch (err) {
+      alert(err.message || 'Не удалось сохранить инструкцию');
+    } finally {
+      saveArticleBtn.disabled = false;
+    }
+  });
+
+  deleteArticleBtn?.addEventListener('click', async () => {
+    if (!activeArticle) return;
+    if (!confirm(`Удалить инструкцию «${activeArticle.title}» из базы знаний?`)) return;
+    try {
+      const res = await fetch(`/api/wiki/articles/${activeArticle.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Не удалось удалить статью');
+      await fetchWikiTree();
+      showSearchWorkspace();
+    } catch (err) {
+      alert(err.message || 'Ошибка удаления');
+    }
+  });
+
+  // 3. AI-поиск и генерация ответа по базе знаний
+  async function runWikiAsk(customQuery) {
+    const q = (customQuery ?? questionInput?.value ?? '').trim();
+    if (!q) {
+      questionInput?.focus();
+      return;
+    }
+    if (questionInput && customQuery) {
+      questionInput.value = customQuery;
+    }
+
+    showSearchWorkspace();
+    if (askBtn) {
+      askBtn.disabled = true;
+      askBtn.textContent = 'ИИ ищет в базе...';
+    }
+    answerBox?.classList.remove('hidden');
+    if (answerContent) {
+      answerContent.innerHTML = '⏳ Поиск релевантных инструкций в базе знаний и подготовка пошагового ответа...';
+    }
+    sourcesWrap?.classList.add('hidden');
+
+    try {
+      const res = await fetch('/api/wiki/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Ошибка получения ответа');
+
+      lastRawAnswer = data.answer || '';
+      if (answerProviderLabel) {
+        answerProviderLabel.textContent = data.provider === 'gemini'
+          ? 'Ответ эксперта ИИ (Gemini Flash • строго по базе знаний)'
+          : 'Ответ по базе инструкций Platonus';
+      }
+      if (answerContent) {
+        answerContent.innerHTML = formatRichText(lastRawAnswer);
+      }
+
+      const sources = data.sources || [];
+      if (sources.length && sourcesList && sourcesWrap) {
+        sourcesList.innerHTML = sources.map(s => `
+          <button type="button" class="wiki-source-link" data-source-id="${s.id}">
+            <span>📄 ${escapeHtml(s.title)}</span>
+          </button>
+        `).join('');
+        sourcesWrap.classList.remove('hidden');
+      } else {
+        sourcesWrap?.classList.add('hidden');
+      }
+    } catch (err) {
+      if (answerContent) {
+        answerContent.textContent = `Ошибка: ${err.message || 'Не удалось выполнить поиск'}`;
+      }
+    } finally {
+      if (askBtn) {
+        askBtn.disabled = false;
+        askBtn.textContent = 'Получить ответ';
+      }
+    }
+  }
+
+  askBtn?.addEventListener('click', () => runWikiAsk());
+
+  questionInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      runWikiAsk();
+    }
+  });
+
+  document.querySelectorAll('.wiki-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const q = chip.dataset.q;
+      if (q) runWikiAsk(q);
+    });
+  });
+
+  copyAnswerBtn?.addEventListener('click', () => {
+    copyText(lastRawAnswer, copyAnswerBtn);
+  });
+
+  sourcesList?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.wiki-source-link');
+    if (btn) {
+      const id = Number(btn.dataset.sourceId);
+      if (id) openArticleById(id);
+    }
+  });
+
+  // 4. Пакетная загрузка файлов (.pdf, .docx, .txt) с авто-каталогизацией ИИ
+  function openUploadModal() {
+    pendingUploadFiles = [];
+    if (filesInput) filesInput.value = '';
+    selectedFilesBox?.classList.add('hidden');
+    uploadProgressWrap?.classList.add('hidden');
+    uploadResultBox?.classList.add('hidden');
+    if (startUploadBtn) startUploadBtn.disabled = true;
+    uploadModal?.classList.remove('hidden');
+  }
+
+  function closeUploadModal() {
+    uploadModal?.classList.add('hidden');
+  }
+
+  openUploadModalBtn?.addEventListener('click', openUploadModal);
+  closeUploadModalBtn?.addEventListener('click', closeUploadModal);
+  cancelUploadBtn?.addEventListener('click', closeUploadModal);
+  uploadModal?.addEventListener('click', (e) => {
+    if (e.target === uploadModal) closeUploadModal();
+  });
+
+  function updatePendingFilesList(fileList) {
+    pendingUploadFiles = Array.from(fileList || []).filter(f => {
+      const low = f.name.toLowerCase();
+      return low.endsWith('.pdf') || low.endsWith('.docx') || low.endsWith('.doc') || low.endsWith('.txt') || low.endsWith('.md');
+    });
+
+    if (!pendingUploadFiles.length) {
+      selectedFilesBox?.classList.add('hidden');
+      if (startUploadBtn) startUploadBtn.disabled = true;
+      return;
+    }
+
+    if (selectedFilesBox) {
+      selectedFilesBox.innerHTML = `
+        <div style="font-weight:700;color:var(--text-main);margin-bottom:6px;">Выбрано файлов: ${pendingUploadFiles.length}</div>
+        ${pendingUploadFiles.map(f => `<div>• ${escapeHtml(f.name)} <span style="opacity:.65">(${(f.size / 1024).toFixed(1)} КБ)</span></div>`).join('')}
+      `;
+      selectedFilesBox.classList.remove('hidden');
+    }
+    if (startUploadBtn) startUploadBtn.disabled = false;
+  }
+
+  filesInput?.addEventListener('change', () => {
+    updatePendingFilesList(filesInput.files);
+  });
+
+  dropZone?.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  dropZone?.addEventListener('dragleave', () => {
+    dropZone.classList.remove('dragover');
+  });
+  dropZone?.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer?.files?.length) {
+      updatePendingFilesList(e.dataTransfer.files);
+    }
+  });
+
+  startUploadBtn?.addEventListener('click', async () => {
+    if (!pendingUploadFiles.length) return;
+    startUploadBtn.disabled = true;
+    uploadResultBox?.classList.add('hidden');
+    uploadProgressWrap?.classList.remove('hidden');
+    if (uploadProgressBar) uploadProgressBar.style.width = '35%';
+    if (uploadStatusText) {
+      uploadStatusText.textContent = `Обработка файлов (${pendingUploadFiles.length} шт.)... ИИ извлекает текст и распределяет инструкции по темам`;
+    }
+
+    try {
+      const fd = new FormData();
+      pendingUploadFiles.forEach(f => fd.append('files', f));
+
+      if (uploadProgressBar) uploadProgressBar.style.width = '70%';
+      const res = await fetch('/api/wiki/upload', {
+        method: 'POST',
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Ошибка загрузки файлов');
+
+      if (uploadProgressBar) uploadProgressBar.style.width = '100%';
+      if (uploadStatusText) {
+        uploadStatusText.textContent = `✓ Готово! Обработано файлов: ${data.files_processed}, сохранено инструкций: ${(data.articles_created || []).length}`;
+      }
+
+      if (uploadResultBox) {
+        const createdList = (data.articles_created || [])
+          .map(a => `<div>• <b>${escapeHtml(a.title)}</b> <span style="opacity:.75">(${escapeHtml(a.topic)})</span></div>`)
+          .join('');
+        uploadResultBox.innerHTML = `
+          <div style="font-weight:700;margin-bottom:6px;">Инструкции успешно сохранены в базу Work Center:</div>
+          ${createdList || '<div>Файлы обработаны.</div>'}
+        `;
+        uploadResultBox.classList.remove('hidden');
+      }
+
+      await fetchWikiTree();
+    } catch (err) {
+      if (uploadStatusText) {
+        uploadStatusText.textContent = `Ошибка: ${err.message || 'Не удалось обработать файлы'}`;
+      }
+    }
+  });
+
+  window.loadPlatonusWiki = fetchWikiTree;
+  fetchWikiTree();
 })();

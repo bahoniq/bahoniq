@@ -1054,6 +1054,127 @@ def academy_ask_stream(
     )
 
 
+# ============================================================================
+# PLATONUS WIKI AI — ЕДИНАЯ СЕРВЕРНАЯ БАЗА ЗНАНИЙ (SQLite + Gemini Flash API)
+# ============================================================================
+
+@app.get("/api/wiki/tree")
+async def wiki_tree_get():
+    """Возвращает дерево всех тем (wiki_topics) и заголовков статей (wiki_articles)."""
+    from .modules.wiki.service import get_wiki_tree
+    return await run_in_threadpool(get_wiki_tree)
+
+
+@app.get("/api/wiki/articles/{article_id}")
+async def wiki_article_get(article_id: int):
+    """Возвращает полный текст выбранной статьи базы знаний."""
+    from .modules.wiki.service import get_article
+    art = await run_in_threadpool(get_article, article_id)
+    if not art:
+        raise HTTPException(404, "Статья не найдена.")
+    return art
+
+
+@app.put("/api/wiki/articles/{article_id}")
+async def wiki_article_put(article_id: int, request: Request):
+    """Редактирование заголовка, темы или текста статьи вручную."""
+    from .modules.wiki.service import update_article
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            body = await request.json()
+        else:
+            form = await request.form()
+            body = dict(form)
+        title = str(body.get("title", "")).strip()
+        content = str(body.get("content", "")).strip()
+        topic_name = str(body.get("topic_name", "")).strip() or None
+        updated = await run_in_threadpool(update_article, article_id, title, content, topic_name)
+        return updated
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.delete("/api/wiki/articles/{article_id}")
+async def wiki_article_delete(article_id: int):
+    """Удаление статьи из базы знаний."""
+    from .modules.wiki.service import delete_article
+    ok = await run_in_threadpool(delete_article, article_id)
+    if not ok:
+        raise HTTPException(404, "Статья не найдена.")
+    return {"status": "deleted", "id": article_id}
+
+
+@app.post("/api/wiki/articles")
+async def wiki_article_create(request: Request):
+    """Ручное добавление текстовой инструкции в базу знаний."""
+    from .modules.wiki.service import create_manual_article
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            body = await request.json()
+        else:
+            form = await request.form()
+            body = dict(form)
+        title = str(body.get("title", "")).strip()
+        content = str(body.get("content", "")).strip()
+        topic_name = str(body.get("topic_name", "")).strip() or "Общие инструкции Platonus"
+        created = await run_in_threadpool(create_manual_article, title, content, topic_name)
+        return created
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/wiki/upload")
+async def wiki_upload_post(files: list[UploadFile] = File(...)):
+    """Умная пакетная загрузка файлов (.pdf, .docx, .txt) в памяти с ИИ-каталогизацией."""
+    from .modules.wiki.service import upload_and_catalog_files
+    if not files:
+        raise HTTPException(400, "Выберите хотя бы один файл (.pdf, .docx, .txt).")
+
+    allowed_exts = {".pdf", ".docx", ".doc", ".txt", ".md"}
+    files_payload: list[tuple[str, bytes]] = []
+    for f in files:
+        fname = (f.filename or "document.pdf").strip()
+        ext = Path(fname).suffix.lower()
+        if ext not in allowed_exts:
+            continue
+        raw_bytes = await f.read()
+        if raw_bytes:
+            files_payload.append((fname, raw_bytes))
+
+    if not files_payload:
+        raise HTTPException(400, "Поддерживаются файлы .pdf, .docx и .txt.")
+
+    try:
+        result = await run_in_threadpool(upload_and_catalog_files, files_payload)
+        return result
+    except Exception as exc:
+        raise HTTPException(400, f"Ошибка обработки файлов: {exc}") from exc
+
+
+@app.post("/api/wiki/ask")
+async def wiki_ask_post(request: Request):
+    """AI-поиск по базе знаний Platonus и генерация пошагового ответа со ссылками на источники."""
+    from .modules.wiki.service import ask_wiki
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        body = await request.json()
+        query = str(body.get("query", "")).strip()
+    else:
+        form = await request.form()
+        query = str(form.get("query", "")).strip()
+
+    if not query:
+        raise HTTPException(400, "Введите вопрос по Platonus.")
+
+    try:
+        res = await run_in_threadpool(ask_wiki, query)
+        return res
+    except Exception as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("web_app.server:app", host="0.0.0.0", port=8000, reload=False)
