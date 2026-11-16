@@ -1451,7 +1451,11 @@ class MainWindow:
             return
 
         if name == "Design Academy Studio":
-            self.open_url("https://bahoniq.onrender.com/#designAcademy")
+            try:
+                from modules.design_academy_studio import open_design_academy
+                open_design_academy(self.root)
+            except Exception:
+                self.open_url("https://bahoniq.onrender.com/#designAcademy")
             return
 
         if name == "Телефонный справочник":

@@ -72,7 +72,19 @@ function openModule(modId, label) {
   location.hash = modId;
   if (modId === 'notes') loadNotes();
   if (modId === 'academy') loadAcademy();
-  if (modId === 'designAcademy' && typeof window.loadDesignAcademy === 'function') window.loadDesignAcademy();
+  if (modId === 'designAcademy') {
+    if (typeof window.loadDesignAcademy === 'function') {
+      window.loadDesignAcademy();
+    } else {
+      const dasTimer = setInterval(() => {
+        if (typeof window.loadDesignAcademy === 'function') {
+          clearInterval(dasTimer);
+          window.loadDesignAcademy();
+        }
+      }, 50);
+      setTimeout(() => clearInterval(dasTimer), 4000);
+    }
+  }
   if (modId === 'platonus' && typeof window.loadPlatonusWiki === 'function') window.loadPlatonusWiki();
   dashView.classList.add('hidden');
   $$('.module-page').forEach(p => p.classList.remove('active'));

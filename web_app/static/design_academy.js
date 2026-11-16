@@ -40,5 +40,52 @@
   function toggleReference(){state.reference=!state.reference;const h=q('#dasOverlay');h.classList.toggle('das-reference',state.reference);h.innerHTML=state.reference?'<rect x="120" y="105" width="360" height="140" rx="16" fill="none" stroke="#f472b6" stroke-width="2"/><ellipse cx="174" cy="175" rx="24" ry="24" fill="none" stroke="#f472b6" stroke-width="2"/><rect x="220" y="140" width="170" height="18" fill="none" stroke="#f472b6"/><rect x="220" y="178" width="220" height="12" fill="none" stroke="#f472b6"/>':'';q('#dasShowReference').textContent=state.reference?'Скрыть эталон':'Показать эталон'}
   function exportSvg(){const clone=q('#dasCanvas').cloneNode(true);clone.querySelector('#dasOverlay')?.remove();clone.querySelectorAll('.selected').forEach(x=>x.classList.remove('selected'));const blob=new Blob([new XMLSerializer().serializeToString(clone)],{type:'image/svg+xml'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='design-academy-project.svg';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
   function bind(){qa('[data-das-tool]').forEach(b=>b.onclick=()=>{state.tool=b.dataset.dasTool;qa('[data-das-tool]').forEach(x=>x.classList.toggle('active',x===b))});qa('[data-das-step]').forEach(b=>b.onclick=()=>switchStep(b.dataset.dasStep));q('#dasStartPractice').onclick=()=>switchStep('practice');q('#dasValidate').onclick=validate;q('#dasUndo').onclick=undo;q('#dasRedo').onclick=redo;q('#dasDelete').onclick=removeSelected;q('#dasGroup').onclick=group;q('#dasSave').onclick=save;q('#dasExport').onclick=exportSvg;q('#dasShowReference').onclick=toggleReference;q('#dasMentorAsk').onclick=askMentor;q('#dasLessonSearch').oninput=e=>renderLessonList(e.target.value);q('#dasComplete').onclick=()=>{state.done.add(state.lesson.id);localStorage.setItem(KEY_DONE,JSON.stringify([...state.done]));progress();renderLessonList();mentorMessage('Урок завершён. Можно переходить к следующей теме.')};document.addEventListener('keydown',e=>{if(!q('#designAcademy')?.classList.contains('active')||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.key==='Delete')removeSelected();if(e.ctrlKey&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo()}if(e.ctrlKey&&e.key.toLowerCase()==='s'){e.preventDefault();save()}});bindCanvas();bindProperties()}
-  window.loadDesignAcademy=async()=>{if(state.loaded)return;try{state.curriculum=await api('/api/design-academy/curriculum');restore();renderStages();progress();bind();openLesson('1-1');render();state.loaded=true}catch(e){q('#dasLessonTitle').textContent='Модуль не загрузился';q('#dasLessonSummary').textContent=e.message}};
+  window.loadDesignAcademy=async()=>{
+    if(state.loaded)return;
+    try{
+      state.curriculum=await api('/api/design-academy/curriculum');
+      restore();
+      renderStages();
+      progress();
+      bind();
+      openLesson('1-1');
+      render();
+      state.loaded=true;
+    }catch(e){
+      console.error('Design Academy load error:', e);
+      const title = q('#dasLessonTitle');
+      const sum = q('#dasLessonSummary');
+      if (title) title.textContent = 'Ошибка загрузки программы';
+      if (sum) sum.textContent = (e && e.message) ? e.message : 'Проверьте соединение с сервером.';
+    }
+  };
+
+  function tryAutoInit() {
+    const isHash = location.hash.toLowerCase().includes('designacademy');
+    const sec = q('#designAcademy');
+    const isActive = sec && (sec.classList.contains('active') || !sec.classList.contains('hidden'));
+    if (isHash || isActive) {
+      window.loadDesignAcademy();
+    }
+  }
+
+  tryAutoInit();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tryAutoInit);
+  }
+  window.addEventListener('hashchange', tryAutoInit);
+  document.addEventListener('click', (e) => {
+    if (e.target && e.target.closest('[data-open="designAcademy"]')) {
+      setTimeout(tryAutoInit, 30);
+    }
+  });
+  const dasSec = q('#designAcademy');
+  if (dasSec && window.MutationObserver) {
+    const obs = new MutationObserver(() => {
+      if (dasSec.classList.contains('active')) {
+        window.loadDesignAcademy();
+      }
+    });
+    obs.observe(dasSec, { attributes: true, attributeFilter: ['class'] });
+  }
 })();
