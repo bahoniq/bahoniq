@@ -71,9 +71,6 @@ app.include_router(design_academy_router)
 from .routers.excel_academy import router as excel_academy_router
 app.include_router(excel_academy_router)
 
-from .routers.voice import router as voice_router
-app.include_router(voice_router)
-
 # Опциональная защита паролем для публичного облака (задается через BAHONIQ_PASSWORD)
 AUTH_PASSWORD = os.getenv("BAHONIQ_PASSWORD", "").strip()
 AUTH_COOKIE_NAME = "bahoniq_auth"
@@ -124,9 +121,9 @@ async def auth_middleware(request: Request, call_next):
         return await call_next(request)
     
     path = request.url.path
-    # Разрешаем статику, PWA манифест, service worker, health, эндпоинты авторизации и голосовой TTS
+    # Разрешаем статику, PWA манифест, service worker, health и эндпоинты авторизации
     if (
-        path in {"/api/auth/login", "/api/auth/status", "/api/voice/tts", "/health", "/manifest.json", "/sw.js"}
+        path in {"/api/auth/login", "/api/auth/status", "/health", "/manifest.json", "/sw.js"}
         or path.startswith("/assets/")
     ):
         return await call_next(request)

@@ -1232,7 +1232,6 @@
     q('#eaSteps').innerHTML = state.lesson.steps.map(x => `<li>${esc(x)}</li>`).join('');
     q('#eaMentorFeed').innerHTML = '<p>ИИ-наставник видит вашу рабочую книгу, формулы и действия. Начните выполнять шаг за шагом!</p>';
 
-    window.BahonIQVoice?.stop();
     renderLessons();
     renderGrid();
     setStep('learn');
@@ -1390,24 +1389,6 @@
     q('#eaImport').onchange = e => e.target.files[0] && importXlsx(e.target.files[0]);
     q('#eaExport').onclick = exportXlsx;
     q('#eaChartClose').onclick = () => q('#eaChartModal')?.classList.remove('open');
-
-    // BahonIQ Voice v1 — Mentor Voice Bar & Microphone Dictation
-    let eaMentorVoice = q('#eaMentorVoiceBar');
-    if (!eaMentorVoice && q('#eaQuestion')) {
-      eaMentorVoice = document.createElement('div');
-      eaMentorVoice.id = 'eaMentorVoiceBar';
-      q('#eaQuestion').insertAdjacentElement('beforebegin', eaMentorVoice);
-      window.BahonIQVoice?.createVoiceBar({
-        container: eaMentorVoice,
-        moduleId: 'excel',
-        inputEl: '#eaQuestion',
-        labelText: 'Озвучить объяснение',
-        getText: () => {
-          const pList = qa('#eaMentorFeed p');
-          return pList.length ? pList[pList.length - 1].textContent : '';
-        }
-      });
-    }
   }
 
   // Initial loader
