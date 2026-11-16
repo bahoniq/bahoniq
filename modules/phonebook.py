@@ -158,7 +158,8 @@ class PhonebookWindow:
 
     def _open_database(self):
         project_dir = Path(__file__).resolve().parent.parent
-        data_dir = project_dir / "data"
+        # Единая база данных контактов для десктопа и веб-сервера
+        data_dir = project_dir / "web_app" / "data"
         data_dir.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(data_dir / "phonebook.db")
         connection.execute("""

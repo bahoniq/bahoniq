@@ -63,6 +63,30 @@ def _execute_lesson_code(language: str, code: str, stdin: str = "") -> dict[str,
         return {"stdout": "", "stderr": str(exc), "returncode": 1}
 
 
+def _generate_live_theory_sync(lesson: dict[str, Any]) -> str:
+    """Генерирует живое объяснение темы через Gemini Flash (обратная совместимость с десктопом)."""
+    prompt = (
+        f"Этап: {lesson.get('stage_title', '')}\n"
+        f"Тема урока: {lesson.get('title', '')}\n"
+        f"Краткая суть: {lesson.get('summary', '')}\n\n"
+        "Сгенерируй живое, понятное объяснение темы (2-3 коротких абзаца + пример кода)."
+    )
+    try:
+        return str(generate_text(
+            prompt=prompt,
+            system_instruction="Ты — живой дружелюбный ИИ-наставник BahonIQ Academy.",
+            temperature=0.35,
+            timeout=30,
+        )).strip()
+    except Exception:
+        return lesson.get("ai_theory", "")
+
+
+def _mentor_evaluate_code_sync(lesson: dict[str, Any], user_code: str, exec_result: dict[str, Any]) -> dict[str, Any]:
+    """Умная проверка кода через Gemini Flash (обратная совместимость с десктопом)."""
+    return _evaluate_step2_sync(lesson, user_code, exec_result)
+
+
 # ============================================================================
 # ОЦЕНКА МИКРОШАГА 1: ЧТЕНИЕ КОДА («ПОЙМАЙ ЛОВУШКУ»)
 # ============================================================================

@@ -603,7 +603,8 @@ $('#contactForm')?.addEventListener('submit', async e => {
     return;
   }
   const fd = new FormData(e.currentTarget);
-  fd.append('contact_id', $('#contactId').value || '0');
+  const cid = $('#contactId')?.value || '0';
+  fd.set('contact_id', cid);
   try {
     await api('/api/phonebook/save', { method: 'POST', body: fd });
     $('#contactDialog').close();
@@ -1806,8 +1807,7 @@ recForm?.addEventListener('submit', async e => {
 
   function formatText(raw) {
     let s = escapeHtml(raw || '');
-    s = s.replace(/```([a-zA-Z]*)
-([\s\S]*?)```/g, '<pre class="acad-trap-code">$2</pre>');
+    s = s.replace(/```([a-zA-Z]*)\r?\n([\s\S]*?)```/g, '<pre class="acad-trap-code">$2</pre>');
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
     s = s.replace(/\n/g, '<br/>');
