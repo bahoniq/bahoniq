@@ -124,9 +124,9 @@ async def auth_middleware(request: Request, call_next):
         return await call_next(request)
     
     path = request.url.path
-    # Разрешаем статику, PWA манифест, service worker, health и эндпоинты авторизации
+    # Разрешаем статику, PWA манифест, service worker, health, эндпоинты авторизации и голосовой TTS
     if (
-        path in {"/api/auth/login", "/api/auth/status", "/health", "/manifest.json", "/sw.js"}
+        path in {"/api/auth/login", "/api/auth/status", "/api/voice/tts", "/health", "/manifest.json", "/sw.js"}
         or path.startswith("/assets/")
     ):
         return await call_next(request)
