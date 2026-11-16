@@ -1,5 +1,5 @@
 // BahonIQ Work Center Service Worker
-const CACHE_NAME = 'bahoniq-pwa-bahoniq-ai-v1';
+const CACHE_NAME = 'bahoniq-pwa-excel-fix-v1';
 const PRECACHE_URLS = [
   '/',
   '/assets/favicon.ico',

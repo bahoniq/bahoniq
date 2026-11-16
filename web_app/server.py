@@ -481,6 +481,29 @@ async def excel_plan(
         raise HTTPException(400, str(exc)) from exc
 
 
+@app.post("/api/excel/inspect")
+async def excel_inspect(workbook: UploadFile = File(...)):
+    """Безопасный краткий предпросмотр структуры до построения плана."""
+    directory = Path(tempfile.mkdtemp(prefix="bahoniq_excel_preview_"))
+    try:
+        source = await _receive(workbook, directory)
+        inspection = await run_in_threadpool(fast_inspect_excel, source)
+        sheets = []
+        for item in inspection.get("sheets", []):
+            sheets.append({
+                "name": item.get("name", ""),
+                "rows": item.get("rows_count", 0),
+                "columns": item.get("columns_count", 0),
+                "headers": item.get("headers", [])[:30],
+                "preview": item.get("preview", [])[:5],
+            })
+        return {"status": "ready", "sheets": sheets}
+    except Exception as exc:
+        raise HTTPException(400, str(exc)) from exc
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+
+
 @app.post("/api/excel/execute")
 async def excel_execute(
     session_id: str = Form(...),

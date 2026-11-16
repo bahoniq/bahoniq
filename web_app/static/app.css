@@ -3025,3 +3025,20 @@ body.theme-day .welcome-accent {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
+
+/* Excel AI Web — один основной сценарий, дополнительные шаблоны скрыты. */
+.excel-student-banner{display:none!important}
+.excel-template-catalog{margin:12px 0 16px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.02)}
+.excel-template-catalog>summary{cursor:pointer;padding:12px 14px;color:var(--text-main);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:space-between;list-style:none}
+.excel-template-catalog>summary::-webkit-details-marker{display:none}
+.excel-template-catalog>summary:after{content:'⌄';color:var(--text-muted);font-size:16px}
+.excel-template-catalog[open]>summary:after{content:'⌃'}
+.excel-template-catalog>summary span{font-size:10px;font-weight:500;color:var(--text-sub);margin-left:8px}
+.excel-template-catalog .excel-templates-box{margin:0!important;border:0!important;border-top:1px solid var(--border)!important;border-radius:0 0 10px 10px!important}
+.excel-file-preview{margin:10px 0 12px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--bg-input)}
+.excel-preview-head,.excel-preview-sheet{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.excel-preview-head{padding-bottom:8px;border-bottom:1px solid var(--border)}
+.excel-preview-head span,.excel-preview-sheet span{font-size:11px;color:var(--text-sub)}
+.excel-preview-sheet{padding-top:9px}.excel-preview-sheet strong{font-size:12px}.excel-preview-sheet small{width:100%;font-size:11px;color:var(--text-sub)}
+body.theme-day .excel-template-catalog{background:rgba(43,64,84,.035)}

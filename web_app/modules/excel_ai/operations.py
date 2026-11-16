@@ -73,6 +73,7 @@ SUPPORTED_TYPES = {
     "distinct_count",
     "split_cell_values_to_rows",
     "extract_split_values_to_sheet",
+    "combine_columns",
 }
 
 TYPE_ALIASES = {
@@ -109,6 +110,10 @@ TYPE_ALIASES = {
     "split_cell_to_rows": "split_cell_values_to_rows",
     "split_cells_to_rows": "split_cell_values_to_rows",
     "explode_cell": "split_cell_values_to_rows",
+    "concat_columns": "combine_columns",
+    "merge_columns": "combine_columns",
+    "join_columns": "combine_columns",
+    "concatenate_columns": "combine_columns",
 }
 
 
@@ -697,6 +702,36 @@ def _validate_ops(ops, wb):
                 )
                 if op["row_column"] == op["column_column"]:
                     raise ValueError("Для перекрёстной таблицы нужны два разных столбца.")
+
+            if kind == "combine_columns":
+                source_values = op.get("source_columns") or op.get("columns")
+                op["source_columns"] = _resolve_columns(
+                    ws, source_values, hr,
+                    f"Операция {index} (combine_columns, исходные столбцы)",
+                )
+                target_name = str(
+                    op.get("target_column") or op.get("output_column") or ""
+                ).strip()
+                if not target_name:
+                    raise ValueError(
+                        f"Операция {index} (combine_columns): укажите название нового "
+                        "столбца target_column."
+                    )
+                # target_column is an output name, not a source reference. Never
+                # resolve it against existing headers before the operation runs.
+                existing_names = {_norm(value) for value in _headers(ws, hr).values()}
+                if _norm(target_name) in existing_names and not op.get("replace_existing"):
+                    raise ValueError(
+                        f"Операция {index}: столбец {target_name!r} уже существует. "
+                        "Укажите другое имя или replace_existing=true."
+                    )
+                op["target_column"] = target_name
+                op["separator"] = str(op.get("separator", " "))
+                op["skip_empty"] = bool(op.get("skip_empty", True))
+                op["trim_result"] = bool(op.get("trim_result", True))
+                op["position"] = str(op.get("position", "first")).lower()
+                if op["position"] not in {"first", "last"}:
+                    op["position"] = "first"
 
             if kind in {"split_to_sheets", "group_by_aggregate"} and op.get("columns"):
                 op["columns"] = _resolve_columns(
@@ -1449,6 +1484,38 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             "faculty_column": faculty_columns[0] if faculty_columns else None,
             "output_sheets": desired_names
         }
+        return
+
+    if kind == "combine_columns":
+        source_columns = op["source_columns"]
+        separator = op.get("separator", " ")
+        skip_empty = bool(op.get("skip_empty", True))
+        trim_result = bool(op.get("trim_result", True))
+        rows = []
+        for row_num in range(hr + 1, ws.max_row + 1):
+            values = [ws.cell(row_num, col).value for col in source_columns]
+            parts = []
+            for value in values:
+                if _empty(value) and skip_empty:
+                    continue
+                parts.append("" if value is None else str(value).strip())
+            combined = separator.join(parts)
+            rows.append(combined.strip() if trim_result else combined)
+
+        target_index = 1 if op.get("position") == "first" else ws.max_column + 1
+        ws.insert_cols(target_index)
+        ws.cell(hr, target_index).value = op["target_column"]
+        for offset, value in enumerate(rows, start=hr + 1):
+            ws.cell(offset, target_index).value = value
+        _auto_dimensions(ws)
+        changes.append({
+            "type": kind,
+            "sheet": sheet,
+            "source_columns": [ws.cell(hr, col + (1 if target_index <= col else 0)).value for col in source_columns],
+            "target_column": op["target_column"],
+            "created_column": target_index,
+            "changed_rows": len(rows),
+        })
         return
 
     elif kind == "remove_empty_rows":
