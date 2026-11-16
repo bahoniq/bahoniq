@@ -1,28 +1,56 @@
 # -*- coding: utf-8 -*-
-"""Десктопное окно модуля Platonus Wiki AI (работает на единой БД SQLite и сервисе web_app.modules.wiki)."""
+"""Десктопный клиент Platonus Wiki AI — работает строго через единый облачный API (без локальной БД)."""
 
 from __future__ import annotations
 
+import json
+import os
 import threading
 import tkinter as tk
+import urllib.error
+import urllib.request
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from services.settings_service import get_theme
-from web_app.modules.wiki.service import (
-    ask_wiki,
-    delete_article,
-    get_article,
-    get_wiki_tree,
-    init_wiki_db,
-    update_article,
-    upload_and_catalog_files,
-)
+
+CLOUD_API_BASE = os.getenv("BAHONIQ_CLOUD_URL", "https://bahoniq.onrender.com").rstrip("/")
+
+
+def _api_request(method: str, path: str, json_body: dict | None = None, timeout: int = 45) -> dict:
+    """Выполняет запрос к единому облачному API BahonIQ."""
+    url = f"{CLOUD_API_BASE}{path}"
+    data = None
+    headers = {"Accept": "application/json"}
+    if json_body is not None:
+        data = json.dumps(json_body).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _api_upload_files(files_payload: list[tuple[str, bytes]], timeout: int = 90) -> dict:
+    """Отправляет пакет файлов в облачный эндпоинт POST /api/wiki/upload (multipart/form-data)."""
+    import requests
+    url = f"{CLOUD_API_BASE}/api/wiki/upload"
+    multipart_files = [
+        ("files", (fname, fbytes, "application/octet-stream"))
+        for fname, fbytes in files_payload
+    ]
+    resp = requests.post(url, files=multipart_files, timeout=timeout)
+    if not resp.ok:
+        try:
+            detail = resp.json().get("detail", resp.text)
+        except Exception:
+            detail = resp.text
+        raise RuntimeError(detail)
+    return resp.json()
 
 
 def open_platonus_wiki(parent: tk.Misc) -> None:
-    """Открывает двухколоночное окно Platonus Wiki AI, подключенное к единой базе знаний."""
-    init_wiki_db()
+    """Открывает окно Platonus Wiki AI, подключенное к единому серверному API."""
     theme = get_theme()
     bg_main = theme.get("bg", "#0B1526")
     bg_card = theme.get("card", "#122238")
@@ -31,12 +59,11 @@ def open_platonus_wiki(parent: tk.Misc) -> None:
     accent = "#00B4D8"
 
     win = tk.Toplevel(parent)
-    win.title("Platonus Wiki AI — Единая база знаний инструкций")
+    win.title("Platonus Wiki AI — Облачная база знаний")
     win.geometry("1120x740")
     win.minsize(920, 620)
     win.configure(bg=bg_main)
 
-    # Верхняя панель
     header = tk.Frame(win, bg=bg_card, padx=20, pady=12)
     header.pack(fill="x", side="top")
 
@@ -50,7 +77,7 @@ def open_platonus_wiki(parent: tk.Misc) -> None:
 
     stats_lbl = tk.Label(
         header,
-        text="База знаний активна",
+        text="Подключение к облачной базе...",
         font=("Segoe UI", 10, "bold"),
         bg=bg_card,
         fg=accent,
@@ -58,33 +85,30 @@ def open_platonus_wiki(parent: tk.Misc) -> None:
     )
     stats_lbl.pack(side="right")
 
-    # Основной двухколоночный контейнер
     body = tk.Frame(win, bg=bg_main, padx=16, pady=14)
     body.pack(fill="both", expand=True)
 
-    # Левая колонка (~300px)
     left_frame = tk.Frame(body, bg=bg_card, width=310, padx=12, pady=12)
     left_frame.pack(side="left", fill="y", padx=(0, 14))
     left_frame.pack_propagate(False)
 
-    # Правая колонка (главная рабочая область)
     right_frame = tk.Frame(body, bg=bg_card, padx=18, pady=16)
     right_frame.pack(side="left", fill="both", expand=True)
 
     article_map: dict[str, int] = {}
+    cached_tree: dict = {"total_topics": 0, "total_articles": 0, "topics": []}
     current_article_id: list[int | None] = [None]
 
-    def refresh_tree(filter_q: str = "") -> None:
-        tree_data = get_wiki_tree()
+    def render_tree(filter_q: str = "") -> None:
         stats_lbl.configure(
-            text=f"Разделов: {tree_data['total_topics']} • Инструкций: {tree_data['total_articles']}"
+            text=f"Разделов: {cached_tree.get('total_topics', 0)} • Инструкций: {cached_tree.get('total_articles', 0)}"
         )
         for item in tree.get_children():
             tree.delete(item)
         article_map.clear()
 
         q = filter_q.strip().lower()
-        for topic in tree_data.get("topics", []):
+        for topic in cached_tree.get("topics", []):
             arts = [
                 a for a in topic.get("articles", [])
                 if not q or q in a["title"].lower() or q in topic["name"].lower()
@@ -95,6 +119,18 @@ def open_platonus_wiki(parent: tk.Misc) -> None:
             for a in arts:
                 a_node = tree.insert(t_node, "end", text=f"📄 {a['title']}")
                 article_map[a_node] = int(a["id"])
+
+    def fetch_tree_async() -> None:
+        def worker() -> None:
+            try:
+                data = _api_request("GET", "/api/wiki/tree")
+                cached_tree.clear()
+                cached_tree.update(data)
+                win.after(0, lambda: render_tree(search_var.get()))
+            except Exception as exc:
+                win.after(0, lambda: stats_lbl.configure(text=f"Нет связи с API: {exc}"))
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def on_upload_files() -> None:
         paths = filedialog.askopenfilenames(
@@ -119,7 +155,7 @@ def open_platonus_wiki(parent: tk.Misc) -> None:
 
         def worker() -> None:
             try:
-                res = upload_and_catalog_files(payload)
+                res = _api_upload_files(payload)
                 win.after(0, lambda: _on_upload_done(res, None))
             except Exception as exc:
                 win.after(0, lambda: _on_upload_done(None, exc))
@@ -131,12 +167,12 @@ def open_platonus_wiki(parent: tk.Misc) -> None:
         if err:
             messagebox.showerror("Ошибка загрузки", str(err), parent=win)
             return
-        refresh_tree(search_var.get())
+        fetch_tree_async()
         created = res.get("articles_created", []) if res else []
         messagebox.showinfo(
             "Загрузка завершена",
             f"Обработано файлов: {res.get('files_processed', 0)}\n"
-            f"Сохранено инструкций в базу: {len(created)}",
+            f"Сохранено инструкций в облачную базу: {len(created)}",
             parent=win,
         )
 
@@ -166,14 +202,13 @@ def open_platonus_wiki(parent: tk.Misc) -> None:
         relief="flat",
     )
     search_entry.pack(fill="x", ipady=5, pady=(0, 8))
-    search_var.trace_add("write", lambda *_: refresh_tree(search_var.get()))
+    search_var.trace_add("write", lambda *_: render_tree(search_var.get()))
 
     style = ttk.Style(win)
     style.configure("Wiki.Treeview", rowheight=26, font=("Segoe UI", 9))
     tree = ttk.Treeview(left_frame, show="tree", style="Wiki.Treeview")
     tree.pack(fill="both", expand=True)
 
-    # Правая область: Поле вопроса + Область ответа / просмотра статьи
     tk.Label(
         right_frame,
         text="Умный поиск по инструкциям Platonus",
@@ -206,12 +241,12 @@ def open_platonus_wiki(parent: tk.Misc) -> None:
         ask_btn.configure(state="disabled", text="Поиск...")
         output_text.configure(state="normal")
         output_text.delete("1.0", "end")
-        output_text.insert("1.0", "⏳ ИИ ищет ответ строго по базе инструкций Platonus...")
+        output_text.insert("1.0", "⏳ Запрос к облачной базе знаний Platonus Wiki AI...")
         output_text.configure(state="disabled")
 
         def worker() -> None:
             try:
-                res = ask_wiki(q)
+                res = _api_request("POST", "/api/wiki/ask", json_body={"query": q})
                 win.after(0, lambda: _show_answer(res, None))
             except Exception as exc:
                 win.after(0, lambda: _show_answer(None, exc))
@@ -266,10 +301,16 @@ def open_platonus_wiki(parent: tk.Misc) -> None:
         if not aid:
             return
         if messagebox.askyesno("Удаление", "Удалить выбранную инструкцию из базы знаний?", parent=win):
-            delete_article(aid)
+            def worker() -> None:
+                try:
+                    _api_request("DELETE", f"/api/wiki/articles/{aid}")
+                    win.after(0, fetch_tree_async)
+                except Exception as exc:
+                    win.after(0, lambda: messagebox.showerror("Ошибка", str(exc), parent=win))
+
+            threading.Thread(target=worker, daemon=True).start()
             current_article_id[0] = None
             del_btn.configure(state="disabled")
-            refresh_tree(search_var.get())
             output_text.configure(state="normal")
             output_text.delete("1.0", "end")
             output_text.configure(state="disabled")
@@ -321,10 +362,18 @@ def open_platonus_wiki(parent: tk.Misc) -> None:
         aid = article_map.get(sel[0])
         if not aid:
             return
-        art = get_article(aid)
-        if not art:
-            return
-        current_article_id[0] = aid
+
+        def worker() -> None:
+            try:
+                art = _api_request("GET", f"/api/wiki/articles/{aid}")
+                win.after(0, lambda: _display_article(art))
+            except Exception as exc:
+                win.after(0, lambda: messagebox.showerror("Ошибка", str(exc), parent=win))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _display_article(art: dict) -> None:
+        current_article_id[0] = int(art["id"])
         del_btn.configure(state="normal")
         output_text.configure(state="normal")
         output_text.delete("1.0", "end")
@@ -337,4 +386,4 @@ def open_platonus_wiki(parent: tk.Misc) -> None:
 
     tree.bind("<<TreeviewSelect>>", on_tree_select)
 
-    refresh_tree()
+    fetch_tree_async()
