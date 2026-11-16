@@ -1353,8 +1353,19 @@ body.theme-day .academy-editor { color: #16322f; }
   html { height: auto; overflow: visible; }
   body { height: auto; min-height: 100vh; min-height: 100dvh; overflow: visible; }
   .app-layout { height: auto; min-height: 100dvh; display: block; overflow-x: clip; }
-  .main-area { display: block; min-height: 100dvh; }
-  .topbar { position: sticky; top: 0; z-index: 20; }
+  .main-area { display: block; min-height: 100dvh; position: relative !important; margin: 0 !important; padding: 0 !important; }
+  .broadcast-bg-canvas {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
+  }
+  .bg-geometry-svg { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; }
+  .topbar { position: sticky !important; top: 0 !important; margin: 0 !important; z-index: 20; }
   .content-body { display: block; overflow: visible; flex: none; padding-bottom: 40px; }
   .dashboard-view, .module-host { height: auto; overflow: visible; }
   .sidebar { height: 100vh; height: 100dvh; }

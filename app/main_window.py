@@ -784,6 +784,7 @@ class MainWindow:
             ("☎", "Телефонный справочник", "Внутренние номера и контакты", "#3A8D7C"),
             ("⌘", "Code Academy", "Python, SQL и архитектура BahonIQ", "#7354A5"),
             ("🎨", "Design Academy Studio", "UI/UX дизайн и векторная графика", "#E879F9"),
+            ("⊞", "Excel Academy Studio", "Офисные и IT-задачи, формулы и анализ", "#10B981"),
         ]
 
         self.tool_cards = []
@@ -1456,6 +1457,14 @@ class MainWindow:
                 open_design_academy(self.root)
             except Exception:
                 self.open_url("https://bahoniq.onrender.com/#designAcademy")
+            return
+
+        if name in ("Excel Academy Studio", "Excel Academy"):
+            try:
+                from modules.excel_academy_studio import open_excel_academy
+                open_excel_academy(self.root)
+            except Exception:
+                self.open_url("https://bahoniq.onrender.com/#excelAcademy")
             return
 
         if name == "Телефонный справочник":
