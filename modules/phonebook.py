@@ -139,6 +139,62 @@ SEED_CONTACTS = [
 ]
 
 
+def _bind_entry_shortcuts(entry: tk.Entry, window: tk.Misc) -> None:
+    """Обеспечивает работу Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X на русской и английской раскладках и меню ПКМ."""
+    def on_ctrl_key(event):
+        code = getattr(event, "keycode", 0)
+        if code == 65:  # Ctrl+A / Ctrl+Ф
+            entry.select_range(0, "end")
+            entry.icursor("end")
+            return "break"
+        elif code == 67:  # Ctrl+C / Ctrl+С
+            try:
+                sel = entry.selection_get()
+                window.clipboard_clear()
+                window.clipboard_append(sel)
+            except Exception:
+                pass
+            return "break"
+        elif code == 86:  # Ctrl+V / Ctrl+М
+            try:
+                clip = window.clipboard_get()
+                try:
+                    entry.delete("sel.first", "sel.last")
+                except Exception:
+                    pass
+                entry.insert("insert", clip)
+            except Exception:
+                pass
+            return "break"
+        elif code == 88:  # Ctrl+X / Ctrl+Ч
+            try:
+                sel = entry.selection_get()
+                window.clipboard_clear()
+                window.clipboard_append(sel)
+                entry.delete("sel.first", "sel.last")
+            except Exception:
+                pass
+            return "break"
+
+    entry.bind("<Control-KeyPress>", on_ctrl_key)
+
+    # Контекстное меню по правому клику мыши (ПКМ)
+    menu = tk.Menu(entry, tearoff=0)
+    menu.add_command(label="✂  Вырезать (Ctrl+X)", command=lambda: on_ctrl_key(type("Evt", (), {"keycode": 88})()))
+    menu.add_command(label="📋 Копировать (Ctrl+C)", command=lambda: on_ctrl_key(type("Evt", (), {"keycode": 67})()))
+    menu.add_command(label="📥 Вставить (Ctrl+V)", command=lambda: on_ctrl_key(type("Evt", (), {"keycode": 86})()))
+    menu.add_separator()
+    menu.add_command(label="🔘 Выделить всё (Ctrl+A)", command=lambda: on_ctrl_key(type("Evt", (), {"keycode": 65})()))
+
+    def show_context(event):
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    entry.bind("<Button-3>", show_context)
+
+
 class PhonebookWindow:
     FIELDS = ("department", "position", "name", "location", "city_phone", "extension", "mobile", "email")
     LABELS = ("Подразделение", "Должность", "ФИО", "Расположение", "Городской номер", "Внутренний номер", "Мобильный", "Email")
@@ -214,6 +270,7 @@ class PhonebookWindow:
         search = tk.Entry(controls, textvariable=self.search_var, font=("Segoe UI", 11), relief="flat", bd=0, bg=self.theme["input"], fg=self.theme["text"], insertbackground=self.theme["text"], highlightthickness=1, highlightbackground=self.theme["border"])
         search.pack(side="left", fill="x", expand=True, ipady=9)
         search.bind("<KeyRelease>", lambda _event: self.refresh())
+        _bind_entry_shortcuts(search, self.window)
         self._button(controls, "＋ Добавить", self.add_contact, GREEN).pack(side="left", padx=(10, 0))
         self._button(controls, "Изменить", self.edit_contact, "#245E8A").pack(side="left", padx=(7, 0))
         self._button(controls, "Удалить", self.delete_contact, RED).pack(side="left", padx=(7, 0))
@@ -236,6 +293,7 @@ class PhonebookWindow:
         table_frame.grid_rowconfigure(0, weight=1)
         table_frame.grid_columnconfigure(0, weight=1)
         self.tree.bind("<Double-1>", lambda _event: self.edit_contact())
+        self._setup_tree_shortcuts()
 
         bottom = tk.Frame(body, bg=self.theme["bg"])
         bottom.pack(fill="x", pady=(10, 0))
@@ -324,6 +382,7 @@ class PhonebookWindow:
             entry.pack(fill="x", ipady=7)
             if values:
                 entry.insert(0, values[index] or "")
+            _bind_entry_shortcuts(entry, dialog)
             entries.append(entry)
 
         def save():
@@ -365,6 +424,70 @@ class PhonebookWindow:
             self.db.execute("DELETE FROM contacts WHERE id=?", (contact_id,))
             self.db.commit()
             self.refresh()
+
+    def copy_selected_contact(self):
+        contact_id = self.selected_id()
+        if contact_id is None:
+            return
+        row = self.db.execute("SELECT department, position, name, location, city_phone, extension, mobile, email FROM contacts WHERE id=?", (contact_id,)).fetchone()
+        if not row:
+            return
+        dept, pos, name, loc, city_p, ext, mob, email = (r or "" for r in row)
+        lines = [f"{name} — {pos}"]
+        if dept:
+            lines.append(f"Подразделение: {dept}")
+        if loc:
+            lines.append(f"Кабинет/расположение: {loc}")
+        contacts_sub = []
+        if ext:
+            contacts_sub.append(f"Внутр: {ext}")
+        if city_p:
+            contacts_sub.append(f"Город: {city_p}")
+        if mob:
+            contacts_sub.append(f"Моб: {mob}")
+        if email:
+            contacts_sub.append(f"Email: {email}")
+        if contacts_sub:
+            lines.append(" | ".join(contacts_sub))
+        text = "\n".join(lines)
+        self.window.clipboard_clear()
+        self.window.clipboard_append(text)
+
+    def _setup_tree_shortcuts(self):
+        def on_tree_ctrl(event):
+            code = getattr(event, "keycode", 0)
+            if code == 67:  # Ctrl+C / Ctrl+С
+                self.copy_selected_contact()
+                return "break"
+            elif code == 65:  # Ctrl+A / Ctrl+Ф
+                children = self.tree.get_children()
+                if children:
+                    self.tree.selection_set(children)
+                return "break"
+
+        self.tree.bind("<Control-KeyPress>", on_tree_ctrl)
+
+        tree_menu = tk.Menu(self.tree, tearoff=0)
+        tree_menu.add_command(label="📋 Скопировать контакт полностью (Ctrl+C)", command=self.copy_selected_contact)
+        tree_menu.add_command(label="📞 Скопировать внутренний номер", command=lambda: self.copy_field(6))
+        tree_menu.add_command(label="📱 Скопировать мобильный номер", command=lambda: self.copy_field(7))
+        tree_menu.add_command(label="✉  Скопировать Email", command=lambda: self.copy_field(8))
+        tree_menu.add_command(label="👤 Скопировать ФИО", command=lambda: self.copy_field(3))
+        tree_menu.add_command(label="🏢 Скопировать подразделение", command=lambda: self.copy_field(1))
+        tree_menu.add_separator()
+        tree_menu.add_command(label="✏  Изменить контакт", command=self.edit_contact)
+        tree_menu.add_command(label="🗑  Удалить контакт", command=self.delete_contact)
+
+        def on_tree_right_click(event):
+            item = self.tree.identify_row(event.y)
+            if item:
+                self.tree.selection_set(item)
+                try:
+                    tree_menu.tk_popup(event.x_root, event.y_root)
+                finally:
+                    tree_menu.grab_release()
+
+        self.tree.bind("<Button-3>", on_tree_right_click)
 
     def copy_field(self, tuple_index):
         contact_id = self.selected_id()
