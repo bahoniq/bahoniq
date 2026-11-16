@@ -2,10 +2,11 @@ from web_app.modules.design_academy_studio.curriculum import get_curriculum, get
 from web_app.modules.design_academy_studio.validation import validate_document
 
 
-def test_curriculum_has_six_stages_and_first_stage_content():
+def test_curriculum_has_six_complete_stages():
     course = get_curriculum()
     assert len(course["stages"]) == 6
-    assert len(course["lessons"]) == 12
+    assert len(course["lessons"]) == 72
+    assert course["available_lessons"] == 72
     assert course["total_lessons"] == 72
 
 
@@ -42,3 +43,16 @@ def test_validator_explains_wrong_object_type_with_right_size():
     assert result["score"] == 50
     assert "Фрейм" in result["results"][0]["message"]
     assert "Прямоугольник" in result["results"][0]["message"]
+
+
+def test_professional_tools_have_deterministic_checks():
+    cases = {
+        "2-1": {"objects": [{"type": "path", "points": [{}, {}, {}, {}]}]},
+        "2-4": {"objects": [{"type": "boolean", "operation": "union"}]},
+        "2-7": {"objects": [{"type": "mask_group"}]},
+        "4-1": {"objects": [{"type": "auto_layout"}]},
+        "4-5": {"objects": [{"type": "component"}]},
+        "5-4": {"objects": [{"type": "prototype_link"}]},
+    }
+    for lesson_id, document in cases.items():
+        assert validate_document(document, get_lesson(lesson_id)["checks"])["passed"]

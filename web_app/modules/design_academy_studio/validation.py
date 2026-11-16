@@ -49,6 +49,25 @@ def validate_document(document: dict[str, Any], checks: list[dict[str, Any]]) ->
         elif kind == "named":
             generic = {"Прямоугольник", "Круг", "Текст", "Фрейм", "Линия", "Группа"}
             passed = sum(1 for x in _objects(document) if x.get("name") and x.get("name") not in generic) >= int(rule.get("min", 1)); message = "Переименуйте слои понятными именами"
+        elif kind == "path_points":
+            paths = _objects(document, "path")
+            passed = any(len(x.get("points", [])) >= int(rule.get("min", 3)) for x in paths)
+            message = f"Контур должен содержать минимум {rule.get('min', 3)} опорные точки"
+        elif kind == "boolean":
+            passed = any(x.get("type") == "boolean" and (not rule.get("operation") or x.get("operation") == rule["operation"]) for x in _objects(document))
+            message = f"Выполните Boolean Operation: {rule.get('operation', 'любую')}"
+        elif kind in {"gradient", "auto_layout", "component", "instance", "prototype"}:
+            predicates = {
+                "gradient": lambda x: bool(x.get("gradient")),
+                "auto_layout": lambda x: x.get("type") == "auto_layout",
+                "component": lambda x: x.get("type") == "component",
+                "instance": lambda x: x.get("type") == "instance",
+                "prototype": lambda x: x.get("type") == "prototype_link",
+            }
+            passed = sum(1 for x in _objects(document) if predicates[kind](x)) >= int(rule.get("min", 1))
+            message = {"gradient": "Добавьте градиент", "auto_layout": "Создайте Auto Layout", "component": "Создайте главный компонент", "instance": "Создайте экземпляр компонента", "prototype": "Соедините два фрейма прототипа"}[kind]
+        elif kind == "mask":
+            passed = any(x.get("type") == "mask_group" for x in _objects(document)); message = "Создайте маску из двух объектов"
         results.append({"passed": passed, "message": message, "rule": kind})
     passed_count = sum(1 for item in results if item["passed"])
     score = round(100 * passed_count / max(len(results), 1))
