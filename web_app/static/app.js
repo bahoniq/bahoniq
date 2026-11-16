@@ -2357,7 +2357,15 @@ recForm?.addEventListener('submit', async e => {
             answers: userQuizAnswers,
           }),
         });
-        if (!res.ok) throw new Error('Ошибка сервера при проверке теста');
+        if (res.status === 401) {
+          alert('Сессия авторизации истекла (сервер обновился). Пожалуйста, обновите страницу и войдите в систему.');
+          window.location.reload();
+          return;
+        }
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          throw new Error(errData?.detail || errData?.error || 'Ошибка сервера при проверке теста');
+        }
         const result = await res.json();
 
         // Подсвечиваем результаты вопросов

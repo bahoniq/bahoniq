@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import hashlib
 import secrets
 import shutil
 import socket
@@ -66,7 +67,12 @@ app.include_router(academy_router)
 # Опциональная защита паролем для публичного облака (задается через BAHONIQ_PASSWORD)
 AUTH_PASSWORD = os.getenv("BAHONIQ_PASSWORD", "").strip()
 AUTH_COOKIE_NAME = "bahoniq_auth"
-AUTH_TOKEN = secrets.token_hex(16) if AUTH_PASSWORD else ""
+AUTH_SECRET = os.getenv("BAHONIQ_SECRET", "bahoniq_prod_auth_secret_salt_2026")
+AUTH_TOKEN = (
+    hashlib.sha256((AUTH_PASSWORD + AUTH_SECRET).encode("utf-8")).hexdigest()
+    if AUTH_PASSWORD
+    else ""
+)
 
 @app.get("/health")
 def health():
