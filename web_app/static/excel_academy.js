@@ -8,7 +8,7 @@
 
   const q = s => document.querySelector(s);
   const qa = s => [...document.querySelectorAll(s)];
-  const KEY_PREFIX = 'bahoniq_excel_academy_v2_';
+  const KEY_PREFIX = 'bahoniq_excel_academy_office_it_v3_';
 
   // State
   const state = {
@@ -76,6 +76,22 @@
 
   function toCell(c, r) {
     return colIdxToName(c) + r;
+  }
+
+  function qualifiedRef(ref) {
+    const clean = String(ref).trim().replace(/\$/g, '');
+    const bang = clean.lastIndexOf('!');
+    if (bang < 0) return { sheetIndex: state.active, addr: clean };
+    const name = clean.slice(0, bang).replace(/^'|'$/g, '');
+    const index = state.book.sheets.findIndex(s => s.name === name);
+    return { sheetIndex: index >= 0 ? index : state.active, addr: clean.slice(bang + 1) };
+  }
+
+  function evaluateRef(ref, seen = new Set()) {
+    const parsed = qualifiedRef(ref), previous = state.active;
+    state.active = parsed.sheetIndex;
+    try { return evaluateCell(parsed.addr, seen); }
+    finally { state.active = previous; }
   }
 
   function getRangeBounds(cellA, cellB) {
@@ -151,6 +167,24 @@
   // STARTER TEMPLATES FOR LESSONS
   // ==========================================================================
   function applyStarterData(lessonId) {
+    const configured = state.lesson?.starter?.sheets;
+    if (Array.isArray(configured) && configured.length) {
+      state.book.sheets = configured.map(source => {
+        const cells = {};
+        (source.rows || []).forEach((row, r) => row.forEach((value, col) => {
+          if (value === '' || value == null) return;
+          cells[toCell(col + 1, r + 1)] = {
+            value, formula: '', style: r === 0 ? { bold: true, background: '#123525' } : {}
+          };
+        }));
+        return { name: source.name || 'Лист1', cells };
+      });
+      state.active = 0;
+      state.book.activeSheet = 0;
+      state.selected = 'A1';
+      state.selection = { start: 'A1', end: 'A1' };
+      return;
+    }
     const s = currentSheet();
     const set = (addr, val, bold = false) => {
       s.cells[addr] = { value: val, formula: '', style: bold ? { bold: true } : {} };
@@ -307,14 +341,16 @@
   function getRangeValues(ref, seen) {
     const parts = ref.split(':');
     if (parts.length === 1) {
-      const val = evaluateCell(parts[0].trim(), seen);
+      const val = evaluateRef(parts[0].trim(), seen);
       return [val];
     }
-    const b = getRangeBounds(parts[0].trim(), parts[1].trim());
+    const first = qualifiedRef(parts[0]), second = qualifiedRef(parts[1]);
+    const b = getRangeBounds(first.addr, second.addr);
+    const prefix = state.book.sheets[first.sheetIndex]?.name + '!';
     const out = [];
     for (let r = b.r1; r <= b.r2; r++) {
       for (let c = b.c1; c <= b.c2; c++) {
-        out.push(evaluateCell(toCell(c, r), new Set(seen)));
+        out.push(evaluateRef(prefix + toCell(c, r), new Set(seen)));
       }
     }
     return out;
@@ -388,6 +424,18 @@
         return countIfHelper(vals, crit);
       }
 
+      if (name === 'COUNTIFS') {
+        const ranges = [], criteria = [];
+        for (let i = 0; i < rawArgs.length; i += 2) {
+          ranges.push(getRangeValues(rawArgs[i], seen));
+          criteria.push(String(runFormula(rawArgs[i + 1], seen)).trim().replace(/^"|"$/g, ''));
+        }
+        const length = Math.min(...ranges.map(x => x.length));
+        let count = 0;
+        for (let i = 0; i < length; i++) if (ranges.every((r, n) => matchesCriteria(r[i], criteria[n]))) count++;
+        return count;
+      }
+
       // SUMIF(range, criteria, [sum_range])
       if (name === 'SUMIF') {
         const critVals = getRangeValues(rawArgs[0], seen);
@@ -400,6 +448,15 @@
           }
         }
         return sum;
+      }
+
+      if (name === 'SUMIFS') {
+        const sumValues = getRangeValues(rawArgs[0], seen), ranges = [], criteria = [];
+        for (let i = 1; i < rawArgs.length; i += 2) {
+          ranges.push(getRangeValues(rawArgs[i], seen));
+          criteria.push(String(runFormula(rawArgs[i + 1], seen)).trim().replace(/^"|"$/g, ''));
+        }
+        return sumValues.reduce((total, value, i) => total + (ranges.every((r, n) => matchesCriteria(r[i], criteria[n])) ? Number(value) || 0 : 0), 0);
       }
 
       // TEXT FUNCTIONS
@@ -437,15 +494,39 @@
       // VLOOKUP(lookup_value, table_array, col_index, [range_lookup])
       if (name === 'VLOOKUP') {
         const lookup = String(runFormula(rawArgs[0], seen)).trim();
-        const b = getRangeBounds(rawArgs[1].split(':')[0].trim(), rawArgs[1].split(':')[1].trim());
+        const rangeParts = rawArgs[1].split(':');
+        const first = qualifiedRef(rangeParts[0]), second = qualifiedRef(rangeParts[1]);
+        const b = getRangeBounds(first.addr, second.addr);
+        const prefix = state.book.sheets[first.sheetIndex]?.name + '!';
         const targetColIdx = (Number(runFormula(rawArgs[2], seen)) || 1) - 1;
         for (let r = b.r1; r <= b.r2; r++) {
-          const firstVal = String(evaluateCell(toCell(b.c1, r), seen)).trim();
+          const firstVal = String(evaluateRef(prefix + toCell(b.c1, r), seen)).trim();
           if (firstVal.toLowerCase() === lookup.toLowerCase()) {
-            return evaluateCell(toCell(b.c1 + targetColIdx, r), seen);
+            return evaluateRef(prefix + toCell(b.c1 + targetColIdx, r), seen);
           }
         }
         return '#N/A';
+      }
+
+      if (name === 'XLOOKUP') {
+        const lookup = String(runFormula(rawArgs[0], seen)).trim().toLowerCase();
+        const lookupValues = getRangeValues(rawArgs[1], seen);
+        const resultValues = getRangeValues(rawArgs[2], seen);
+        const idx = lookupValues.findIndex(x => String(x).trim().toLowerCase() === lookup);
+        return idx >= 0 ? resultValues[idx] : (rawArgs[3] ? runFormula(rawArgs[3], seen) : '#N/A');
+      }
+
+      if (name === 'MATCH') {
+        const lookup = String(runFormula(rawArgs[0], seen)).trim().toLowerCase();
+        const items = getRangeValues(rawArgs[1], seen);
+        const idx = items.findIndex(x => String(x).trim().toLowerCase() === lookup);
+        return idx >= 0 ? idx + 1 : '#N/A';
+      }
+
+      if (name === 'INDEX') {
+        const items = getRangeValues(rawArgs[0], seen);
+        const row = Number(runFormula(rawArgs[1], seen)) || 1;
+        return items[row - 1] ?? '#N/A';
       }
 
       // SUBTOTAL & RANK
@@ -926,12 +1007,22 @@
         state.book.activeSheet = state.active;
         renderGrid();
       };
+      b.ondblclick = () => {
+        const item = state.book.sheets[+b.dataset.sheet];
+        const name = prompt('Название листа', item.name)?.trim();
+        if (name && !state.book.sheets.some((s, i) => s.name === name && i !== +b.dataset.sheet)) {
+          commit(); item.name = name.slice(0, 31); renderSheets(); save();
+        }
+      };
     });
   }
 
   function addSheet() {
     commit();
-    state.book.sheets.push({ name: 'Лист' + (state.book.sheets.length + 1), cells: {} });
+    const fallback = 'Лист' + (state.book.sheets.length + 1);
+    const requested = prompt('Название нового листа', fallback)?.trim() || fallback;
+    const name = state.book.sheets.some(s => s.name === requested) ? fallback : requested.slice(0, 31);
+    state.book.sheets.push({ name, cells: {} });
     state.active = state.book.sheets.length - 1;
     state.book.activeSheet = state.active;
     renderGrid();
@@ -958,22 +1049,26 @@
     const entries = Object.entries(s.cells);
 
     if (name === 'sort') {
-      entries.sort((a, b) => String(a[1].value).localeCompare(String(b[1].value), 'ru', { numeric: true }));
-      mentor('Таблица отсортирована.');
+      const used = entries.map(([a]) => parseCell(a));
+      const maxRow = Math.max(1, ...used.map(x => x.r)), maxCol = Math.max(1, ...used.map(x => x.c));
+      const rows = [];
+      for (let r = 2; r <= maxRow; r++) rows.push(Array.from({ length: maxCol }, (_, i) => structuredClone(getCell(toCell(i + 1, r)))));
+      rows.sort((a, b) => String(a[0].value).localeCompare(String(b[0].value), 'ru', { numeric: true }));
+      rows.forEach((row, i) => row.forEach((value, j) => { s.cells[toCell(j + 1, i + 2)] = value; }));
+      mentor('Строки таблицы отсортированы по первому столбцу; заголовок сохранён.');
     }
     if (name === 'deduplicate') {
-      const seen = new Set();
-      let delCount = 0;
-      for (const [addr, c] of entries) {
-        const v = String(c.value).trim().toLowerCase();
-        if (v && seen.has(v)) {
-          delete s.cells[addr];
+      const used = entries.map(([a]) => parseCell(a));
+      const maxRow = Math.max(1, ...used.map(x => x.r)), maxCol = Math.max(1, ...used.map(x => x.c));
+      const seen = new Set(); let delCount = 0;
+      for (let r = 2; r <= maxRow; r++) {
+        const signature = Array.from({ length: maxCol }, (_, i) => String(getRaw(toCell(i + 1, r))).trim().toLowerCase()).join('\u241f');
+        if (signature && seen.has(signature)) {
+          for (let col = 1; col <= maxCol; col++) delete s.cells[toCell(col, r)];
           delCount++;
-        } else if (v) {
-          seen.add(v);
-        }
+        } else if (signature) seen.add(signature);
       }
-      mentor(`Удалено дубликатов: ${delCount}.`);
+      mentor(`Удалено полностью повторяющихся строк: ${delCount}.`);
     }
     if (name === 'remove_blanks') {
       let delCount = 0;
@@ -998,6 +1093,14 @@
     if (name === 'filter') {
       q('#eaGrid')?.classList.toggle('filtered');
       mentor('Режим фильтра переключен.');
+    }
+    if (name === 'conditional') {
+      const b = getRangeBounds(state.selection.start, state.selection.end);
+      for (let r = b.r1; r <= b.r2; r++) for (let c = b.c1; c <= b.c2; c++) {
+        const item = getCell(toCell(c, r));
+        item.style = { ...(item.style || {}), background: item.value in { '': 1, null: 1 } ? '#7f1d1d' : '#14532d' };
+      }
+      mentor('Условное оформление применено к выбранному диапазону.');
     }
 
     if (!state.book.operations.includes(name)) state.book.operations.push(name);
@@ -1095,7 +1198,7 @@
     state.stage = state.lesson.stage_id;
     restore();
 
-    q('#eaBadge').textContent = `ЭТАП ${state.stage} · УРОК ${state.lesson.number}`;
+    q('#eaBadge').textContent = `ЭТАП ${state.stage} · УРОК ${state.lesson.number} · ${state.lesson.level || 'Практика'}`;
     q('#eaTitle').textContent = state.lesson.title;
     q('#eaSummary').textContent = state.lesson.summary;
     q('#eaTheory').textContent = state.lesson.theory;
