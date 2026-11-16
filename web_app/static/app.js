@@ -66,6 +66,7 @@ const currentLabel = $('#currentModuleLabel');
 let isTransitioning = false;
 
 function openModule(modId, label) {
+  window.BahonIQVoice?.stop();
   const target = $('#' + modId);
   if (!target) return;
   if (currentLabel) currentLabel.textContent = label || modId.toUpperCase();
@@ -97,6 +98,7 @@ function openModule(modId, label) {
 }
 
 function returnToDashboard() {
+  window.BahonIQVoice?.stop();
   modHost.classList.add('hidden');
   modHost.classList.remove('panorama-in', 'panorama-out');
   $$('.module-page').forEach(p => p.classList.remove('active'));
@@ -550,10 +552,41 @@ $('#excelForm')?.addEventListener('submit', async e => {
 });
 
 function showPlan(html) {
-  $('#planContent').className = '';
-  $('#planContent').innerHTML = html;
-  document.querySelector('[data-tab="excelPlan"]').click();
+  window.BahonIQVoice?.stop();
+  const planEl = $('#planContent');
+  if (planEl) {
+    planEl.className = '';
+    planEl.innerHTML = html;
+    const barWrap = document.createElement('div');
+    barWrap.id = 'excelPlanVoiceBar';
+    barWrap.className = 'excel-plan-voice-bar';
+    planEl.prepend(barWrap);
+    window.BahonIQVoice?.createVoiceBar({
+      container: barWrap,
+      moduleId: 'excel',
+      labelText: 'Озвучить план',
+      showAutoSpeak: true,
+      getText: () => planEl.innerText || ''
+    });
+    window.BahonIQVoice?.autoSpeakIfEnabled(planEl.innerText || '', 'excel');
+  }
+  document.querySelector('[data-tab="excelPlan"]')?.click();
 }
+
+// Excel AI Voice Input Integration
+setTimeout(() => {
+  const instrInput = document.getElementById('excelInstruction');
+  if (instrInput && !document.getElementById('excelInputVoiceBar')) {
+    const barWrap = document.createElement('div');
+    barWrap.id = 'excelInputVoiceBar';
+    instrInput.insertAdjacentElement('afterend', barWrap);
+    window.BahonIQVoice?.createVoiceBar({
+      container: barWrap,
+      moduleId: 'excel',
+      inputEl: instrInput
+    });
+  }
+}, 100);
 
 async function executeExcel() {
   const b = $('#executePlan'), fd = new FormData();
@@ -707,6 +740,7 @@ $('#ticketForm')?.addEventListener('submit', async e => {
       if (doneData.title) titleInput.value = doneData.title;
       if (doneData.description) descInput.value = doneData.description;
       showResult(resPanel, '✅ Заявка сформирована BahonIQ AI (мгновенный стриминг).');
+      window.BahonIQVoice?.autoSpeakIfEnabled(`${titleInput.value}. ${descInput.value}`, 'ticket');
     },
     async (err) => {
       try {
@@ -714,6 +748,7 @@ $('#ticketForm')?.addEventListener('submit', async e => {
         titleInput.value = data.title || '';
         descInput.value = data.description || '';
         showResult(resPanel, 'Заявка сформирована BahonIQ AI.');
+        window.BahonIQVoice?.autoSpeakIfEnabled(`${titleInput.value}. ${descInput.value}`, 'ticket');
       } catch (fbErr) {
         showResult(resPanel, esc(fbErr.message || err.message), true);
       } finally {
@@ -722,6 +757,34 @@ $('#ticketForm')?.addEventListener('submit', async e => {
     }
   );
 });
+
+// Ticket Writer Voice Integration
+setTimeout(() => {
+  const probInput = document.getElementById('ticketProblem');
+  if (probInput && !document.getElementById('ticketInputVoiceBar')) {
+    const barWrap = document.createElement('div');
+    barWrap.id = 'ticketInputVoiceBar';
+    probInput.insertAdjacentElement('afterend', barWrap);
+    window.BahonIQVoice?.createVoiceBar({
+      container: barWrap,
+      moduleId: 'ticket',
+      inputEl: probInput
+    });
+  }
+  const copyBtn = document.getElementById('copyTicket');
+  if (copyBtn && !document.getElementById('ticketOutputVoiceBar')) {
+    const barWrap = document.createElement('div');
+    barWrap.id = 'ticketOutputVoiceBar';
+    copyBtn.insertAdjacentElement('afterend', barWrap);
+    window.BahonIQVoice?.createVoiceBar({
+      container: barWrap,
+      moduleId: 'ticket',
+      labelText: 'Озвучить заявку',
+      showAutoSpeak: true,
+      getText: () => `${$('#ticketTitle')?.value || ''}. ${$('#ticketDescription')?.value || ''}`
+    });
+  }
+}, 100);
 
 $('#copyTicket')?.addEventListener('click', async () => {
   const text = `${$('#ticketTitle').value}\n\n${$('#ticketDescription').value}`.trim();
@@ -1787,6 +1850,8 @@ convertForm?.addEventListener('submit', async e => {
       if (answerContent) {
         answerContent.innerHTML = formatRichText(lastRawAnswer);
       }
+      window.BahonIQVoice?.stop();
+      window.BahonIQVoice?.autoSpeakIfEnabled(lastRawAnswer, 'wiki');
 
       const sources = data.sources || [];
       if (sources.length && sourcesList && sourcesWrap) {
@@ -1830,6 +1895,42 @@ convertForm?.addEventListener('submit', async e => {
   copyAnswerBtn?.addEventListener('click', () => {
     copyText(lastRawAnswer, copyAnswerBtn);
   });
+
+  // Platonus Wiki AI Voice Integration
+  setTimeout(() => {
+    if (questionInput && !document.getElementById('wikiQuestionVoiceBar')) {
+      const qBarWrap = document.createElement('div');
+      qBarWrap.id = 'wikiQuestionVoiceBar';
+      if (askBtn) {
+        askBtn.insertAdjacentElement('beforebegin', qBarWrap);
+      } else {
+        questionInput.insertAdjacentElement('afterend', qBarWrap);
+      }
+      window.BahonIQVoice?.createVoiceBar({
+        container: qBarWrap,
+        moduleId: 'wiki',
+        inputEl: questionInput
+      });
+    }
+
+    if (answerBox && !document.getElementById('wikiAnswerVoiceBar')) {
+      const ansBarWrap = document.createElement('div');
+      ansBarWrap.id = 'wikiAnswerVoiceBar';
+      const ansBar = answerBox.querySelector('.wiki-answer-bar');
+      if (ansBar) {
+        ansBar.appendChild(ansBarWrap);
+      } else {
+        answerBox.prepend(ansBarWrap);
+      }
+      window.BahonIQVoice?.createVoiceBar({
+        container: ansBarWrap,
+        moduleId: 'wiki',
+        labelText: 'Озвучить ответ',
+        showAutoSpeak: true,
+        getText: () => lastRawAnswer || answerContent?.innerText || ''
+      });
+    }
+  }, 100);
 
   sourcesList?.addEventListener('click', (e) => {
     const btn = e.target.closest('.wiki-source-link');
@@ -2111,6 +2212,7 @@ convertForm?.addEventListener('submit', async e => {
 
   // 2. Открытие конкретного урока (генерация уникального микроурока через Gemini Flash в реальном времени)
   async function openLesson(lessonId, forceRefresh = false) {
+    window.BahonIQVoice?.stop();
     try {
       if (lessonTitle) lessonTitle.textContent = 'ИИ формирует урок под тему...';
       if (lessonSummary) lessonSummary.textContent = 'BahonIQ AI подготавливает уникальные микрошаги и задачу...';
@@ -2357,8 +2459,52 @@ convertForm?.addEventListener('submit', async e => {
     }
 
     trainerFeed.innerHTML = html;
+    
+    // Code Academy Voice Output & Auto-speak
+    const vBar = document.createElement('div');
+    vBar.id = 'acadVoiceBarFeed';
+    vBar.className = 'acad-voice-bar-wrap';
+    trainerFeed.prepend(vBar);
+    window.BahonIQVoice?.createVoiceBar({
+      container: vBar,
+      moduleId: 'code',
+      labelText: 'Озвучить тренера',
+      showAutoSpeak: true,
+      getText: () => {
+        const bubbles = trainerFeed.querySelectorAll('.acad-msg-trainer');
+        if (bubbles.length) {
+          return bubbles[bubbles.length - 1].innerText || '';
+        }
+        return '';
+      }
+    });
+
+    const trainerBubbles = trainerFeed.querySelectorAll('.acad-msg-trainer');
+    if (trainerBubbles.length > 0) {
+      const latestMsg = trainerBubbles[trainerBubbles.length - 1].innerText || '';
+      window.BahonIQVoice?.autoSpeakIfEnabled(latestMsg, 'code');
+    }
+
     trainerFeed.scrollTop = trainerFeed.scrollHeight;
   }
+
+  // Code Academy Step 1 Microphone Dictation
+  setTimeout(() => {
+    if (step1Input && !document.getElementById('acadStep1VoiceBar')) {
+      const vWrap = document.createElement('div');
+      vWrap.id = 'acadStep1VoiceBar';
+      if (submitStep1Btn) {
+        submitStep1Btn.insertAdjacentElement('beforebegin', vWrap);
+      } else {
+        step1Input.insertAdjacentElement('afterend', vWrap);
+      }
+      window.BahonIQVoice?.createVoiceBar({
+        container: vWrap,
+        moduleId: 'code',
+        inputEl: step1Input
+      });
+    }
+  }, 100);
 
   // Кнопка регенерации примера от ИИ
   if (regenAiBtn) {

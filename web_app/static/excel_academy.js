@@ -1206,6 +1206,23 @@
     q('#eaSteps').innerHTML = state.lesson.steps.map(x => `<li>${esc(x)}</li>`).join('');
     q('#eaMentorFeed').innerHTML = '<p>ИИ-наставник видит вашу рабочую книгу, формулы и действия. Начните выполнять шаг за шагом!</p>';
 
+    window.BahonIQVoice?.stop();
+    let eaLearnVoice = q('#eaLearnVoiceBar');
+    if (!eaLearnVoice) {
+      eaLearnVoice = document.createElement('div');
+      eaLearnVoice.id = 'eaLearnVoiceBar';
+      q('#eaSteps')?.insertAdjacentElement('afterend', eaLearnVoice);
+    }
+    if (eaLearnVoice) {
+      eaLearnVoice.innerHTML = '';
+      window.BahonIQVoice?.createVoiceBar({
+        container: eaLearnVoice,
+        moduleId: 'excel',
+        labelText: 'Озвучить урок',
+        getText: () => `Главная идея: ${state.lesson.theory}. Задание: ${state.lesson.task}. Порядок работы: ${state.lesson.steps.join('. ')}`
+      });
+    }
+
     renderLessons();
     renderGrid();
     setStep('learn');
@@ -1241,6 +1258,25 @@
     q('#eaComplete').classList.toggle('hidden', !d.passed);
     setStep('review');
     mentor(d.passed ? 'Отлично! Задание выполнено верно. Нажмите «Завершить урок».' : 'Не все пункты выполнены. Нажмите «Вернуться к таблице» и исправьте.');
+
+    let eaReviewVoice = q('#eaReviewVoiceBar');
+    if (!eaReviewVoice) {
+      eaReviewVoice = document.createElement('div');
+      eaReviewVoice.id = 'eaReviewVoiceBar';
+      q('#eaResults')?.insertAdjacentElement('afterend', eaReviewVoice);
+    }
+    if (eaReviewVoice) {
+      eaReviewVoice.innerHTML = '';
+      window.BahonIQVoice?.createVoiceBar({
+        container: eaReviewVoice,
+        moduleId: 'excel',
+        labelText: 'Озвучить результат',
+        getText: () => {
+          const resText = `Результат проверки: ${d.score}%. ` + (d.passed ? 'Урок выполнен успешно!' : 'Есть невыполненные условия: ') + d.results.map(r => r.message).join('. ');
+          return resText;
+        }
+      });
+    }
   }
 
   function mentor(t) {
@@ -1258,6 +1294,7 @@
       body: JSON.stringify({ question, workbook: state.book })
     });
     mentor(d.answer);
+    window.BahonIQVoice?.autoSpeakIfEnabled(d.answer, 'excel');
     q('#eaQuestion').value = '';
   }
 
@@ -1338,6 +1375,25 @@
     q('#eaImport').onchange = e => e.target.files[0] && importXlsx(e.target.files[0]);
     q('#eaExport').onclick = exportXlsx;
     q('#eaChartClose').onclick = () => q('#eaChartModal')?.classList.remove('open');
+
+    // BahonIQ Voice v1 — Mentor Voice Bar & Microphone Dictation
+    let eaMentorVoice = q('#eaMentorVoiceBar');
+    if (!eaMentorVoice && q('#eaQuestion')) {
+      eaMentorVoice = document.createElement('div');
+      eaMentorVoice.id = 'eaMentorVoiceBar';
+      q('#eaQuestion').insertAdjacentElement('beforebegin', eaMentorVoice);
+      window.BahonIQVoice?.createVoiceBar({
+        container: eaMentorVoice,
+        moduleId: 'excel',
+        inputEl: '#eaQuestion',
+        showAutoSpeak: true,
+        labelText: 'Озвучить наставника',
+        getText: () => {
+          const pList = qa('#eaMentorFeed p');
+          return pList.length ? pList[pList.length - 1].textContent : '';
+        }
+      });
+    }
   }
 
   // Initial loader
