@@ -171,11 +171,28 @@ def _phonebook() -> sqlite3.Connection:
             mobile TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT ''
         )
     """)
-    if connection.execute("SELECT COUNT(*) FROM contacts").fetchone()[0] == 0:
-        connection.executemany(
-            "INSERT INTO contacts (department,position,name,location,city_phone,extension,mobile,email) VALUES (?,?,?,?,?,?,?,?)",
-            SEED_CONTACTS,
-        )
+    connection.execute("CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    cur_v = (connection.execute("SELECT value FROM app_meta WHERE key='seed_version'").fetchone() or ("0",))[0]
+    try:
+        cur_int = int(cur_v)
+    except Exception:
+        cur_int = 0
+    if cur_int < 4:
+        for contact in SEED_CONTACTS:
+            existing = connection.execute(
+                "SELECT id FROM contacts WHERE lower(name) = lower(?)", (contact[2],)
+            ).fetchone()
+            if existing:
+                connection.execute(
+                    "UPDATE contacts SET department=?, position=?, location=?, city_phone=?, extension=?, mobile=?, email=? WHERE id=?",
+                    (contact[0], contact[1], contact[3], contact[4], contact[5], contact[6], contact[7], existing[0])
+                )
+            else:
+                connection.execute(
+                    "INSERT INTO contacts (department, position, name, location, city_phone, extension, mobile, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    contact,
+                )
+        connection.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('seed_version', '4')")
         connection.commit()
     return connection
 
