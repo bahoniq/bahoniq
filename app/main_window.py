@@ -1423,9 +1423,13 @@ class MainWindow:
     # ========================================================
 
     def open_all_systems(self):
-        """Открыть все системы из SYSTEMS в браузере."""
-        for icon, name, url in SYSTEMS:
-            self.open_url(url)
+        """Открыть все системы из SYSTEMS в браузере с интервалом, чтобы ОС не отсекала вызовы."""
+        import threading, time
+        def _runner():
+            for icon, name, url in SYSTEMS:
+                self.open_url(url)
+                time.sleep(0.25)
+        threading.Thread(target=_runner, daemon=True).start()
 
     # ========================================================
     # OPEN TOOL

@@ -147,17 +147,77 @@ document.addEventListener('click', (e) => {
   openModule(modId, name);
 });
 
+// Модальное окно при блокировке браузером множественного открытия вкладок
+function showPopupNoticeModal(systems) {
+  let modal = document.getElementById('popupNoticeModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'popupNoticeModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;z-index:999999;backdrop-filter:blur(5px);padding:16px;';
+    modal.innerHTML = `
+      <div style="background:#0F1D33;border:1px solid #1E3352;border-radius:14px;max-width:520px;width:100%;padding:24px;color:#F8FAFC;box-shadow:0 20px 40px rgba(0,0,0,0.5);font-family:sans-serif;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="margin:0;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;">
+            <span style="color:#F59E0B;font-size:18px;">⚡</span> Запуск всех систем в браузере
+          </h3>
+          <button id="closePopupNoticeBtn" style="background:transparent;border:none;color:#A9BDD3;font-size:18px;cursor:pointer;padding:4px 8px;">✕</button>
+        </div>
+        <div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.5;color:#F8FAFC;margin-bottom:14px;">
+          <strong>Браузер заблокировал открытие остальных вкладок!</strong><br/>
+          Защита Chrome и Edge по умолчанию открывает только 1 вкладку за клик (поэтому открылся только Platonus).
+        </div>
+        <div style="font-size:13px;color:#CBD5E1;margin-bottom:14px;line-height:1.55;">
+          <strong style="color:#00E5FF;">Как включить открытие всех 6 вкладок в 1 клик:</strong><br/>
+          1. Посмотрите в адресную строку браузера (справа) — там появился значок <strong>🚫 «Всплывающие окна заблокированы»</strong>.<br/>
+          2. Кликните по нему и выберите <strong>«Всегда разрешать всплывающие окна для bahoniq.onrender.com»</strong> ➔ нажмите <strong>«Готово»</strong>.<br/>
+          3. Нажмите кнопку «Открыть все системы» снова — откроются <strong>все 6 систем одновременно</strong>!
+        </div>
+        <div style="font-size:11.5px;font-weight:800;text-transform:uppercase;color:#647D96;letter-spacing:0.05em;margin-bottom:8px;">Или откройте нужные системы прямо сейчас:</div>
+        <div id="popupSystemsGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.querySelector('#closePopupNoticeBtn').onclick = () => modal.remove();
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  }
+
+  const grid = modal.querySelector('#popupSystemsGrid');
+  grid.innerHTML = systems.map(s => `
+    <a href="${s.url}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;background:#13233E;border:1px solid #1E3352;padding:9px 12px;border-radius:8px;color:#F8FAFC;text-decoration:none;font-size:12.5px;font-weight:600;transition:background 0.15s;" onmouseover="this.style.background='#163B5C'" onmouseout="this.style.background='#13233E'">
+      <span>${s.icon}</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.name}</span>
+    </a>
+  `).join('');
+
+  modal.style.display = 'flex';
+}
+
 // Кнопка "Открыть все системы"
 $('#openAllSystems')?.addEventListener('click', () => {
-  const urls = [
-    "https://platonus.kaznmu.edu.kz/",
-    "https://support.platonus.kz/",
-    "https://web.telegram.org/",
-    "https://web.whatsapp.com/",
-    "https://mail.google.com/mail/u/0/#inbox",
-    "https://salemoffice.kaznmu.edu.kz/sign-in"
+  const systems = [
+    { name: "Platonus", icon: "🎓", url: "https://platonus.kaznmu.edu.kz/" },
+    { name: "Поддержка Platonus", icon: "🛡", url: "https://support.platonus.kz/" },
+    { name: "Telegram Web", icon: "✈️", url: "https://web.telegram.org/" },
+    { name: "WhatsApp Web", icon: "💬", url: "https://web.whatsapp.com/" },
+    { name: "Gmail", icon: "✉️", url: "https://mail.google.com/mail/u/0/#inbox" },
+    { name: "Salem Office", icon: "🏢", url: "https://salemoffice.kaznmu.edu.kz/sign-in" }
   ];
-  urls.forEach(u => window.open(u, '_blank'));
+
+  let blockedCount = 0;
+  systems.forEach((s) => {
+    try {
+      const w = window.open(s.url, '_blank');
+      if (!w || w.closed || typeof w.closed === 'undefined') {
+        blockedCount++;
+      }
+    } catch (e) {
+      blockedCount++;
+    }
+  });
+
+  if (blockedCount > 0) {
+    showPopupNoticeModal(systems);
+  }
 });
 
 // Проверка прямого хэша в URL (например #tickets или #reconcile)
