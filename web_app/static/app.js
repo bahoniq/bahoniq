@@ -1249,6 +1249,51 @@ recForm?.addEventListener('submit', async e => {
   }
 });
 
+// Конвертер XLS в XLSX
+const convertForm = $('#convertXlsForm');
+const convertInput = $('#convertXlsInput');
+const convertBtn = $('#convertXlsBtn');
+const convertResult = $('#convertXlsResult');
+
+convertForm?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const file = convertInput?.files[0];
+  if (!file) {
+    alert('Пожалуйста, выберите файл .xls');
+    return;
+  }
+  setBusy(convertBtn, true, 'Конвертация в XLSX…');
+  if (convertResult) convertResult.classList.add('hidden');
+
+  const fd = new FormData();
+  fd.append('workbook', file);
+
+  try {
+    const data = await api('/api/excel/convert-xls', { method: 'POST', body: fd });
+    if (convertResult) {
+      convertResult.className = 'result-panel';
+      convertResult.innerHTML = `
+        <div style="background:rgba(0,230,118,0.08);border:1px solid rgba(0,230,118,0.3);border-radius:10px;padding:16px;">
+          <h3 style="margin:0 0 8px;color:var(--green-neon);font-size:16px;">✓ Файл успешно сконвертирован!</h3>
+          <p style="margin:0 0 12px;font-size:13px;color:var(--text-main);">
+            Файл <b>${esc(data.filename)}</b> готов в современном формате XLSX со всеми листами и данными.
+          </p>
+          <a class="button primary" href="${data.download_url}" style="display:inline-block;padding:8px 18px;text-decoration:none;">Скачать ${esc(data.filename)}</a>
+        </div>
+      `;
+      convertResult.classList.remove('hidden');
+    }
+  } catch (err) {
+    if (convertResult) {
+      convertResult.className = 'result-panel error';
+      convertResult.textContent = err.message;
+      convertResult.classList.remove('hidden');
+    }
+  } finally {
+    setBusy(convertBtn, false);
+  }
+});
+
 
 // Выдвижное меню систем (мобильная версия)
 (function () {

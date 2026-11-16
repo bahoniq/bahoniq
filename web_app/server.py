@@ -504,6 +504,51 @@ async def excel_inspect(workbook: UploadFile = File(...)):
         shutil.rmtree(directory, ignore_errors=True)
 
 
+@app.post("/api/excel/convert-xls")
+async def excel_convert_xls(workbook: UploadFile = File(...)):
+    """Мгновенная конвертация старого файла XLS (Excel 97-2003) в современный XLSX в 1 клик."""
+    directory = Path(tempfile.mkdtemp(prefix="bahoniq_convert_"))
+    try:
+        raw_name = Path(workbook.filename or "file.xls").name
+        if Path(raw_name).suffix.lower() != ".xls":
+            raise HTTPException(400, "Для конвертации выберите файл старого формата .xls (Excel 97-2003).")
+        source = directory / raw_name
+        size = 0
+        with source.open("wb") as stream:
+            while chunk := await workbook.read(1024 * 1024):
+                size += len(chunk)
+                if size > MAX_UPLOAD:
+                    raise HTTPException(413, "Файл превышает 50 МБ.")
+                stream.write(chunk)
+        if not size:
+            raise HTTPException(400, "Загружен пустой файл.")
+
+        out_name = source.stem + ".xlsx"
+        destination = directory / out_name
+        from .modules.excel_ai.converter import convert_xls_to_xlsx
+        await run_in_threadpool(convert_xls_to_xlsx, source, destination)
+
+        token = uuid.uuid4().hex
+        with _lock:
+            _sessions[token] = {
+                "kind": "excel",
+                "created": time.time(),
+                "directory": directory,
+                "output": destination,
+            }
+        return {
+            "status": "ready",
+            "download_url": f"/api/download/{token}",
+            "filename": out_name,
+        }
+    except HTTPException:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
+    except Exception as exc:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise HTTPException(400, f"Ошибка конвертации XLS: {exc}") from exc
+
+
 @app.post("/api/excel/execute")
 async def excel_execute(
     session_id: str = Form(...),
