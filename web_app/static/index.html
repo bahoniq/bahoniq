@@ -16,6 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/app.css?v=20261116_academy_v4">
+  <link rel="stylesheet" href="/assets/design_academy.css?v=20261116_1">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
@@ -339,6 +340,20 @@
               <div class="tool-meta">
                 <div class="tool-name">Code Academy</div>
                 <div class="tool-desc">Практическое обучение программированию на Python, SQL-запросам и архитектуре ПО.</div>
+              </div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
+            </div>
+
+            <!-- 11. Design Academy Studio -->
+            <div class="tool-tile" data-open="designAcademy">
+              <div class="tool-icon icon-design">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19 7-7 3 3-7 7-3-3Z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+              </div>
+              <div class="tool-meta">
+                <div class="tool-name">Design Academy Studio</div>
+                <div class="tool-desc">Пошаговое обучение дизайну интерфейсов и векторной графике с ИИ-наставником.</div>
               </div>
               <div class="tool-arrow" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
@@ -690,6 +705,47 @@
             </div>
           </section>
 
+          <!-- DESIGN ACADEMY STUDIO -->
+          <section id="designAcademy" class="module-page design-academy">
+            <div class="das-header card">
+              <div><h1>Design Academy Studio <span class="das-ai-pill">AI-наставник • 24/7</span></h1><p>Интерактивное обучение UI/UX-дизайну и векторной графике: объяснение, практика, проверка и проекты.</p></div>
+              <div class="das-progress"><span>Прогресс курса</span><strong id="dasProgressText">0 / 72 (0%)</strong><div><i id="dasProgressFill"></i></div></div>
+            </div>
+            <div id="dasStages" class="das-stages"></div>
+            <div class="das-workspace">
+              <aside class="card das-lessons-panel">
+                <div class="das-panel-title"><span id="dasStageTitle">ЭТАП 1</span><b id="dasStageCount">0/12</b></div>
+                <input id="dasLessonSearch" type="search" placeholder="Поиск урока...">
+                <div id="dasLessonList" class="das-lesson-list"></div>
+              </aside>
+              <main class="card das-studio">
+                <header class="das-lesson-head">
+                  <div><small id="dasLessonBadge">ЭТАП 1 · УРОК 1</small><h2 id="dasLessonTitle">Загрузка...</h2><p id="dasLessonSummary"></p></div>
+                  <div class="das-step-tabs"><button class="active" data-das-step="learn">1 Изучение</button><button data-das-step="practice">2 Практика</button><button data-das-step="review">3 Проверка</button></div>
+                </header>
+                <div id="dasLearnPanel" class="das-learn-panel"><h3>Главная идея</h3><p id="dasTheory"></p><div class="das-task"><b>Задание</b><p id="dasTask"></p></div><button class="button primary" id="dasStartPractice" type="button">Перейти к практике →</button></div>
+                <div id="dasEditorPanel" class="das-editor-panel hidden">
+                  <div class="das-toolbar">
+                    <button data-das-tool="select" class="active" title="Выбор">↖</button><button data-das-tool="frame">Фрейм</button><button data-das-tool="rectangle">▭</button><button data-das-tool="ellipse">○</button><button data-das-tool="line">╱</button><button data-das-tool="text">T</button>
+                    <span></span><button id="dasUndo" title="Отменить">↶</button><button id="dasRedo" title="Вернуть">↷</button><button id="dasGroup" title="Группировать">Группа</button><button id="dasDelete" title="Удалить">Удалить</button><button id="dasSave" title="Сохранить">Сохранить</button><button id="dasExport" title="Экспорт SVG">SVG</button>
+                  </div>
+                  <div class="das-editor-grid">
+                    <aside class="das-layers"><h4>Слои</h4><div id="dasLayers"></div></aside>
+                    <div class="das-canvas-wrap"><svg id="dasCanvas" viewBox="0 0 900 560" aria-label="Учебный холст"><defs><pattern id="dasGrid" width="16" height="16" patternUnits="userSpaceOnUse"><path d="M16 0H0V16" fill="none" stroke="currentColor" stroke-opacity=".08"/></pattern></defs><rect width="900" height="560" fill="url(#dasGrid)" class="das-grid-bg"/><g id="dasOverlay"></g><g id="dasObjects"></g></svg></div>
+                    <aside class="das-properties"><h4>Свойства</h4><div id="dasNoSelection">Выберите объект на холсте</div><div id="dasPropertyForm" class="hidden">
+                      <label>Название<input id="dasPropName"></label><div class="das-prop-row"><label>X<input id="dasPropX" type="number"></label><label>Y<input id="dasPropY" type="number"></label></div><div class="das-prop-row"><label>Ширина<input id="dasPropW" type="number" min="1"></label><label>Высота<input id="dasPropH" type="number" min="1"></label></div><label>Заливка<input id="dasPropFill" type="color"></label><label>Обводка<input id="dasPropStroke" type="color"></label><div class="das-prop-row"><label>Радиус<input id="dasPropRadius" type="number" min="0"></label><label>Прозрачность<input id="dasPropOpacity" type="number" min="0" max="100"></label></div><label id="dasTextProperty" class="hidden">Текст<textarea id="dasPropText" rows="3"></textarea></label>
+                    </div></aside>
+                  </div>
+                  <div class="das-editor-footer"><span id="dasAutosaveStatus">Изменения сохраняются локально</span><button id="dasShowReference" class="button secondary" type="button">Показать эталон</button><button id="dasValidate" class="button primary" type="button">Проверить работу</button></div>
+                </div>
+                <div id="dasReviewPanel" class="das-review hidden"><div id="dasScore" class="das-score">0%</div><div><h3>Результат проверки</h3><div id="dasResults"></div><button id="dasComplete" class="button primary hidden" type="button">Завершить урок</button></div></div>
+              </main>
+              <aside id="dasMentor" class="card das-mentor">
+                <header><div><b>ИИ-наставник</b><span id="dasMentorProvider">Контекст урока подключён</span></div></header><div id="dasMentorFeed" class="das-mentor-feed"><p>Я помогу найти ошибку и подскажу следующий шаг, но не буду выполнять работу вместо вас.</p></div><select id="dasMentorMode"><option value="hint">Дай подсказку</option><option value="explain">Объясни проще</option><option value="error">Найди ошибку</option><option value="review">Оцени работу</option></select><textarea id="dasMentorQuestion" rows="2" placeholder="Спросите наставника..."></textarea><button id="dasMentorAsk" class="button primary" type="button">Спросить наставника</button>
+              </aside>
+            </div>
+          </section>
+
           <!-- ЗАМЕТКИ -->
           <section id="notes" class="module-page">
             <div class="page-heading">
@@ -910,6 +966,7 @@
   </div>
 
   <script src="/assets/app.js?v=20261116_academy_v4"></script>
+  <script src="/assets/design_academy.js?v=20261116_1"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

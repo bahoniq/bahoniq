@@ -1,0 +1,1 @@
+"""Тесты Design Academy Studio."""

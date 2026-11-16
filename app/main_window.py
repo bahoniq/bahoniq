@@ -783,6 +783,7 @@ class MainWindow:
             ("▥", "ANALYTICS AI", "Отчёты, аналитика и презентации", "#245E8A"),
             ("☎", "Телефонный справочник", "Внутренние номера и контакты", "#3A8D7C"),
             ("⌘", "Code Academy", "Python, SQL и архитектура BahonIQ", "#7354A5"),
+            ("🎨", "Design Academy Studio", "UI/UX дизайн и векторная графика", "#E879F9"),
         ]
 
         self.tool_cards = []
@@ -1447,6 +1448,10 @@ class MainWindow:
         if name == "Code Academy":
             from modules.code_academy import open_code_academy
             open_code_academy(self.root)
+            return
+
+        if name == "Design Academy Studio":
+            self.open_url("https://bahoniq.onrender.com/#designAcademy")
             return
 
         if name == "Телефонный справочник":
