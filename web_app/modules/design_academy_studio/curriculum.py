@@ -21,10 +21,18 @@ STAGES = [
 
 def _lesson(number: int, title: str, summary: str, theory: str, task: str, *, tool: str,
             checks: list[dict], starter: list[dict] | None = None) -> dict:
+    tool_names = {"frame": "Фрейм", "rectangle": "Прямоугольник", "ellipse": "Круг", "text": "Текст", "select": "Выбор"}
     return {
         "id": f"1-{number}", "stage_id": 1, "number": number, "title": title,
         "summary": summary, "theory": theory, "task": task, "tool": tool,
         "checks": checks, "starter": starter or [],
+        "steps": [
+            f"Выберите инструмент «{tool_names.get(tool, tool)}» на панели редактора.",
+            "Создайте объект на холсте и выделите его.",
+            "Введите точные значения из задания в панели «Свойства».",
+            "Сверьте тип объекта и его название в списке слоёв.",
+            "Нажмите «Проверить работу» и исправьте отмеченные пункты.",
+        ],
     }
 
 

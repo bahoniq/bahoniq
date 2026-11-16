@@ -2520,7 +2520,7 @@ recForm?.addEventListener('submit', async e => {
         }
         if (!res.ok) {
           const errData = await res.json().catch(() => null);
-          throw new Error(errData?.detail || errData?.error || 'Ошибка сервера при проверке теста');
+          throw new Error(errData?.detail || errData?.error || `Сервер временно недоступен (${res.status} ${res.statusText || 'проверьте соединение'})`);
         }
         const result = await res.json();
 

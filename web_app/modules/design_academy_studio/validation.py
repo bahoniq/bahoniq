@@ -21,7 +21,13 @@ def validate_document(document: dict[str, Any], checks: list[dict[str, Any]]) ->
             passed = len(items) >= int(rule.get("min", 1)); message = f"Объектов «{object_type}»: {len(items)}"
         elif kind == "size":
             passed = any(abs(float(x.get("width", 0))-rule["width"]) <= tol and abs(float(x.get("height", 0))-rule["height"]) <= tol for x in items)
-            message = f"Нужен объект {rule['width']} × {rule['height']} px"
+            wrong_type = next((x for x in _objects(document) if x.get("type") != object_type and abs(float(x.get("width", 0))-rule["width"]) <= tol and abs(float(x.get("height", 0))-rule["height"]) <= tol), None)
+            if not passed and wrong_type:
+                labels = {"frame": "Фрейм", "rectangle": "Прямоугольник", "ellipse": "Круг", "text": "Текст"}
+                message = f"Размер правильный, но создан «{labels.get(wrong_type.get('type'), wrong_type.get('type'))}». Выберите инструмент «{labels.get(object_type, object_type)}»"
+            else:
+                labels = {"frame": "Фрейм", "rectangle": "Прямоугольник", "ellipse": "Круг", "text": "Текст"}
+                message = f"Нужен «{labels.get(object_type, object_type)}» размером {rule['width']} × {rule['height']} px"
         elif kind == "geometry":
             keys = ("x", "y", "width", "height")
             passed = any(all(abs(float(x.get(k, 0))-float(rule[k])) <= tol for k in keys) for x in items)

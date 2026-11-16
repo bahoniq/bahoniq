@@ -186,7 +186,9 @@ def _phonebook() -> sqlite3.Connection:
         cur_int = int(cur_v)
     except Exception:
         cur_int = 0
-    if cur_int < 4:
+    if cur_int < 5:
+        # Очищаем возможные дубликаты студенческой канцелярии перед обновлением
+        connection.execute("DELETE FROM contacts WHERE department LIKE '%05-01-05%'")
         for contact in SEED_CONTACTS:
             existing = connection.execute(
                 "SELECT id FROM contacts WHERE lower(name) = lower(?)", (contact[2],)
@@ -201,7 +203,7 @@ def _phonebook() -> sqlite3.Connection:
                     "INSERT INTO contacts (department, position, name, location, city_phone, extension, mobile, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     contact,
                 )
-        connection.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('seed_version', '4')")
+        connection.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('seed_version', '5')")
         connection.commit()
     return connection
 

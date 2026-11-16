@@ -477,40 +477,50 @@ async def academy_quiz_submit_post(request: Request):
     if not quiz_items:
         raise HTTPException(400, "Для данного урока тест не настроен.")
 
-    score = 0
-    detailed: list[dict[str, Any]] = []
-    for idx, q in enumerate(quiz_items):
-        user_choice = answers.get(str(idx))
-        if user_choice is None:
-            user_choice = answers.get(idx)
-        user_choice_int = int(user_choice) if user_choice is not None else -1
-        correct_idx = int(q.get("correct_index", 0))
-        is_correct = (user_choice_int == correct_idx)
-        if is_correct:
-            score += 1
-        detailed.append({
-            "question_index": idx,
-            "user_choice": user_choice_int,
-            "correct_index": correct_idx,
-            "is_correct": is_correct,
-            "explanation": q.get("explanation", ""),
-        })
+    try:
+        score = 0
+        detailed: list[dict[str, Any]] = []
+        for idx, q in enumerate(quiz_items):
+            user_choice = answers.get(str(idx))
+            if user_choice is None:
+                user_choice = answers.get(idx)
+            try:
+                user_choice_int = int(user_choice) if user_choice is not None else -1
+            except (ValueError, TypeError):
+                user_choice_int = -1
+            try:
+                correct_idx = int(q.get("correct_index", 0))
+            except (ValueError, TypeError):
+                correct_idx = 0
+            is_correct = (user_choice_int == correct_idx)
+            if is_correct:
+                score += 1
+            detailed.append({
+                "question_index": idx,
+                "user_choice": user_choice_int,
+                "correct_index": correct_idx,
+                "is_correct": is_correct,
+                "explanation": q.get("explanation", ""),
+            })
 
-    # Тест засчитывается при результате 4 из 5 или 5 из 5 (>= 80%)
-    passed = score >= 4
-    await run_in_threadpool(save_quiz_result, lesson_id, score, passed)
-    roadmap = await run_in_threadpool(get_roadmap_data)
+        # Тест засчитывается при результате 4 из 5 или 5 из 5 (>= 80%)
+        passed = score >= 4
+        await run_in_threadpool(save_quiz_result, lesson_id, score, passed)
+        roadmap = await run_in_threadpool(get_roadmap_data)
 
-    return {
-        "lesson_id": lesson_id,
-        "score": score,
-        "total": len(quiz_items),
-        "passed": passed,
-        "detailed": detailed,
-        "next_lesson_id": lesson.get("next_lesson_id"),
-        "next_lesson_title": lesson.get("next_lesson_title"),
-        "roadmap": roadmap,
-    }
+        return {
+            "lesson_id": lesson_id,
+            "score": score,
+            "total": len(quiz_items),
+            "passed": passed,
+            "detailed": detailed,
+            "next_lesson_id": lesson.get("next_lesson_id"),
+            "next_lesson_title": lesson.get("next_lesson_title"),
+            "roadmap": roadmap,
+        }
+    except Exception as exc:
+        LOGGER.exception("Failed to check academy quiz for lesson %s: %s", lesson_id, exc)
+        raise HTTPException(500, f"Ошибка при проверке теста на сервере: {exc}")
 
 
 @router.post("/mentor-ask")

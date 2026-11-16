@@ -26,32 +26,36 @@
   --modal-bg: rgba(8, 17, 30, 0.96);
 }
 
-/* Дневная тема (Soft Mist / Cool Slate — мягкая приглушённая палитра без резкого белого фона) */
+/* Дневная тема (Soft Mist / Cool Slate — спокойная серо-голубая гамма) */
 body.theme-day {
-  --bg-dark: #e6ecf2;
-  --bg-sidebar: #f8fafc;
-  --bg-card: #f4f7fa;
-  --bg-card-hover: #edf2f7;
-  --bg-input: #f8fafc;
-  --border: rgba(15, 23, 42, 0.09);
-  --border-focus: #0284c7;
-  --border-card-hover: rgba(2, 132, 199, 0.42);
-  
-  --text-main: #0f172a;
-  --text-muted: #475569;
-  --text-sub: #64748b;
-  
-  --green: #00873d;
-  --green-neon: #0d9488;
-  --cyan-neon: #0284c7;
-  --red: #dc2626;
-  --blue: #0284c7;
-  --purple: #7c3aed;
-  --yellow: #d97706;
-  
-  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 4px 14px rgba(15, 23, 42, 0.05);
-  --glow: rgba(2, 132, 199, 0.10);
-  --modal-bg: #f4f7fa;
+  --bg-dark: #CDD7E0;
+  --bg-sidebar: #DDE5EB;
+  --bg-card: #E7EDF2;
+  --bg-card-hover: #DEE7ED;
+  --bg-input: #DCE5EB;
+
+  --border: rgba(43, 64, 84, 0.16);
+  --border-focus: #087F8C;
+  --border-card-hover: rgba(8, 127, 140, 0.42);
+
+  --text-main: #172436;
+  --text-muted: #506176;
+  --text-sub: #66778A;
+
+  --green: #087F5B;
+  --green-neon: #0F8F88;
+  --cyan-neon: #087F8C;
+  --red: #C94A56;
+  --blue: #3973C6;
+  --purple: #7856B8;
+  --yellow: #B97822;
+
+  --card-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    0 5px 16px rgba(43, 64, 84, 0.10);
+
+  --glow: rgba(8, 127, 140, 0.06);
+  --modal-bg: #E3E9EE;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -86,18 +90,38 @@ button, .button, .tab, .sidebar-nav, .tool-icon, .table-scroll-btn, .sidebar-log
 }
 
 body.theme-day {
-  background-color: #e6ecf2;
+  background-color: #CDD7E0;
   background-image:
-    linear-gradient(to right, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
-    radial-gradient(1100px 700px at 82% 18%, rgba(2, 132, 199, 0.05), transparent 70%),
-    radial-gradient(900px 600px at 18% 78%, rgba(13, 148, 136, 0.04), transparent 70%);
-  background-size: 48px 48px, 48px 48px, 100% 100%, 100% 100%;
+    linear-gradient(
+      to right,
+      rgba(37, 63, 82, 0.025) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(37, 63, 82, 0.025) 1px,
+      transparent 1px
+    ),
+    radial-gradient(
+      1100px 700px at 82% 18%,
+      rgba(8, 127, 140, 0.035),
+      transparent 70%
+    ),
+    radial-gradient(
+      900px 600px at 18% 78%,
+      rgba(60, 100, 125, 0.025),
+      transparent 70%
+    );
+  background-size:
+    48px 48px,
+    48px 48px,
+    100% 100%,
+    100% 100%;
 }
 
 body.theme-day .sidebar-logo-img,
 body.theme-day .web-splash-logo {
-  filter: drop-shadow(0 6px 18px rgba(2, 132, 199, 0.28)) contrast(1.06) !important;
+  filter: drop-shadow(0 4px 12px rgba(8, 127, 140, 0.16)) !important;
 }
 
 /* Web Splash Screen */
@@ -125,6 +149,11 @@ body.theme-day .web-splash-logo {
 
 /* Sidebar — Сдержанная панель со стеклом и векторной навигацией */
 .sidebar {
+}
+body.theme-day .sidebar {
+  background-color: rgba(221, 229, 235, 0.97);
+  border-right-color: rgba(43, 64, 84, 0.14);
+
   width: 244px;
   background-color: var(--bg-sidebar);
   backdrop-filter: blur(24px);
@@ -170,8 +199,8 @@ body.theme-day .web-splash-logo {
 }
 
 body.theme-day .system-item {
-  background: rgba(15, 23, 42, 0.025);
-  border-color: rgba(15, 23, 42, 0.07);
+  background: rgba(43, 64, 84, 0.035);
+  border-color: rgba(43, 64, 84, 0.12);
 }
 
 .sys-icon {
@@ -189,9 +218,9 @@ body.theme-day .system-item {
 }
 
 body.theme-day .sys-icon {
-  background: rgba(13, 148, 136, 0.08);
-  border-color: rgba(13, 148, 136, 0.20);
-  color: #0D9488;
+  background: rgba(15, 143, 136, 0.08);
+  border-color: rgba(15, 143, 136, 0.20);
+  color: #0F8F88;
 }
 
 .sys-icon svg {
@@ -225,8 +254,9 @@ body.theme-day .sys-icon {
 }
 
 body.theme-day .system-item:hover {
-  color: var(--text-main);
-  border-color: rgba(13, 148, 136, 0.32);
+  background: #D2DDE5;
+  border-color: rgba(8, 127, 140, 0.30);
+  color: #172436;
 }
 
 .system-item:hover .sys-icon {
@@ -254,7 +284,7 @@ body.theme-day .system-item:hover {
 }
 
 body.theme-day .sidebar-footer {
-  border-top-color: rgba(15, 23, 42, 0.08);
+  border-top-color: rgba(43, 64, 84, 0.14);
 }
 
 .sidebar-logo-bottom {
@@ -282,6 +312,14 @@ body.theme-day .sidebar-footer {
   filter: drop-shadow(0 8px 26px rgba(0, 229, 255, 0.42));
 }
 
+body.theme-day .open-all-btn {
+  background: #C94A56;
+  box-shadow: 0 5px 14px rgba(150, 48, 62, 0.18);
+  color: #FFFFFF;
+}
+body.theme-day .open-all-btn:hover {
+  background: #B9404C;
+}
 .open-all-btn {
   width: 100%;
   background: linear-gradient(135deg, #E12D3C 0%, #C41E2C 100%);
@@ -341,6 +379,10 @@ body.theme-day .sidebar-footer {
 }
 
 /* Topbar — Лаконичный, только бренд и переключатель темы */
+body.theme-day .topbar {
+  background: rgba(227, 233, 238, 0.96);
+  border-bottom-color: rgba(43, 64, 84, 0.14);
+}
 .topbar {
   height: 56px;
   border-bottom: 1px solid var(--border);
@@ -365,6 +407,14 @@ body.theme-day .sidebar-footer {
   gap: 12px;
 }
 
+body.theme-day .theme-toggle-btn {
+  background: #D7E0E7;
+  border-color: rgba(43, 64, 84, 0.16);
+  color: #233449;
+}
+body.theme-day .theme-toggle-btn:hover {
+  border-color: #087F8C;
+}
 .theme-toggle-btn {
   display: inline-flex;
   align-items: center;
@@ -515,9 +565,14 @@ body.theme-day .welcome-accent {
               box-shadow 0.18s ease;
 }
 
-body.theme-day .tool-tile {
-  background: #f4f7fa;
-  border: 1px solid rgba(15, 23, 42, 0.09);
+body.theme-day .tool-tile,
+body.theme-day .card,
+body.theme-day .preview-card {
+  background: #E7EDF2;
+  border-color: rgba(43, 64, 84, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 5px 16px rgba(43, 64, 84, 0.09);
 }
 
 /* Деликатный светящийся блик курсора */
@@ -540,9 +595,10 @@ body.theme-day .tool-tile {
 }
 
 body.theme-day .tool-tile:hover {
-  background: #edf2f7;
-  border-color: rgba(2, 132, 199, 0.42);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+  background: #DEE7ED;
+  border-color: rgba(8, 127, 140, 0.35);
+  box-shadow:
+    0 7px 20px rgba(43, 64, 84, 0.12);
 }
 
 .tool-tile:hover::before {
@@ -585,11 +641,12 @@ body.theme-day .tool-tile:hover {
 .icon-red { background: rgba(239, 68, 68, 0.12); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.26); }
 .icon-amber { background: rgba(245, 158, 11, 0.12); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.26); }
 
-body.theme-day .icon-teal { background: rgba(13, 148, 136, 0.10); color: #0D9488; border-color: rgba(13, 148, 136, 0.25); }
-body.theme-day .icon-blue { background: rgba(37, 99, 235, 0.10); color: #2563EB; border-color: rgba(37, 99, 235, 0.25); }
-body.theme-day .icon-purple { background: rgba(124, 58, 237, 0.10); color: #7C3AED; border-color: rgba(124, 58, 237, 0.25); }
-body.theme-day .icon-red { background: rgba(220, 38, 38, 0.10); color: #DC2626; border-color: rgba(220, 38, 38, 0.25); }
-body.theme-day .icon-amber { background: rgba(217, 119, 6, 0.10); color: #D97706; border-color: rgba(217, 119, 6, 0.25); }
+body.theme-day .icon-teal { background: rgba(15, 143, 136, 0.12); color: #0F8F88; border-color: rgba(15, 143, 136, 0.28); }
+body.theme-day .icon-blue { background: rgba(57, 115, 198, 0.12); color: #3973C6; border-color: rgba(57, 115, 198, 0.28); }
+body.theme-day .icon-purple { background: rgba(120, 86, 184, 0.12); color: #7856B8; border-color: rgba(120, 86, 184, 0.28); }
+body.theme-day .icon-red { background: rgba(201, 74, 86, 0.12); color: #C94A56; border-color: rgba(201, 74, 86, 0.28); }
+body.theme-day .icon-amber { background: rgba(185, 120, 34, 0.12); color: #B97822; border-color: rgba(185, 120, 34, 0.28); }
+body.theme-day .icon-design { background: rgba(184, 91, 158, 0.12); color: #B85B9E; border-color: rgba(184, 91, 158, 0.28); }
 
 /* Контент карточки */
 .tool-meta {
@@ -632,9 +689,9 @@ body.theme-day .icon-amber { background: rgba(217, 119, 6, 0.10); color: #D97706
 }
 
 body.theme-day .desktop-badge {
-  background: #F1F5F9;
-  border-color: #CBD5E1;
-  color: #475569;
+  background: #D7E0E7;
+  border-color: rgba(43, 64, 84, 0.16);
+  color: #506176;
 }
 
 .tool-desc {
@@ -1455,7 +1512,9 @@ body.theme-day .academy-editor { color: #16322f; }
   color: var(--text-main);
 }
 body.theme-day .wiki-tree-search {
-  background: #ffffff;
+  background: #DCE5EB;
+  color: #172436;
+  border-color: rgba(43, 64, 84, 0.16);
 }
 
 .wiki-tree-header {
@@ -1502,7 +1561,8 @@ body.theme-day .wiki-tree-search {
   background: rgba(10, 19, 34, 0.45);
 }
 body.theme-day .wiki-topic-block {
-  background: rgba(248, 250, 252, 0.9);
+  background: #E7EDF2;
+  border-color: rgba(43, 64, 84, 0.14);
 }
 
 .wiki-topic-header {
@@ -1618,7 +1678,9 @@ body.theme-day .wiki-topic-block {
   resize: vertical;
 }
 body.theme-day .wiki-question-textarea {
-  background: #ffffff;
+  background: #DCE5EB;
+  color: #172436;
+  border-color: rgba(43, 64, 84, 0.16);
 }
 .wiki-question-textarea:focus {
   outline: none;
@@ -1707,7 +1769,8 @@ body.theme-day .wiki-question-textarea {
   white-space: pre-wrap;
 }
 body.theme-day .wiki-answer-content {
-  background: #f8fafc;
+  background: #E7EDF2;
+  border-color: rgba(43, 64, 84, 0.14);
 }
 
 .wiki-sources-wrap {
@@ -1823,7 +1886,8 @@ body.theme-day .wiki-answer-content {
   white-space: pre-wrap;
 }
 body.theme-day .wiki-article-body {
-  background: #f8fafc;
+  background: #E7EDF2;
+  border-color: rgba(43, 64, 84, 0.14);
 }
 
 .wiki-article-edit {
@@ -1851,7 +1915,9 @@ body.theme-day .wiki-article-body {
   font-size: 14px;
 }
 body.theme-day .wiki-form-input, body.theme-day .wiki-form-textarea {
-  background: #ffffff;
+  background: #DCE5EB;
+  color: #172436;
+  border-color: rgba(43, 64, 84, 0.16);
 }
 
 .wiki-edit-buttons {
@@ -2198,7 +2264,9 @@ body.theme-day .acad-progress-bar-bg {
   outline: none;
 }
 body.theme-day .acad-lesson-search {
-  background: #ffffff;
+  background: #DCE5EB;
+  color: #172436;
+  border-color: rgba(43, 64, 84, 0.16);
 }
 
 .acad-lessons-list {
@@ -2446,8 +2514,9 @@ body.theme-day .acad-lesson-search {
   box-sizing: border-box;
 }
 body.theme-day .acad-msg-trainer {
-  background: #f0f7fb;
-  border-color: rgba(2, 132, 199, 0.22);
+  background: #D9E3EC;
+  border-color: rgba(8, 127, 140, 0.28);
+  color: #172436;
 }
 
 .acad-msg-user {
@@ -2470,7 +2539,8 @@ body.theme-day .acad-msg-trainer {
   overflow-x: auto;
 }
 body.theme-day .acad-msg-user {
-  background: #e2e8f0;
+  background: #D2DDE5;
+  color: #172436;
 }
 
 .acad-msg-author {
@@ -2497,8 +2567,8 @@ body.theme-day .acad-msg-user {
   border: 1px solid rgba(255, 171, 0, 0.35);
 }
 body.theme-day .acad-trap-card {
-  background: #fefce8;
-  border-color: #fde047;
+  background: #DEE5C8;
+  border-color: #B99D45;
 }
 
 .acad-trap-header {
@@ -2552,9 +2622,9 @@ body.theme-day .acad-trap-code {
   gap: 10px;
 }
 body.theme-day .acad-trainer-rule {
-  background: #f0fdf4;
-  border-color: #86efac;
-  color: #166534;
+  background: #D2E4DC;
+  border-color: #72A992;
+  color: #08593E;
 }
 
 .acad-rule-icon {
@@ -2594,7 +2664,8 @@ body.theme-day .acad-trainer-rule {
   margin-top: auto;
 }
 body.theme-day .acad-answer-dock {
-  background: #f8fafc;
+  background: #DDE5EB;
+  border-color: rgba(43, 64, 84, 0.14);
 }
 
 .acad-dock-prompt {
@@ -2625,7 +2696,9 @@ body.theme-day .acad-answer-dock {
   outline: none;
 }
 body.theme-day .acad-reply-textarea {
-  background: #ffffff;
+  background: #DCE5EB;
+  color: #172436;
+  border-color: rgba(43, 64, 84, 0.16);
 }
 .acad-reply-textarea:focus {
   border-color: var(--cyan-neon);
@@ -2747,7 +2820,8 @@ body.theme-day .acad-code-textarea {
   padding: 14px 16px;
 }
 body.theme-day .acad-quiz-card {
-  background: #ffffff;
+  background: #E7EDF2;
+  border-color: rgba(43, 64, 84, 0.14);
 }
 
 .acad-quiz-q-title {
@@ -2882,3 +2956,72 @@ body.theme-day .acad-quiz-card {
   box-shadow: 0 0 12px rgba(0, 229, 255, 0.28);
 }
 
+
+/* Soft Mist / Cool Slate — Унифицированные элементы форм, таблицы и модальные окна */
+body.theme-day input,
+body.theme-day textarea,
+body.theme-day select {
+  background: #DCE5EB;
+  color: #172436;
+  border-color: rgba(43, 64, 84, 0.16);
+}
+body.theme-day input:focus,
+body.theme-day textarea:focus,
+body.theme-day select:focus {
+  border-color: #087F8C;
+}
+body.theme-day thead th {
+  background: #D5DFE7;
+  color: #172436;
+  border-bottom-color: rgba(43, 64, 84, 0.16);
+}
+body.theme-day tbody tr:nth-child(even) {
+  background: rgba(43, 64, 84, 0.025);
+}
+body.theme-day tbody tr:hover {
+  background: rgba(8, 127, 140, 0.07);
+}
+body.theme-day tbody td {
+  border-bottom-color: rgba(43, 64, 84, 0.10);
+  color: #172436;
+}
+body.theme-day .desktop-modal-card,
+body.theme-day .modal-card,
+body.theme-day .modal-box {
+  background: #E3E9EE;
+  border-color: rgba(43, 64, 84, 0.18);
+  box-shadow: 0 16px 40px rgba(43, 64, 84, 0.20);
+  color: #172436;
+}
+body.theme-day .modal-info-panel {
+  background: #DCE5EB;
+  border-color: rgba(43, 64, 84, 0.14);
+}
+body.theme-day .template-chip {
+  background: #DCE5EB;
+  border-color: rgba(43, 64, 84, 0.16);
+  color: #172436;
+}
+body.theme-day .template-chip:hover {
+  background: #D2DDE5;
+  border-color: #087F8C;
+  color: #087F8C;
+}
+body.theme-day .template-chip.active {
+  background: rgba(8, 127, 140, 0.16);
+  border-color: #087F8C;
+  color: #087F8C;
+}
+body.theme-day .excel-templates-box {
+  background: #DDE5EB !important;
+  border-color: rgba(43, 64, 84, 0.16) !important;
+}
+body.theme-day #excelTemplatePreviewCard {
+  background: #E7EDF2 !important;
+  border-color: rgba(43, 64, 84, 0.16) !important;
+}
+body.theme-day .welcome-accent {
+  background: linear-gradient(90deg, #172436 0%, #0F8F88 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}

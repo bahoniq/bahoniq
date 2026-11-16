@@ -30,3 +30,15 @@ def test_validator_explains_incomplete_work():
     assert result["passed"] is False
     assert result["score"] == 0
     assert len(result["results"]) == len(lesson["checks"])
+
+
+def test_validator_explains_wrong_object_type_with_right_size():
+    lesson = get_lesson("1-3")
+    document = {"objects": [
+        {"type": "frame", "width": 320, "height": 160},
+        {"type": "ellipse", "width": 48, "height": 48},
+    ]}
+    result = validate_document(document, lesson["checks"])
+    assert result["score"] == 50
+    assert "Фрейм" in result["results"][0]["message"]
+    assert "Прямоугольник" in result["results"][0]["message"]

@@ -15,8 +15,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=20261116_excel_tpl_v1">
-  <link rel="stylesheet" href="/assets/design_academy.css?v=20261116_das_v2">
+  <link rel="stylesheet" href="/assets/app.css?v=20261116_soft_mist_v1">
+  <link rel="stylesheet" href="/assets/design_academy.css?v=20261116_soft_mist_v1">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
@@ -771,22 +771,22 @@
                   <div><small id="dasLessonBadge">ЭТАП 1 · УРОК 1</small><h2 id="dasLessonTitle">Загрузка...</h2><p id="dasLessonSummary"></p></div>
                   <div class="das-step-tabs"><button class="active" data-das-step="learn">1 Изучение</button><button data-das-step="practice">2 Практика</button><button data-das-step="review">3 Проверка</button></div>
                 </header>
-                <div id="dasLearnPanel" class="das-learn-panel"><h3>Главная идея</h3><p id="dasTheory"></p><div class="das-task"><b>Задание</b><p id="dasTask"></p></div><button class="button primary" id="dasStartPractice" type="button">Перейти к практике →</button></div>
+                <div id="dasLearnPanel" class="das-learn-panel"><h3>Главная идея</h3><p id="dasTheory"></p><div class="das-task"><b>Задание</b><p id="dasTask"></p></div><div class="das-microsteps"><b>Как выполнить</b><ol id="dasLessonSteps"></ol></div><button class="button primary" id="dasStartPractice" type="button">Перейти к практике →</button></div>
                 <div id="dasEditorPanel" class="das-editor-panel hidden">
                   <div class="das-toolbar">
-                    <button data-das-tool="select" class="active" title="Выбор">↖</button><button data-das-tool="frame">Фрейм</button><button data-das-tool="rectangle">▭</button><button data-das-tool="ellipse">○</button><button data-das-tool="line">╱</button><button data-das-tool="text">T</button>
-                    <span></span><button id="dasUndo" title="Отменить">↶</button><button id="dasRedo" title="Вернуть">↷</button><button id="dasGroup" title="Группировать">Группа</button><button id="dasDelete" title="Удалить">Удалить</button><button id="dasSave" title="Сохранить">Сохранить</button><button id="dasExport" title="Экспорт SVG">SVG</button>
+                    <button data-das-tool="select" class="active" title="Выбор и перемещение">↖</button><button data-das-tool="frame" title="Фрейм — рабочая область или экран">Фрейм</button><button data-das-tool="rectangle" title="Прямоугольник — карточка, кнопка или панель">▭ <em>Прямоугольник</em></button><button data-das-tool="ellipse" title="Круг или эллипс">○ <em>Круг</em></button><button data-das-tool="line" title="Линия">╱</button><button data-das-tool="text" title="Текст">T</button>
+                    <span></span><button id="dasZoomOut" title="Уменьшить масштаб">−</button><b id="dasZoomLabel">100%</b><button id="dasZoomIn" title="Увеличить масштаб">+</button><button id="dasUndo" title="Отменить">↶</button><button id="dasRedo" title="Вернуть">↷</button><button id="dasGroup" title="Группировать">Группа</button><button id="dasDelete" title="Удалить">Удалить</button><button id="dasResetLesson" title="Очистить работу текущего урока">Сбросить</button><button id="dasSave" title="Сохранить">Сохранить</button><button id="dasExport" title="Экспорт SVG">SVG</button><button id="dasExportPng" title="Экспорт PNG">PNG</button>
                   </div>
                   <div class="das-editor-grid">
                     <aside class="das-layers"><h4>Слои</h4><div id="dasLayers"></div></aside>
-                    <div class="das-canvas-wrap"><svg id="dasCanvas" viewBox="0 0 900 560" aria-label="Учебный холст"><defs><pattern id="dasGrid" width="16" height="16" patternUnits="userSpaceOnUse"><path d="M16 0H0V16" fill="none" stroke="currentColor" stroke-opacity=".08"/></pattern></defs><rect width="900" height="560" fill="url(#dasGrid)" class="das-grid-bg"/><g id="dasOverlay"></g><g id="dasObjects"></g></svg></div>
+                    <div class="das-canvas-wrap"><svg id="dasCanvas" viewBox="0 0 900 560" aria-label="Учебный холст"><defs><pattern id="dasGrid" width="16" height="16" patternUnits="userSpaceOnUse"><path d="M16 0H0V16" fill="none" stroke="currentColor" stroke-opacity=".08"/></pattern></defs><rect width="900" height="560" fill="url(#dasGrid)" class="das-grid-bg"/><g id="dasOverlay"></g><g id="dasObjects"></g><g id="dasSelection"></g></svg></div>
                     <aside class="das-properties"><h4>Свойства</h4><div id="dasNoSelection">Выберите объект на холсте</div><div id="dasPropertyForm" class="hidden">
                       <label>Название<input id="dasPropName"></label><div class="das-prop-row"><label>X<input id="dasPropX" type="number"></label><label>Y<input id="dasPropY" type="number"></label></div><div class="das-prop-row"><label>Ширина<input id="dasPropW" type="number" min="1"></label><label>Высота<input id="dasPropH" type="number" min="1"></label></div><label>Заливка<input id="dasPropFill" type="color"></label><label>Обводка<input id="dasPropStroke" type="color"></label><div class="das-prop-row"><label>Радиус<input id="dasPropRadius" type="number" min="0"></label><label>Прозрачность<input id="dasPropOpacity" type="number" min="0" max="100"></label></div><label id="dasTextProperty" class="hidden">Текст<textarea id="dasPropText" rows="3"></textarea></label>
                     </div></aside>
                   </div>
                   <div class="das-editor-footer"><span id="dasAutosaveStatus">Изменения сохраняются локально</span><button id="dasShowReference" class="button secondary" type="button">Показать эталон</button><button id="dasValidate" class="button primary" type="button">Проверить работу</button></div>
                 </div>
-                <div id="dasReviewPanel" class="das-review hidden"><div id="dasScore" class="das-score">0%</div><div><h3>Результат проверки</h3><div id="dasResults"></div><button id="dasComplete" class="button primary hidden" type="button">Завершить урок</button></div></div>
+                <div id="dasReviewPanel" class="das-review hidden"><div id="dasScore" class="das-score">0%</div><div><h3>Результат проверки</h3><p id="dasReviewHint" class="helper">Исправьте отмеченные пункты и повторите проверку.</p><div id="dasResults"></div><div class="button-row"><button id="dasBackToPractice" class="button secondary" type="button">← Вернуться к практике</button><button id="dasComplete" class="button primary hidden" type="button">Завершить урок и перейти дальше →</button></div></div></div>
               </main>
               <aside id="dasMentor" class="card das-mentor">
                 <header><div><b>ИИ-наставник</b><span id="dasMentorProvider">Контекст урока подключён</span></div></header><div id="dasMentorFeed" class="das-mentor-feed"><p>Я помогу найти ошибку и подскажу следующий шаг, но не буду выполнять работу вместо вас.</p></div><select id="dasMentorMode"><option value="hint">Дай подсказку</option><option value="explain">Объясни проще</option><option value="error">Найди ошибку</option><option value="review">Оцени работу</option></select><textarea id="dasMentorQuestion" rows="2" placeholder="Спросите наставника..."></textarea><button id="dasMentorAsk" class="button primary" type="button">Спросить наставника</button>
@@ -1013,8 +1013,8 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261116_excel_tpl_v1"></script>
-  <script src="/assets/design_academy.js?v=20261116_das_v2"></script>
+  <script src="/assets/app.js?v=20261116_soft_mist_v1"></script>
+  <script src="/assets/design_academy.js?v=20261116_soft_mist_v1"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
