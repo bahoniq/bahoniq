@@ -25,6 +25,7 @@ data/*
 !data/wiki.db
 !web_app/data/wiki.db
 !web_app/data/wiki_seed.json
+!web_app/data/academy.db
 *.sqlite
 *.sqlite3
 *.pdf

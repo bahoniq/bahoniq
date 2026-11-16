@@ -620,6 +620,9 @@ const academySelection = { python: 0, sql: 0 };
 const academyCompleted = new Set(JSON.parse(localStorage.getItem('bahoniq_academy_completed') || '[]'));
 
 async function loadAcademy() {
+  if (typeof window.loadBahonIQAcademy === 'function') {
+    return window.loadBahonIQAcademy();
+  }
   if (academyLoaded) return;
   try {
     academy = await api('/api/academy/catalog');
@@ -1739,4 +1742,407 @@ recForm?.addEventListener('submit', async e => {
 
   window.loadPlatonusWiki = fetchWikiTree;
   fetchWikiTree();
+})();
+
+// ============================================================================
+// МОДУЛЬ: BAHONIQ AI ACADEMY (4 ЭТАПА + ЖИВОЙ ИИ-МЕНТОР GEMINI FLASH + PDF-КНИГА)
+// ============================================================================
+(function initBahonIQAcademyModule() {
+  const overallText = $('#acadOverallText');
+  const overallFill = $('#acadOverallFill');
+  const exportPdfBtn = $('#acadExportPdfBtn');
+  const stagesNav = $('#acadStagesNav');
+
+  const currentStageLabel = $('#acadCurrentStageLabel');
+  const lessonFilter = $('#acadLessonFilter');
+  const lessonsList = $('#acadLessonsList');
+
+  const lessonStageBadge = $('#acadLessonStageBadge');
+  const lessonStatusBadge = $('#acadLessonStatusBadge');
+  const lessonTitle = $('#acadLessonTitle');
+  const regenTheoryBtn = $('#acadRegenTheoryBtn');
+  const theoryContent = $('#acadTheoryContent');
+
+  const repoFileBox = $('#acadRepoFileBox');
+  const repoFileName = $('#acadRepoFileName');
+  const repoFileCode = $('#acadRepoFileCode');
+
+  const taskPrompt = $('#acadTaskPrompt');
+  const editorLangTag = $('#acadEditorLangTag');
+  const resetCodeBtn = $('#acadResetCodeBtn');
+  const codeEditor = $('#acadCodeEditor');
+  const runCodeBtn = $('#acadRunCodeBtn');
+  const checkMentorBtn = $('#acadCheckMentorBtn');
+  const nextLessonBtn = $('#acadNextLessonBtn');
+  const consoleOutput = $('#acadConsoleOutput');
+
+  const verdictBox = $('#acadMentorVerdictBox');
+  const verdictTitle = $('#acadVerdictTitle');
+  const verdictText = $('#acadVerdictText');
+
+  const chatMessages = $('#acadChatMessages');
+  const chatInput = $('#acadChatInput');
+  const chatSendBtn = $('#acadChatSendBtn');
+
+  let roadmapData = null;
+  let currentStageId = 1;
+  let currentLesson = null;
+
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function formatMarkdownText(raw) {
+    let s = escapeHtml(raw || '');
+    s = s.replace(/```([a-zA-Z]*)\n([\s\S]*?)```/g, '<pre class="code-output" style="margin:8px 0;padding:10px 12px;">$2</pre>');
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    return s;
+  }
+
+  function renderRoadmapUI() {
+    if (!roadmapData) return;
+    if (overallText) {
+      overallText.textContent = `${roadmapData.completed_lessons} / ${roadmapData.total_lessons} (${roadmapData.overall_percent}%)`;
+    }
+    if (overallFill) {
+      overallFill.style.width = `${roadmapData.overall_percent}%`;
+    }
+
+    if (stagesNav) {
+      stagesNav.innerHTML = (roadmapData.stages || []).map(st => {
+        const isActive = st.id === currentStageId ? 'active' : '';
+        return `
+          <button type="button" class="acad-stage-tab ${isActive}" data-stage-id="${st.id}">
+            <div class="acad-stage-tab-top">
+              <span class="acad-stage-num">ЭТАП ${st.order_index}</span>
+              <span class="acad-stage-count">${st.completed_lessons} / ${st.total_lessons}</span>
+            </div>
+            <div class="acad-stage-tab-title">${escapeHtml(st.title.replace(/^Этап \d+:\s*/, ''))}</div>
+            <div class="acad-stage-tab-sub">${escapeHtml(st.subtitle)}</div>
+          </button>
+        `;
+      }).join('');
+    }
+
+    renderStageLessons(lessonFilter?.value || '');
+  }
+
+  function renderStageLessons(filterStr = '') {
+    if (!lessonsList || !roadmapData) return;
+    const stageObj = (roadmapData.stages || []).find(s => s.id === currentStageId) || roadmapData.stages?.[0];
+    if (!stageObj) return;
+
+    if (currentStageLabel) {
+      currentStageLabel.textContent = stageObj.title.toUpperCase();
+    }
+
+    const q = (filterStr || '').trim().toLowerCase();
+    const filtered = (stageObj.lessons || []).filter(l => !q || l.title.toLowerCase().includes(q) || l.summary.toLowerCase().includes(q));
+
+    lessonsList.innerHTML = filtered.map(les => {
+      const isAct = currentLesson && currentLesson.id === les.id ? 'active' : '';
+      const isDone = les.completed ? 'done' : '';
+      const checkSymbol = les.completed ? '✓' : les.order_index;
+      return `
+        <button type="button" class="acad-lesson-btn ${isAct} ${isDone}" data-lesson-id="${les.id}">
+          <span class="acad-lesson-check">${checkSymbol}</span>
+          <span>${escapeHtml(les.title)}</span>
+        </button>
+      `;
+    }).join('') || `<div style="padding:10px;font-size:12.5px;color:var(--text-sub);">Темы не найдены.</div>`;
+  }
+
+  async function openLesson(lessonId, regenerate = false) {
+    try {
+      if (regenerate && theoryContent) {
+        theoryContent.innerHTML = '⏳ ИИ-ментор Gemini Flash генерирует новое живое объяснение с примером...';
+      }
+      const res = await fetch('/api/academy/lesson', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lesson_id: lessonId, regenerate }),
+      });
+      if (!res.ok) throw new Error('Не удалось загрузить урок');
+      const les = await res.json();
+      currentLesson = les;
+      currentStageId = les.stage_id;
+
+      if (lessonStageBadge) lessonStageBadge.textContent = les.stage_title || `Этап ${les.stage_id}`;
+      if (lessonStatusBadge) {
+        lessonStatusBadge.textContent = les.completed ? '✓ Пройдено' : 'В процессе';
+        lessonStatusBadge.classList.toggle('done', Boolean(les.completed));
+      }
+      if (lessonTitle) lessonTitle.textContent = les.title || '';
+      if (theoryContent) theoryContent.innerHTML = formatMarkdownText(les.ai_theory || '');
+
+      if (les.repo_source_preview && repoFileBox && repoFileName && repoFileCode) {
+        repoFileName.textContent = les.file_path;
+        repoFileCode.textContent = les.repo_source_preview;
+        repoFileBox.classList.remove('hidden');
+      } else {
+        repoFileBox?.classList.add('hidden');
+      }
+
+      if (taskPrompt) taskPrompt.innerHTML = formatMarkdownText(les.task_prompt || '');
+      if (editorLangTag) {
+        editorLangTag.textContent = les.language === 'sql' ? 'SQLITE / SQL' : 'PYTHON 3';
+      }
+      if (!regenerate && codeEditor) {
+        codeEditor.value = les.user_code || les.starter_code || '';
+      }
+
+      if (!regenerate) {
+        if (consoleOutput) {
+          consoleOutput.textContent = 'Нажмите «▶ Запустить код» или «✨ Проверить с ментором».';
+        }
+        if (les.mentor_feedback && verdictBox && verdictText && verdictTitle) {
+          verdictBox.className = `acad-verdict-box ${les.completed ? 'passed' : 'failed'}`;
+          verdictTitle.textContent = les.completed ? '✓ Решение зачтено ИИ-ментором' : '💡 Подсказка и разбор от ИИ-ментора';
+          verdictText.innerHTML = formatMarkdownText(les.mentor_feedback);
+          verdictBox.classList.remove('hidden');
+        } else {
+          verdictBox?.classList.add('hidden');
+        }
+        if (nextLessonBtn) {
+          if (les.completed && les.next_lesson_id) {
+            nextLessonBtn.classList.remove('hidden');
+          } else {
+            nextLessonBtn.classList.add('hidden');
+          }
+        }
+      }
+
+      renderRoadmapUI();
+    } catch (err) {
+      if (theoryContent) theoryContent.textContent = `Ошибка: ${err.message}`;
+    }
+  }
+
+  stagesNav?.addEventListener('click', (e) => {
+    const tab = e.target.closest('.acad-stage-tab');
+    if (!tab || !roadmapData) return;
+    const stId = Number(tab.dataset.stageId);
+    if (!stId) return;
+    currentStageId = stId;
+    const stObj = (roadmapData.stages || []).find(s => s.id === stId);
+    if (stObj && stObj.lessons?.length) {
+      const firstIncomplete = stObj.lessons.find(l => !l.completed) || stObj.lessons[0];
+      openLesson(firstIncomplete.id);
+    } else {
+      renderRoadmapUI();
+    }
+  });
+
+  lessonsList?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.acad-lesson-btn');
+    if (!btn) return;
+    const id = Number(btn.dataset.lessonId);
+    if (id) openLesson(id);
+  });
+
+  lessonFilter?.addEventListener('input', () => {
+    renderStageLessons(lessonFilter.value);
+  });
+
+  regenTheoryBtn?.addEventListener('click', async () => {
+    if (!currentLesson) return;
+    regenTheoryBtn.disabled = true;
+    regenTheoryBtn.textContent = '⏳ ИИ пишет пример...';
+    await openLesson(currentLesson.id, true);
+    regenTheoryBtn.disabled = false;
+    regenTheoryBtn.textContent = '🔄 Объяснить иначе (ИИ)';
+  });
+
+  resetCodeBtn?.addEventListener('click', () => {
+    if (!currentLesson || !codeEditor) return;
+    codeEditor.value = currentLesson.starter_code || '';
+  });
+
+  // Запуск кода без проверки
+  runCodeBtn?.addEventListener('click', async () => {
+    if (!currentLesson || !codeEditor) return;
+    runCodeBtn.disabled = true;
+    if (consoleOutput) consoleOutput.textContent = '⏳ Выполнение кода...';
+    try {
+      const fd = new FormData();
+      fd.append('language', currentLesson.language === 'sql' ? 'sql' : 'python');
+      fd.append('code', codeEditor.value);
+      const res = await fetch('/api/academy/run', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Ошибка запуска');
+      const out = [data.output, data.error].filter(Boolean).join('\n').trim();
+      if (consoleOutput) consoleOutput.textContent = out || '(Код выполнился без вывода)';
+    } catch (err) {
+      if (consoleOutput) consoleOutput.textContent = `Ошибка: ${err.message}`;
+    } finally {
+      runCodeBtn.disabled = false;
+    }
+  });
+
+  // Умная проверка кода с ИИ-ментором Gemini Flash
+  checkMentorBtn?.addEventListener('click', async () => {
+    if (!currentLesson || !codeEditor) return;
+    checkMentorBtn.disabled = true;
+    const origText = checkMentorBtn.textContent;
+    checkMentorBtn.textContent = '⏳ Ментор анализирует код...';
+    verdictBox?.classList.remove('hidden');
+    if (verdictTitle) verdictTitle.textContent = '⏳ ИИ-ментор проверяет ваше решение...';
+    if (verdictText) verdictText.textContent = 'Запускаем код и анализируем логику с помощью Gemini Flash...';
+
+    try {
+      const res = await fetch('/api/academy/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lesson_id: currentLesson.id,
+          code: codeEditor.value,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Ошибка проверки');
+
+      const out = [data.stdout, data.stderr].filter(Boolean).join('\n').trim();
+      if (consoleOutput) consoleOutput.textContent = out || '(Вывод пуст)';
+
+      if (verdictBox && verdictTitle && verdictText) {
+        verdictBox.className = `acad-verdict-box ${data.passed ? 'passed' : 'failed'}`;
+        verdictTitle.textContent = data.passed
+          ? '🎉 Отлично! Урок засчитан ИИ-ментором'
+          : '💡 Разбор ошибки и наводящая подсказка от ИИ-ментора';
+        verdictText.innerHTML = formatMarkdownText(data.feedback || '');
+      }
+
+      if (data.roadmap) {
+        roadmapData = data.roadmap;
+      }
+      currentLesson.completed = Boolean(data.passed || currentLesson.completed);
+      if (lessonStatusBadge) {
+        lessonStatusBadge.textContent = currentLesson.completed ? '✓ Пройдено' : 'В процессе';
+        lessonStatusBadge.classList.toggle('done', currentLesson.completed);
+      }
+      if (nextLessonBtn) {
+        if (data.passed && data.next_lesson_id) {
+          nextLessonBtn.dataset.nextId = String(data.next_lesson_id);
+          nextLessonBtn.classList.remove('hidden');
+        }
+      }
+      renderRoadmapUI();
+    } catch (err) {
+      if (verdictText) verdictText.textContent = `Ошибка: ${err.message}`;
+    } finally {
+      checkMentorBtn.disabled = false;
+      checkMentorBtn.textContent = origText;
+    }
+  });
+
+  nextLessonBtn?.addEventListener('click', () => {
+    const nextId = Number(nextLessonBtn.dataset.nextId || currentLesson?.next_lesson_id);
+    if (nextId) openLesson(nextId);
+  });
+
+  // Встроенный чат «Задать вопрос по уроку»
+  async function sendMentorQuestion(customQ) {
+    const q = (customQ ?? chatInput?.value ?? '').trim();
+    if (!q || !currentLesson) return;
+    if (!customQ && chatInput) chatInput.value = '';
+
+    if (chatMessages) {
+      const userDiv = document.createElement('div');
+      userDiv.className = 'acad-msg acad-msg-user';
+      userDiv.textContent = q;
+      chatMessages.appendChild(userDiv);
+
+      const loadDiv = document.createElement('div');
+      loadDiv.className = 'acad-msg acad-msg-ai';
+      loadDiv.textContent = '⏳ Ментор печатает ответ...';
+      chatMessages.appendChild(loadDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      try {
+        const res = await fetch('/api/academy/mentor-ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lesson_id: currentLesson.id,
+            question: q,
+            code: codeEditor?.value || '',
+            output: consoleOutput?.textContent || '',
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Ошибка');
+        loadDiv.innerHTML = formatMarkdownText(data.answer || '');
+      } catch (err) {
+        loadDiv.textContent = `Ошибка: ${err.message}`;
+      }
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+  }
+
+  chatSendBtn?.addEventListener('click', () => sendMentorQuestion());
+  chatInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMentorQuestion();
+    }
+  });
+
+  document.querySelectorAll('.acad-quick-q').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const q = btn.dataset.q;
+      if (q) sendMentorQuestion(q);
+    });
+  });
+
+  // Генерация персональной PDF-книги «От А до Я»
+  exportPdfBtn?.addEventListener('click', async () => {
+    exportPdfBtn.disabled = true;
+    const orig = exportPdfBtn.innerHTML;
+    exportPdfBtn.innerHTML = '<span>⏳ Генерирую PDF-книгу (От А до Я)...</span>';
+    try {
+      const res = await fetch('/api/academy/export-pdf', { method: 'POST' });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Не удалось сгенерировать PDF-книгу');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'BahonIQ_Academy_Book_A_to_Z.pdf';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+      alert(err.message || 'Ошибка выгрузки PDF');
+    } finally {
+      exportPdfBtn.disabled = false;
+      exportPdfBtn.innerHTML = orig;
+    }
+  });
+
+  async function initAcademyPlatform() {
+    try {
+      const res = await fetch('/api/academy/roadmap');
+      if (!res.ok) throw new Error('Ошибка загрузки карты курса');
+      roadmapData = await res.json();
+      renderRoadmapUI();
+      const firstStage = roadmapData.stages?.[0];
+      if (firstStage && firstStage.lessons?.length) {
+        const firstIncomplete = firstStage.lessons.find(l => !l.completed) || firstStage.lessons[0];
+        await openLesson(firstIncomplete.id);
+      }
+    } catch (err) {
+      console.error('Academy init error:', err);
+    }
+  }
+
+  window.loadBahonIQAcademy = initAcademyPlatform;
+  initAcademyPlatform();
 })();

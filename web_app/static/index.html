@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=20261116_wiki_v3">
+  <link rel="stylesheet" href="/assets/app.css?v=20261116_academy_v4">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
@@ -547,56 +547,136 @@
             <dialog id="contactDialog"><form id="contactForm" method="dialog"><h2 id="contactHeading">Контакт</h2><input id="contactId" type="hidden"><div class="contact-grid"><label>Подразделение<input name="department"></label><label>Должность<input name="position"></label><label>ФИО<input name="name" required></label><label>Расположение<input name="location"></label><label>Городской номер<input name="city_phone"></label><label>Внутренний номер<input name="extension"></label><label>Мобильный<input name="mobile"></label><label>Email<input name="email" type="email"></label></div><div class="button-row"><button class="button secondary" value="cancel">Отмена</button><button id="saveContact" class="button primary" value="default">Сохранить</button></div></form></dialog>
           </section>
 
-          <!-- CODE ACADEMY -->
+          <!-- BAHONIQ AI ACADEMY (4 ЭТАПА + ЖИВОЙ МЕНТОР GEMINI FLASH 24/7 + PDF-КНИГА ОТ А ДО Я) -->
           <section id="academy" class="module-page">
-            <div class="academy-header">
-              <div>
-                <h1>Code Academy</h1>
-                <p>Практическое обучение программированию на Python, SQL-запросам и архитектуре BahonIQ.</p>
+            <div class="acad-top-header card">
+              <div class="acad-top-title-group">
+                <h1>BahonIQ Academy <span class="acad-ai-pill">Gemini Flash 24/7</span></h1>
+                <p>Интерактивное обучение с живым ИИ-наставником: Python, SQL (SQLite), реальная архитектура BahonIQ и боевой полигон.</p>
               </div>
-              <div id="academyProgress" class="academy-progress">0 / 83</div>
-            </div>
-            <div class="academy-shell">
-              <nav class="academy-route" aria-label="Учебный маршрут">
-                <span class="academy-route-label">УЧЕБНЫЙ МАРШРУТ</span>
-                <button class="academy-route-btn active" data-academy-view="academyPython" type="button"><b>1</b><span>Python<small>48 уроков</small></span></button>
-                <button class="academy-route-btn" data-academy-view="academySql" type="button"><b>2</b><span>SQL<small>35 уроков</small></span></button>
-                <button class="academy-route-btn" data-academy-view="academyBook" type="button"><b>3</b><span>Книга и код<small>Архитектура BahonIQ</small></span></button>
-                <button class="academy-route-btn" data-academy-view="academyBuilder" type="button"><b>4</b><span>Конструктор<small>Учебный проект</small></span></button>
-                <button id="academyMentorOpen" class="academy-mentor-btn" type="button"><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 17v4M17 19h4"/></svg></span><div><b>ИИ-наставник</b><small>Подсказка по уроку</small></div></button>
-              </nav>
 
-              <div class="academy-stage">
-                <div id="academyPython" class="academy-view active">
-                  <aside class="academy-lessons"><div class="academy-list-head"><b>PYTHON STUDIO</b><input class="academy-search" data-kind="python" placeholder="Найти урок…"></div><div id="pythonLessons" class="lesson-list"></div></aside>
-                  <div class="academy-studio">
-                    <div class="academy-lesson-head"><div><span id="pythonLevel" class="academy-level"></span><h2 id="pythonTitle"></h2></div><button class="academy-complete" data-language="python" type="button">Отметить пройденным</button></div>
-                    <div class="academy-phase-tabs"><button class="active" data-phase="theory" type="button">1 · Теория</button><button data-phase="walkthrough" type="button">2 · Разбор</button><button data-phase="practice" type="button">3 · Практика</button><button data-phase="check" type="button">4 · Проверка</button><button data-phase="reinforce" type="button">5 · Закрепление</button></div>
-                    <div class="academy-reading"><span id="pythonPhaseLabel">ТЕОРИЯ</span><p id="pythonTheory"></p><p id="pythonWalkthrough" class="hidden"></p><p id="pythonChallenge" class="hidden"></p><p id="pythonHint" class="hidden"></p></div>
-                    <textarea id="pythonCode" class="code-editor academy-editor" spellcheck="false"></textarea>
-                    <div class="academy-console"><div class="academy-input-row"><label>Ввод<input id="pythonStdin" placeholder="Данные для input(), если нужны"></label></div><pre id="pythonOutput" class="code-output">Результат выполнения появится здесь.</pre></div>
-                    <div class="academy-actions"><button class="button primary academy-run" data-language="python" type="button">▶ Запустить</button><button class="button secondary academy-reset" data-language="python" type="button">Вернуть пример</button><button class="button secondary academy-hint" data-language="python" type="button">Подсказка</button><button class="button secondary academy-next" data-language="python" type="button">Следующий урок →</button></div>
+              <div class="acad-top-right">
+                <div class="acad-progress-widget">
+                  <div class="acad-progress-labels">
+                    <span>Общий прогресс курса</span>
+                    <strong id="acadOverallText">0 / 29 (0%)</strong>
+                  </div>
+                  <div class="acad-progress-bar-bg">
+                    <div id="acadOverallFill" class="acad-progress-bar-fill" style="width:0%"></div>
                   </div>
                 </div>
 
-                <div id="academySql" class="academy-view">
-                  <aside class="academy-lessons"><div class="academy-list-head"><b>SQL STUDIO</b><input class="academy-search" data-kind="sql" placeholder="Найти урок…"></div><div id="sqlLessons" class="lesson-list"></div></aside>
-                  <div class="academy-studio">
-                    <div class="academy-lesson-head"><div><span id="sqlLevel" class="academy-level"></span><h2 id="sqlTitle"></h2></div><button class="academy-complete" data-language="sql" type="button">Отметить пройденным</button></div>
-                    <div class="academy-phase-tabs"><button class="active" data-phase="theory" type="button">1 · Теория</button><button data-phase="walkthrough" type="button">2 · Разбор</button><button data-phase="practice" type="button">3 · Практика</button><button data-phase="check" type="button">4 · Проверка</button><button data-phase="reinforce" type="button">5 · Закрепление</button></div>
-                    <div class="academy-reading"><span id="sqlPhaseLabel">ТЕОРИЯ</span><p id="sqlTheory"></p><p id="sqlWalkthrough" class="hidden"></p><p id="sqlChallenge" class="hidden"></p><p id="sqlHint" class="hidden"></p></div>
-                    <textarea id="sqlCode" class="code-editor academy-editor" spellcheck="false"></textarea>
-                    <div class="academy-console"><pre id="sqlOutput" class="code-output">Результат запроса появится здесь.</pre></div>
-                    <div class="academy-actions"><button class="button primary academy-run" data-language="sql" type="button">▶ Выполнить</button><button class="button secondary academy-reset" data-language="sql" type="button">Вернуть пример</button><button class="button secondary academy-hint" data-language="sql" type="button">Подсказка</button><button class="button secondary academy-next" data-language="sql" type="button">Следующий урок →</button></div>
-                  </div>
-                </div>
-
-                <div id="academyBook" class="academy-view academy-library-view"><aside class="academy-lessons"><div class="academy-list-head"><b>КНИГА И КОД</b><input id="bookSearch" placeholder="Найти главу…"></div><div id="bookChapters" class="lesson-list"></div></aside><article class="academy-studio academy-book"><h2 id="bookTitle"></h2><div id="bookReading" class="book-reading"></div><textarea id="bookSource" class="code-editor academy-editor" readonly></textarea></article></div>
-                <div id="academyBuilder" class="academy-view academy-library-view"><aside class="academy-lessons"><div class="academy-list-head"><b>КОНСТРУКТОР</b><small>Структура учебного приложения</small></div><div id="builderFiles" class="lesson-list"></div></aside><div class="academy-studio"><h2 id="builderTitle">Учебный проект</h2><p class="academy-builder-note">Изучи назначение файла, измени код и собери собственную базовую архитектуру.</p><textarea id="builderSource" class="code-editor academy-editor academy-builder-editor"></textarea><div class="academy-actions"><button id="copyBuilder" class="button primary" type="button">Копировать код</button></div></div></div>
+                <button id="acadExportPdfBtn" class="button primary acad-pdf-btn" type="button">
+                  <span>📘 Сгенерировать мою PDF-книгу (От А до Я)</span>
+                </button>
               </div>
             </div>
 
-            <dialog id="academyMentorDialog" class="academy-mentor-dialog"><form method="dialog"><div class="academy-mentor-head"><div><span class="eyebrow">ИИ-НАСТАВНИК</span><h2>Спросить по текущему уроку</h2></div><button value="cancel" aria-label="Закрыть">×</button></div><div class="academy-mentor-modes"><select id="academyMentorMode" aria-label="Режим наставника"><option value="hint">Подсказка</option><option value="explain">Объяснить</option><option value="review">Проверить код</option><option value="solution">Показать решение</option><option value="quiz">Проверочный вопрос</option></select><small id="academyMentorProvider">Gemini · облако, Ollama — резерв</small></div><textarea id="academyMentorQuestion" rows="4" placeholder="Что объяснить или где нужна подсказка?"></textarea><div class="academy-actions"><button id="academyMentorAsk" class="button primary" value="default" type="button">Отправить вопрос</button></div><div id="academyMentorAnswer" class="academy-mentor-answer hidden"></div></form></dialog>
+            <!-- Переключатель 4 обязательных этапов -->
+            <div id="acadStagesNav" class="acad-stages-grid">
+              <!-- Заполняется динамически из /api/academy/roadmap -->
+            </div>
+
+            <!-- Главная рабочая область урока (Список тем + Урок/Редактор + Чат с ментором) -->
+            <div class="acad-main-grid">
+              <!-- 1. Левая панель: темы выбранного этапа -->
+              <aside class="card acad-lessons-sidebar">
+                <div class="acad-sidebar-head">
+                  <span id="acadCurrentStageLabel">ТЕМЫ ЭТАПА</span>
+                </div>
+                <input id="acadLessonFilter" type="search" class="acad-lesson-search" placeholder="Поиск темы урока...">
+                <div id="acadLessonsList" class="acad-lessons-list">
+                  <!-- Список уроков этапа -->
+                </div>
+              </aside>
+
+              <!-- 2. Центральная область: живая теория, практика, редактор и разбор ошибок -->
+              <div class="acad-lesson-center">
+                <div class="card acad-theory-card">
+                  <div class="acad-lesson-top-row">
+                    <div>
+                      <span id="acadLessonStageBadge" class="acad-stage-badge">Этап 1</span>
+                      <span id="acadLessonStatusBadge" class="acad-status-badge">В процессе</span>
+                      <h2 id="acadLessonTitle" class="acad-lesson-title">Загрузка урока...</h2>
+                    </div>
+                    <button id="acadRegenTheoryBtn" class="button secondary acad-small-btn" type="button" title="Попросить ИИ-ментора объяснить эту тему другими словами и с новым примером">
+                      🔄 Объяснить иначе (ИИ)
+                    </button>
+                  </div>
+
+                  <div class="acad-section-tag">1 · ЖИВОЕ ОБЪЯСНЕНИЕ МЕНТОРА (ТЕОРИЯ)</div>
+                  <div id="acadTheoryContent" class="acad-theory-content"></div>
+
+                  <!-- Блок реального кода из репозитория (для Этапа 3: Архитектура) -->
+                  <div id="acadRepoFileBox" class="acad-repo-file-box hidden">
+                    <div class="acad-repo-file-head">
+                      <span>📂 Реальный файл проекта BahonIQ: <strong id="acadRepoFileName"></strong></span>
+                    </div>
+                    <pre id="acadRepoFileCode" class="acad-repo-code-preview"></pre>
+                  </div>
+                </div>
+
+                <!-- Практическая задача + Редактор кода + Проверка ментором -->
+                <div class="card acad-practice-card">
+                  <div class="acad-section-tag">2 · ПРАКТИЧЕСКАЯ ЗАДАЧА НА ЗАКРЕПЛЕНИЕ</div>
+                  <div id="acadTaskPrompt" class="acad-task-prompt"></div>
+
+                  <div class="acad-editor-header">
+                    <span id="acadEditorLangTag" class="acad-lang-pill">PYTHON 3</span>
+                    <div class="acad-editor-tools">
+                      <button id="acadResetCodeBtn" class="acad-tool-link" type="button">Сбросить шаблон</button>
+                    </div>
+                  </div>
+                  <textarea id="acadCodeEditor" class="code-editor acad-code-textarea" rows="8" spellcheck="false" placeholder="Напишите ваш код здесь..."></textarea>
+
+                  <div class="acad-action-bar">
+                    <button id="acadRunCodeBtn" class="button secondary" type="button">▶ Запустить код</button>
+                    <button id="acadCheckMentorBtn" class="button primary acad-check-btn" type="button">✨ Проверить с ментором</button>
+                    <button id="acadNextLessonBtn" class="button secondary hidden" type="button">Следующий урок →</button>
+                  </div>
+
+                  <div class="acad-console-wrap">
+                    <div class="acad-console-title">Вывод выполнения (Консоль / SQLite):</div>
+                    <pre id="acadConsoleOutput" class="code-output acad-console-pre">Нажмите «Запустить код» или «Проверить с ментором».</pre>
+                  </div>
+
+                  <!-- Блок умного разбора ошибок и вердикта от ИИ-ментора -->
+                  <div id="acadMentorVerdictBox" class="acad-verdict-box hidden">
+                    <div class="acad-verdict-head">
+                      <strong id="acadVerdictTitle">Разбор от ИИ-ментора</strong>
+                    </div>
+                    <div id="acadVerdictText" class="acad-verdict-body"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3. Правая панель: встроенный контекстный чат «Задать вопрос по уроку» -->
+              <aside class="card acad-mentor-chat">
+                <div class="acad-chat-header">
+                  <div>
+                    <h3>💬 Чат с ИИ-ментором</h3>
+                    <small>Видит ваш текущий урок и код в редакторе</small>
+                  </div>
+                </div>
+
+                <div class="acad-chat-quick">
+                  <button type="button" class="acad-quick-q" data-q="Объясни эту тему ещё проще на другом примере.">На другом примере</button>
+                  <button type="button" class="acad-quick-q" data-q="Дай небольшую наводящую подсказку по задаче, не раскрывая весь код.">Наводящая подсказка</button>
+                  <button type="button" class="acad-quick-q" data-q="Что делает каждая строчка в моём текущем коде?">Разбери мой код</button>
+                </div>
+
+                <div id="acadChatMessages" class="acad-chat-messages">
+                  <div class="acad-msg acad-msg-ai">
+                    Привет! Я твой ИИ-наставник Gemini Flash. Если что-то в теории или коде непонятно — спроси меня прямо здесь!
+                  </div>
+                </div>
+
+                <div class="acad-chat-input-row">
+                  <textarea id="acadChatInput" class="acad-chat-textarea" rows="2" placeholder="Спросите по уроку (например: почему здесь нужны скобки?)..."></textarea>
+                  <button id="acadChatSendBtn" class="button primary acad-chat-send-btn" type="button">Спросить</button>
+                </div>
+              </aside>
+            </div>
           </section>
 
           <!-- ЗАМЕТКИ -->
@@ -818,7 +898,7 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261116_wiki_v3"></script>
+  <script src="/assets/app.js?v=20261116_academy_v4"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

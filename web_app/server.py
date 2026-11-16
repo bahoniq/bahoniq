@@ -60,6 +60,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from .routers.academy import router as academy_router
+app.include_router(academy_router)
+
 # Опциональная защита паролем для публичного облака (задается через BAHONIQ_PASSWORD)
 AUTH_PASSWORD = os.getenv("BAHONIQ_PASSWORD", "").strip()
 AUTH_COOKIE_NAME = "bahoniq_auth"
