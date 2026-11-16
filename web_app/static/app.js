@@ -36,7 +36,8 @@ function applyTheme(theme) {
   const sunSvg = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>';
   const moonSvg = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>';
   
-  if (theme === 'day') {
+  const isDay = (theme === 'day' || theme === 'light');
+  if (isDay) {
     body.classList.remove('theme-night');
     body.classList.add('theme-day');
     if (icon) icon.innerHTML = sunSvg;
@@ -47,7 +48,7 @@ function applyTheme(theme) {
     if (icon) icon.innerHTML = moonSvg;
     if (label) label.textContent = 'Ночь';
   }
-  localStorage.setItem('bahoniq_theme', theme);
+  localStorage.setItem('bahoniq_theme', isDay ? 'day' : 'night');
 }
 
 const savedTheme = localStorage.getItem('bahoniq_theme') || 'night';
@@ -1365,12 +1366,15 @@ recForm?.addEventListener('submit', async e => {
     }
 
     let html = '';
-    topics.forEach((topic) => {
+    topics.forEach((topic, idx) => {
       const matchedArticles = (topic.articles || []).filter(a => {
         if (!q) return true;
         return a.title.toLowerCase().includes(q) || topic.name.toLowerCase().includes(q);
       });
       if (!matchedArticles.length) return;
+
+      const hasActive = activeArticle && matchedArticles.some(a => a.id === activeArticle.id);
+      const isCollapsed = (!q && idx > 0 && !hasActive) ? 'collapsed' : '';
 
       const articlesHtml = matchedArticles.map(art => {
         const isActive = activeArticle && activeArticle.id === art.id ? 'active' : '';
@@ -1378,7 +1382,7 @@ recForm?.addEventListener('submit', async e => {
       }).join('');
 
       html += `
-        <div class="wiki-topic-block" data-topic-id="${topic.id}">
+        <div class="wiki-topic-block ${isCollapsed}" data-topic-id="${topic.id}">
           <button type="button" class="wiki-topic-header">
             <span>${escapeHtml(topic.name)}</span>
             <span class="wiki-topic-count">${matchedArticles.length}</span>

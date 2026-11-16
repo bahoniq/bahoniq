@@ -1,138 +1,784 @@
 # -*- coding: utf-8 -*-
-"""Десктопный клиент Platonus Wiki AI — работает строго через единый облачный API (без локальной БД)."""
+"""Десктопное окно Platonus Wiki AI — премиальный тёмный/дневной интерфейс BahonIQ без белых рамок Treeview."""
 
 from __future__ import annotations
 
-import json
-import os
+import re
 import threading
 import tkinter as tk
-import urllib.error
-import urllib.request
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
 
 from services.settings_service import get_theme
-
-CLOUD_API_BASE = os.getenv("BAHONIQ_CLOUD_URL", "https://bahoniq.onrender.com").rstrip("/")
-
-
-def _api_request(method: str, path: str, json_body: dict | None = None, timeout: int = 45) -> dict:
-    """Выполняет запрос к единому облачному API BahonIQ."""
-    url = f"{CLOUD_API_BASE}{path}"
-    data = None
-    headers = {"Accept": "application/json"}
-    if json_body is not None:
-        data = json.dumps(json_body).encode("utf-8")
-        headers["Content-Type"] = "application/json"
-
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
-
-
-def _api_upload_files(files_payload: list[tuple[str, bytes]], timeout: int = 90) -> dict:
-    """Отправляет пакет файлов в облачный эндпоинт POST /api/wiki/upload (multipart/form-data)."""
-    import requests
-    url = f"{CLOUD_API_BASE}/api/wiki/upload"
-    multipart_files = [
-        ("files", (fname, fbytes, "application/octet-stream"))
-        for fname, fbytes in files_payload
-    ]
-    resp = requests.post(url, files=multipart_files, timeout=timeout)
-    if not resp.ok:
-        try:
-            detail = resp.json().get("detail", resp.text)
-        except Exception:
-            detail = resp.text
-        raise RuntimeError(detail)
-    return resp.json()
+from web_app.modules.wiki.service import (
+    ask_wiki,
+    delete_article,
+    get_article,
+    get_wiki_tree,
+    init_wiki_db,
+    upload_and_catalog_files,
+)
 
 
 def open_platonus_wiki(parent: tk.Misc) -> None:
-    """Открывает окно Platonus Wiki AI, подключенное к единому серверному API."""
+    """Открывает современное двухколоночное окно Platonus Wiki AI."""
+    init_wiki_db()
     theme = get_theme()
-    bg_main = theme.get("bg", "#0B1526")
-    bg_card = theme.get("card", "#122238")
-    fg_text = theme.get("text", "#F1F5F9")
-    fg_muted = theme.get("gray", "#94A3B8")
-    accent = "#00B4D8"
+    is_day = theme.get("bg", "").lower() in ("#f1f5f9", "#e6ecf2", "#e2e8f0", "#ffffff", "#f4f7fa")
+
+    if is_day:
+        bg_main = "#E6ECF2"
+        bg_sidebar = "#F8FAFC"
+        bg_card = "#F4F7FA"
+        bg_input = "#FFFFFF"
+        bg_topic = "#E2E8F0"
+        bg_topic_hover = "#CBD5E1"
+        bg_item = "#F8FAFC"
+        bg_item_hover = "#E0F2FE"
+        bg_item_active = "#BAE6FD"
+        fg_text = "#0F172A"
+        fg_muted = "#475569"
+        fg_sub = "#64748B"
+        accent = "#0284C7"
+        accent_hover = "#0369A1"
+        green_btn = "#0D9488"
+        green_hover = "#0F766E"
+        border_col = "#CBD5E1"
+    else:
+        bg_main = "#060E1B"
+        bg_sidebar = "#0A1526"
+        bg_card = "#0F1D33"
+        bg_input = "#081120"
+        bg_topic = "#152744"
+        bg_topic_hover = "#1D355C"
+        bg_item = "#0B1628"
+        bg_item_hover = "#142847"
+        bg_item_active = "#163B5C"
+        fg_text = "#F8FAFC"
+        fg_muted = "#A9BDD3"
+        fg_sub = "#647D96"
+        accent = "#00B4D8"
+        accent_hover = "#0096C7"
+        green_btn = "#009246"
+        green_hover = "#007A3D"
+        border_col = "#1E3352"
 
     win = tk.Toplevel(parent)
-    win.title("Platonus Wiki AI — Облачная база знаний")
-    win.geometry("1120x740")
-    win.minsize(920, 620)
+    win.title("Platonus Wiki AI — База знаний и инструкций")
+    win.geometry("1220x780")
+    win.minsize(980, 640)
     win.configure(bg=bg_main)
 
-    header = tk.Frame(win, bg=bg_card, padx=20, pady=12)
+    # Верхняя полоса брендинга
+    top_stripe = tk.Frame(win, bg=accent, height=3)
+    top_stripe.pack(fill="x", side="top")
+
+    # Шапка окна
+    header = tk.Frame(win, bg=bg_sidebar, padx=22, pady=12, highlightthickness=1, highlightbackground=border_col)
     header.pack(fill="x", side="top")
 
+    title_box = tk.Frame(header, bg=bg_sidebar)
+    title_box.pack(side="left")
+
     tk.Label(
-        header,
-        text="Platonus Wiki AI",
+        title_box,
+        text="📖  Platonus Wiki AI",
         font=("Segoe UI", 15, "bold"),
+        bg=bg_sidebar,
+        fg=fg_text,
+    ).pack(side="left")
+
+    tk.Label(
+        title_box,
+        text="   |   Единая база официальных инструкций АИС «Platonus»",
+        font=("Segoe UI", 10),
+        bg=bg_sidebar,
+        fg=fg_muted,
+    ).pack(side="left", pady=(2, 0))
+
+    stats_badge = tk.Label(
+        header,
+        text="Загрузка базы...",
+        font=("Segoe UI", 9, "bold"),
+        bg=bg_topic,
+        fg=accent,
+        padx=14,
+        pady=5,
+    )
+    stats_badge.pack(side="right")
+
+    # Главный двухколоночный контейнер
+    body = tk.Frame(win, bg=bg_main, padx=16, pady=14)
+    body.pack(fill="both", expand=True)
+
+    # =========================================================================
+    # ЛЕВАЯ ПАНЕЛЬ: Сайдбар базы знаний (350px) — кастомный тёмный аккордеон
+    # =========================================================================
+    left_panel = tk.Frame(
+        body,
+        bg=bg_sidebar,
+        width=355,
+        padx=14,
+        pady=14,
+        highlightthickness=1,
+        highlightbackground=border_col,
+    )
+    left_panel.pack(side="left", fill="y", padx=(0, 14))
+    left_panel.pack_propagate(False)
+
+    # Кнопка загрузки файлов
+    upload_btn = tk.Button(
+        left_panel,
+        text="＋  Загрузить инструкции (.pdf, .docx, .txt)",
+        font=("Segoe UI", 10, "bold"),
+        bg=green_btn,
+        fg="#FFFFFF",
+        activebackground=green_hover,
+        activeforeground="#FFFFFF",
+        relief="flat",
+        bd=0,
+        pady=10,
+        cursor="hand2",
+    )
+    upload_btn.pack(fill="x", pady=(0, 10))
+
+    # Поле быстрого фильтра по названиям статей
+    search_wrap = tk.Frame(
+        left_panel,
+        bg=bg_input,
+        highlightthickness=1,
+        highlightbackground=border_col,
+        padx=10,
+        pady=6,
+    )
+    search_wrap.pack(fill="x", pady=(0, 10))
+
+    tk.Label(
+        search_wrap,
+        text="🔍",
+        font=("Segoe UI", 9),
+        bg=bg_input,
+        fg=fg_sub,
+    ).pack(side="left", padx=(0, 6))
+
+    search_var = tk.StringVar()
+    search_entry = tk.Entry(
+        search_wrap,
+        textvariable=search_var,
+        font=("Segoe UI", 10),
+        bg=bg_input,
+        fg=fg_text,
+        insertbackground=fg_text,
+        relief="flat",
+        bd=0,
+    )
+    search_entry.pack(side="left", fill="x", expand=True)
+
+    clear_search_btn = tk.Label(
+        search_wrap,
+        text="✕",
+        font=("Segoe UI", 9, "bold"),
+        bg=bg_input,
+        fg=fg_sub,
+        cursor="hand2",
+    )
+    clear_search_btn.pack(side="right")
+    clear_search_btn.bind("<Button-1>", lambda _e: search_var.set(""))
+
+    # Заголовок дерева + кнопка свернуть/развернуть все
+    tree_hdr = tk.Frame(left_panel, bg=bg_sidebar)
+    tree_hdr.pack(fill="x", pady=(0, 6))
+
+    tk.Label(
+        tree_hdr,
+        text="РАЗДЕЛЫ БАЗЫ ЗНАНИЙ",
+        font=("Segoe UI", 8, "bold"),
+        bg=bg_sidebar,
+        fg=fg_sub,
+    ).pack(side="left")
+
+    toggle_all_lbl = tk.Label(
+        tree_hdr,
+        text="Развернуть все",
+        font=("Segoe UI", 8, "bold"),
+        bg=bg_sidebar,
+        fg=accent,
+        cursor="hand2",
+    )
+    toggle_all_lbl.pack(side="right")
+
+    # Прокручиваемый Canvas для тёмного аккордеона разделов и статей
+    canvas_wrap = tk.Frame(left_panel, bg=bg_sidebar)
+    canvas_wrap.pack(fill="both", expand=True)
+
+    nav_canvas = tk.Canvas(
+        canvas_wrap,
+        bg=bg_sidebar,
+        bd=0,
+        highlightthickness=0,
+    )
+    nav_scrollbar = tk.Scrollbar(
+        canvas_wrap,
+        orient="vertical",
+        command=nav_canvas.yview,
+    )
+    nav_inner = tk.Frame(nav_canvas, bg=bg_sidebar)
+
+    nav_inner_id = nav_canvas.create_window((0, 0), window=nav_inner, anchor="nw")
+    nav_canvas.configure(yscrollcommand=nav_scrollbar.set)
+
+    nav_canvas.pack(side="left", fill="both", expand=True)
+    nav_scrollbar.pack(side="right", fill="y")
+
+    def _on_inner_configure(_event: object = None) -> None:
+        nav_canvas.configure(scrollregion=nav_canvas.bbox("all"))
+
+    def _on_canvas_configure(event: tk.Event) -> None:
+        nav_canvas.itemconfig(nav_inner_id, width=event.width)
+
+    nav_inner.bind("<Configure>", _on_inner_configure)
+    nav_canvas.bind("<Configure>", _on_canvas_configure)
+
+    # Состояние разделов (по умолчанию открыт только первый раздел, чтобы не перегружать список из 117 статей)
+    expanded_topics: set[int] = set()
+    first_load_done = [False]
+    selected_article_id: list[int | None] = [None]
+    cached_tree_data: dict = {"total_topics": 0, "total_articles": 0, "topics": []}
+
+    # =========================================================================
+    # ПРАВАЯ ПАНЕЛЬ: Главное рабочее пространство (AI-поиск + Ответ / Статья)
+    # =========================================================================
+    right_panel = tk.Frame(
+        body,
+        bg=bg_card,
+        padx=22,
+        pady=18,
+        highlightthickness=1,
+        highlightbackground=border_col,
+    )
+    right_panel.pack(side="left", fill="both", expand=True)
+
+    # Верхний блок поиска
+    ask_title_row = tk.Frame(right_panel, bg=bg_card)
+    ask_title_row.pack(fill="x", pady=(0, 8))
+
+    tk.Label(
+        ask_title_row,
+        text="Умный AI-поиск по инструкциям Platonus",
+        font=("Segoe UI", 13, "bold"),
         bg=bg_card,
         fg=fg_text,
     ).pack(side="left")
 
-    stats_lbl = tk.Label(
-        header,
-        text="Подключение к облачной базе...",
-        font=("Segoe UI", 10, "bold"),
+    tk.Label(
+        ask_title_row,
+        text="Enter — найти  •  Shift+Enter — новая строка",
+        font=("Segoe UI", 9),
         bg=bg_card,
-        fg=accent,
-        padx=14,
+        fg=fg_sub,
+    ).pack(side="right")
+
+    # Строка ввода вопроса + Кнопка (сначала пакуем кнопку СПРАВА, чтобы она никогда не обрезалась!)
+    query_row = tk.Frame(right_panel, bg=bg_card)
+    query_row.pack(fill="x", pady=(0, 10))
+
+    ask_btn = tk.Button(
+        query_row,
+        text="Найти ответ  ➔",
+        font=("Segoe UI", 10, "bold"),
+        bg=accent,
+        fg="#FFFFFF",
+        activebackground=accent_hover,
+        activeforeground="#FFFFFF",
+        relief="flat",
+        bd=0,
+        padx=20,
+        pady=14,
+        cursor="hand2",
     )
-    stats_lbl.pack(side="right")
+    ask_btn.pack(side="right", fill="y", padx=(10, 0))
 
-    body = tk.Frame(win, bg=bg_main, padx=16, pady=14)
-    body.pack(fill="both", expand=True)
+    q_input_border = tk.Frame(
+        query_row,
+        bg=bg_input,
+        highlightthickness=1,
+        highlightbackground=border_col,
+        padx=12,
+        pady=8,
+    )
+    q_input_border.pack(side="left", fill="both", expand=True)
 
-    left_frame = tk.Frame(body, bg=bg_card, width=310, padx=12, pady=12)
-    left_frame.pack(side="left", fill="y", padx=(0, 14))
-    left_frame.pack_propagate(False)
+    q_entry = tk.Text(
+        q_input_border,
+        height=2,
+        font=("Segoe UI", 11),
+        bg=bg_input,
+        fg=fg_text,
+        insertbackground=fg_text,
+        relief="flat",
+        bd=0,
+        wrap="word",
+    )
+    q_entry.pack(fill="both", expand=True)
 
-    right_frame = tk.Frame(body, bg=bg_card, padx=18, pady=16)
-    right_frame.pack(side="left", fill="both", expand=True)
+    # Быстрые подсказки-чипсы для частых вопросов
+    chips_frame = tk.Frame(right_panel, bg=bg_card)
+    chips_frame.pack(fill="x", pady=(0, 12))
 
-    article_map: dict[str, int] = {}
-    cached_tree: dict = {"total_topics": 0, "total_articles": 0, "topics": []}
-    current_article_id: list[int | None] = [None]
+    tk.Label(
+        chips_frame,
+        text="Быстрые вопросы:",
+        font=("Segoe UI", 9, "bold"),
+        bg=bg_card,
+        fg=fg_sub,
+    ).pack(side="left", padx=(0, 8))
 
-    def render_tree(filter_q: str = "") -> None:
-        stats_lbl.configure(
-            text=f"Разделов: {cached_tree.get('total_topics', 0)} • Инструкций: {cached_tree.get('total_articles', 0)}"
+    quick_questions = [
+        ("Как добавить РК?", "Как добавить, выставить и закрыть Рубежный контроль (РК-1, РК-2)?"),
+        ("Закрепление ППС", "Как закрепить дисциплину за преподавателем в АИС Platonus?"),
+        ("Не ставится оценка / НБ", "Почему не ставится оценка или НБ в журнале и как разблокировать?"),
+        ("Общежития и корпуса", "Как заполнить сведения об учебных корпусах и общежитиях?"),
+        ("Сброс пароля / роли", "Как создать пользователя, назначить роль или сбросить пароль?"),
+    ]
+
+    for short_label, full_q in quick_questions:
+        chip = tk.Label(
+            chips_frame,
+            text=short_label,
+            font=("Segoe UI", 8, "bold"),
+            bg=bg_topic,
+            fg=fg_muted,
+            padx=10,
+            pady=4,
+            cursor="hand2",
         )
-        for item in tree.get_children():
-            tree.delete(item)
-        article_map.clear()
+        chip.pack(side="left", padx=3)
+        chip.bind("<Enter>", lambda e, w=chip: w.configure(bg=bg_topic_hover, fg=fg_text))
+        chip.bind("<Leave>", lambda e, w=chip: w.configure(bg=bg_topic, fg=fg_muted))
+        chip.bind("<Button-1>", lambda e, q=full_q: _run_quick_question(q))
 
+    # Панель управления ответом / открытой инструкцией
+    action_bar = tk.Frame(
+        right_panel,
+        bg=bg_sidebar,
+        padx=14,
+        pady=8,
+        highlightthickness=1,
+        highlightbackground=border_col,
+    )
+    action_bar.pack(fill="x", pady=(0, 8))
+
+    mode_status_lbl = tk.Label(
+        action_bar,
+        text="●  Готов к поиску по 117 инструкциям",
+        font=("Segoe UI", 9, "bold"),
+        bg=bg_sidebar,
+        fg=accent,
+    )
+    mode_status_lbl.pack(side="left")
+
+    del_btn = tk.Button(
+        action_bar,
+        text="🗑 Удалить инструкцию",
+        font=("Segoe UI", 9),
+        bg=bg_topic,
+        fg=fg_muted,
+        relief="flat",
+        bd=0,
+        padx=12,
+        pady=4,
+        cursor="hand2",
+        state="disabled",
+    )
+    del_btn.pack(side="right", padx=(6, 0))
+
+    copy_btn = tk.Button(
+        action_bar,
+        text="📋 Скопировать текст",
+        font=("Segoe UI", 9, "bold"),
+        bg=bg_topic,
+        fg=fg_text,
+        activebackground=bg_topic_hover,
+        activeforeground=fg_text,
+        relief="flat",
+        bd=0,
+        padx=12,
+        pady=4,
+        cursor="hand2",
+    )
+    copy_btn.pack(side="right")
+
+    # Область вывода результата с красивым форматированием
+    out_wrap = tk.Frame(
+        right_panel,
+        bg=bg_input,
+        highlightthickness=1,
+        highlightbackground=border_col,
+    )
+    out_wrap.pack(fill="both", expand=True)
+
+    out_scroll = tk.Scrollbar(out_wrap, orient="vertical")
+    output_text = tk.Text(
+        out_wrap,
+        font=("Segoe UI", 11),
+        bg=bg_input,
+        fg=fg_text,
+        relief="flat",
+        bd=0,
+        padx=20,
+        pady=18,
+        wrap="word",
+        spacing1=4,
+        spacing2=3,
+        spacing3=6,
+        yscrollcommand=out_scroll.set,
+        state="disabled",
+    )
+    out_scroll.configure(command=output_text.yview)
+    output_text.pack(side="left", fill="both", expand=True)
+    out_scroll.pack(side="right", fill="y")
+
+    # Настройка типографики в области ответа
+    output_text.tag_configure("h1", font=("Segoe UI", 14, "bold"), foreground=fg_text, spacing1=4, spacing3=10)
+    output_text.tag_configure("badge", font=("Segoe UI", 9, "bold"), foreground=accent, spacing3=6)
+    output_text.tag_configure("bold", font=("Segoe UI", 11, "bold"), foreground=accent)
+    output_text.tag_configure("step_num", font=("Segoe UI", 11, "bold"), foreground=green_btn)
+    output_text.tag_configure("muted", font=("Segoe UI", 10), foreground=fg_sub)
+    output_text.tag_configure("divider", font=("Segoe UI", 9), foreground=border_col, spacing1=8, spacing3=8)
+
+    def _render_formatted_text(title_str: str, subtitle_str: str, body_str: str, footer_str: str = "") -> None:
+        output_text.configure(state="normal")
+        output_text.delete("1.0", "end")
+
+        if subtitle_str:
+            output_text.insert("end", subtitle_str.upper() + "\n", "badge")
+        if title_str:
+            output_text.insert("end", title_str + "\n", "h1")
+            output_text.insert("end", "─" * 68 + "\n", "divider")
+
+        for line in body_str.splitlines():
+            # Выделяем **жирный** текст
+            parts = re.split(r"(\*\*[^*]+\*\*)", line)
+            for idx, part in enumerate(parts):
+                if part.startswith("**") and part.endswith("**"):
+                    output_text.insert("end", part[2:-2], "bold")
+                else:
+                    # Подсветка нумерации шагов в начале строки
+                    if idx == 0:
+                        m = re.match(r"^(\s*(?:\d+[\.\)]|[•\-]))(\s+.*)$", part)
+                        if m:
+                            output_text.insert("end", m.group(1), "step_num")
+                            output_text.insert("end", m.group(2))
+                            continue
+                    output_text.insert("end", part)
+            output_text.insert("end", "\n")
+
+        if footer_str:
+            output_text.insert("end", "\n" + "─" * 68 + "\n", "divider")
+            output_text.insert("end", footer_str + "\n", "muted")
+
+        output_text.configure(state="disabled")
+        output_text.yview_moveto(0.0)
+
+    def _show_welcome_guide() -> None:
+        total_a = cached_tree_data.get("total_articles", 0)
+        total_t = cached_tree_data.get("total_topics", 0)
+        _render_formatted_text(
+            title_str=f"База знаний готова к работе ({total_a} инструкций в {total_t} разделах)",
+            subtitle_str="Platonus Wiki AI  •  Интеллектуальный справочник",
+            body_str=(
+                "Как пользоваться модулем:\n\n"
+                "1. **Свободный поиск с ИИ:** введите любой вопрос в поле выше (например: **«как добавить РК»**, "
+                "**«как заселить студента в общежитие»** или **«как закрепить дисциплину за ППС»**) и нажмите **Найти ответ**.\n"
+                "2. **Чтение инструкций по разделам:** слева расположен каталог всех загруженных инструкций. "
+                "Нажмите на название раздела, чтобы раскрыть список, и кликните на любую статью для просмотра её полного текста.\n"
+                "3. **Пополнение базы:** нажмите зелёную кнопку **«＋ Загрузить инструкции»** слева вверху, чтобы добавить новые файлы PDF, Word или TXT."
+            ),
+        )
+
+    # =========================================================================
+    # ОТРИСОВКА КАСТОМНОГО АККОРДЕОНА СЛЕВА
+    # =========================================================================
+    def rebuild_sidebar_accordion(filter_q: str = "") -> None:
+        for child in nav_inner.winfo_children():
+            child.destroy()
+
+        topics = cached_tree_data.get("topics", [])
         q = filter_q.strip().lower()
-        for topic in cached_tree.get("topics", []):
+
+        if not first_load_done[0] and topics:
+            expanded_topics.add(int(topics[0]["id"]))
+            first_load_done[0] = True
+
+        shown_topics = 0
+        for topic in topics:
+            t_id = int(topic["id"])
             arts = [
                 a for a in topic.get("articles", [])
                 if not q or q in a["title"].lower() or q in topic["name"].lower()
             ]
             if not arts:
                 continue
-            t_node = tree.insert("", "end", text=f"📁 {topic['name']} ({len(arts)})", open=True)
-            for a in arts:
-                a_node = tree.insert(t_node, "end", text=f"📄 {a['title']}")
-                article_map[a_node] = int(a["id"])
+            shown_topics += 1
+            is_open = bool(q) or (t_id in expanded_topics)
 
-    def fetch_tree_async() -> None:
+            # Блок раздела
+            t_block = tk.Frame(nav_inner, bg=bg_sidebar, pady=3)
+            t_block.pack(fill="x")
+
+            t_hdr = tk.Frame(
+                t_block,
+                bg=bg_topic,
+                padx=10,
+                pady=8,
+                cursor="hand2",
+                highlightthickness=1,
+                highlightbackground=border_col,
+            )
+            t_hdr.pack(fill="x")
+
+            arrow_char = "▾" if is_open else "▸"
+            count_lbl = tk.Label(
+                t_hdr,
+                text=str(len(arts)),
+                font=("Segoe UI", 8, "bold"),
+                bg=bg_input,
+                fg=accent,
+                padx=7,
+                pady=1,
+            )
+            count_lbl.pack(side="right", padx=(6, 0))
+
+            t_title_lbl = tk.Label(
+                t_hdr,
+                text=f"{arrow_char}  {topic['name']}",
+                font=("Segoe UI", 9, "bold"),
+                bg=bg_topic,
+                fg=fg_text,
+                anchor="w",
+                justify="left",
+                wraplength=255,
+                cursor="hand2",
+            )
+            t_title_lbl.pack(side="left", fill="x", expand=True)
+
+            def _toggle_topic(tid: int = t_id) -> None:
+                if tid in expanded_topics:
+                    expanded_topics.remove(tid)
+                else:
+                    expanded_topics.add(tid)
+                rebuild_sidebar_accordion(search_var.get())
+
+            for w in (t_hdr, t_title_lbl, count_lbl):
+                w.bind("<Button-1>", lambda _e, tid=t_id: _toggle_topic(tid))
+
+            if is_open:
+                items_box = tk.Frame(t_block, bg=bg_sidebar, padx=4, pady=3)
+                items_box.pack(fill="x")
+
+                for art in arts:
+                    aid = int(art["id"])
+                    is_sel = selected_article_id[0] == aid
+                    row_bg = bg_item_active if is_sel else bg_item
+                    row_fg = accent if is_sel else fg_muted
+
+                    item_frame = tk.Frame(
+                        items_box,
+                        bg=row_bg,
+                        padx=10,
+                        pady=7,
+                        cursor="hand2",
+                        highlightthickness=1,
+                        highlightbackground=accent if is_sel else border_col,
+                    )
+                    item_frame.pack(fill="x", pady=2)
+
+                    item_lbl = tk.Label(
+                        item_frame,
+                        text=art["title"],
+                        font=("Segoe UI", 9, "bold" if is_sel else "normal"),
+                        bg=row_bg,
+                        fg=row_fg,
+                        anchor="w",
+                        justify="left",
+                        wraplength=285,
+                        cursor="hand2",
+                    )
+                    item_lbl.pack(fill="x")
+
+                    def _on_enter(_e: object, fr: tk.Frame = item_frame, lb: tk.Label = item_lbl, a_id: int = aid) -> None:
+                        if selected_article_id[0] != a_id:
+                            fr.configure(bg=bg_item_hover)
+                            lb.configure(bg=bg_item_hover, fg=fg_text)
+
+                    def _on_leave(_e: object, fr: tk.Frame = item_frame, lb: tk.Label = item_lbl, a_id: int = aid) -> None:
+                        if selected_article_id[0] != a_id:
+                            fr.configure(bg=bg_item)
+                            lb.configure(bg=bg_item, fg=fg_muted)
+
+                    item_frame.bind("<Enter>", _on_enter)
+                    item_lbl.bind("<Enter>", _on_enter)
+                    item_frame.bind("<Leave>", _on_leave)
+                    item_lbl.bind("<Leave>", _on_leave)
+
+                    item_frame.bind("<Button-1>", lambda _e, a_id=aid: select_article(a_id))
+                    item_lbl.bind("<Button-1>", lambda _e, a_id=aid: select_article(a_id))
+
+        if shown_topics == 0:
+            tk.Label(
+                nav_inner,
+                text="По вашему фильтру инструкций не найдено.",
+                font=("Segoe UI", 9),
+                bg=bg_sidebar,
+                fg=fg_sub,
+                pady=20,
+            ).pack(fill="x")
+
+        nav_inner.update_idletasks()
+        nav_canvas.configure(scrollregion=nav_canvas.bbox("all"))
+
+    def reload_tree_from_db() -> None:
+        data = get_wiki_tree()
+        cached_tree_data.clear()
+        cached_tree_data.update(data)
+        stats_badge.configure(
+            text=f"Разделов: {data['total_topics']}  •  Инструкций: {data['total_articles']}"
+        )
+        mode_status_lbl.configure(
+            text=f"●  В базе активно {data['total_articles']} инструкций"
+        )
+        rebuild_sidebar_accordion(search_var.get())
+
+    def toggle_all_sections(_event: object = None) -> None:
+        all_ids = {int(t["id"]) for t in cached_tree_data.get("topics", [])}
+        if len(expanded_topics) == len(all_ids):
+            expanded_topics.clear()
+            toggle_all_lbl.configure(text="Развернуть все")
+        else:
+            expanded_topics.update(all_ids)
+            toggle_all_lbl.configure(text="Свернуть все")
+        rebuild_sidebar_accordion(search_var.get())
+
+    toggle_all_lbl.bind("<Button-1>", toggle_all_sections)
+    search_var.trace_add("write", lambda *_: rebuild_sidebar_accordion(search_var.get()))
+
+    # Прокрутка колёсиком мыши в зависимости от положения курсора
+    def _on_mousewheel(event: tk.Event) -> None:
+        if not win.winfo_exists():
+            return
+        x_root = event.x_root
+        left_x = left_panel.winfo_rootx()
+        left_w = left_panel.winfo_width()
+        delta = int(-1 * (event.delta / 120))
+        if left_x <= x_root <= left_x + left_w:
+            nav_canvas.yview_scroll(delta, "units")
+        else:
+            output_text.yview_scroll(delta, "units")
+
+    win.bind("<MouseWheel>", _on_mousewheel)
+
+    # =========================================================================
+    # ОБРАБОТЧИКИ СОБЫТИЙ: ОТКРЫТИЕ СТАТЬИ, ПОИСК И ЗАГРУЗКА
+    # =========================================================================
+    def select_article(aid: int) -> None:
+        art = get_article(aid)
+        if not art:
+            return
+        selected_article_id[0] = aid
+        del_btn.configure(state="normal", fg="#EF4444")
+        mode_status_lbl.configure(text=f"📄  Просмотр инструкции #{aid}")
+        rebuild_sidebar_accordion(search_var.get())
+
+        src_info = f"Исходный файл: {art['source_filename']}" if art.get("source_filename") else ""
+        _render_formatted_text(
+            title_str=art["title"],
+            subtitle_str=art["topic_name"],
+            body_str=art["content"],
+            footer_str=src_info,
+        )
+
+    def _run_quick_question(q_text: str) -> None:
+        q_entry.delete("1.0", "end")
+        q_entry.insert("1.0", q_text)
+        on_ask()
+
+    def on_ask() -> None:
+        q = q_entry.get("1.0", "end").strip()
+        if not q:
+            return
+        selected_article_id[0] = None
+        del_btn.configure(state="disabled", fg=fg_muted)
+        rebuild_sidebar_accordion(search_var.get())
+
+        ask_btn.configure(state="disabled", text="⏳ Поиск...")
+        mode_status_lbl.configure(text="⏳  ИИ анализирует базу инструкций...")
+        _render_formatted_text(
+            title_str=f"Вопрос: «{q}»",
+            subtitle_str="Поиск по базе знаний Platonus",
+            body_str="⏳ Пожалуйста, подождите 2–3 секунды. ИИ сверяет ваш вопрос с загруженными инструкциями...",
+        )
+
         def worker() -> None:
             try:
-                data = _api_request("GET", "/api/wiki/tree")
-                cached_tree.clear()
-                cached_tree.update(data)
-                win.after(0, lambda: render_tree(search_var.get()))
+                res = ask_wiki(q)
+                win.after(0, lambda: _display_ai_answer(q, res, None))
             except Exception as exc:
-                win.after(0, lambda: stats_lbl.configure(text=f"Нет связи с API: {exc}"))
+                win.after(0, lambda: _display_ai_answer(q, None, exc))
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def on_upload_files() -> None:
+    def _display_ai_answer(q: str, res: dict | None, err: Exception | None) -> None:
+        ask_btn.configure(state="normal", text="Найти ответ  ➔")
+        if err:
+            mode_status_lbl.configure(text="❌  Ошибка поиска")
+            _render_formatted_text("Ошибка выполнения запроса", "Platonus Wiki AI", str(err))
+            return
+
+        if not res:
+            return
+        mode_status_lbl.configure(text="✓  Ответ сформирован строго по базе инструкций")
+        srcs = res.get("sources", [])
+        footer = ""
+        if srcs:
+            footer = "Использованные инструкции из вашей базы:\n" + "\n".join(
+                f"  • {s['title']}  [{s['topic_name']}]" for s in srcs
+            )
+        _render_formatted_text(
+            title_str=q,
+            subtitle_str="Пошаговый ответ по регламенту Platonus",
+            body_str=res.get("answer", ""),
+            footer_str=footer,
+        )
+
+    ask_btn.configure(command=on_ask)
+    q_entry.bind("<Return>", lambda e: (on_ask(), "break")[1] if not (e.state & 0x1) else None)
+
+    def on_copy() -> None:
+        txt = output_text.get("1.0", "end").strip()
+        if not txt:
+            return
+        win.clipboard_clear()
+        win.clipboard_append(txt)
+        orig = copy_btn.cget("text")
+        copy_btn.configure(text="✓ Скопировано!")
+        win.after(1600, lambda: copy_btn.configure(text=orig))
+
+    copy_btn.configure(command=on_copy)
+
+    def on_delete() -> None:
+        aid = selected_article_id[0]
+        if not aid:
+            return
+        if messagebox.askyesno("Удаление инструкции", "Удалить выбранную инструкцию из базы знаний?", parent=win):
+            delete_article(aid)
+            selected_article_id[0] = None
+            del_btn.configure(state="disabled", fg=fg_muted)
+            reload_tree_from_db()
+            _show_welcome_guide()
+
+    del_btn.configure(command=on_delete)
+
+    def on_upload() -> None:
         paths = filedialog.askopenfilenames(
             parent=win,
             title="Выберите файлы инструкций Platonus (.pdf, .docx, .txt)",
@@ -151,11 +797,12 @@ def open_platonus_wiki(parent: tk.Misc) -> None:
         if not payload:
             return
 
-        upload_btn.configure(state="disabled", text="⏳ ИИ разбирает файлы...")
+        upload_btn.configure(state="disabled", text=f"⏳ Обработка ({len(payload)} файл.)...")
+        mode_status_lbl.configure(text="⏳  ИИ читает файлы и распределяет инструкции по разделам...")
 
         def worker() -> None:
             try:
-                res = _api_upload_files(payload)
+                res = upload_and_catalog_files(payload)
                 win.after(0, lambda: _on_upload_done(res, None))
             except Exception as exc:
                 win.after(0, lambda: _on_upload_done(None, exc))
@@ -163,227 +810,20 @@ def open_platonus_wiki(parent: tk.Misc) -> None:
         threading.Thread(target=worker, daemon=True).start()
 
     def _on_upload_done(res: dict | None, err: Exception | None) -> None:
-        upload_btn.configure(state="normal", text="+ Загрузить инструкции")
+        upload_btn.configure(state="normal", text="＋  Загрузить инструкции (.pdf, .docx, .txt)")
         if err:
             messagebox.showerror("Ошибка загрузки", str(err), parent=win)
             return
-        fetch_tree_async()
+        reload_tree_from_db()
         created = res.get("articles_created", []) if res else []
         messagebox.showinfo(
             "Загрузка завершена",
             f"Обработано файлов: {res.get('files_processed', 0)}\n"
-            f"Сохранено инструкций в облачную базу: {len(created)}",
+            f"Добавлено / обновлено инструкций: {len(created)}",
             parent=win,
         )
 
-    upload_btn = tk.Button(
-        left_frame,
-        text="+ Загрузить инструкции",
-        font=("Segoe UI", 10, "bold"),
-        bg="#009246",
-        fg="#FFFFFF",
-        activebackground="#007A3D",
-        activeforeground="#FFFFFF",
-        relief="flat",
-        pady=8,
-        cursor="hand2",
-        command=on_upload_files,
-    )
-    upload_btn.pack(fill="x", pady=(0, 10))
+    upload_btn.configure(command=on_upload)
 
-    search_var = tk.StringVar()
-    search_entry = tk.Entry(
-        left_frame,
-        textvariable=search_var,
-        font=("Segoe UI", 10),
-        bg=bg_main,
-        fg=fg_text,
-        insertbackground=fg_text,
-        relief="flat",
-    )
-    search_entry.pack(fill="x", ipady=5, pady=(0, 8))
-    search_var.trace_add("write", lambda *_: render_tree(search_var.get()))
-
-    style = ttk.Style(win)
-    style.configure("Wiki.Treeview", rowheight=26, font=("Segoe UI", 9))
-    tree = ttk.Treeview(left_frame, show="tree", style="Wiki.Treeview")
-    tree.pack(fill="both", expand=True)
-
-    tk.Label(
-        right_frame,
-        text="Умный поиск по инструкциям Platonus",
-        font=("Segoe UI", 12, "bold"),
-        bg=bg_card,
-        fg=fg_text,
-    ).pack(anchor="w")
-
-    q_frame = tk.Frame(right_frame, bg=bg_card, pady=8)
-    q_frame.pack(fill="x")
-
-    q_entry = tk.Text(
-        q_frame,
-        height=3,
-        font=("Segoe UI", 11),
-        bg=bg_main,
-        fg=fg_text,
-        insertbackground=fg_text,
-        relief="flat",
-        padx=10,
-        pady=8,
-        wrap="word",
-    )
-    q_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
-
-    def on_ask() -> None:
-        q = q_entry.get("1.0", "end").strip()
-        if not q:
-            return
-        ask_btn.configure(state="disabled", text="Поиск...")
-        output_text.configure(state="normal")
-        output_text.delete("1.0", "end")
-        output_text.insert("1.0", "⏳ Запрос к облачной базе знаний Platonus Wiki AI...")
-        output_text.configure(state="disabled")
-
-        def worker() -> None:
-            try:
-                res = _api_request("POST", "/api/wiki/ask", json_body={"query": q})
-                win.after(0, lambda: _show_answer(res, None))
-            except Exception as exc:
-                win.after(0, lambda: _show_answer(None, exc))
-
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _show_answer(res: dict | None, err: Exception | None) -> None:
-        ask_btn.configure(state="normal", text="Получить ответ")
-        current_article_id[0] = None
-        del_btn.configure(state="disabled")
-        output_text.configure(state="normal")
-        output_text.delete("1.0", "end")
-        if err:
-            output_text.insert("1.0", f"Ошибка: {err}")
-        elif res:
-            srcs = res.get("sources", [])
-            src_lines = "\n".join(f"• {s['title']} ({s['topic_name']})" for s in srcs)
-            full_out = res.get("answer", "")
-            if src_lines:
-                full_out += f"\n\n────────────────────────────\nСтатьи-источники в базе:\n{src_lines}"
-            output_text.insert("1.0", full_out)
-        output_text.configure(state="disabled")
-
-    ask_btn = tk.Button(
-        q_frame,
-        text="Получить ответ",
-        font=("Segoe UI", 10, "bold"),
-        bg=accent,
-        fg="#FFFFFF",
-        relief="flat",
-        padx=16,
-        pady=14,
-        cursor="hand2",
-        command=on_ask,
-    )
-    ask_btn.pack(side="right")
-
-    q_entry.bind("<Return>", lambda e: (on_ask(), "break")[1] if not (e.state & 0x1) else None)
-
-    toolbar = tk.Frame(right_frame, bg=bg_card, pady=4)
-    toolbar.pack(fill="x")
-
-    def copy_output() -> None:
-        txt = output_text.get("1.0", "end").strip()
-        if txt:
-            win.clipboard_clear()
-            win.clipboard_append(txt)
-            messagebox.showinfo("Скопировано", "Текст скопирован в буфер обмена.", parent=win)
-
-    def delete_current_art() -> None:
-        aid = current_article_id[0]
-        if not aid:
-            return
-        if messagebox.askyesno("Удаление", "Удалить выбранную инструкцию из базы знаний?", parent=win):
-            def worker() -> None:
-                try:
-                    _api_request("DELETE", f"/api/wiki/articles/{aid}")
-                    win.after(0, fetch_tree_async)
-                except Exception as exc:
-                    win.after(0, lambda: messagebox.showerror("Ошибка", str(exc), parent=win))
-
-            threading.Thread(target=worker, daemon=True).start()
-            current_article_id[0] = None
-            del_btn.configure(state="disabled")
-            output_text.configure(state="normal")
-            output_text.delete("1.0", "end")
-            output_text.configure(state="disabled")
-
-    tk.Button(
-        toolbar,
-        text="📋 Скопировать ответ / инструкцию",
-        font=("Segoe UI", 9, "bold"),
-        bg=bg_main,
-        fg=fg_text,
-        relief="flat",
-        padx=12,
-        pady=5,
-        cursor="hand2",
-        command=copy_output,
-    ).pack(side="left")
-
-    del_btn = tk.Button(
-        toolbar,
-        text="🗑 Удалить статью",
-        font=("Segoe UI", 9),
-        bg=bg_main,
-        fg=fg_muted,
-        relief="flat",
-        padx=12,
-        pady=5,
-        state="disabled",
-        command=delete_current_art,
-    )
-    del_btn.pack(side="right")
-
-    output_text = tk.Text(
-        right_frame,
-        font=("Segoe UI", 11),
-        bg=bg_main,
-        fg=fg_text,
-        relief="flat",
-        padx=14,
-        pady=14,
-        wrap="word",
-        state="disabled",
-    )
-    output_text.pack(fill="both", expand=True, pady=(6, 0))
-
-    def on_tree_select(_event: object) -> None:
-        sel = tree.selection()
-        if not sel:
-            return
-        aid = article_map.get(sel[0])
-        if not aid:
-            return
-
-        def worker() -> None:
-            try:
-                art = _api_request("GET", f"/api/wiki/articles/{aid}")
-                win.after(0, lambda: _display_article(art))
-            except Exception as exc:
-                win.after(0, lambda: messagebox.showerror("Ошибка", str(exc), parent=win))
-
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _display_article(art: dict) -> None:
-        current_article_id[0] = int(art["id"])
-        del_btn.configure(state="normal")
-        output_text.configure(state="normal")
-        output_text.delete("1.0", "end")
-        header_str = f"РАЗДЕЛ: {art['topic_name']}\nИНСТРУКЦИЯ: {art['title']}\n"
-        if art.get("source_filename"):
-            header_str += f"ИСХОДНЫЙ ФАЙЛ: {art['source_filename']}\n"
-        header_str += "─" * 50 + "\n\n"
-        output_text.insert("1.0", header_str + art["content"])
-        output_text.configure(state="disabled")
-
-    tree.bind("<<TreeviewSelect>>", on_tree_select)
-
-    fetch_tree_async()
+    reload_tree_from_db()
+    _show_welcome_guide()

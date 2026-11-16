@@ -170,19 +170,19 @@ GOLD_LIGHT = "#FBF6E5"
 
 DAY_THEME = {
 
-    "bg": "#F5F7F8",
+    "bg": "#E6ECF2",
 
-    "card": "#FFFFFF",
+    "card": "#F4F7FA",
 
-    "text": "#172033",
+    "text": "#0F172A",
 
-    "gray": "#667085",
+    "gray": "#475569",
 
-    "border": "#E3E7EB",
+    "border": "#CBD5E1",
 
-    "hover": "#F0F3F5",
+    "hover": "#E2E8F0",
 
-    "input": "#FCFDFD",
+    "input": "#F8FAFC",
 }
 
 
