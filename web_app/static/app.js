@@ -1366,7 +1366,7 @@ recForm?.addEventListener('submit', async e => {
     }
 
     let html = '';
-    topics.forEach((topic, idx) => {
+    topics.forEach((topic) => {
       const matchedArticles = (topic.articles || []).filter(a => {
         if (!q) return true;
         return a.title.toLowerCase().includes(q) || topic.name.toLowerCase().includes(q);
@@ -1374,7 +1374,7 @@ recForm?.addEventListener('submit', async e => {
       if (!matchedArticles.length) return;
 
       const hasActive = activeArticle && matchedArticles.some(a => a.id === activeArticle.id);
-      const isCollapsed = (!q && idx > 0 && !hasActive) ? 'collapsed' : '';
+      const isCollapsed = (!q && !hasActive) ? 'collapsed' : '';
 
       const articlesHtml = matchedArticles.map(art => {
         const isActive = activeArticle && activeArticle.id === art.id ? 'active' : '';

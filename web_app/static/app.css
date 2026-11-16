@@ -1477,10 +1477,9 @@ body.theme-day .wiki-tree-search {
 
 .wiki-topics-tree {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: block;
   padding-right: 4px;
 }
 
@@ -1488,7 +1487,7 @@ body.theme-day .wiki-tree-search {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: rgba(10, 19, 34, 0.45);
-  overflow: hidden;
+  margin-bottom: 8px;
 }
 body.theme-day .wiki-topic-block {
   background: rgba(248, 250, 252, 0.9);
