@@ -18,6 +18,7 @@ from modules.music_core import (
     get_track_by_id,
     query_tracks,
 )
+from web_app.routers.music import _parse_single_range
 
 
 class DummyAudioAttr:
@@ -174,6 +175,17 @@ class TestMusicPlayer(unittest.TestCase):
         clear_catalog_cache()
         tracks, total = query_tracks()
         self.assertEqual(total, 0)
+
+    def test_http_range_parser(self):
+        self.assertEqual(_parse_single_range("bytes=0-99", 1000), (0, 99))
+        self.assertEqual(_parse_single_range("bytes=900-", 1000), (900, 999))
+        self.assertEqual(_parse_single_range("bytes=-100", 1000), (900, 999))
+
+    def test_http_range_parser_rejects_invalid_ranges(self):
+        for value in ("items=0-10", "bytes=1000-", "bytes=50-10", "bytes=0-1,5-6", "bytes=-0"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    _parse_single_range(value, 1000)
 
 
 if __name__ == "__main__":

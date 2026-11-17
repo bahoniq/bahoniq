@@ -17,7 +17,6 @@ import mimetypes
 import os
 import re
 import sqlite3
-import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
@@ -29,15 +28,10 @@ DB_PATH = DATA_DIR / "music_catalog.db"
 # Синглтон-клиент Telethon
 _client = None
 _client_lock = asyncio.Lock()
-# Блокировки per-track для single-flight загрузок
-_track_locks: Dict[int, asyncio.Lock] = {}
-_track_locks_guard = threading.Lock()
-
-def _get_track_lock(track_id: int) -> asyncio.Lock:
-    with _track_locks_guard:
-        if track_id not in _track_locks:
-            _track_locks[track_id] = asyncio.Lock()
-        return _track_locks[track_id]
+# Ограничиваем количество одновременных MTProto-загрузок. Нельзя использовать
+# один per-track lock и для стрима, и для фонового download: длительный Range-
+# запрос тогда блокирует офлайн-сохранение этого же трека.
+_telegram_download_slots = asyncio.Semaphore(8)
 
 
 def get_db_connection() -> sqlite3.Connection:
@@ -223,7 +217,17 @@ async def get_channel_entity(client):
         except Exception:
             pass
 
-    # Автопоиск среди диалогов пользователя: ищем «Музыка ДИТ», где загружены аудиофайлы
+    # Явно заданный username важнее эвристик и старых диалогов. Ранее здесь
+    # использовался зашитый ID старого канала, из-за чего синхронизация могла
+    # успешно читать не тот канал и возвращать 0 треков.
+    channel_user_env = os.getenv("TELEGRAM_CHANNEL_USERNAME", "bahoniqmusic").strip().replace("@", "")
+    if channel_user_env:
+        try:
+            return await client.get_entity(channel_user_env)
+        except Exception:
+            pass
+
+    # Автопоиск среди диалогов — только резервный вариант.
     try:
         candidates = []
         async for d in client.iter_dialogs(limit=50):
@@ -241,19 +245,6 @@ async def get_channel_entity(client):
     except Exception:
         pass
 
-    # Попытка прямого ID чата с музыкой (-5288727334)
-    try:
-        return await client.get_entity(-5288727334)
-    except Exception:
-        pass
-
-    channel_user_env = os.getenv("TELEGRAM_CHANNEL_USERNAME", "bahoniqmusic").strip().replace("@", "")
-    if channel_user_env:
-        try:
-            return await client.get_entity(channel_user_env)
-        except Exception:
-            pass
-
     # Попытка через invite link если задан
     invite_env = os.getenv("TELEGRAM_CHANNEL_INVITE", "").strip()
     if invite_env:
@@ -262,7 +253,7 @@ async def get_channel_entity(client):
         except Exception:
             pass
 
-    return await client.get_entity("bahoniqmusic")
+    raise RuntimeError("Не удалось определить Telegram-канал. Проверьте TELEGRAM_CHANNEL_ID или TELEGRAM_CHANNEL_USERNAME.")
 
 
 async def sync_catalog(force: bool = False) -> Dict[str, Any]:
@@ -289,13 +280,35 @@ async def sync_catalog(force: bool = False) -> Dict[str, Any]:
 
     conn = get_db_connection()
     new_tracks_count = 0
+    updated_tracks_count = 0
     total_found = 0
+    scanned_messages = 0
+    media_messages = 0
+    skipped_media = 0
+    skipped_examples: List[Dict[str, Any]] = []
 
     try:
         # Сканируем сообщения канала
-        async for message in client.iter_messages(channel, limit=1000):
+        async for message in client.iter_messages(channel, limit=None):
+            scanned_messages += 1
+            if getattr(message, "media", None):
+                media_messages += 1
             meta = extract_metadata(message)
             if not meta:
+                if getattr(message, "media", None):
+                    skipped_media += 1
+                    if len(skipped_examples) < 20:
+                        document = getattr(message.media, "document", None)
+                        attrs = getattr(document, "attributes", []) if document else []
+                        file_obj = getattr(message, "file", None)
+                        skipped_examples.append({
+                            "message_id": getattr(message, "id", None),
+                            "media_type": message.media.__class__.__name__,
+                            "mime_type": getattr(document, "mime_type", "") if document else "",
+                            "file_name": getattr(file_obj, "name", "") if file_obj else "",
+                            "attributes": [a.__class__.__name__ for a in attrs],
+                            "reason": "Файл не распознан как поддерживаемое аудио",
+                        })
                 continue
 
             total_found += 1
@@ -319,6 +332,20 @@ async def sync_catalog(force: bool = False) -> Dict[str, Any]:
                         meta["date"], meta["caption"], meta["has_cover"]
                     ))
                     new_tracks_count += 1
+                else:
+                    conn.execute("""
+                        UPDATE tracks SET
+                            document_id=?, access_hash=?, file_reference=?, title=?, artist=?,
+                            album=?, duration=?, file_size=?, mime_type=?, file_name=?, date=?,
+                            caption=?, has_cover=?
+                        WHERE telegram_msg_id=?
+                    """, (
+                        meta["document_id"], meta["access_hash"], meta["file_reference"],
+                        meta["title"], meta["artist"], meta["album"], meta["duration"],
+                        meta["file_size"], meta["mime_type"], meta["file_name"], meta["date"],
+                        meta["caption"], meta["has_cover"], meta["telegram_msg_id"]
+                    ))
+                    updated_tracks_count += 1
 
         now_str = datetime.now(timezone.utc).isoformat()
         with conn:
@@ -331,8 +358,15 @@ async def sync_catalog(force: bool = False) -> Dict[str, Any]:
             "status": "ok",
             "connected": True,
             "channel_title": getattr(channel, "title", "Музыка ДИТ"),
+            "channel_id": getattr(channel, "id", None),
             "new_tracks": new_tracks_count,
+            "updated_tracks": updated_tracks_count,
             "total_tracks": total_in_db,
+            "scanned_messages": scanned_messages,
+            "media_messages": media_messages,
+            "audio_found": total_found,
+            "skipped_media": skipped_media,
+            "skipped_examples": skipped_examples,
             "last_sync": now_str
         }
     except Exception as exc:
@@ -483,13 +517,20 @@ async def stream_track_chunks(
         return
 
     client = await get_telegram_client()
-    lock = _get_track_lock(track_id)
-
-    # Загружаем указанный диапазон байтов
-    async with lock:
+    # Загружаем диапазон независимо от фонового полного скачивания. Семафор
+    # защищает Telegram от шквала запросов, но не создаёт взаимную блокировку.
+    async with _telegram_download_slots:
         try:
-            async for chunk in client.iter_download(document, offset=start, limit=length, chunk_size=chunk_size):
-                yield chunk
+            remaining = max(0, int(length))
+            async for chunk in client.iter_download(document, offset=start, limit=remaining, chunk_size=chunk_size):
+                if not chunk or remaining <= 0:
+                    break
+                piece = chunk[:remaining]
+                if piece:
+                    yield piece
+                    remaining -= len(piece)
+                if remaining <= 0:
+                    break
         except (asyncio.CancelledError, GeneratorExit):
             # Клиент отключился или перемотал трек — штатное прерывание стрима
             return

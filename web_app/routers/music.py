@@ -41,6 +41,38 @@ DEFAULT_VINYL_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 
 </svg>"""
 
 
+def _parse_single_range(range_header: str, file_size: int) -> tuple[int, int]:
+    """Разбирает один RFC 7233 byte-range или поднимает ValueError.
+
+    Поддерживает bytes=START-END, bytes=START- и bytes=-SUFFIX.
+    Несколько диапазонов намеренно не поддерживаются.
+    """
+    if file_size <= 0 or not range_header or not range_header.lower().startswith("bytes="):
+        raise ValueError("invalid range")
+    value = range_header.split("=", 1)[1].strip()
+    if not value or "," in value or value.count("-") != 1:
+        raise ValueError("multiple or malformed ranges are unsupported")
+    first, last = (part.strip() for part in value.split("-", 1))
+    if not first:
+        # suffix-byte-range-spec: последние N байт
+        if not last.isdigit():
+            raise ValueError("invalid suffix")
+        suffix = int(last)
+        if suffix <= 0:
+            raise ValueError("invalid suffix")
+        suffix = min(suffix, file_size)
+        return file_size - suffix, file_size - 1
+    if not first.isdigit() or (last and not last.isdigit()):
+        raise ValueError("invalid byte position")
+    start = int(first)
+    if start >= file_size:
+        raise ValueError("range starts after end of file")
+    end = int(last) if last else file_size - 1
+    if end < start:
+        raise ValueError("range end precedes start")
+    return start, min(end, file_size - 1)
+
+
 def _check_admin_auth(request: Request, x_music_admin_token: Optional[str] = None) -> bool:
     """Проверка прав администратора для синхронизации."""
     expected_token = os.getenv("MUSIC_ADMIN_TOKEN", "").strip()
@@ -145,18 +177,18 @@ async def stream_track(
         raise HTTPException(status_code=400, detail="Некорректный размер файла")
 
     # Обработка Range-запроса (например: bytes=1048576- или bytes=0-1048575)
-    if range_header and range_header.startswith("bytes="):
-        range_val = range_header[6:].strip()
-        parts = range_val.split("-")
+    if range_header:
         try:
-            start = int(parts[0]) if parts[0] else 0
-            end = int(parts[1]) if len(parts) > 1 and parts[1] else file_size - 1
+            start, end = _parse_single_range(range_header, file_size)
         except ValueError:
-            start = 0
-            end = file_size - 1
-
-        start = max(0, min(start, file_size - 1))
-        end = max(start, min(end, file_size - 1))
+            return Response(
+                status_code=416,
+                headers={
+                    "Content-Range": f"bytes */{file_size}",
+                    "Accept-Ranges": "bytes",
+                    "Cache-Control": "no-store",
+                },
+            )
         length = end - start + 1
 
         headers = {
@@ -164,7 +196,7 @@ async def stream_track(
             "Accept-Ranges": "bytes",
             "Content-Length": str(length),
             "Content-Type": mime_type,
-            "Cache-Control": "no-cache",
+            "Cache-Control": "private, no-store",
         }
         return StreamingResponse(
             stream_track_chunks(track_id, start=start, length=length),
@@ -177,7 +209,7 @@ async def stream_track(
         "Accept-Ranges": "bytes",
         "Content-Length": str(file_size),
         "Content-Type": mime_type,
-        "Cache-Control": "no-cache",
+        "Cache-Control": "private, no-store",
     }
     return StreamingResponse(
         stream_track_chunks(track_id, start=0, length=file_size),

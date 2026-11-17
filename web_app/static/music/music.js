@@ -57,8 +57,9 @@
   let repeatMode = localStorage.getItem('bahoniq_repeat') || 'none'; // 'none' | 'all' | 'one'
   const favorites = new Set();
   const offlineTrackIds = new Set();
-  const downloadingTrackIds = new Set();
+  const downloadPromises = new Map();
   let currentBlobUrl = null;
+  let playRequestId = 0;
   let activeTab = 'all';
 
   // --- Хранение индекса скачанных треков и кэша плейлиста для мгновенного старта офлайн ---
@@ -158,18 +159,35 @@
   }
 
   async function saveAudioLocally(trackId, blob, trackMeta = null) {
+    const expectedSize = Number(trackMeta?.file_size || 0);
+    if (!blob || blob.size <= 0 || (expectedSize > 0 && blob.size !== expectedSize)) {
+      return false;
+    }
     let saved = false;
     // 1. Попытка в OPFS (Origin Private File System)
     if (opfsRoot) {
       try {
+        const tempName = `track_${trackId}.part`;
+        const tempHandle = await opfsRoot.getFileHandle(tempName, { create: true });
+        const tempWriter = await tempHandle.createWritable();
+        await tempWriter.write(blob);
+        await tempWriter.close();
+        const tempFile = await tempHandle.getFile();
+        if (tempFile.size !== blob.size) throw new Error('OPFS temporary file size mismatch');
+
         const fileHandle = await opfsRoot.getFileHandle(`track_${trackId}.bin`, { create: true });
         const writable = await fileHandle.createWritable();
-        await writable.write(blob);
+        await writable.write(tempFile);
         await writable.close();
+        const finalFile = await fileHandle.getFile();
+        if (finalFile.size !== blob.size) throw new Error('OPFS final file size mismatch');
+        await opfsRoot.removeEntry(tempName).catch(() => {});
         offlineTrackIds.add(trackId);
         persistOfflineTrackIds();
         saved = true;
       } catch (err) {
+        try { await opfsRoot.removeEntry(`track_${trackId}.part`); } catch {}
+        try { await opfsRoot.removeEntry(`track_${trackId}.bin`); } catch {}
         console.warn('OPFS write failed, falling back to IndexedDB:', err);
       }
     }
@@ -179,7 +197,10 @@
       try {
         if (!saved) {
           const txB = idb.transaction('tracks_blobs', 'readwrite');
-          txB.objectStore('tracks_blobs').put({ id: trackId, blob: blob, size: blob.size, date: Date.now() });
+          txB.objectStore('tracks_blobs').put({
+            id: trackId, blob, size: blob.size, expectedSize: expectedSize || blob.size,
+            complete: true, date: Date.now()
+          });
         }
         if (trackMeta) {
           const txM = idb.transaction('tracks_meta', 'readwrite');
@@ -195,12 +216,16 @@
     return saved;
   }
 
-  async function getLocalAudioBlob(trackId) {
+  async function getLocalAudioBlob(trackId, expectedSize = 0) {
     if (opfsRoot) {
       try {
         const fileHandle = await opfsRoot.getFileHandle(`track_${trackId}.bin`);
         const file = await fileHandle.getFile();
-        if (file && file.size > 0) return file;
+        if (file && file.size > 0 && (!expectedSize || file.size === expectedSize)) return file;
+        if (file && expectedSize && file.size !== expectedSize) {
+          await opfsRoot.removeEntry(`track_${trackId}.bin`).catch(() => {});
+          offlineTrackIds.delete(trackId);
+        }
       } catch {}
     }
 
@@ -209,7 +234,12 @@
         try {
           const tx = idb.transaction('tracks_blobs', 'readonly');
           const req = tx.objectStore('tracks_blobs').get(trackId);
-          req.onsuccess = () => resolve(req.result ? req.result.blob : null);
+          req.onsuccess = () => {
+            const row = req.result;
+            const valid = row && row.complete === true && row.blob && row.blob.size > 0 &&
+              (!expectedSize || row.blob.size === expectedSize);
+            resolve(valid ? row.blob : null);
+          };
           req.onerror = () => resolve(null);
         } catch {
           resolve(null);
@@ -240,7 +270,6 @@
   }
 
   async function scanOfflineTracks() {
-    // 0. Мгновенно загружаем из localStorage
     loadOfflineTrackIdsFromStorage();
     loadCachedPlaylistFromStorage();
 
@@ -261,7 +290,78 @@
       });
     }
 
-    // 2. Восстанавливаем список треков из локального кэша IndexedDB если плейлист еще пуст
+    // 2. Если треки в плейлисте известны, проверяем файлы в OPFS точечно по ID (работает на всех магнитолах и WebViews)
+    if (opfsRoot && playlist.length > 0) {
+      // Ограничиваем параллелизм для слабых Android-магнитол.
+      for (let start = 0; start < playlist.length; start += 16) {
+        const batch = playlist.slice(start, start + 16);
+        await Promise.all(batch.map(async t => {
+        try {
+          const handle = await opfsRoot.getFileHandle(`track_${t.id}.bin`);
+          const file = await handle.getFile();
+          if (file && file.size > 0 && (!t.file_size || file.size === t.file_size)) {
+            offlineTrackIds.add(t.id);
+          } else if (file) {
+            await opfsRoot.removeEntry(`track_${t.id}.bin`).catch(() => {});
+            offlineTrackIds.delete(t.id);
+          }
+        } catch {}
+        }));
+      }
+    }
+
+    // 3. Прямой зондаж диапазона ID 1..150 для слабых магнитол без итератора
+    if (opfsRoot) {
+      const probeIds = [];
+      for (let i = 1; i <= 150; i++) {
+        if (!offlineTrackIds.has(i)) probeIds.push(i);
+      }
+      for (let s = 0; s < probeIds.length; s += 16) {
+        const batch = probeIds.slice(s, s + 16);
+        await Promise.all(batch.map(async id => {
+          try {
+            const handle = await opfsRoot.getFileHandle(`track_${id}.bin`);
+            const file = await handle.getFile();
+            if (file && file.size > 0) {
+              offlineTrackIds.add(id);
+            }
+          } catch {}
+        }));
+      }
+    }
+
+    // 4. Также сканируем OPFS итератором (если поддерживается)
+    if (opfsRoot) {
+      try {
+        if (typeof opfsRoot.entries === 'function') {
+          for await (const [name, handle] of opfsRoot.entries()) {
+            const m = name.match(/^track_(\d+)\.bin$/);
+            if (m) {
+              const trackId = Number(m[1]);
+              const track = playlist.find(t => t.id === trackId);
+              const file = await handle.getFile();
+              if (file.size > 0 && (!track?.file_size || file.size === track.file_size)) offlineTrackIds.add(trackId);
+            }
+          }
+        } else if (typeof opfsRoot.values === 'function') {
+          for await (const handle of opfsRoot.values()) {
+            const m = (handle.name || '').match(/^track_(\d+)\.bin$/);
+            if (m) {
+              const trackId = Number(m[1]);
+              const track = playlist.find(t => t.id === trackId);
+              const file = await handle.getFile();
+              if (file.size > 0 && (!track?.file_size || file.size === track.file_size)) {
+                offlineTrackIds.add(trackId);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('OPFS iterator scan:', err);
+      }
+    }
+
+    // 5. Восстанавливаем список треков из локального кэша IndexedDB если сети нет
     if (idb && playlist.length === 0) {
       await new Promise(resolve => {
         try {
@@ -280,55 +380,6 @@
           resolve();
         }
       });
-    }
-
-    // 3. Проверяем файлы в OPFS точечно по известным трекам плейлиста
-    if (opfsRoot && playlist.length > 0) {
-      await Promise.all(playlist.map(async t => {
-        try {
-          const handle = await opfsRoot.getFileHandle(`track_${t.id}.bin`);
-          const file = await handle.getFile();
-          if (file && file.size > 0) {
-            offlineTrackIds.add(t.id);
-          }
-        } catch {}
-      }));
-    }
-
-    // 4. Прямой зондаж файлов OPFS в диапазоне ID 1..150 (работает на всех Android магнитолах без сбоев)
-    if (opfsRoot) {
-      const probeIds = [];
-      for (let i = 1; i <= 150; i++) {
-        if (!offlineTrackIds.has(i)) probeIds.push(i);
-      }
-      await Promise.all(probeIds.map(async id => {
-        try {
-          const handle = await opfsRoot.getFileHandle(`track_${id}.bin`);
-          const file = await handle.getFile();
-          if (file && file.size > 0) {
-            offlineTrackIds.add(id);
-          }
-        } catch {}
-      }));
-    }
-
-    // 5. Также сканируем OPFS итератором (если поддерживается браузером)
-    if (opfsRoot) {
-      try {
-        if (typeof opfsRoot.entries === 'function') {
-          for await (const [name, handle] of opfsRoot.entries()) {
-            const m = name.match(/^track_(\d+)\.bin$/);
-            if (m) offlineTrackIds.add(Number(m[1]));
-          }
-        } else if (typeof opfsRoot.values === 'function') {
-          for await (const handle of opfsRoot.values()) {
-            const m = (handle.name || '').match(/^track_(\d+)\.bin$/);
-            if (m) offlineTrackIds.add(Number(m[1]));
-          }
-        }
-      } catch (err) {
-        // Iterator not supported or restricted in webview
-      }
     }
 
     persistOfflineTrackIds();
@@ -364,14 +415,14 @@
 
   // --- Загрузка трека в фоне при первом прослушивании ---
   async function downloadTrackInBackground(track) {
-    if (!track || offlineTrackIds.has(track.id) || downloadingTrackIds.has(track.id)) {
-      return;
-    }
-    downloadingTrackIds.add(track.id);
-    updateTrackItemBadge(track.id);
+    if (!track || offlineTrackIds.has(track.id)) return true;
+    if (downloadPromises.has(track.id)) return downloadPromises.get(track.id);
 
-    try {
-      const resp = await fetch(`/api/music/tracks/${track.id}/download`);
+    const task = (async () => {
+      updateTrackItemBadge(track.id);
+      const controller = new AbortController();
+      try {
+      const resp = await fetch(`/api/music/tracks/${track.id}/download`, { signal: controller.signal });
       if (!resp.ok) throw new Error('Download failed');
 
       const contentLength = Number(resp.headers.get('Content-Length')) || track.file_size || 0;
@@ -394,19 +445,31 @@
       const completeBlob = new Blob(chunks, { type: track.mime_type || 'audio/mpeg' });
 
       // Валидация размера
-      if (completeBlob.size > 0 && (contentLength === 0 || completeBlob.size === contentLength || Math.abs(completeBlob.size - contentLength) < 1024)) {
-        await saveAudioLocally(track.id, completeBlob, track);
+      const expectedSize = Number(track.file_size || contentLength || 0);
+      if (completeBlob.size > 0 && (!expectedSize || completeBlob.size === expectedSize)) {
+        const saved = await saveAudioLocally(track.id, completeBlob, { ...track, file_size: expectedSize || completeBlob.size });
+        if (!saved) throw new Error('Local file validation failed');
         if (currentIndex >= 0 && playlist[currentIndex]?.id === track.id) {
           updateOfflinePill('offline');
         }
+        return true;
       } else {
         console.warn('Size mismatch, discarded incomplete file');
+        return false;
       }
     } catch (err) {
       console.warn('Background download error:', err);
+      return false;
     } finally {
-      downloadingTrackIds.delete(track.id);
+      controller.abort();
       updateTrackItemBadge(track.id);
+    }
+    })();
+    downloadPromises.set(track.id, task);
+    try {
+      return await task;
+    } finally {
+      downloadPromises.delete(track.id);
     }
   }
 
@@ -416,9 +479,10 @@
   // --- Воспроизведение трека ---
   async function playTrack(index, recordHistory = true) {
     if (index < 0 || index >= playlist.length) return;
+    const requestId = ++playRequestId;
 
     if (recordHistory && currentIndex >= 0 && currentIndex !== index) {
-      playbackHistory.push(currentIndex);
+      playbackHistory.push(playlist[currentIndex]?.id);
       if (playbackHistory.length > 50) playbackHistory.shift();
     }
 
@@ -440,14 +504,17 @@
     btnFav.classList.toggle('active', favorites.has(track.id));
     btnDownloadActive.classList.toggle('active', offlineTrackIds.has(track.id));
 
-    // Очищаем предыдущий Blob URL
+    // Проверяем наличие офлайн-копии
+    const localBlob = await getLocalAudioBlob(track.id, Number(track.file_size || 0));
+    if (requestId !== playRequestId) return;
+
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
     if (currentBlobUrl) {
       URL.revokeObjectURL(currentBlobUrl);
       currentBlobUrl = null;
     }
-
-    // Проверяем наличие офлайн-копии
-    const localBlob = await getLocalAudioBlob(track.id);
     if (localBlob) {
       offlineTrackIds.add(track.id);
       persistOfflineTrackIds();
@@ -514,8 +581,9 @@
     }
     // Если есть история (особенно в Shuffle) — возвращаем реально прошлый игравший трек!
     if (playbackHistory.length > 0) {
-      const prevIdx = playbackHistory.pop();
-      playTrack(prevIdx, false);
+      const prevId = playbackHistory.pop();
+      const prevIdx = playlist.findIndex(t => t.id === prevId);
+      playTrack(prevIdx >= 0 ? prevIdx : (currentIndex - 1 + playlist.length) % playlist.length, false);
     } else {
       const prevIdx = (currentIndex - 1 + playlist.length) % playlist.length;
       playTrack(prevIdx, false);
@@ -551,12 +619,14 @@
     diagAudioStatus.textContent = 'Воспроизведение';
     btnPlay.classList.remove('loading');
     updatePlayButton(true);
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
   });
 
   audio.addEventListener('pause', () => {
     diagAudioStatus.textContent = 'Пауза';
     btnPlay.classList.remove('loading');
     updatePlayButton(false);
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
   });
 
   audio.addEventListener('error', (e) => {
@@ -591,8 +661,10 @@
       return;
     }
     if (audio.paused) {
-      audio.play();
-      updatePlayButton(true);
+      audio.play().catch(err => {
+        console.warn('Audio play failed:', err);
+        updatePlayButton(false);
+      });
     } else {
       audio.pause();
       updatePlayButton(false);
@@ -681,10 +753,7 @@
       artist: track.artist || 'Музыка ДИТ',
       album: track.album || 'BahonIQ Music',
       artwork: [
-        { src: `/api/music/tracks/${track.id}/cover`, sizes: '96x96', type: 'image/svg+xml' },
-        { src: `/api/music/tracks/${track.id}/cover`, sizes: '128x128', type: 'image/svg+xml' },
-        { src: `/api/music/tracks/${track.id}/cover`, sizes: '256x256', type: 'image/svg+xml' },
-        { src: `/api/music/tracks/${track.id}/cover`, sizes: '512x512', type: 'image/svg+xml' }
+        { src: `/api/music/tracks/${track.id}/cover`, sizes: '512x512', type: 'image/png' }
       ]
     });
     navigator.mediaSession.playbackState = 'playing';
@@ -694,7 +763,11 @@
     if (!('mediaSession' in navigator)) return;
 
     const actionHandlers = [
-      ['play', () => { recordDiagnosticCommand('PLAY'); audio.play(); updatePlayButton(true); }],
+      ['play', () => {
+        recordDiagnosticCommand('PLAY');
+        resumeAudioContext();
+        audio.play().catch(err => console.warn('MediaSession play failed:', err));
+      }],
       ['pause', () => { recordDiagnosticCommand('PAUSE'); audio.pause(); updatePlayButton(false); }],
       ['stop', () => { recordDiagnosticCommand('STOP'); audio.pause(); audio.currentTime = 0; updatePlayButton(false); }],
       ['previoustrack', () => { recordDiagnosticCommand('PREVIOUS TRACK'); playPrevTrack(); }],
@@ -704,7 +777,9 @@
       ['seekto', details => {
         recordDiagnosticCommand(`SEEK TO ${formatTime(details.seekTime)}`);
         if (details.seekTime !== undefined && !isNaN(details.seekTime)) {
-          audio.currentTime = details.seekTime;
+          const position = Math.max(0, Math.min(audio.duration || details.seekTime, details.seekTime));
+          if (details.fastSeek && typeof audio.fastSeek === 'function') audio.fastSeek(position);
+          else audio.currentTime = position;
         }
       }]
     ];
@@ -894,7 +969,7 @@
     filteredPlaylist.forEach(track => {
       const isCur = currentIndex >= 0 && playlist[currentIndex]?.id === track.id;
       const isOff = offlineTrackIds.has(track.id);
-      const isDown = downloadingTrackIds.has(track.id);
+      const isDown = downloadPromises.has(track.id);
 
       const item = document.createElement('div');
       item.className = `car-track-item ${isCur ? 'current' : ''}`;
@@ -935,7 +1010,7 @@
     const el = document.getElementById(`track-item-${trackId}`);
     if (!el) return;
     const isOff = offlineTrackIds.has(trackId);
-    const isDown = downloadingTrackIds.has(trackId);
+    const isDown = downloadPromises.has(trackId);
     let badge = el.querySelector('.car-track-badge');
     if (isOff) {
       if (!badge) {
@@ -1023,6 +1098,7 @@
   // --- Звуковой процессор (Web Audio API) и сочный бас ---
   let audioCtx = null;
   let audioSourceNode = null;
+  let preampNode = null;
   let bassFilter = null;
   let trebleFilter = null;
   let limiterNode = null;
@@ -1047,9 +1123,10 @@
         console.warn('Web Audio API not supported');
         return;
       }
-      audioCtx = new AudioCtxClass();
+      if (!audioCtx) audioCtx = new AudioCtxClass();
+      if (!audioSourceNode) audioSourceNode = audioCtx.createMediaElementSource(audio);
 
-      audioSourceNode = audioCtx.createMediaElementSource(audio);
+      preampNode = audioCtx.createGain();
 
       // LowShelf фильтр на 75 Гц: даёт мягкий, глубокий и сочный бархатный панч
       bassFilter = audioCtx.createBiquadFilter();
@@ -1066,21 +1143,31 @@
       // Студийный динамический компрессор-лимитер (Anti-clipping protection):
       // Защищает динамики и дверные карты авто от треска, клиппинга и искажений при любой громкости
       limiterNode = audioCtx.createDynamicsCompressor();
-      limiterNode.threshold.value = -1.5;
-      limiterNode.knee.value = 6;
-      limiterNode.ratio.value = 8;
-      limiterNode.attack.value = 0.003;
+      limiterNode.threshold.value = -3;
+      limiterNode.knee.value = 2;
+      limiterNode.ratio.value = 12;
+      limiterNode.attack.value = 0.001;
       limiterNode.release.value = 0.15;
 
-      audioSourceNode.connect(bassFilter);
+      audioSourceNode.connect(preampNode);
+      preampNode.connect(bassFilter);
       bassFilter.connect(trebleFilter);
       trebleFilter.connect(limiterNode);
       limiterNode.connect(audioCtx.destination);
 
       isAudioChainInit = true;
+      updateDSPHeadroom();
     } catch (e) {
       console.warn('Audio DSP init error:', e);
     }
+  }
+
+  function updateDSPHeadroom() {
+    if (!preampNode || !audioCtx) return;
+    // Компенсируем максимальный положительный подъём EQ до компрессора.
+    const boostDb = Math.max(0, currentBassGain, currentTrebleGain);
+    const gain = Math.pow(10, (-boostDb / 20));
+    preampNode.gain.setTargetAtTime(gain, audioCtx.currentTime, 0.02);
   }
 
   function resumeAudioContext() {
@@ -1107,6 +1194,7 @@
     if (bassFilter && audioCtx) {
       bassFilter.gain.setTargetAtTime(currentBassGain, audioCtx.currentTime, 0.02);
     }
+    updateDSPHeadroom();
     if (bassValEl) {
       bassValEl.textContent = `${currentBassGain > 0 ? '+' : ''}${currentBassGain.toFixed(1)} dB`;
     }
@@ -1126,6 +1214,7 @@
     if (trebleFilter && audioCtx) {
       trebleFilter.gain.setTargetAtTime(currentTrebleGain, audioCtx.currentTime, 0.02);
     }
+    updateDSPHeadroom();
     if (trebleValEl) {
       trebleValEl.textContent = `${currentTrebleGain > 0 ? '+' : ''}${currentTrebleGain.toFixed(1)} dB`;
     }
@@ -1190,6 +1279,13 @@
 
   const coverBox = $('carCoverBox');
   if (coverBox) coverBox.onclick = () => catalogDrawer.classList.add('open');
+
+  window.addEventListener('pagehide', () => {
+    if (currentBlobUrl) {
+      URL.revokeObjectURL(currentBlobUrl);
+      currentBlobUrl = null;
+    }
+  });
   const metaBox = $('carMetaBox');
   if (metaBox) metaBox.onclick = () => catalogDrawer.classList.add('open');
   const btnOpenList = $('carBtnOpenList');
@@ -1222,7 +1318,6 @@
     if (playlist.length > 0) {
       renderCatalog();
     }
-
     await initIndexedDB();
     await initOPFS();
     setupMediaSession();
