@@ -53,8 +53,8 @@
   let playlist = [];
   let filteredPlaylist = [];
   let currentIndex = -1;
-  let isShuffle = false;
-  let repeatMode = 'none'; // 'none' | 'all' | 'one'
+  let isShuffle = localStorage.getItem('bahoniq_shuffle') === 'true';
+  let repeatMode = localStorage.getItem('bahoniq_repeat') || 'none'; // 'none' | 'all' | 'one'
   const favorites = new Set();
   const offlineTrackIds = new Set();
   const downloadingTrackIds = new Set();
@@ -325,6 +325,7 @@
     };
     coverImg.src = `/api/music/tracks/${track.id}/cover`;
     diagCurrentTrack.textContent = `${track.artist} — ${track.title}`;
+    localStorage.setItem('bahoniq_last_track_id', track.id);
 
     btnFav.classList.toggle('active', favorites.has(track.id));
     btnDownloadActive.classList.toggle('active', offlineTrackIds.has(track.id));
@@ -449,9 +450,27 @@
   btnPrev.addEventListener('click', playPrevTrack);
   btnNext.addEventListener('click', playNextTrack);
 
+  // Восстановление сохранённого состояния кнопок Shuffle и Repeat
+  if (btnShuffle) {
+    btnShuffle.classList.toggle('active', isShuffle);
+  }
+  if (btnRepeat) {
+    if (repeatMode === 'all') {
+      btnRepeat.classList.add('active');
+      btnRepeat.title = 'Повтор: Все треки';
+    } else if (repeatMode === 'one') {
+      btnRepeat.classList.add('active');
+      btnRepeat.title = 'Повтор: Один трек';
+    } else {
+      btnRepeat.classList.remove('active');
+      btnRepeat.title = 'Повтор: Выключен';
+    }
+  }
+
   btnShuffle.addEventListener('click', () => {
     isShuffle = !isShuffle;
     btnShuffle.classList.toggle('active', isShuffle);
+    localStorage.setItem('bahoniq_shuffle', isShuffle ? 'true' : 'false');
   });
 
   btnRepeat.addEventListener('click', () => {
@@ -468,6 +487,7 @@
       btnRepeat.classList.remove('active');
       btnRepeat.title = 'Повтор: Выключен';
     }
+    localStorage.setItem('bahoniq_repeat', repeatMode);
   });
 
   btnFav.addEventListener('click', () => {
@@ -595,9 +615,19 @@
         playlist = data.tracks;
         filteredPlaylist = [...playlist];
 
+        const lastTrackId = Number(localStorage.getItem('bahoniq_last_track_id'));
+        let initIdx = 0;
+        if (lastTrackId) {
+          const found = playlist.findIndex(t => t.id === lastTrackId);
+          if (found >= 0) initIdx = found;
+        }
+
         if (currentIndex === -1 && playlist.length > 0) {
-          trackTitle.textContent = playlist[0].title;
-          trackArtist.textContent = playlist[0].artist;
+          currentIndex = initIdx;
+          const t = playlist[initIdx];
+          trackTitle.textContent = t.title || 'Без названия';
+          trackArtist.textContent = t.artist || 'Музыка ДИТ';
+          coverImg.src = `/api/music/tracks/${t.id}/cover`;
         }
 
         // Кэшируем метаданные в IDB для работы офлайн
