@@ -1,0 +1,577 @@
+/* BahonIQ Музыка в авто - Автомобильный высококонтрастный интерфейс */
+:root {
+  --bg-main: #07111f;
+  --bg-card: #0d1a2d;
+  --bg-surface: #13233c;
+  --text-main: #ffffff;
+  --text-muted: #94a3b8;
+  --accent-cyan: #00e5ff;
+  --accent-gold: #facc15;
+  --accent-green: #22c55e;
+  --accent-red: #ef4444;
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --btn-radius: 16px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Основной контейнер плеера */
+.car-player {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  padding: 16px;
+  position: relative;
+}
+
+/* Верхняя статусная строка */
+.car-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.car-brand {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.car-brand .accent {
+  color: var(--accent-cyan);
+}
+
+.car-offline-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--accent-green);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.car-offline-pill.stream {
+  background: rgba(0, 229, 255, 0.15);
+  color: var(--accent-cyan);
+  border-color: rgba(0, 229, 255, 0.3);
+}
+
+.car-offline-pill.downloading {
+  background: rgba(250, 204, 21, 0.15);
+  color: var(--accent-gold);
+  border-color: rgba(250, 204, 21, 0.3);
+}
+
+.car-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  width: 56px;
+  height: 56px;
+  border-radius: var(--btn-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.icon-btn:active {
+  background: var(--bg-surface);
+  transform: scale(0.96);
+}
+
+.icon-btn.active {
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.3);
+}
+
+/* Главная сцена плеера: Портретный режим */
+.car-stage {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  justify-content: space-evenly;
+  padding: 8px 0;
+}
+
+/* Обложка альбома */
+.car-cover-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-height: 40vh;
+  margin: 0 auto;
+}
+
+.car-cover {
+  width: min(34vh, 80vw);
+  height: min(34vh, 80vw);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6), 0 0 24px rgba(0, 229, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  background: #030712;
+  position: relative;
+}
+
+.car-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Метаданные трека */
+.car-meta {
+  text-align: center;
+  padding: 8px 16px;
+}
+
+.car-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.car-artist {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Полоса прогресса */
+.car-progress-wrap {
+  padding: 0 12px;
+}
+
+.car-seek-bar {
+  width: 100%;
+  height: 36px;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.car-seek-bar:focus {
+  outline: none;
+}
+
+.car-seek-bar::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 10px;
+  background: #1e293b;
+  border-radius: 5px;
+}
+
+.car-seek-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 28px;
+  width: 28px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.8);
+  margin-top: -9px;
+  cursor: grab;
+}
+
+.car-time-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-top: -4px;
+}
+
+/* Основной ряд управления */
+.car-controls-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+/* Огромная центральная кнопка воспроизведения (>= 96px) */
+.car-btn-play {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #00e5ff, #0099b8);
+  color: #000000;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(0, 229, 255, 0.45);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+  flex-shrink: 0;
+}
+
+.car-btn-play:active {
+  transform: scale(0.92);
+}
+
+.car-btn-play svg {
+  width: 44px;
+  height: 44px;
+}
+
+/* Кнопки Prev / Next (>= 72px) */
+.car-btn-step {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+  flex-shrink: 0;
+}
+
+.car-btn-step:active {
+  background: var(--bg-surface);
+  transform: scale(0.92);
+}
+
+.car-btn-step svg {
+  width: 32px;
+  height: 32px;
+}
+
+/* Вспомогательный ряд управления */
+.car-controls-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+}
+
+/* АЛЬБОМНЫЙ РЕЖИМ (МАГНИТОЛА / ПЛАНШЕТ) */
+@media (orientation: landscape) and (min-height: 400px) {
+  .car-stage {
+    flex-direction: row;
+    align-items: center;
+    gap: 32px;
+    padding: 0 16px;
+  }
+
+  .car-cover-wrap {
+    flex: 1;
+    max-height: 80vh;
+    justify-content: flex-end;
+  }
+
+  .car-cover {
+    width: min(65vh, 45vw);
+    height: min(65vh, 45vw);
+  }
+
+  .car-right-panel {
+    flex: 1.2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .car-meta {
+    text-align: left;
+    padding: 0;
+  }
+
+  .car-title {
+    font-size: 26px;
+  }
+
+  .car-artist {
+    font-size: 18px;
+  }
+}
+
+/* ПАНЕЛЬ КАТАЛОГА (DRAWER) */
+.car-catalog-drawer {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 17, 31, 0.98);
+  backdrop-filter: blur(16px);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  transform: translateY(100%);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.car-catalog-drawer.open {
+  transform: translateY(0);
+}
+
+.car-catalog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.car-catalog-head h2 {
+  font-size: 20px;
+  color: var(--text-main);
+}
+
+.car-search-input {
+  width: 100%;
+  height: 48px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--btn-radius);
+  color: #fff;
+  padding: 0 16px;
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+.car-search-input:focus {
+  border-color: var(--accent-cyan);
+  outline: none;
+}
+
+.car-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+.car-tab {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.car-tab.active {
+  background: var(--accent-cyan);
+  color: #000;
+  border-color: var(--accent-cyan);
+}
+
+.car-tracks-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.car-track-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  padding: 10px 14px;
+  border-radius: var(--btn-radius);
+  cursor: pointer;
+  min-height: 64px;
+}
+
+.car-track-item:active {
+  background: var(--bg-surface);
+}
+
+.car-track-item.current {
+  border-color: var(--accent-cyan);
+  background: rgba(0, 229, 255, 0.08);
+}
+
+.car-track-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: #030712;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.car-track-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.car-track-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.car-track-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.car-track-artist {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.car-track-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--accent-green);
+}
+
+.car-track-action-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ДИАГНОСТИЧЕСКОЕ ОКНО «ПРОВЕРКА МУЛЬТИРУЛЯ» */
+.car-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.car-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  max-width: 500px;
+  width: 100%;
+  padding: 24px;
+}
+
+.car-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.car-modal-head h3 {
+  font-size: 18px;
+  color: var(--accent-gold);
+}
+
+.diag-log {
+  background: #030712;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 16px;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e2e8f0;
+  margin-bottom: 16px;
+}
+
+.diag-log .highlight {
+  color: var(--accent-cyan);
+  font-weight: 700;
+}
+
+/* МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ */
+.car-auth-input {
+  width: 100%;
+  height: 52px;
+  background: #030712;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 18px;
+  padding: 0 16px;
+  margin: 16px 0;
+  text-align: center;
+}
+
+.car-btn-submit {
+  width: 100%;
+  height: 52px;
+  background: var(--accent-cyan);
+  border: none;
+  border-radius: 12px;
+  color: #000;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hidden {
+  display: none !important;
+}

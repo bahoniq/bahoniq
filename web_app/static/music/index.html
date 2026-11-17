@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>BahonIQ Музыка в авто</title>
+
+  <meta name="theme-color" content="#07111f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <link rel="manifest" href="/music/manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="/music/assets/icons/icon-192.png">
+  <link rel="stylesheet" href="/music/assets/music.css?v=20261117_v1">
+</head>
+<body>
+  <div class="car-player">
+    <!-- Верхняя статусная панель -->
+    <header class="car-topbar">
+      <div class="car-brand">
+        <span class="accent">BahonIQ</span> | Музыка в авто
+      </div>
+
+      <div id="carOfflineStatus" class="car-offline-pill stream">
+        <span class="dot">●</span> <span id="carOfflineText">Онлайн</span>
+      </div>
+
+      <div class="car-topbar-actions">
+        <!-- Кнопка проверки мультируля (>= 56px) -->
+        <button id="carBtnDiag" class="icon-btn" type="button" title="Проверка мультируля">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 2a14.5 14.5 0 0 0 0 20M2 12h20"/>
+          </svg>
+        </button>
+
+        <!-- Кнопка каталога / списка музыки (>= 56px) -->
+        <button id="carBtnPlaylist" class="icon-btn" type="button" title="Список музыки">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6"/>
+            <line x1="8" y1="12" x2="21" y2="12"/>
+            <line x1="8" y1="18" x2="21" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/>
+            <line x1="3" y1="12" x2="3.01" y2="12"/>
+            <line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Основная сцена плеера -->
+    <main class="car-stage">
+      <!-- Обложка альбома -->
+      <div class="car-cover-wrap">
+        <div class="car-cover">
+          <img id="carCoverImg" src="/api/music/tracks/0/cover" alt="Обложка трека">
+        </div>
+      </div>
+
+      <!-- Правая панель в альбомном режиме / нижняя в портретном -->
+      <div class="car-right-panel">
+        <!-- Метаданные трека -->
+        <div class="car-meta">
+          <div id="carTrackTitle" class="car-title">Выберите трек из каталога</div>
+          <div id="carTrackArtist" class="car-artist">Канал @bahoniqmusic</div>
+        </div>
+
+        <!-- Полоса перемотки -->
+        <div class="car-progress-wrap">
+          <input id="carSeekBar" class="car-seek-bar" type="range" min="0" max="100" value="0">
+          <div class="car-time-row">
+            <span id="carTimeCurrent">0:00</span>
+            <span id="carTimeTotal">0:00</span>
+          </div>
+        </div>
+
+        <!-- Основной ряд управления: Prev, Play/Pause (96px), Next -->
+        <div class="car-controls-main">
+          <button id="carBtnPrev" class="car-btn-step" type="button" title="Предыдущий трек">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+          </button>
+
+          <button id="carBtnPlay" class="car-btn-play" type="button" title="Воспроизведение / Пауза">
+            <svg id="carIconPlay" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="carIconPause" class="hidden" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+
+          <button id="carBtnNext" class="car-btn-step" type="button" title="Следующий трек">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </button>
+        </div>
+
+        <!-- Вспомогательный ряд управления (>= 56px) -->
+        <div class="car-controls-sub">
+          <button id="carBtnShuffle" class="icon-btn" type="button" title="Случайный порядок">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="16 3 21 3 21 8"/>
+              <line x1="4" y1="20" x2="21" y2="3"/>
+              <polyline points="21 16 21 21 16 21"/>
+              <line x1="15" y1="15" x2="21" y2="21"/>
+              <line x1="4" y1="4" x2="9" y2="9"/>
+            </svg>
+          </button>
+
+          <button id="carBtnRepeat" class="icon-btn" type="button" title="Повтор">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="17 1 21 5 17 9"/>
+              <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+              <polyline points="7 23 3 19 7 15"/>
+              <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+            </svg>
+          </button>
+
+          <button id="carBtnFav" class="icon-btn" type="button" title="В избранное">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+          </button>
+
+          <button id="carBtnDownloadActive" class="icon-btn" type="button" title="Скачать офлайн">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Выдвижная панель каталога треков -->
+    <section id="carCatalogDrawer" class="car-catalog-drawer">
+      <div class="car-catalog-head">
+        <h2>Список музыки</h2>
+        <button id="carBtnCloseCatalog" class="icon-btn" type="button" title="Закрыть каталог">✕</button>
+      </div>
+
+      <input id="carSearchInput" class="car-search-input" type="search" placeholder="Поиск по названию или артисту...">
+
+      <div class="car-tabs">
+        <button class="car-tab active" data-tab="all" type="button">Все треки</button>
+        <button class="car-tab" data-tab="downloaded" type="button">Скачанные (Офлайн)</button>
+        <button class="car-tab" data-tab="recent" type="button">Недавние</button>
+        <button class="car-tab" data-tab="favorites" type="button">Избранное</button>
+      </div>
+
+      <div id="carTracksList" class="car-tracks-list">
+        <!-- Динамический список треков -->
+      </div>
+    </section>
+
+    <!-- Модальное окно «Проверка мультируля» -->
+    <div id="carDiagModal" class="car-modal-overlay hidden">
+      <div class="car-modal">
+        <div class="car-modal-head">
+          <h3>Проверка мультируля и MediaSession</h3>
+          <button id="carBtnCloseDiag" class="icon-btn" type="button">✕</button>
+        </div>
+        <div class="diag-log">
+          <div>Media Session API: <span id="diagMediaStatus" class="highlight">Поддерживается</span></div>
+          <div>Состояние аудиоплеера: <span id="diagAudioStatus" class="highlight">Остановлен</span></div>
+          <div>Текущий трек: <span id="diagCurrentTrack" class="highlight">—</span></div>
+          <div style="margin-top: 10px; border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 10px;">
+            Последняя команда: <span id="diagLastCmd" class="highlight" style="color: #facc15;">Ожидание нажатия...</span>
+          </div>
+          <div>Время получения: <span id="diagCmdTime" class="highlight">—</span></div>
+        </div>
+        <p style="font-size: 13px; color: var(--text-muted); line-height: 1.4;">
+          Нажмите кнопки Next/Prev/Play на руле, Bluetooth-гарнитуре или экране блокировки смартфона. Команда немедленно отобразится в этом окне.
+        </p>
+      </div>
+    </div>
+
+    <!-- Модальное окно авторизации устройства -->
+    <div id="carAuthModal" class="car-modal-overlay hidden">
+      <div class="car-modal">
+        <div class="car-modal-head">
+          <h3>Вход в BahonIQ Music</h3>
+        </div>
+        <p style="font-size: 14px; color: var(--text-muted);">
+          Для безопасного воспроизведения введите пароль Work Center:
+        </p>
+        <form id="carAuthForm">
+          <input id="carAuthPassword" class="car-auth-input" type="password" placeholder="Пароль" autocomplete="current-password" required>
+          <button type="submit" class="car-btn-submit">Войти на этом устройстве</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Стандартный скрытый элемент HTML5 Audio -->
+  <audio id="carAudioElement" preload="metadata"></audio>
+
+  <script src="/music/assets/music.js?v=20261117_v1"></script>
+</body>
+</html>

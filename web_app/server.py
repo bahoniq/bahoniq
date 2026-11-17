@@ -74,6 +74,9 @@ app.include_router(excel_academy_router)
 from .routers.instruction_generator import router as instruction_generator_router
 app.include_router(instruction_generator_router)
 
+from .routers.music import router as music_router
+app.include_router(music_router)
+
 # Опциональная защита паролем для публичного облака (задается через BAHONIQ_PASSWORD)
 AUTH_PASSWORD = os.getenv("BAHONIQ_PASSWORD", "").strip()
 AUTH_COOKIE_NAME = "bahoniq_auth"
@@ -124,10 +127,16 @@ async def auth_middleware(request: Request, call_next):
         return await call_next(request)
     
     path = request.url.path
-    # Разрешаем статику, PWA манифест, service worker, health и эндпоинты авторизации
+    # Разрешаем статику, PWA манифест, service worker, health, эндпоинты авторизации и PWA-оболочку музыки
     if (
-        path in {"/api/auth/login", "/api/auth/status", "/health", "/manifest.json", "/sw.js"}
+        path in {
+            "/api/auth/login", "/api/auth/status", "/health",
+            "/manifest.json", "/sw.js",
+            "/music", "/music/", "/music/manifest.webmanifest", "/music/sw.js"
+        }
         or path.startswith("/assets/")
+        or path.startswith("/music/assets/")
+        or path.startswith("/music/icons/")
     ):
         return await call_next(request)
     
@@ -167,6 +176,39 @@ def pwa_sw():
 
 
 app.mount("/assets", StaticFiles(directory=STATIC), name="assets")
+
+MUSIC_STATIC = STATIC / "music"
+app.mount("/music/assets", StaticFiles(directory=MUSIC_STATIC), name="music_assets")
+
+@app.get("/music", include_in_schema=False)
+@app.get("/music/", include_in_schema=False)
+def car_music_app():
+    return FileResponse(
+        MUSIC_STATIC / "index.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+    )
+
+@app.get("/music/manifest.webmanifest", include_in_schema=False)
+def car_music_manifest():
+    return FileResponse(
+        MUSIC_STATIC / "manifest.webmanifest",
+        media_type="application/manifest+json"
+    )
+
+@app.get("/music/sw.js", include_in_schema=False)
+def car_music_sw():
+    return FileResponse(
+        MUSIC_STATIC / "sw.js",
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/music/", "Cache-Control": "no-cache"}
+    )
+
+@app.get("/music/admin", include_in_schema=False)
+def car_music_admin():
+    return FileResponse(
+        MUSIC_STATIC / "admin.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+    )
 
 _sessions: dict[str, dict] = {}
 _lock = threading.RLock()

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Управление музыкой — BahonIQ</title>
+  <style>
+    body {
+      background: #07111f;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 24px;
+      margin: 0;
+    }
+    .admin-card {
+      max-width: 680px;
+      margin: 32px auto;
+      background: #0d1a2d;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    }
+    h1 {
+      font-size: 22px;
+      color: #00e5ff;
+      margin-top: 0;
+      margin-bottom: 20px;
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 14px;
+    }
+    .status-row .val {
+      font-weight: 600;
+      color: #fff;
+    }
+    .badge-ok { color: #22c55e; }
+    .badge-warn { color: #facc15; }
+    .badge-err { color: #ef4444; }
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .button {
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.2s;
+    }
+    .button:hover { opacity: 0.9; }
+    .btn-primary { background: #00e5ff; color: #000; }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; text-decoration: none; display: inline-flex; align-items: center; }
+    .log-box {
+      margin-top: 20px;
+      background: #030712;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 14px;
+      font-family: monospace;
+      font-size: 12.5px;
+      color: #94a3b8;
+      min-height: 80px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="admin-card">
+    <h1>Управление каналом «Музыка в авто»</h1>
+
+    <div class="status-row">
+      <span>Telegram-сессия:</span>
+      <span id="stTgConfigured" class="val">Проверка...</span>
+    </div>
+    <div class="status-row">
+      <span>Канал источника:</span>
+      <span id="stChannel" class="val">@bahoniqmusic</span>
+    </div>
+    <div class="status-row">
+      <span>Треков в базе данных:</span>
+      <span id="stTotalTracks" class="val">0</span>
+    </div>
+    <div class="status-row">
+      <span>Последняя синхронизация:</span>
+      <span id="stLastSync" class="val">—</span>
+    </div>
+
+    <div class="btn-row">
+      <button id="btnSync" class="button btn-primary" type="button">🔄 Синхронизировать канал</button>
+      <button id="btnClear" class="button btn-danger" type="button">Очистить кэш метаданных</button>
+      <a href="/music/" class="button btn-secondary">В плеер</a>
+    </div>
+
+    <div id="adminLog" class="log-box">Готов к работе.</div>
+  </div>
+
+  <script>
+    const logBox = document.getElementById('adminLog');
+    function log(msg) {
+      logBox.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + logBox.textContent;
+    }
+
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/music/status');
+        const data = await res.json();
+        document.getElementById('stTgConfigured').innerHTML = data.telegram_configured ? '<span class="badge-ok">✓ Настроена в Render</span>' : '<span class="badge-err">✕ Не настроена (укажите TELEGRAM_SESSION)</span>';
+        document.getElementById('stChannel').textContent = '@' + (data.channel_username || 'bahoniqmusic');
+        document.getElementById('stTotalTracks').textContent = data.total_tracks;
+        document.getElementById('stLastSync').textContent = data.last_sync ? new Date(data.last_sync).toLocaleString() : 'Никогда';
+        log('Статус успешно обновлен.');
+      } catch (err) {
+        log('Ошибка загрузки статуса: ' + err.message);
+      }
+    }
+
+    document.getElementById('btnSync').onclick = async () => {
+      const btn = document.getElementById('btnSync');
+      btn.disabled = true;
+      log('Запущена синхронизация с Telegram-каналом...');
+      try {
+        const res = await fetch('/api/music/sync', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Ошибка');
+        log(`✓ Синхронизация завершена: новых треков ${data.new_tracks}, всего в базе ${data.total_tracks}`);
+        loadStatus();
+      } catch (err) {
+        log('✕ Ошибка синхронизации: ' + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    document.getElementById('btnClear').onclick = async () => {
+      if (!confirm('Очистить серверный кэш метаданных? (Локально скачанные треки на устройствах не пострадают)')) return;
+      try {
+        const res = await fetch('/api/music/clear-cache', { method: 'POST' });
+        const data = await res.json();
+        log('Кэш метаданных очищен.');
+        loadStatus();
+      } catch (err) {
+        log('Ошибка: ' + err.message);
+      }
+    };
+
+    loadStatus();
+  </script>
+</body>
+</html>
