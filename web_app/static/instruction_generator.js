@@ -126,7 +126,7 @@
       <label class="file-drop ig-drop">
         <input class="ig-image" type="file" accept="image/png,image/jpeg,image/webp">
         <span class="file-title">Прикрепите скриншот (или вставьте через Ctrl+V)</span>
-        <small class="ig-file-name">Золотой стандарт SalemHR: 1299 × 623 px (2,08:1)</small>
+        <small class="ig-file-name">Золотое правило: снимок полного рабочего окна браузера/программы (1299 × 623 px)</small>
       </label>
       <div class="ig-editor-zone"></div>
       <textarea class="ig-data hidden"></textarea>

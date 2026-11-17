@@ -16,7 +16,9 @@ class InstructionGeneratorWindow:
         tk.Label(top,text="Instruction Generator AI",font=("Segoe UI",20,"bold"),bg=self.theme["card"],fg=self.theme["text"]).pack(side="left",padx=16,pady=16)
         self.status=tk.Label(top,text="Черновик",bg=self.theme["card"],fg=self.theme["gray"]); self.status.pack(side="right",padx=16)
         meta=tk.Frame(self.win,bg=self.theme["card"]); meta.pack(fill="x",padx=16,pady=(0,10))
-        self.title=self._field(meta,"Название инструкции",0,0); meta.columnconfigure(0,weight=1)
+        rule_text = "Золотое правило: желательно делать все скриншоты одного размера и снимать всё рабочее окно браузера или программы. Это обеспечит единый масштаб, хорошую читаемость и одинаковое оформление изображений в готовой инструкции."
+        tk.Label(meta,text=rule_text,font=("Segoe UI",9,"italic"),bg="#FEF9C3",fg="#854D0E",wraplength=880,justify="left",padx=10,pady=6).grid(row=0,column=0,sticky="ew",padx=12,pady=(6,4))
+        self.title=self._field(meta,"Название инструкции",1,0); meta.columnconfigure(0,weight=1)
         host=tk.Frame(self.win,bg=self.theme["bg"]); host.pack(fill="both",expand=True,padx=16)
         self.canvas=tk.Canvas(host,bg=self.theme["bg"],highlightthickness=0); sb=tk.Scrollbar(host,command=self.canvas.yview); self.inner=tk.Frame(self.canvas,bg=self.theme["bg"])
         self.canvas.create_window((0,0),window=self.inner,anchor="nw"); self.canvas.configure(yscrollcommand=sb.set); self.inner.bind("<Configure>",lambda e:self.canvas.configure(scrollregion=self.canvas.bbox("all"))); self.canvas.pack(side="left",fill="both",expand=True); sb.pack(side="right",fill="y")

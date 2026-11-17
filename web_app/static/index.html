@@ -620,6 +620,18 @@
 
 <section id="instructionGenerator" class="module-page">
   <div class="page-heading"><div><h1>Instruction Generator AI</h1><p>Стандартизированные университетские инструкции из черновиков и скриншотов.</p></div></div>
+  <div class="ig-golden-rule">
+    <div class="ig-golden-rule-icon">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#facc15" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    </div>
+    <div class="ig-golden-rule-content">
+      <strong>Золотое правило:</strong> желательно делать все скриншоты одного размера и снимать всё рабочее окно браузера или программы. Это обеспечит единый масштаб, хорошую читаемость и одинаковое оформление изображений в готовой инструкции.
+    </div>
+  </div>
   <div class="ig-layout">
     <div><div class="card ig-meta"><label class="wide">Название инструкции<input id="igTitle" placeholder="Например: Регистрация студентов на дисциплины через ИУП"></label></div><div id="igSteps"></div><div class="ig-actions"><button id="igAdd" class="button secondary" type="button">+ Добавить шаг</button><button id="igGenerate" class="button primary" type="button">Собрать инструкцию</button></div><div id="igStatus" class="result-panel">Для каждого этапа добавьте скриншот и напишите действие своими словами. Изображение можно вставить через Ctrl+V.</div></div>
     <div><div id="igResult" class="ig-preview-doc hidden"></div><div id="igExports" class="ig-actions hidden"><button class="button primary" data-ig-export="pdf">PDF</button><button class="button secondary" data-ig-export="html">HTML</button><button class="button secondary" data-ig-export="md">Markdown</button></div></div>

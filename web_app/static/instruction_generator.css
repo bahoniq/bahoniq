@@ -1,4 +1,47 @@
 /* Instruction Generator AI - Gold Standard Style */
+.ig-golden-rule {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.12), rgba(234, 179, 8, 0.04));
+  border: 1px solid rgba(234, 179, 8, 0.45);
+  border-left: 4px solid #facc15;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.ig-golden-rule-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.ig-golden-rule-content {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #fef08a;
+}
+
+.ig-golden-rule-content strong {
+  color: #facc15;
+  font-weight: 700;
+}
+
+body:not(.theme-night) .ig-golden-rule {
+  background: linear-gradient(135deg, #fefce8, #fef9c3);
+  border-color: #fde047;
+  border-left-color: #ca8a04;
+}
+
+body:not(.theme-night) .ig-golden-rule-content {
+  color: #713f12;
+}
+
+body:not(.theme-night) .ig-golden-rule-content strong {
+  color: #854d0e;
+}
+
 .ig-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
