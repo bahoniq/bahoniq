@@ -43,6 +43,38 @@ class MusicCacheTests(unittest.IsolatedAsyncioTestCase):
                 chunks.append(chunk)
             self.assertEqual(b"".join(chunks), payload[10:133])
 
+    async def test_progressive_stream_and_concurrent_download_share_single_telegram_call(self):
+        payload = (b"ID3" + bytes(range(64))) * 1000
+        client = FakeTelegramClient(payload)
+        track = {"id": 8, "telegram_msg_id": 100, "file_size": len(payload)}
+        document = SimpleNamespace(size=len(payload))
+
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(music_core, "MUSIC_CACHE_DIR", Path(tmp)), \
+             patch.object(music_core, "get_track_by_id", return_value=track), \
+             patch.object(music_core, "get_telegram_document_for_track", AsyncMock(return_value=(track, document))), \
+             patch.object(music_core, "get_telegram_client", AsyncMock(return_value=client)):
+            music_core._cache_locks.clear()
+            music_core._active_downloads.clear()
+
+            async def _consume_stream():
+                out = []
+                async for ch in music_core.stream_track_chunks(8, start=0, length=len(payload), chunk_size=512):
+                    out.append(ch)
+                return b"".join(out)
+
+            async def _consume_download():
+                out = []
+                async for ch in music_core.download_full_track(8):
+                    out.append(ch)
+                return b"".join(out)
+
+            import asyncio
+            streamed, downloaded = await asyncio.gather(_consume_stream(), _consume_download())
+            self.assertEqual(streamed, payload)
+            self.assertEqual(downloaded, payload)
+            self.assertEqual(client.download_calls, 1)
+
     def test_range_parser(self):
         self.assertEqual(_parse_single_range("bytes=10-20", 100), (10, 20))
         self.assertEqual(_parse_single_range("bytes=90-", 100), (90, 99))

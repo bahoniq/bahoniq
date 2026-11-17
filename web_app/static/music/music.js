@@ -77,6 +77,7 @@
   const offlineTrackIds = new Set();
   const downloadingTrackIds = new Set();
   const downloadPromises = new Map();
+  const downloadAbortControllers = new Map();
   const favorites = new Set();
   const playbackHistory = [];
 
@@ -301,10 +302,10 @@
       try {
         const handle = await opfsRoot.getFileHandle(`track_${tid}.bin`);
         const file = await handle.getFile();
-        if (file && file.size >= 20000 && (!expectedSize || file.size === expectedSize)) {
+        if (file && file.size >= 20000 && (!expectedSize || file.size === expectedSize || Math.abs(file.size - expectedSize) < 4096)) {
           return file;
         }
-        if (file) await opfsRoot.removeEntry(`track_${tid}.bin`).catch(() => {});
+        if (file && file.size < 20000) await opfsRoot.removeEntry(`track_${tid}.bin`).catch(() => {});
       } catch {}
     }
 
@@ -318,7 +319,7 @@
             const row = req.result;
             const b = row?.blob;
             const size = Number(b?.size || row?.size || 0);
-            if (b && size >= 20000 && row.complete === true && (!expectedSize || size === expectedSize)) {
+            if (b && size >= 20000 && row.complete !== false && (!expectedSize || size === expectedSize || Math.abs(size - expectedSize) < 4096)) {
               resolve(b);
             } else {
               resolve(null);
@@ -367,7 +368,7 @@
     offlineTrackIds.clear();
     loadCachedPlaylistFromStorage();
 
-    // 1. Точная инспекция записей IndexedDB
+    // 1. Точная инспекция записей IndexedDB и подготовка быстрых Blob URL в памяти
     if (idb) {
       await new Promise(resolve => {
         try {
@@ -379,8 +380,12 @@
               const size = Number(b?.size || row?.size || 0);
               const track = playlist.find(t => Number(t.id) === Number(row.id));
               const expected = Number(track?.file_size || row?.expectedSize || 0);
-              if (b && size >= 20000 && row.complete === true && (!expected || size === expected)) {
-                offlineTrackIds.add(Number(row.id));
+              if (b && size >= 20000 && row.complete !== false && (!expected || size === expected || Math.abs(size - expected) < 4096)) {
+                const tid = Number(row.id);
+                offlineTrackIds.add(tid);
+                if (!memoryBlobUrls.has(tid)) {
+                  memoryBlobUrls.set(tid, URL.createObjectURL(b));
+                }
               }
             });
             resolve();
@@ -398,11 +403,15 @@
         const batch = playlist.slice(i, i + 16);
         await Promise.all(batch.map(async t => {
           try {
-            const handle = await opfsRoot.getFileHandle(`track_${t.id}.bin`);
+            const tid = Number(t.id);
+            const handle = await opfsRoot.getFileHandle(`track_${tid}.bin`);
             const file = await handle.getFile();
             const expected = Number(t.file_size || 0);
-            if (file && file.size >= 20000 && (!expected || file.size === expected)) {
-              offlineTrackIds.add(Number(t.id));
+            if (file && file.size >= 20000 && (!expected || file.size === expected || Math.abs(file.size - expected) < 4096)) {
+              offlineTrackIds.add(tid);
+              if (!memoryBlobUrls.has(tid)) {
+                memoryBlobUrls.set(tid, URL.createObjectURL(file));
+              }
             }
           } catch {}
         }));
@@ -463,7 +472,7 @@
     }
   }
 
-  // --- Фоновое скачивание трека в постоянную память ---
+  // --- Фоновое скачивание трека в постоянную память (после старта воспроизведения, как в Telegram) ---
   async function downloadTrackInBackground(track) {
     if (!track) return false;
     const tid = Number(track.id);
@@ -471,23 +480,48 @@
     if (offlineTrackIds.has(tid) && memoryBlobUrls.has(tid)) return true;
     if (downloadPromises.has(tid)) return downloadPromises.get(tid);
 
+    const controller = new AbortController();
+    downloadAbortControllers.set(tid, controller);
+
     const task = (async () => {
       downloadingTrackIds.add(tid);
       updateTrackItemBadge(tid);
 
       if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
-        updateOfflinePill('downloading', 0);
+        updateOfflinePill('downloading', 1);
       }
 
       try {
-        const resp = await fetch(`/api/music/tracks/${tid}/download`);
+        const resp = await fetch(`/api/music/tracks/${tid}/download`, { signal: controller.signal });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-        // Браузерный нативный blob() — быстрое прямое считывание без фрагментации памяти JS
-        const blob = await resp.blob();
-        const responseSize = Number(resp.headers.get('Content-Length') || 0);
+        const responseSize = Number(resp.headers.get('Content-Length') || track.file_size || 0);
+        let blob = null;
+
+        if (resp.body && typeof resp.body.getReader === 'function') {
+          const reader = resp.body.getReader();
+          const chunks = [];
+          let receivedBytes = 0;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value && value.byteLength > 0) {
+              chunks.push(value);
+              receivedBytes += value.byteLength;
+              if (responseSize > 0 && currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
+                const pct = Math.max(1, Math.min(99, Math.round((receivedBytes / responseSize) * 100)));
+                updateOfflinePill('downloading', pct);
+              }
+            }
+          }
+          blob = new Blob(chunks, { type: track.mime_type || 'audio/mpeg' });
+        } else {
+          blob = await resp.blob();
+        }
+
         if (!blob || blob.size < 20000 || (responseSize > 0 && blob.size !== responseSize)) {
-          throw new Error('Downloaded blob too small or empty');
+          throw new Error('Downloaded blob incomplete or empty');
         }
 
         const saved = await saveAudioLocally(tid, blob, { ...track, file_size: responseSize || blob.size });
@@ -504,12 +538,15 @@
         }
         return true;
       } catch (err) {
-        console.warn(`Download error for track ${tid}:`, err);
+        if (err && err.name !== 'AbortError') {
+          console.warn(`Download error for track ${tid}:`, err);
+        }
         if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
           updateOfflinePill(offlineTrackIds.has(tid) ? 'offline' : 'stream');
         }
         return false;
       } finally {
+        downloadAbortControllers.delete(tid);
         downloadingTrackIds.delete(tid);
         updateTrackItemBadge(tid);
         syncDownloadAllButton();
@@ -538,6 +575,14 @@
     const track = playlist[currentIndex];
     const tid = Number(track.id);
 
+    // Отменяем незавершённые фоновые загрузки других треков, чтобы не мешать текущему потоку
+    for (const [otherTid, ctrl] of downloadAbortControllers.entries()) {
+      if (otherTid !== tid) {
+        try { ctrl.abort(); } catch {}
+        downloadAbortControllers.delete(otherTid);
+      }
+    }
+
     // 1. СИНХРОННО пробуждаем Web Audio контекст в прямом стеке клика пользователя!
     resumeAudioContext();
 
@@ -557,12 +602,13 @@
     if (btnDownloadActive) btnDownloadActive.classList.toggle('active', isOffline);
 
     // 3. Выбор источника (синхронно):
+    // Если трек уже сохранён в памяти устройства — воспроизводим локальный Blob URL (0 мс, без сети).
+    // Если трек ещё не скачан — начинаем онлайн-стриминг (после начала воспроизведения он сам скачается в фоне).
     let targetSrc = '';
     if (isOffline && memoryBlobUrls.has(tid)) {
       targetSrc = memoryBlobUrls.get(tid);
       updateOfflinePill('offline');
     } else {
-      // Стриминг с сервера через Range 206
       targetSrc = `/api/music/tracks/${tid}/stream`;
       updateOfflinePill(isOffline ? 'offline' : 'stream');
     }
@@ -585,14 +631,13 @@
     updateMediaSession(track);
     highlightCurrentTrackInList();
 
-    // 5. Фоновая подгрузка локального Blob URL, если трек офлайн, но ещё не в оперативной памяти
+    // 5. Если трек помечен как офлайн, но его Blob URL ещё не был создан в памяти — подтягиваем его
     if (isOffline && !memoryBlobUrls.has(tid)) {
       getLocalAudioBlob(tid, Number(track.file_size || 0)).then(blob => {
         if (blob && requestId === playRequestId) {
           const url = URL.createObjectURL(blob);
           memoryBlobUrls.set(tid, url);
-          // Если трек только начинает играть (< 2 сек), плавно переводим воспроизведение на локальный файл
-          if (audio.currentTime < 2.0 && audio.src !== url) {
+          if (audio.currentTime < 1.5 && audio.src !== url) {
             const savedTime = audio.currentTime;
             const wasPlaying = !audio.paused;
             audio.src = url;
@@ -681,6 +726,27 @@
     btnPlay.classList.remove('loading');
     updatePlayButton(true);
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+
+    // Автоматическое сохранение в память устройства после фактического старта воспроизведения (как в Telegram)
+    if (currentIndex >= 0 && playlist[currentIndex]) {
+      const currentTrack = playlist[currentIndex];
+      const tid = Number(currentTrack.id);
+      if (!offlineTrackIds.has(tid) && !downloadPromises.has(tid)) {
+        const activeReqId = playRequestId;
+        setTimeout(() => {
+          if (
+            playRequestId === activeReqId &&
+            !audio.paused &&
+            currentIndex >= 0 &&
+            Number(playlist[currentIndex]?.id) === tid &&
+            !offlineTrackIds.has(tid) &&
+            !downloadPromises.has(tid)
+          ) {
+            downloadTrackInBackground(currentTrack);
+          }
+        }, 1200);
+      }
+    }
   });
 
   audio.addEventListener('pause', () => {
@@ -962,24 +1028,10 @@
     }
   });
 
-  // --- Синхронизация кнопки «Скачать все» ---
+  // --- Кнопка «Скачать все» скрыта (треки сохраняются автоматически при прослушивании, как в Telegram) ---
   function syncDownloadAllButton() {
-    if (!btnDownloadAll || isDownloadingAll) return;
-    if (playlist.length === 0) {
-      btnDownloadAll.textContent = '📥 Скачать все';
-      btnDownloadAll.disabled = false;
-      return;
-    }
-    const unDownloaded = playlist.filter(t => !offlineTrackIds.has(Number(t.id)));
-    if (unDownloaded.length === 0) {
-      btnDownloadAll.textContent = '✓ Все сохранены';
-      btnDownloadAll.style.color = 'var(--accent-cyan)';
-      btnDownloadAll.style.borderColor = 'rgba(0, 229, 255, 0.4)';
-    } else {
-      btnDownloadAll.textContent = `📥 Скачать все (${unDownloaded.length})`;
-      btnDownloadAll.style.color = '';
-      btnDownloadAll.style.borderColor = '';
-    }
+    if (!btnDownloadAll) return;
+    btnDownloadAll.style.display = 'none';
   }
 
   // --- Рендеринг списка музыки в каталоге ---
@@ -1001,11 +1053,10 @@
           <div style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
             <div style="font-size: 20px; color: #fff; margin-bottom: 8px;">💾 В памяти устройства пока нет сохранённых треков</div>
             <p style="font-size: 14px; line-height: 1.5; margin-bottom: 16px; color: #cbd5e1;">
-              ${playlist.length > 0 ? `Все <strong>${playlist.length} треков</strong> находятся на соседней вкладке <strong>«Все треки»</strong>.<br>Чтобы слушать их без интернета, скачайте их в память:` : 'Подключитесь к интернету для первого скачивания треков в память.'}
+              ${playlist.length > 0 ? `Все <strong>${playlist.length} треков</strong> доступны во вкладке <strong>«Все треки»</strong>.<br>Просто включите любую песню — она сразу заиграет онлайн и автоматически сохранится в память (как в Telegram).` : 'Подключитесь к интернету для загрузки списка треков.'}
             </p>
             <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
               <button id="carBtnGoAllTab" class="car-btn-open-list" style="margin: 0;" type="button">📂 Открыть «Все треки»</button>
-              ${playlist.length > 0 ? `<button id="carBtnTriggerDownloadAll" class="car-btn-open-list" style="margin: 0; background: rgba(0, 229, 255, 0.15); color: var(--accent-cyan); border-color: rgba(0,229,255,0.4);" type="button">📥 Скачать все (${playlist.length})</button>` : ''}
             </div>
           </div>
         `;
@@ -1015,10 +1066,6 @@
           activeTab = 'all';
           renderCatalog();
         };
-        const trigDl = document.getElementById('carBtnTriggerDownloadAll');
-        if (trigDl && btnDownloadAll) {
-          trigDl.onclick = () => btnDownloadAll.click();
-        }
       } else if (activeTab === 'favorites') {
         tracksListEl.innerHTML = `
           <div style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
@@ -1152,36 +1199,9 @@
 
   searchInput.addEventListener('input', () => renderCatalog());
 
-  // --- Кнопка пакетного скачивания всех треков ---
+  // --- Кнопка пакетного скачивания скрыта (автосохранение работает как в Telegram) ---
   if (btnDownloadAll) {
-    btnDownloadAll.onclick = async () => {
-      if (isDownloadingAll) return;
-      const unDownloaded = playlist.filter(t => !offlineTrackIds.has(Number(t.id)));
-      if (unDownloaded.length === 0) {
-        syncDownloadAllButton();
-        alert('Все треки уже сохранены в памяти устройства!');
-        return;
-      }
-      isDownloadingAll = true;
-      btnDownloadAll.disabled = true;
-
-      let count = 0;
-      for (const track of unDownloaded) {
-        count++;
-        btnDownloadAll.textContent = `📥 ${count}/${unDownloaded.length}...`;
-        try {
-          await downloadTrackInBackground(track);
-        } catch (err) {
-          console.warn(`Error downloading track ${track.id}:`, err);
-        }
-      }
-
-      isDownloadingAll = false;
-      btnDownloadAll.disabled = false;
-      await scanOfflineTracks();
-      syncDownloadAllButton();
-      renderCatalog();
-    };
+    btnDownloadAll.style.display = 'none';
   }
 
   // --- Звуковой процессор (Web Audio API) и сочный бас ---

@@ -31,10 +31,14 @@ LOGGER = logging.getLogger(__name__)
 # Синглтон-клиент Telethon
 _client = None
 _client_lock = asyncio.Lock()
+_cached_channel_entity = None
+_cached_channel_client = None
+_sync_lock = asyncio.Lock()
 # Ограничиваем количество одновременных MTProto-загрузок. Нельзя использовать
 # один per-track lock и для стрима, и для фонового download: длительный Range-
 # запрос тогда блокирует офлайн-сохранение этого же трека.
 _cache_locks: Dict[int, asyncio.Lock] = {}
+_active_downloads: Dict[int, "_ProgressiveDownload"] = {}
 
 
 def _get_cache_lock(track_id: int) -> asyncio.Lock:
@@ -219,52 +223,104 @@ async def get_telegram_client():
             return None
 
 
+async def _entity_has_audio(client, entity) -> bool:
+    """Проверяет наличие хотя бы одного аудиофайла в указанном канале или чате."""
+    if not entity:
+        return False
+    try:
+        async for m in client.iter_messages(entity, limit=15):
+            if extract_metadata(m) is not None:
+                return True
+    except Exception:
+        pass
+    return False
+
+
 async def get_channel_entity(client):
     """
     Определяет Telegram Entity канала по ID, автопоиском в диалогах или по username.
-    Автоматически находит канал «Музыка ДИТ» с аудиофайлами.
+    Гарантированно выбирает чат/канал, в котором реально загружены аудиофайлы («Музыка ДИТ»).
     """
+    global _cached_channel_entity, _cached_channel_client
+    if _cached_channel_entity is not None and _cached_channel_client is client:
+        return _cached_channel_entity
+
+    fallback_entity = None
+
     channel_id_env = os.getenv("TELEGRAM_CHANNEL_ID", "").strip()
     if channel_id_env:
         try:
             cid = int(channel_id_env)
-            return await client.get_entity(cid)
+            ent = await client.get_entity(cid)
+            if ent:
+                if await _entity_has_audio(client, ent):
+                    _cached_channel_entity = ent
+                    _cached_channel_client = client
+                    return ent
+                fallback_entity = fallback_entity or ent
         except Exception:
             pass
 
-    # Явно настроенный username важнее эвристического поиска и старых каналов.
-    channel_user_env = os.getenv("TELEGRAM_CHANNEL_USERNAME", "bahoniqmusic").strip().replace("@", "")
-    if channel_user_env:
-        try:
-            return await client.get_entity(channel_user_env)
-        except Exception:
-            pass
-
-    # Поиск среди диалогов пользователя — только резервный вариант.
+    # 1. Поиск среди диалогов пользователя группы/канала «Музыка ДИТ» с реальными аудиофайлами
     try:
         candidates = []
         async for d in client.iter_dialogs(limit=50):
             if d.name and "музыка дит" in d.name.lower():
-                candidates.append(d)
+                candidates.append(d.entity)
 
-        # Выбираем тот канал, где есть реальные аудиофайлы
         for cand in candidates:
-            async for m in client.iter_messages(cand.entity, limit=10):
-                if m.media and getattr(m.media, "document", None) and (getattr(m.media.document, "mime_type", "") or "").startswith("audio/"):
-                    return cand.entity
+            if await _entity_has_audio(client, cand):
+                _cached_channel_entity = cand
+                _cached_channel_client = client
+                return cand
 
-        if candidates:
-            return candidates[0].entity
+        if candidates and fallback_entity is None:
+            fallback_entity = candidates[0]
     except Exception:
         pass
 
-    # Попытка через invite link если задан.
+    # 2. Прямой ID чата с музыкой (-5288727334 — «Музыка ДИТ»)
+    try:
+        ent = await client.get_entity(-5288727334)
+        if ent:
+            if await _entity_has_audio(client, ent):
+                _cached_channel_entity = ent
+                _cached_channel_client = client
+                return ent
+            fallback_entity = fallback_entity or ent
+    except Exception:
+        pass
+
+    # 3. По username канала (только если там реально есть аудио, либо как резерв)
+    channel_user_env = os.getenv("TELEGRAM_CHANNEL_USERNAME", "bahoniqmusic").strip().replace("@", "")
+    if channel_user_env:
+        try:
+            ent = await client.get_entity(channel_user_env)
+            if ent:
+                if await _entity_has_audio(client, ent):
+                    _cached_channel_entity = ent
+                    _cached_channel_client = client
+                    return ent
+                fallback_entity = fallback_entity or ent
+        except Exception:
+            pass
+
+    # 4. Попытка через invite link если задан.
     invite_env = os.getenv("TELEGRAM_CHANNEL_INVITE", "").strip()
     if invite_env:
         try:
-            return await client.get_entity(invite_env)
+            ent = await client.get_entity(invite_env)
+            if ent:
+                _cached_channel_entity = ent
+                _cached_channel_client = client
+                return ent
         except Exception:
             pass
+
+    if fallback_entity is not None:
+        _cached_channel_entity = fallback_entity
+        _cached_channel_client = client
+        return fallback_entity
 
     raise RuntimeError("Не удалось определить Telegram-канал. Проверьте TELEGRAM_CHANNEL_ID или TELEGRAM_CHANNEL_USERNAME.")
 
@@ -496,8 +552,33 @@ def get_track_by_id(track_id: int) -> Optional[Dict[str, Any]]:
         conn.close()
 
 
+async def ensure_catalog_ready() -> None:
+    """Если база треков пуста (например, после редеплоя Render), синхронизирует каталог один раз."""
+    conn = get_db_connection()
+    try:
+        total = conn.execute("SELECT COUNT(*) FROM tracks").fetchone()[0]
+    finally:
+        conn.close()
+    if total > 0:
+        return
+
+    has_session = bool(os.getenv("TELEGRAM_SESSION", "").strip() or (DATA_DIR.parent / "telegram_session.txt").exists())
+    has_creds = bool(os.getenv("TELEGRAM_API_ID") and os.getenv("TELEGRAM_API_HASH"))
+    if not (has_session and has_creds):
+        return
+
+    async with _sync_lock:
+        conn = get_db_connection()
+        try:
+            total = conn.execute("SELECT COUNT(*) FROM tracks").fetchone()[0]
+        finally:
+            conn.close()
+        if total == 0:
+            await sync_catalog(force=False)
+
+
 async def get_telegram_document_for_track(track_id: int):
-    """Находит сообщение и Telethon document для трека."""
+    """Находит сообщение и Telethon document для трека (с резервным поиском в «Музыка ДИТ»)."""
     track = get_track_by_id(track_id)
     if not track:
         return None, None
@@ -507,15 +588,37 @@ async def get_telegram_document_for_track(track_id: int):
         return track, None
 
     document = None
+    msg_id = track["telegram_msg_id"]
+
     # 1. Попытка получить из основного канала
     try:
         channel = await get_channel_entity(client)
         if channel:
-            message = await client.get_messages(channel, ids=track["telegram_msg_id"])
+            message = await client.get_messages(channel, ids=msg_id)
             if message and getattr(message, "media", None):
                 document = getattr(message.media, "document", None)
     except Exception:
         pass
+
+    # 2. Резервная попытка из чата «Музыка ДИТ» (-5288727334)
+    if not document:
+        try:
+            ent = await client.get_entity(-5288727334)
+            if ent:
+                message = await client.get_messages(ent, ids=msg_id)
+                if message and getattr(message, "media", None):
+                    document = getattr(message.media, "document", None)
+        except Exception:
+            pass
+
+    # 3. Резервная попытка глобального поиска сообщения по ID
+    if not document:
+        try:
+            message = await client.get_messages(None, ids=msg_id)
+            if message and getattr(message, "media", None):
+                document = getattr(message.media, "document", None)
+        except Exception:
+            pass
 
     return track, document
 
@@ -547,12 +650,42 @@ def _prune_music_cache(protected: Optional[Path] = None) -> None:
             continue
 
 
-async def ensure_track_cached(track_id: int) -> Path:
-    """Надёжно загружает Telegram-документ один раз и возвращает локальный файл.
+class _ProgressiveDownload:
+    """Единый потоковый буфер загрузки трека из Telegram (как в нативном Telegram-плеере).
 
-    Стрим и офлайн-скачивание используют один и тот же проверенный файл, поэтому
-    браузер всегда получает ровно заявленный Content-Length.
+    Одновременно раздаёт первые чанки в онлайн-стрим (/stream) без ожидания конца файла
+    и позволяет фоновому сохранению (/download) читать тот же самый поток без второго
+    соединения к Telegram MTProto.
     """
+    def __init__(self, track_id: int, final_path: Path, part_path: Path, expected_size: int):
+        self.track_id = track_id
+        self.final_path = final_path
+        self.part_path = part_path
+        self.expected_size = expected_size
+        self.written = 0
+        self.done = False
+        self.error: Optional[BaseException] = None
+        self.cond = asyncio.Condition()
+        self.readers = 0
+        self.task: Optional[asyncio.Task] = None
+
+
+def get_cached_track_path(track_id: int) -> Optional[Path]:
+    """Возвращает путь к уже полностью скачанному на сервер файлу трека, если он валиден."""
+    track = get_track_by_id(track_id)
+    if not track:
+        return None
+    final_path = MUSIC_CACHE_DIR / f"track_{track_id}_{track['telegram_msg_id']}.bin"
+    expected_db_size = int(track.get("file_size") or 0)
+    if final_path.exists() and final_path.stat().st_size > 0:
+        if not expected_db_size or final_path.stat().st_size == expected_db_size:
+            final_path.touch()
+            return final_path
+    return None
+
+
+async def _start_or_join_progressive_download(track_id: int) -> _ProgressiveDownload:
+    """Запускает единую фоновую загрузку трека в .part -> .bin или подключается к текущей."""
     track = get_track_by_id(track_id)
     if not track:
         raise FileNotFoundError(f"Track {track_id} not found")
@@ -560,18 +693,29 @@ async def ensure_track_cached(track_id: int) -> Path:
     MUSIC_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     final_path = MUSIC_CACHE_DIR / f"track_{track_id}_{track['telegram_msg_id']}.bin"
     expected_db_size = int(track.get("file_size") or 0)
-    if final_path.exists() and final_path.stat().st_size > 0:
-        if not expected_db_size or final_path.stat().st_size == expected_db_size:
-            final_path.touch()
-            return final_path
-        final_path.unlink(missing_ok=True)
+
+    # Отменяем старые фоновые загрузки других треков, которые больше никто не слушает,
+    # чтобы 100% канала Telegram MTProto отдавалось текущему треку.
+    for other_id, other_state in list(_active_downloads.items()):
+        if other_id != track_id and other_state.readers <= 0 and not other_state.done:
+            if other_state.task and not other_state.task.done():
+                other_state.task.cancel()
+            _active_downloads.pop(other_id, None)
 
     async with _get_cache_lock(track_id):
         if final_path.exists() and final_path.stat().st_size > 0:
             if not expected_db_size or final_path.stat().st_size == expected_db_size:
                 final_path.touch()
-                return final_path
+                done_state = _ProgressiveDownload(track_id, final_path, final_path.with_suffix(".part"), final_path.stat().st_size)
+                done_state.written = done_state.expected_size
+                done_state.done = True
+                return done_state
             final_path.unlink(missing_ok=True)
+
+        existing = _active_downloads.get(track_id)
+        if existing is not None and not existing.done and existing.error is None:
+            if existing.task and not existing.task.done():
+                return existing
 
         live_track, document = await get_telegram_document_for_track(track_id)
         if not document:
@@ -583,29 +727,69 @@ async def ensure_track_cached(track_id: int) -> Path:
 
         part_path = final_path.with_suffix(".part")
         part_path.unlink(missing_ok=True)
-        written = 0
-        try:
-            with part_path.open("wb") as output:
-                async for chunk in client.iter_download(document, chunk_size=256 * 1024):
-                    if not chunk:
-                        continue
-                    output.write(chunk)
-                    written += len(chunk)
-            if written <= 0 or (expected_size > 0 and written != expected_size):
-                raise IOError(f"Incomplete Telegram file: expected={expected_size}, received={written}")
-            os.replace(part_path, final_path)
-            if expected_db_size != written:
-                conn = get_db_connection()
-                try:
-                    with conn:
-                        conn.execute("UPDATE tracks SET file_size=? WHERE id=?", (written, track_id))
-                finally:
-                    conn.close()
-            _prune_music_cache(protected=final_path)
-            return final_path
-        except BaseException:
-            part_path.unlink(missing_ok=True)
-            raise
+        state = _ProgressiveDownload(track_id, final_path, part_path, expected_size)
+        _active_downloads[track_id] = state
+
+        async def _runner() -> Path:
+            try:
+                with part_path.open("wb") as output:
+                    async for chunk in client.iter_download(document, chunk_size=256 * 1024):
+                        if not chunk:
+                            continue
+                        output.write(chunk)
+                        output.flush()
+                        state.written += len(chunk)
+                        async with state.cond:
+                            state.cond.notify_all()
+
+                if state.written <= 0 or (expected_size > 0 and state.written != expected_size):
+                    raise IOError(f"Incomplete Telegram file: expected={expected_size}, received={state.written}")
+
+                os.replace(part_path, final_path)
+                if expected_db_size != state.written:
+                    try:
+                        conn = get_db_connection()
+                        try:
+                            with conn:
+                                conn.execute("UPDATE tracks SET file_size=? WHERE id=?", (state.written, track_id))
+                        finally:
+                            conn.close()
+                    except Exception:
+                        pass
+                _prune_music_cache(protected=final_path)
+                state.done = True
+                async with state.cond:
+                    state.cond.notify_all()
+                return final_path
+            except BaseException as exc:
+                state.error = exc
+                part_path.unlink(missing_ok=True)
+                async with state.cond:
+                    state.cond.notify_all()
+                raise
+            finally:
+                if _active_downloads.get(track_id) is state:
+                    _active_downloads.pop(track_id, None)
+
+        state.task = asyncio.create_task(_runner())
+        return state
+
+
+async def ensure_track_cached(track_id: int) -> Path:
+    """Надёжно загружает Telegram-документ один раз и возвращает локальный файл."""
+    cached = get_cached_track_path(track_id)
+    if cached is not None:
+        return cached
+
+    state = await _start_or_join_progressive_download(track_id)
+    if state.done and state.final_path.exists():
+        return state.final_path
+    state.readers += 1
+    try:
+        assert state.task is not None
+        return await state.task
+    finally:
+        state.readers = max(0, state.readers - 1)
 
 
 async def read_cached_track_chunks(
@@ -630,19 +814,72 @@ async def stream_track_chunks(
     chunk_size: int = 128 * 1024
 ) -> AsyncGenerator[bytes, None]:
     """
-    Генератор чанков аудиофайла через Telethon iter_download.
-    Использует single-flight блокировку и корректно обрабатывает обрыв соединения клиентом.
+    Прогрессивный генератор чанков:
+    - Если файл уже в серверном кэше (.bin) — отдаёт мгновенно с диска.
+    - Если файл ещё качается из Telegram — отдаёт первые байты сразу по мере их прихода в .part,
+      чтобы музыка начинала играть за ~1.5 секунды, одновременно дописывая файл в кэш.
     """
-    path = await ensure_track_cached(track_id)
-    async for chunk in read_cached_track_chunks(path, start, length, chunk_size):
-        yield chunk
+    cached = get_cached_track_path(track_id)
+    if cached is not None:
+        async for chunk in read_cached_track_chunks(cached, start, length, chunk_size):
+            yield chunk
+        return
+
+    state = await _start_or_join_progressive_download(track_id)
+    if state.done and state.final_path.exists():
+        async for chunk in read_cached_track_chunks(state.final_path, start, length, chunk_size):
+            yield chunk
+        return
+
+    state.readers += 1
+    pos = max(0, int(start))
+    end_pos = pos + max(0, int(length))
+    try:
+        while pos < end_pos:
+            async with state.cond:
+                while state.written <= pos and not state.done and state.error is None:
+                    await state.cond.wait()
+            if state.error is not None:
+                raise state.error
+
+            target_path = state.final_path if state.final_path.exists() else state.part_path
+            available = state.final_path.stat().st_size if state.final_path.exists() else state.written
+            if available <= pos:
+                if state.done:
+                    break
+                await asyncio.sleep(0.02)
+                continue
+
+            to_read = min(chunk_size, end_pos - pos, available - pos)
+            with target_path.open("rb") as source:
+                source.seek(pos)
+                data = source.read(to_read)
+            if not data:
+                if state.done:
+                    break
+                await asyncio.sleep(0.02)
+                continue
+            pos += len(data)
+            yield data
+    finally:
+        state.readers = max(0, state.readers - 1)
 
 
 async def download_full_track(track_id: int) -> AsyncGenerator[bytes, None]:
-    """Потоковая отдача полного аудиофайла для сохранения в OPFS/IndexedDB."""
-    path = await ensure_track_cached(track_id)
-    file_size = path.stat().st_size
-    async for chunk in read_cached_track_chunks(path, start=0, length=file_size):
+    """Потоковая отдача полного аудиофайла для сохранения в OPFS/IndexedDB (без дублирования загрузки из Telegram)."""
+    cached = get_cached_track_path(track_id)
+    if cached is not None:
+        file_size = cached.stat().st_size
+        async for chunk in read_cached_track_chunks(cached, start=0, length=file_size):
+            yield chunk
+        return
+
+    state = await _start_or_join_progressive_download(track_id)
+    total_size = state.expected_size
+    if total_size <= 0 and state.task is not None:
+        final_path = await ensure_track_cached(track_id)
+        total_size = final_path.stat().st_size
+    async for chunk in stream_track_chunks(track_id, start=0, length=total_size, chunk_size=256 * 1024):
         yield chunk
 
 

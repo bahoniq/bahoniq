@@ -13,9 +13,12 @@ from pathlib import Path
 import asyncio
 
 from modules.music_core import (
+    _start_or_join_progressive_download,
     clear_catalog_cache,
     download_full_track,
+    ensure_catalog_ready,
     ensure_track_cached,
+    get_cached_track_path,
     get_catalog_status,
     get_track_by_id,
     query_tracks,
@@ -127,8 +130,16 @@ async def list_tracks(
     # Авто-синхронизация при первом запросе, если в базе ещё нет треков
     has_session = bool(os.getenv("TELEGRAM_SESSION") or (STATIC_DIR.parent.parent / "telegram_session.txt").exists())
     if total == 0 and has_session:
-        if _auto_sync_task is None or _auto_sync_task.done():
-            _auto_sync_task = asyncio.create_task(sync_catalog(force=False))
+        await ensure_catalog_ready()
+        tracks, total = query_tracks(
+            query=q,
+            artist=artist,
+            album=album,
+            sort_by=sort_by,
+            order=order,
+            limit=limit,
+            offset=offset
+        )
 
     return {
         "status": "ok",
@@ -140,9 +151,12 @@ async def list_tracks(
 
 
 @router.get("/tracks/{track_id}")
-def get_track(track_id: int):
+async def get_track(track_id: int):
     """Метаданные конкретного трека."""
     track = get_track_by_id(track_id)
+    if not track:
+        await ensure_catalog_ready()
+        track = get_track_by_id(track_id)
     if not track:
         raise HTTPException(status_code=404, detail="Трек не найден")
     return {
@@ -170,14 +184,25 @@ async def stream_track(
     """
     track = get_track_by_id(track_id)
     if not track:
+        await ensure_catalog_ready()
+        track = get_track_by_id(track_id)
+    if not track:
         raise HTTPException(status_code=404, detail="Трек не найден")
 
-    file_size = track["file_size"]
+    file_size = int(track["file_size"] or 0)
     mime_type = track["mime_type"] or "audio/mpeg"
 
     try:
-        cached_path = await ensure_track_cached(track_id)
-        file_size = cached_path.stat().st_size
+        cached_path = get_cached_track_path(track_id)
+        if cached_path is not None:
+            file_size = cached_path.stat().st_size
+        else:
+            state = await _start_or_join_progressive_download(track_id)
+            if state.expected_size > 0:
+                file_size = state.expected_size
+            elif file_size <= 0:
+                cached_path = await ensure_track_cached(track_id)
+                file_size = cached_path.stat().st_size
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Не удалось получить аудиофайл: {exc}") from exc
     if file_size <= 0:
@@ -233,11 +258,23 @@ async def download_track(track_id: int):
     """
     track = get_track_by_id(track_id)
     if not track:
+        await ensure_catalog_ready()
+        track = get_track_by_id(track_id)
+    if not track:
         raise HTTPException(status_code=404, detail="Трек не найден")
 
+    file_size = int(track["file_size"] or 0)
     try:
-        cached_path = await ensure_track_cached(track_id)
-        file_size = cached_path.stat().st_size
+        cached_path = get_cached_track_path(track_id)
+        if cached_path is not None:
+            file_size = cached_path.stat().st_size
+        else:
+            state = await _start_or_join_progressive_download(track_id)
+            if state.expected_size > 0:
+                file_size = state.expected_size
+            elif file_size <= 0:
+                cached_path = await ensure_track_cached(track_id)
+                file_size = cached_path.stat().st_size
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Не удалось скачать аудиофайл: {exc}") from exc
     mime_type = track["mime_type"] or "audio/mpeg"
