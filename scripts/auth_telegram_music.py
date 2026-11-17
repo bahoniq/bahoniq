@@ -16,6 +16,12 @@ import asyncio
 import os
 import sys
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 async def main():
     print("=" * 64)
     print("  BahonIQ Work Center — Авторизация Telegram для «Музыка в авто»")
