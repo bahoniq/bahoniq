@@ -460,7 +460,7 @@
       offlineText.textContent = 'Онлайн стриминг';
     } else if (state === 'downloading') {
       offlineStatus.classList.add('downloading');
-      offlineText.textContent = `Сохранение ${progress}%`;
+      offlineText.textContent = progress > 0 ? `Сохранение ${progress}%` : 'Сохранение в память...';
     }
   }
 
@@ -476,12 +476,11 @@
     downloadAbortControllers.set(tid, controller);
 
     const task = (async () => {
-      if (isManual) {
-        downloadingTrackIds.add(tid);
-        updateTrackItemBadge(tid);
-        if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
-          updateOfflinePill('downloading', 50);
-        }
+      downloadingTrackIds.add(tid);
+      updateTrackItemBadge(tid);
+      if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
+        updateOfflinePill('downloading');
+        if (btnDownloadActive) btnDownloadActive.classList.add('loading');
       }
 
       try {
@@ -502,6 +501,7 @@
             if (!saved) throw new Error('Failed to save blob locally');
 
             offlineTrackIds.add(tid);
+            memoryBlobUrls.set(tid, URL.createObjectURL(blob));
             downloadingTrackIds.delete(tid);
             downloadPromises.delete(tid);
             persistOfflineTrackIds();
@@ -510,7 +510,10 @@
 
             if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
               updateOfflinePill('offline');
-              if (btnDownloadActive) btnDownloadActive.classList.add('active');
+              if (btnDownloadActive) {
+                btnDownloadActive.classList.remove('loading');
+                btnDownloadActive.classList.add('active');
+              }
             }
             return true;
           } catch (attemptErr) {
@@ -518,7 +521,7 @@
               throw attemptErr;
             }
             if (attempt < 3) {
-              await new Promise(r => setTimeout(r, 2000));
+              await new Promise(r => setTimeout(r, 1500));
             } else {
               throw attemptErr;
             }
@@ -531,6 +534,7 @@
         }
         if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
           updateOfflinePill(offlineTrackIds.has(tid) ? 'offline' : 'stream');
+          if (btnDownloadActive) btnDownloadActive.classList.remove('loading');
         }
         return false;
       } finally {
@@ -539,6 +543,10 @@
         downloadPromises.delete(tid);
         updateTrackItemBadge(tid);
         syncDownloadAllButton();
+        if (btnDownloadActive && (currentIndex < 0 || Number(playlist[currentIndex]?.id) === tid)) {
+          btnDownloadActive.classList.remove('loading');
+          btnDownloadActive.classList.toggle('active', offlineTrackIds.has(tid));
+        }
       }
     })();
 

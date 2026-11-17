@@ -120,6 +120,12 @@ html, body {
   box-shadow: 0 0 12px rgba(0, 229, 255, 0.3);
 }
 
+.icon-btn.loading {
+  animation: car-pulse-glow 1.2s infinite ease-in-out;
+  color: var(--accent-gold);
+  border-color: var(--accent-gold);
+}
+
 /* Главная сцена плеера: Портретный режим */
 .car-stage {
   display: flex;
