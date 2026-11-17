@@ -61,6 +61,49 @@
   let currentBlobUrl = null;
   let activeTab = 'all';
 
+  // --- Хранение индекса скачанных треков и кэша плейлиста для мгновенного старта офлайн ---
+  const OFFLINE_IDS_STORAGE_KEY = 'bahoniq_music_offline_ids';
+  const CACHED_PLAYLIST_KEY = 'bahoniq_cached_playlist';
+
+  function persistOfflineTrackIds() {
+    try {
+      localStorage.setItem(OFFLINE_IDS_STORAGE_KEY, JSON.stringify([...offlineTrackIds]));
+    } catch {}
+  }
+
+  function loadOfflineTrackIdsFromStorage() {
+    try {
+      const raw = localStorage.getItem(OFFLINE_IDS_STORAGE_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          arr.forEach(id => offlineTrackIds.add(Number(id)));
+        }
+      }
+    } catch {}
+  }
+
+  function persistCachedPlaylist() {
+    try {
+      if (playlist && playlist.length > 0) {
+        localStorage.setItem(CACHED_PLAYLIST_KEY, JSON.stringify(playlist));
+      }
+    } catch {}
+  }
+
+  function loadCachedPlaylistFromStorage() {
+    try {
+      const raw = localStorage.getItem(CACHED_PLAYLIST_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr) && arr.length > 0 && playlist.length === 0) {
+          playlist = arr;
+          filteredPlaylist = [...playlist];
+        }
+      }
+    } catch {}
+  }
+
   // --- Регистрация Service Worker ---
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/music/sw.js', { scope: '/music/' })
@@ -124,6 +167,7 @@
         await writable.write(blob);
         await writable.close();
         offlineTrackIds.add(trackId);
+        persistOfflineTrackIds();
         saved = true;
       } catch (err) {
         console.warn('OPFS write failed, falling back to IndexedDB:', err);
@@ -142,6 +186,7 @@
           txM.objectStore('tracks_meta').put(trackMeta);
         }
         offlineTrackIds.add(trackId);
+        persistOfflineTrackIds();
         saved = true;
       } catch (err) {
         console.warn('IDB write error:', err);
@@ -187,6 +232,7 @@
       } catch {}
     }
     offlineTrackIds.delete(trackId);
+    persistOfflineTrackIds();
     updateTrackItemBadge(trackId);
     if (currentIndex >= 0 && playlist[currentIndex]?.id === trackId) {
       updateOfflinePill('stream');
@@ -194,6 +240,10 @@
   }
 
   async function scanOfflineTracks() {
+    // 0. Мгновенно загружаем из localStorage
+    loadOfflineTrackIdsFromStorage();
+    loadCachedPlaylistFromStorage();
+
     // 1. Быстро считываем все ключи из IndexedDB (Promise-based)
     if (idb) {
       await new Promise(resolve => {
@@ -211,7 +261,28 @@
       });
     }
 
-    // 2. Если треки в плейлисте известны, проверяем файлы в OPFS точечно по ID (работает на всех магнитолах и WebViews)
+    // 2. Восстанавливаем список треков из локального кэша IndexedDB если плейлист еще пуст
+    if (idb && playlist.length === 0) {
+      await new Promise(resolve => {
+        try {
+          const tx = idb.transaction('tracks_meta', 'readonly');
+          const req = tx.objectStore('tracks_meta').getAll();
+          req.onsuccess = () => {
+            if (playlist.length === 0 && req.result && req.result.length > 0) {
+              playlist = req.result;
+              filteredPlaylist = [...playlist];
+              persistCachedPlaylist();
+            }
+            resolve();
+          };
+          req.onerror = () => resolve();
+        } catch {
+          resolve();
+        }
+      });
+    }
+
+    // 3. Проверяем файлы в OPFS точечно по известным трекам плейлиста
     if (opfsRoot && playlist.length > 0) {
       await Promise.all(playlist.map(async t => {
         try {
@@ -224,7 +295,24 @@
       }));
     }
 
-    // 3. Также сканируем OPFS итератором (если поддерживается)
+    // 4. Прямой зондаж файлов OPFS в диапазоне ID 1..150 (работает на всех Android магнитолах без сбоев)
+    if (opfsRoot) {
+      const probeIds = [];
+      for (let i = 1; i <= 150; i++) {
+        if (!offlineTrackIds.has(i)) probeIds.push(i);
+      }
+      await Promise.all(probeIds.map(async id => {
+        try {
+          const handle = await opfsRoot.getFileHandle(`track_${id}.bin`);
+          const file = await handle.getFile();
+          if (file && file.size > 0) {
+            offlineTrackIds.add(id);
+          }
+        } catch {}
+      }));
+    }
+
+    // 5. Также сканируем OPFS итератором (если поддерживается браузером)
     if (opfsRoot) {
       try {
         if (typeof opfsRoot.entries === 'function') {
@@ -239,30 +327,11 @@
           }
         }
       } catch (err) {
-        console.warn('OPFS iterator scan:', err);
+        // Iterator not supported or restricted in webview
       }
     }
 
-    // 4. Восстанавливаем список треков из локального кэша IndexedDB если сети нет
-    if (idb && playlist.length === 0) {
-      await new Promise(resolve => {
-        try {
-          const tx = idb.transaction('tracks_meta', 'readonly');
-          const req = tx.objectStore('tracks_meta').getAll();
-          req.onsuccess = () => {
-            if (playlist.length === 0 && req.result && req.result.length > 0) {
-              playlist = req.result;
-              filteredPlaylist = [...playlist];
-            }
-            resolve();
-          };
-          req.onerror = () => resolve();
-        } catch {
-          resolve();
-        }
-      });
-    }
-
+    persistOfflineTrackIds();
     renderCatalog();
   }
 
@@ -381,6 +450,8 @@
     const localBlob = await getLocalAudioBlob(track.id);
     if (localBlob) {
       offlineTrackIds.add(track.id);
+      persistOfflineTrackIds();
+      updateTrackItemBadge(track.id);
       currentBlobUrl = URL.createObjectURL(localBlob);
       audio.src = currentBlobUrl;
       updateOfflinePill('offline');
@@ -695,6 +766,7 @@
       if (data && data.tracks && data.tracks.length > 0) {
         playlist = data.tracks;
         filteredPlaylist = [...playlist];
+        persistCachedPlaylist();
         await scanOfflineTracks();
 
         const lastTrackId = Number(localStorage.getItem('bahoniq_last_track_id'));
@@ -761,27 +833,16 @@
 
     tracksListEl.innerHTML = '';
     if (filteredPlaylist.length === 0) {
-      if (playlist.length === 0) {
+      if (activeTab === 'downloaded') {
         tracksListEl.innerHTML = `
           <div style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
-            <div style="font-size: 18px; color: #fff; margin-bottom: 8px;">Канал @bahoniqmusic синхронизируется...</div>
-            <p style="font-size: 14px; margin-bottom: 16px;">При первом запуске сервер считывает аудиофайлы из Telegram. Это занимает 5–10 секунд.</p>
-            <button id="carBtnRetrySync" class="car-btn-open-list" style="margin: 0 auto;" type="button">🔄 Обновить список</button>
-          </div>
-        `;
-        const retryBtn = document.getElementById('carBtnRetrySync');
-        if (retryBtn) retryBtn.onclick = () => fetchCatalog();
-      } else if (activeTab === 'downloaded') {
-        tracksListEl.innerHTML = `
-          <div style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
-            <div style="font-size: 20px; color: #fff; margin-bottom: 8px;">💾 В памяти устройства пока нет треков</div>
+            <div style="font-size: 20px; color: #fff; margin-bottom: 8px;">💾 В памяти устройства пока нет сохранённых треков</div>
             <p style="font-size: 14px; line-height: 1.5; margin-bottom: 16px; color: #cbd5e1;">
-              Все <strong>${playlist.length} треков</strong> находятся на соседней вкладке <strong>«Все треки»</strong>.<br>
-              Чтобы слушать их без интернета, скачайте их в память:
+              ${playlist.length > 0 ? `Все <strong>${playlist.length} треков</strong> находятся на соседней вкладке <strong>«Все треки»</strong>.<br>Чтобы слушать их без интернета, скачайте их в память:` : 'Подключитесь к интернету для первого скачивания треков в память.'}
             </p>
             <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
               <button id="carBtnGoAllTab" class="car-btn-open-list" style="margin: 0;" type="button">📂 Открыть «Все треки»</button>
-              <button id="carBtnTriggerDownloadAll" class="car-btn-open-list" style="margin: 0; background: rgba(0, 229, 255, 0.15); color: var(--accent-cyan); border-color: rgba(0,229,255,0.4);" type="button">📥 Скачать все (${playlist.length})</button>
+              ${playlist.length > 0 ? `<button id="carBtnTriggerDownloadAll" class="car-btn-open-list" style="margin: 0; background: rgba(0, 229, 255, 0.15); color: var(--accent-cyan); border-color: rgba(0,229,255,0.4);" type="button">📥 Скачать все (${playlist.length})</button>` : ''}
             </div>
           </div>
         `;
@@ -809,6 +870,16 @@
           activeTab = 'all';
           renderCatalog();
         };
+      } else if (playlist.length === 0) {
+        tracksListEl.innerHTML = `
+          <div style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
+            <div style="font-size: 18px; color: #fff; margin-bottom: 8px;">Канал @bahoniqmusic синхронизируется...</div>
+            <p style="font-size: 14px; margin-bottom: 16px;">При первом запуске сервер считывает аудиофайлы из Telegram. Это занимает 5–10 секунд.</p>
+            <button id="carBtnRetrySync" class="car-btn-open-list" style="margin: 0 auto;" type="button">🔄 Обновить список</button>
+          </div>
+        `;
+        const retryBtn = document.getElementById('carBtnRetrySync');
+        if (retryBtn) retryBtn.onclick = () => fetchCatalog();
       } else {
         tracksListEl.innerHTML = `
           <div style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
@@ -1146,6 +1217,12 @@
 
   // --- Старт приложения ---
   async function init() {
+    loadOfflineTrackIdsFromStorage();
+    loadCachedPlaylistFromStorage();
+    if (playlist.length > 0) {
+      renderCatalog();
+    }
+
     await initIndexedDB();
     await initOPFS();
     setupMediaSession();

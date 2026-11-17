@@ -101,6 +101,7 @@ def init_academy_db() -> None:
                     "step2_expected_criteria": "TEXT DEFAULT ''",
                     "is_ai_generated": "INTEGER DEFAULT 0",
                     "quiz_data_json": "TEXT DEFAULT '[]'",
+                    "stable_id": "TEXT DEFAULT ''",
                 },
             )
 
@@ -149,6 +150,7 @@ def init_academy_db() -> None:
             # Заполняем все 60 уроков
             for les in LESSONS_DATA:
                 quiz_json = json.dumps(les.get("quiz_data", []), ensure_ascii=False)
+                stable_id = les.get("stable_id") or ""
                 conn.execute(
                     """
                     INSERT INTO academy_lessons (
@@ -157,9 +159,9 @@ def init_academy_db() -> None:
                         step1_concept, step1_trap_code, step1_trap_question,
                         step1_trap_expected, step1_rule,
                         step2_concept, step2_task_prompt, step2_starter_code, step2_rule,
-                        quiz_data_json
+                        quiz_data_json, stable_id
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         stage_id = excluded.stage_id,
                         slug = excluded.slug,
@@ -181,7 +183,8 @@ def init_academy_db() -> None:
                         step2_task_prompt = CASE WHEN academy_lessons.is_ai_generated = 1 THEN academy_lessons.step2_task_prompt ELSE excluded.step2_task_prompt END,
                         step2_starter_code = CASE WHEN academy_lessons.is_ai_generated = 1 THEN academy_lessons.step2_starter_code ELSE excluded.step2_starter_code END,
                         step2_rule = CASE WHEN academy_lessons.is_ai_generated = 1 THEN academy_lessons.step2_rule ELSE excluded.step2_rule END,
-                        quiz_data_json = excluded.quiz_data_json;
+                        quiz_data_json = excluded.quiz_data_json,
+                        stable_id = CASE WHEN excluded.stable_id != '' THEN excluded.stable_id ELSE academy_lessons.stable_id END;
                     """,
                     (
                         les["id"],
@@ -206,8 +209,27 @@ def init_academy_db() -> None:
                         les.get("step2_starter_code", ""),
                         les.get("step2_rule", ""),
                         quiz_json,
+                        stable_id,
                     ),
                 )
+
+            # Восстанавливаем дефолтный прогресс: Урок 1 и Урок 2 всегда пройдены (2/18)
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO academy_progress (
+                    lesson_id, completed, current_step, quiz_score, completed_at, step1_passed, step2_passed
+                ) VALUES 
+                (1, 1, 3, 5, '2026-11-16 13:00:00', 1, 1),
+                (2, 1, 3, 5, '2026-11-17 14:00:00', 1, 1);
+                """
+            )
+            conn.execute(
+                """
+                UPDATE academy_progress 
+                SET completed = 1, current_step = 3, quiz_score = 5, step1_passed = 1, step2_passed = 1 
+                WHERE lesson_id IN (1, 2) AND completed = 0;
+                """
+            )
 
             conn.commit()
             LOGGER.info("База данных Academy успешно синхронизирована (60 уроков, 4 этапа).")
@@ -225,7 +247,7 @@ def get_roadmap_data() -> dict[str, Any]:
         ).fetchall()
         lessons_rows = conn.execute(
             """
-            SELECT l.id, l.stage_id, l.order_index, l.title, l.slug, l.language, l.summary,
+            SELECT l.id, l.stage_id, l.order_index, l.title, l.slug, l.stable_id, l.language, l.summary,
                    l.file_path,
                    COALESCE(p.completed, 0) AS completed,
                    COALESCE(p.current_step, 1) AS current_step,
@@ -249,6 +271,8 @@ def get_roadmap_data() -> dict[str, Any]:
         item["completed"] = bool(item["completed"])
         item["step1_passed"] = bool(item["step1_passed"])
         item["step2_passed"] = bool(item["step2_passed"])
+        if not item.get("stable_id"):
+            item["stable_id"] = f"python_{item['id']:02d}_{item['slug'].replace('-', '_')}"
         total_lessons += 1
         if item["completed"]:
             completed_lessons += 1
@@ -484,3 +508,88 @@ def get_conn_lessons_all() -> list[dict[str, Any]]:
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+def mark_lesson_completed(lesson_id_or_stable: int | str, score: int = 5) -> dict[str, Any]:
+    """Отмечает урок пройденным по ID, stable_id или slug с сохранением в SQLite."""
+    init_academy_db()
+    conn = _get_conn()
+    now_iso = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        if isinstance(lesson_id_or_stable, int) or (isinstance(lesson_id_or_stable, str) and lesson_id_or_stable.isdigit()):
+            lid = int(lesson_id_or_stable)
+        else:
+            row = conn.execute(
+                "SELECT id FROM academy_lessons WHERE stable_id = ? OR slug = ? LIMIT 1",
+                (str(lesson_id_or_stable), str(lesson_id_or_stable)),
+            ).fetchone()
+            if not row:
+                return {"success": False, "error": f"Урок {lesson_id_or_stable} не найден"}
+            lid = int(row["id"])
+
+        with _db_lock:
+            conn.execute(
+                """
+                INSERT INTO academy_progress (
+                    lesson_id, completed, current_step, quiz_score, completed_at, step1_passed, step2_passed
+                ) VALUES (?, 1, 3, ?, ?, 1, 1)
+                ON CONFLICT(lesson_id) DO UPDATE SET
+                    completed = 1,
+                    current_step = 3,
+                    quiz_score = MAX(excluded.quiz_score, academy_progress.quiz_score),
+                    step1_passed = 1,
+                    step2_passed = 1,
+                    completed_at = CASE WHEN academy_progress.completed_at != '' THEN academy_progress.completed_at ELSE excluded.completed_at END;
+                """,
+                (lid, score, now_iso),
+            )
+            conn.commit()
+    finally:
+        conn.close()
+
+    return {"success": True, "lesson_id": lid, "roadmap": get_roadmap_data()}
+
+
+def sync_completed_lessons(completed_ids: list[int | str]) -> dict[str, Any]:
+    """Синхронизирует набор пройденных уроков из localStorage клиента в SQLite."""
+    init_academy_db()
+    if not completed_ids:
+        return {"success": True, "synced_count": 0, "roadmap": get_roadmap_data()}
+
+    conn = _get_conn()
+    now_iso = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    synced = 0
+    try:
+        with _db_lock:
+            for item in completed_ids:
+                if isinstance(item, int) or (isinstance(item, str) and str(item).isdigit()):
+                    lid = int(item)
+                else:
+                    row = conn.execute(
+                        "SELECT id FROM academy_lessons WHERE stable_id = ? OR slug = ? LIMIT 1",
+                        (str(item), str(item)),
+                    ).fetchone()
+                    if not row:
+                        continue
+                    lid = int(row["id"])
+
+                conn.execute(
+                    """
+                    INSERT INTO academy_progress (
+                        lesson_id, completed, current_step, quiz_score, completed_at, step1_passed, step2_passed
+                    ) VALUES (?, 1, 3, 5, ?, 1, 1)
+                    ON CONFLICT(lesson_id) DO UPDATE SET
+                        completed = 1,
+                        current_step = 3,
+                        step1_passed = 1,
+                        step2_passed = 1,
+                        completed_at = CASE WHEN academy_progress.completed_at != '' THEN academy_progress.completed_at ELSE excluded.completed_at END;
+                    """,
+                    (lid, now_iso),
+                )
+                synced += 1
+            conn.commit()
+    finally:
+        conn.close()
+
+    return {"success": True, "synced_count": synced, "roadmap": get_roadmap_data()}

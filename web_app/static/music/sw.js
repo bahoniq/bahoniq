@@ -1,5 +1,5 @@
 /* BahonIQ Музыка в авто - Изолированный Service Worker (Scope: /music/) */
-const CACHE_NAME = 'bahoniq-music-shell-v8';
+const CACHE_NAME = 'bahoniq-music-shell-v11';
 const SHELL_ASSETS = [
   '/music/',
   '/music/manifest.webmanifest',
@@ -36,6 +36,22 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Для скриптов и стилей: Network First с кэш-fallback (для мгновенного обновления без ручной чистки кэша)
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          if (response && response.status === 200) {
+            const respClone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, respClone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
   // Для навигации внутри /music/ возвращаем кэшированную оболочку плеера
   if (event.request.mode === 'navigate' && url.pathname.startsWith('/music/')) {
     event.respondWith(
@@ -44,7 +60,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Для статических ресурсов плеера - Cache First с fallback в сеть
+  // Для остальных статических ресурсов плеера - Cache First с fallback в сеть
   if (url.pathname.startsWith('/music/')) {
     event.respondWith(
       caches.match(event.request).then(cached => {

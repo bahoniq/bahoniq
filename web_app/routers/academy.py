@@ -15,11 +15,13 @@ from ai_service import generate_text
 from ..modules.code_academy.db import (
     get_lesson_by_id,
     get_roadmap_data,
+    mark_lesson_completed,
     save_lesson_theory,
     save_quiz_result,
     save_step1_result,
     save_step2_result,
     save_user_attempt,
+    sync_completed_lessons,
     update_lesson_ai_content,
 )
 from ..modules.code_academy.pathway import run_sql
@@ -507,9 +509,11 @@ async def academy_quiz_submit_post(request: Request):
         passed = score >= 4
         await run_in_threadpool(save_quiz_result, lesson_id, score, passed)
         roadmap = await run_in_threadpool(get_roadmap_data)
+        stable_id = lesson.get("stable_id") or f"python_{lesson_id:02d}_{lesson.get('slug', '').replace('-', '_')}"
 
         return {
             "lesson_id": lesson_id,
+            "stable_id": stable_id,
             "score": score,
             "total": len(quiz_items),
             "passed": passed,
@@ -521,6 +525,38 @@ async def academy_quiz_submit_post(request: Request):
     except Exception as exc:
         LOGGER.exception("Failed to check academy quiz for lesson %s: %s", lesson_id, exc)
         raise HTTPException(500, f"Ошибка при проверке теста на сервере: {exc}")
+
+
+@router.post("/progress/sync")
+async def academy_progress_sync_post(request: Request):
+    """
+    Двусторонняя синхронизация прогресса с клиентом:
+    Принимает completed_ids (стабильные ID или числовые ID) из localStorage браузера
+    и фиксирует их в SQLite БД, возвращая актуальный роадмап.
+    """
+    body = await _parse_body(request)
+    completed_ids = body.get("completed_ids") or []
+    if isinstance(completed_ids, str):
+        try:
+            completed_ids = json.loads(completed_ids)
+        except Exception:
+            completed_ids = [completed_ids]
+    res = await run_in_threadpool(sync_completed_lessons, completed_ids)
+    return res
+
+
+@router.post("/progress/mark")
+async def academy_progress_mark_post(request: Request):
+    """
+    Административная / пользовательская отметка урока как завершённого
+    (ручное восстановление прогресса по ID или stable_id).
+    """
+    body = await _parse_body(request)
+    lesson_id = body.get("lesson_id") or body.get("id") or body.get("stable_id")
+    if not lesson_id:
+        raise HTTPException(400, "Параметр lesson_id обязателен.")
+    res = await run_in_threadpool(mark_lesson_completed, lesson_id)
+    return res
 
 
 @router.post("/mentor-ask")

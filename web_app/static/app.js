@@ -1984,11 +1984,68 @@ convertForm?.addEventListener('submit', async e => {
   const quizQuestionsContainer = document.getElementById('acadQuizQuestionsContainer');
   const submitQuizBtn = document.getElementById('acadSubmitQuizBtn');
   const nextLessonBtn = document.getElementById('acadNextLessonBtn');
+  const restoreProgressBtn = document.getElementById('acadRestoreProgressBtn');
+  const markPassedBtn = document.getElementById('acadMarkPassedBtn');
+
+  // Канонические ключи LocalStorage и множество завершённых уроков (ID + stable_id)
+  const ACADEMY_STORAGE_KEY = 'bahoniq_academy_progress_v2';
+  const ACADEMY_LAST_LESSON_KEY = 'bahoniq_academy_last_lesson_id';
+  const completedLessonsSet = new Set();
 
   let roadmapData = null;
   let currentStageId = 1;
   let currentLesson = null;
   let userQuizAnswers = {};
+
+  function migrateAndLoadAcademyProgress() {
+    // Дефолтный прогресс: Урок 1 и Урок 2 всегда завершены (2/18)
+    completedLessonsSet.add('1');
+    completedLessonsSet.add('2');
+    completedLessonsSet.add('python_01_environment');
+    completedLessonsSet.add('python_02_variables');
+
+    // Безопасная миграция старых форматов без сброса и потерь
+    const oldKeys = ['bahoniq_academy_completed', 'academy_progress', 'code_academy_progress', ACADEMY_STORAGE_KEY];
+    oldKeys.forEach(key => {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(id => completedLessonsSet.add(String(id)));
+          } else if (typeof parsed === 'object' && parsed !== null) {
+            Object.keys(parsed).forEach(id => {
+              if (parsed[id]) completedLessonsSet.add(String(id));
+            });
+          }
+        }
+      } catch {}
+    });
+
+    try {
+      localStorage.setItem(ACADEMY_STORAGE_KEY, JSON.stringify([...completedLessonsSet]));
+    } catch {}
+
+    // Фоновая синхронизация с сервером
+    fetch('/api/academy/progress/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ completed_ids: [...completedLessonsSet] }),
+    }).then(r => r.json()).then(data => {
+      if (data && data.roadmap) {
+        roadmapData = data.roadmap;
+        renderRoadmapUI();
+      }
+    }).catch(() => {});
+  }
+
+  function isLessonCompleted(les) {
+    if (!les) return false;
+    if (les.completed) return true;
+    if (completedLessonsSet.has(String(les.id))) return true;
+    if (les.stable_id && completedLessonsSet.has(les.stable_id)) return true;
+    return false;
+  }
 
   function escapeHtml(str) {
     return String(str || '')
@@ -2010,6 +2067,26 @@ convertForm?.addEventListener('submit', async e => {
   // 1. Отрисовка дорожной карты и прогресса
   function renderRoadmapUI() {
     if (!roadmapData) return;
+
+    let overallDone = 0;
+    (roadmapData.stages || []).forEach(st => {
+      let stDone = 0;
+      (st.lessons || []).forEach(les => {
+        if (isLessonCompleted(les)) {
+          les.completed = true;
+          stDone++;
+        }
+      });
+      st.completed_lessons = Math.max(st.completed_lessons || 0, stDone);
+      st.percent = st.total_lessons ? Math.round((st.completed_lessons / st.total_lessons) * 100) : 0;
+      overallDone += st.completed_lessons;
+    });
+
+    roadmapData.completed_lessons = Math.max(roadmapData.completed_lessons || 0, overallDone);
+    roadmapData.overall_percent = roadmapData.total_lessons
+      ? Math.round((roadmapData.completed_lessons / roadmapData.total_lessons) * 100)
+      : 0;
+
     if (overallText) {
       overallText.textContent = `${roadmapData.completed_lessons} / ${roadmapData.total_lessons} (${roadmapData.overall_percent}%)`;
     }
@@ -2048,8 +2125,14 @@ convertForm?.addEventListener('submit', async e => {
     renderRoadmapUI();
     const st = roadmapData?.stages?.find(s => s.id === stageId);
     if (st && st.lessons?.length) {
-      const firstIncomplete = st.lessons.find(l => !l.completed) || st.lessons[0];
-      openLesson(firstIncomplete.id);
+      const savedLastId = Number(localStorage.getItem(ACADEMY_LAST_LESSON_KEY));
+      const savedInStage = savedLastId ? st.lessons.find(l => l.id === savedLastId) : null;
+      if (savedInStage) {
+        openLesson(savedInStage.id);
+      } else {
+        const firstIncomplete = st.lessons.find(l => !isLessonCompleted(l)) || st.lessons[0];
+        openLesson(firstIncomplete.id);
+      }
     }
   }
 
@@ -2073,8 +2156,9 @@ convertForm?.addEventListener('submit', async e => {
 
     lessonsList.innerHTML = filtered.map(les => {
       const isCur = currentLesson && currentLesson.id === les.id ? 'active' : '';
-      const isDone = les.completed ? 'completed' : '';
-      const icon = les.completed
+      const done = isLessonCompleted(les);
+      const isDone = done ? 'completed' : '';
+      const icon = done
         ? '<span class="acad-lesson-status-icon done">✔</span>'
         : `<span class="acad-lesson-status-icon pending">${les.order_index}</span>`;
 
@@ -2089,6 +2173,7 @@ convertForm?.addEventListener('submit', async e => {
     lessonsList.querySelectorAll('.acad-lesson-item').forEach(btn => {
       btn.addEventListener('click', () => {
         const lid = parseInt(btn.dataset.lessonId, 10);
+        localStorage.setItem(ACADEMY_LAST_LESSON_KEY, lid);
         openLesson(lid);
       });
     });
@@ -2097,6 +2182,7 @@ convertForm?.addEventListener('submit', async e => {
   // 2. Открытие конкретного урока (генерация уникального микроурока через Gemini Flash в реальном времени)
   async function openLesson(lessonId, forceRefresh = false) {
     try {
+      localStorage.setItem(ACADEMY_LAST_LESSON_KEY, lessonId);
       if (lessonTitle) lessonTitle.textContent = 'ИИ формирует урок под тему...';
       if (lessonSummary) lessonSummary.textContent = 'BahonIQ AI подготавливает уникальные микрошаги и задачу...';
       if (trainerFeed) {
@@ -2138,6 +2224,9 @@ convertForm?.addEventListener('submit', async e => {
 
       if (!res.ok) throw new Error('Не удалось запустить урок');
       currentLesson = await res.json();
+      if (isLessonCompleted(currentLesson)) {
+        currentLesson.completed = true;
+      }
       currentStageId = currentLesson.stage_id;
       userQuizAnswers = {};
 
@@ -2149,6 +2238,9 @@ convertForm?.addEventListener('submit', async e => {
         const fallbackRes = await fetch(`/api/academy/lesson/${lessonId}`);
         if (fallbackRes.ok) {
           currentLesson = await fallbackRes.json();
+          if (isLessonCompleted(currentLesson)) {
+            currentLesson.completed = true;
+          }
           currentStageId = currentLesson.stage_id;
           userQuizAnswers = {};
           renderRoadmapUI();
@@ -2588,10 +2680,32 @@ convertForm?.addEventListener('submit', async e => {
         renderTrainerDialogueFeed();
 
         if (result.passed) {
-          alert(`🎉 Поздравляем! Результат: ${result.score} из ${result.total}. Тема засчитана!`);
+          completedLessonsSet.add(String(currentLesson.id));
+          if (currentLesson.stable_id) completedLessonsSet.add(currentLesson.stable_id);
+          if (result.stable_id) completedLessonsSet.add(result.stable_id);
+          try {
+            localStorage.setItem(ACADEMY_STORAGE_KEY, JSON.stringify([...completedLessonsSet]));
+          } catch {}
+
+          // Синхронизируем с сервером
+          fetch('/api/academy/progress/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ completed_ids: [...completedLessonsSet] }),
+          }).catch(() => {});
+
+          currentLesson.completed = true;
+          renderRoadmapUI();
+          updateStepTrackerUI();
+          renderCurrentLessonWorkspace();
+
+          alert(`🎉 Поздравляем! Результат: ${result.score} из ${result.total}. Прогресс сохранён!`);
           if (nextLessonBtn && result.next_lesson_id) {
             nextLessonBtn.classList.remove('hidden');
-            nextLessonBtn.onclick = () => openLesson(result.next_lesson_id);
+            nextLessonBtn.onclick = () => {
+              localStorage.setItem(ACADEMY_LAST_LESSON_KEY, result.next_lesson_id);
+              openLesson(result.next_lesson_id);
+            };
           }
         } else {
           alert(`Результат: ${result.score} из ${result.total}. Для зачёта темы требуется минимум 4 верных ответа. Попробуйте еще раз!`);
@@ -2648,17 +2762,95 @@ convertForm?.addEventListener('submit', async e => {
     });
   }
 
-  // 12. Первичная инициализация
+  // Кнопки ручного управления и восстановления прогресса
+  if (restoreProgressBtn) {
+    restoreProgressBtn.addEventListener('click', async () => {
+      migrateAndLoadAcademyProgress();
+      if (currentLesson) {
+        completedLessonsSet.add(String(currentLesson.id));
+        if (currentLesson.stable_id) completedLessonsSet.add(currentLesson.stable_id);
+      }
+      try {
+        localStorage.setItem(ACADEMY_STORAGE_KEY, JSON.stringify([...completedLessonsSet]));
+        const res = await fetch('/api/academy/progress/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ completed_ids: [...completedLessonsSet] }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.roadmap) roadmapData = data.roadmap;
+          renderRoadmapUI();
+          alert('⚡ Прогресс успешно восстановлен и синхронизирован с сервером!');
+        }
+      } catch (err) {
+        alert('Ошибка синхронизации: ' + err.message);
+      }
+    });
+  }
+
+  if (markPassedBtn) {
+    markPassedBtn.addEventListener('click', async () => {
+      if (!currentLesson) return;
+      completedLessonsSet.add(String(currentLesson.id));
+      if (currentLesson.stable_id) completedLessonsSet.add(currentLesson.stable_id);
+      try {
+        localStorage.setItem(ACADEMY_STORAGE_KEY, JSON.stringify([...completedLessonsSet]));
+        const res = await fetch('/api/academy/progress/mark', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lesson_id: currentLesson.id }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.roadmap) roadmapData = data.roadmap;
+          currentLesson.completed = true;
+          renderRoadmapUI();
+          updateStepTrackerUI();
+          renderCurrentLessonWorkspace();
+          alert(`✔ Урок «${currentLesson.title}» отмечен завершённым! Прогресс сохранён.`);
+        }
+      } catch (err) {
+        alert('Ошибка отметки урока: ' + err.message);
+      }
+    });
+  }
+
+  // 12. Первичная инициализация с приоритетом ручного выбора
   async function initAcademyPlatform() {
     try {
+      migrateAndLoadAcademyProgress();
       const res = await fetch('/api/academy/roadmap');
       if (!res.ok) throw new Error('Ошибка загрузки карты курса');
       roadmapData = await res.json();
       renderRoadmapUI();
-      const firstStage = roadmapData.stages?.[0];
-      if (firstStage && firstStage.lessons?.length) {
-        const firstIncomplete = firstStage.lessons.find(l => !l.completed) || firstStage.lessons[0];
-        await openLesson(firstIncomplete.id);
+
+      // Ручной выбор урока пользователем имеет наивысший приоритет
+      const savedLessonId = Number(localStorage.getItem(ACADEMY_LAST_LESSON_KEY));
+      let targetLessonId = null;
+
+      if (savedLessonId && roadmapData.stages) {
+        for (const st of roadmapData.stages) {
+          const found = (st.lessons || []).find(l => l.id === savedLessonId);
+          if (found) {
+            targetLessonId = found.id;
+            currentStageId = st.id;
+            break;
+          }
+        }
+      }
+
+      // Только если пользователь никогда не выбирал урок, переходим к первому незавершенному
+      if (!targetLessonId) {
+        const firstStage = roadmapData.stages?.[0];
+        if (firstStage && firstStage.lessons?.length) {
+          const firstIncomplete = firstStage.lessons.find(l => !isLessonCompleted(l)) || firstStage.lessons[0];
+          targetLessonId = firstIncomplete.id;
+        }
+      }
+
+      if (targetLessonId) {
+        await openLesson(targetLessonId);
       }
     } catch (err) {
       console.error('Academy init error:', err);

@@ -97,3 +97,56 @@ LESSONS_DATA: list[dict[str, Any]] = [
     {"id": 59, "stage_id": 4, "slug": "poly_14_server_monitoring", "order_index": 14, "title": "14. Мониторинг в продакшене: логи, метрики и алерты", "language": "python", "summary": "Отслеживание uptime сервера на Render, сбор трассировок ошибок 500 и healthcheck-эндпоинт.", "ai_theory": "Боевой полигон — это разработка реальных инструментов автоматизации. Тема: 14. Мониторинг в продакшене: логи, метрики и алерты. Здесь соединяются знания синтаксиса Python, SQL-запросов, архитектуры FastAPI и облачного ИИ Gemini Flash.", "step1_concept": "Реальные задачи требуют надёжности: любая внешняя интеграция должна быть обёрнута в try/except с логированием.", "step1_trap_code": "# Валидация длины ИИН\niin = '040512550123'\nis_valid = len(iin) == 12 and iin.isdigit()\nprint(is_valid)", "step1_trap_question": "Что проверяет этот код? При каких условиях переменная is_valid станет True?", "step1_trap_expected": "Код проверяет, что строка состоит ровно из 12 символов и все символы являются цифрами (без букв и пробелов).", "step1_rule": "Функция isdigit() возвращает True только если строка целиком состоит из цифр, защищая от некорректного ввода.", "step2_concept": "Все фоновые задачи (отправка сообщений, сбор статистики) выносятся в BackgroundTasks, чтобы пользователь получал ответ моментально.", "step2_task_prompt": "Напишите проверку, что строка email содержит символ '@' и точку '.' через return ('@' in email) and ('.' in email).", "step2_starter_code": "def check_email(email):\n    return ('@' in email) and ('.' in email)\n\nprint(check_email('student@nu.edu.kz'))\n", "step2_rule": "Полноценный проект объединяет базу данных, API-роуты, бизнес-логику и удобный пользовательский интерфейс.", "file_path": "", "quiz_data": [{"question": "Зачем использовать BackgroundTasks в FastAPI?", "options": ["Чтобы выполнять тяжелые действия в фоне без задержки ответа клиенту", "Чтобы ускорить CSS", "Чтобы база данных не удалялась", "Это обязательно для всех роутов"], "correct_index": 0, "explanation": "Фоновые задачи выполняются после отправки ответа пользователю."}, {"question": "Какая библиотека в Python используется для юнит-тестирования?", "options": ["pytest", "pytest_runner", "test_py", "checklib"], "correct_index": 0, "explanation": "pytest — стандарт де-факто для тестирования Python-приложений."}, {"question": "Для чего нужен эндпоинт /healthz или /api/health?", "options": ["Для проверки жизнеспособности сервера системами мониторинга", "Для проверки здоровья пользователя", "Для очистки памяти", "Для удаления логов"], "correct_index": 0, "explanation": "Платформы вроде Render опрашивают healthcheck для контроля статуса контейнера."}, {"question": "Как безопасно хранить пароли пользователей в базе данных?", "options": ["Хешировать с солью алгоритмом bcrypt или argon2", "Хранить открытым текстом", "Шифровать base64", "Сохранять в виде MD5"], "correct_index": 0, "explanation": "Пароли категорически нельзя хранить в открытом виде — только криптостойкие хеши."}, {"question": "Какой инструмент позволяет имитировать HTTP-запросы к FastAPI в тестах?", "options": ["TestClient из starlette / fastapi", "requests.get на localhost", "curl через os.system", "браузер Selenium"], "correct_index": 0, "explanation": "TestClient выполняет вызовы приложения напрямую в памяти без запуска сетевого сокета."}]},
     {"id": 60, "stage_id": 4, "slug": "poly_15_capstone_project", "order_index": 15, "title": "15. Финальная аттестация: Защита собственного сервиса", "language": "python", "summary": "Интеграция всех знаний: проектирование архитектуры, БД, API, ИИ-ассистента и веб-интерфейса.", "ai_theory": "Боевой полигон — это разработка реальных инструментов автоматизации. Тема: 15. Финальная аттестация: Защита собственного сервиса. Здесь соединяются знания синтаксиса Python, SQL-запросов, архитектуры FastAPI и облачного ИИ Gemini Flash.", "step1_concept": "Реальные задачи требуют надёжности: любая внешняя интеграция должна быть обёрнута в try/except с логированием.", "step1_trap_code": "# Валидация длины ИИН\niin = '040512550123'\nis_valid = len(iin) == 12 and iin.isdigit()\nprint(is_valid)", "step1_trap_question": "Что проверяет этот код? При каких условиях переменная is_valid станет True?", "step1_trap_expected": "Код проверяет, что строка состоит ровно из 12 символов и все символы являются цифрами (без букв и пробелов).", "step1_rule": "Функция isdigit() возвращает True только если строка целиком состоит из цифр, защищая от некорректного ввода.", "step2_concept": "Все фоновые задачи (отправка сообщений, сбор статистики) выносятся в BackgroundTasks, чтобы пользователь получал ответ моментально.", "step2_task_prompt": "Напишите проверку, что строка email содержит символ '@' и точку '.' через return ('@' in email) and ('.' in email).", "step2_starter_code": "def check_email(email):\n    return ('@' in email) and ('.' in email)\n\nprint(check_email('student@nu.edu.kz'))\n", "step2_rule": "Полноценный проект объединяет базу данных, API-роуты, бизнес-логику и удобный пользовательский интерфейс.", "file_path": "", "quiz_data": [{"question": "Зачем использовать BackgroundTasks в FastAPI?", "options": ["Чтобы выполнять тяжелые действия в фоне без задержки ответа клиенту", "Чтобы ускорить CSS", "Чтобы база данных не удалялась", "Это обязательно для всех роутов"], "correct_index": 0, "explanation": "Фоновые задачи выполняются после отправки ответа пользователю."}, {"question": "Какая библиотека в Python используется для юнит-тестирования?", "options": ["pytest", "pytest_runner", "test_py", "checklib"], "correct_index": 0, "explanation": "pytest — стандарт де-факто для тестирования Python-приложений."}, {"question": "Для чего нужен эндпоинт /healthz или /api/health?", "options": ["Для проверки жизнеспособности сервера системами мониторинга", "Для проверки здоровья пользователя", "Для очистки памяти", "Для удаления логов"], "correct_index": 0, "explanation": "Платформы вроде Render опрашивают healthcheck для контроля статуса контейнера."}, {"question": "Как безопасно хранить пароли пользователей в базе данных?", "options": ["Хешировать с солью алгоритмом bcrypt или argon2", "Хранить открытым текстом", "Шифровать base64", "Сохранять в виде MD5"], "correct_index": 0, "explanation": "Пароли категорически нельзя хранить в открытом виде — только криптостойкие хеши."}, {"question": "Какой инструмент позволяет имитировать HTTP-запросы к FastAPI в тестах?", "options": ["TestClient из starlette / fastapi", "requests.get на localhost", "curl через os.system", "браузер Selenium"], "correct_index": 0, "explanation": "TestClient выполняет вызовы приложения напрямую в памяти без запуска сетевого сокета."}]},
 ]
+
+STAGE_1_CANONICAL_IDS: dict[int, str] = {
+    1: "python_01_environment",
+    2: "python_02_variables",
+    3: "python_03_numbers",
+    4: "python_04_strings",
+    5: "python_05_booleans",
+    6: "python_06_conditions",
+    7: "python_07_lists",
+    8: "python_08_tuples",
+    9: "python_09_dicts",
+    10: "python_10_sets",
+    11: "python_11_loops_for",
+    12: "python_12_loops_while",
+    13: "python_13_comprehensions",
+    14: "python_14_functions",
+    15: "python_15_args_kwargs",
+    16: "python_16_files_json",
+    17: "python_17_exceptions",
+    18: "python_18_modules_logging",
+}
+
+def resolve_stable_id(lesson_or_order: Any, slug: str = "", stage_id: int = 1) -> str:
+    if isinstance(lesson_or_order, dict):
+        stage = lesson_or_order.get("stage_id", 1)
+        order = lesson_or_order.get("order_index", 1)
+        slug_val = lesson_or_order.get("slug", "")
+    else:
+        stage = stage_id
+        order = int(lesson_or_order)
+        slug_val = slug
+    if stage == 1:
+        return STAGE_1_CANONICAL_IDS.get(order, f"python_{order:02d}_{slug_val}")
+    elif stage == 2:
+        clean = slug_val.replace("sql_", "")
+        return f"sql_{order:02d}_{clean}"
+    elif stage == 3:
+        clean = slug_val.replace("arch_", "")
+        return f"web_{order:02d}_{clean}"
+    else:
+        clean = slug_val.replace("poly_", "")
+        return f"project_{order:02d}_{clean}"
+
+for _l in LESSONS_DATA:
+    if "stable_id" not in _l:
+        _l["stable_id"] = resolve_stable_id(_l)
+
+STABLE_ID_TO_LESSON: dict[str, dict[str, Any]] = {
+    l["stable_id"]: l for l in LESSONS_DATA
+}
+ID_TO_STABLE_ID: dict[int, str] = {
+    l["id"]: l["stable_id"] for l in LESSONS_DATA
+}

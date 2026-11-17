@@ -705,7 +705,8 @@
                 <p>Интерактивный диалог с живым ИИ-тренером: микрошаги «от А до Я», чтение кода, практика и контрольные тесты.</p>
               </div>
 
-              <div class="acad-top-right">
+              <div class="acad-top-right" style="display:flex;align-items:center;gap:12px;">
+                <button id="acadRestoreProgressBtn" class="acad-btn-secondary" style="height: 38px; padding: 0 12px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 8px; background: rgba(0,229,255,0.1); border: 1px solid rgba(0,229,255,0.3); color: var(--cyan-neon);" type="button" title="Восстановить пройденные уроки в облаке">⚡ Восстановить прогресс</button>
                 <div class="acad-progress-widget">
                   <div class="acad-progress-labels">
                     <span>Общий прогресс курса</span>
@@ -745,6 +746,7 @@
                     <div class="acad-badges-row">
                       <span id="acadLessonStageBadge" class="acad-stage-badge">Этап 1</span>
                       <span id="acadLessonStatusBadge" class="acad-status-badge">В процессе</span>
+                      <button id="acadMarkPassedBtn" class="acad-regen-btn" style="border-color: rgba(0,230,118,0.4); color: var(--green-neon);" title="Отметить текущий урок пройденным вручную">✔ Отметить пройденным</button>
                       <button id="acadRegenAiBtn" class="acad-regen-btn" title="Сгенерировать новый уникальный пример и задачу от BahonIQ AI">
                         <span class="acad-regen-icon">🔄</span> Новый пример от ИИ
                       </button>
