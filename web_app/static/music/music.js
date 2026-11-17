@@ -269,8 +269,12 @@
   // --- Форматирование времени ---
   function formatTime(seconds) {
     if (!seconds || isNaN(seconds) || seconds < 0) return '0:00';
-    const m = Math.floor(seconds / 60);
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
+    if (h > 0) {
+      return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+    }
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
@@ -465,6 +469,31 @@
         } catch {}
       }
     }
+  });
+
+  audio.addEventListener('waiting', () => {
+    diagAudioStatus.textContent = 'Буферизация...';
+    btnPlay.classList.add('loading');
+  });
+
+  audio.addEventListener('playing', () => {
+    diagAudioStatus.textContent = 'Воспроизведение';
+    btnPlay.classList.remove('loading');
+    updatePlayButton(true);
+  });
+
+  audio.addEventListener('pause', () => {
+    diagAudioStatus.textContent = 'Пауза';
+    btnPlay.classList.remove('loading');
+    updatePlayButton(false);
+  });
+
+  audio.addEventListener('error', (e) => {
+    console.warn('Audio playback error:', e);
+    btnPlay.classList.remove('loading');
+    updatePlayButton(false);
+    diagAudioStatus.textContent = 'Ошибка потока';
+    recordDiagnosticCommand('ОШИБКА ПОТОКА (СЕТЬ)');
   });
 
   audio.addEventListener('ended', () => {
@@ -828,8 +857,36 @@
   }
 
   function updateTrackItemBadge(trackId) {
+    if (activeTab === 'downloaded') {
+      renderCatalog();
+      return;
+    }
     const el = document.getElementById(`track-item-${trackId}`);
-    if (el) renderCatalog();
+    if (!el) return;
+    const isOff = offlineTrackIds.has(trackId);
+    const isDown = downloadingTrackIds.has(trackId);
+    let badge = el.querySelector('.car-track-badge');
+    if (isOff) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'car-track-badge';
+        el.appendChild(badge);
+      }
+      badge.textContent = '✓ Офлайн';
+      badge.style.color = '';
+      badge.style.background = '';
+    } else if (isDown) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'car-track-badge';
+        el.appendChild(badge);
+      }
+      badge.textContent = '⏳ Загрузка';
+      badge.style.color = 'var(--accent-gold)';
+      badge.style.background = 'rgba(250,204,21,0.15)';
+    } else if (badge) {
+      badge.remove();
+    }
   }
 
   function highlightCurrentTrackInList() {
@@ -877,12 +934,17 @@
       for (const track of unDownloaded) {
         count++;
         btnDownloadAll.textContent = `📥 ${count}/${unDownloaded.length}...`;
-        await downloadTrackInBackground(track);
+        try {
+          await downloadTrackInBackground(track);
+        } catch (err) {
+          console.warn(`Error downloading track ${track.id}:`, err);
+        }
       }
 
       btnDownloadAll.textContent = '✓ Все сохранены';
       btnDownloadAll.disabled = false;
       isDownloadingAll = false;
+      await scanOfflineTracks();
       renderCatalog();
     };
   }
@@ -1064,6 +1126,23 @@
 
   btnDiag.onclick = () => diagModal.classList.remove('hidden');
   btnCloseDiag.onclick = () => diagModal.classList.add('hidden');
+
+  // Закрытие модальных окон при клике вне контента
+  [diagModal, soundModal, authModal].forEach(modal => {
+    if (!modal) return;
+    modal.addEventListener('click', e => {
+      if (e.target === modal) modal.classList.add('hidden');
+    });
+  });
+
+  // Закрытие окон и шторки по клавише Escape
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (soundModal && !soundModal.classList.contains('hidden')) soundModal.classList.add('hidden');
+      if (diagModal && !diagModal.classList.contains('hidden')) diagModal.classList.add('hidden');
+      if (catalogDrawer && catalogDrawer.classList.contains('open')) catalogDrawer.classList.remove('open');
+    }
+  });
 
   // --- Старт приложения ---
   async function init() {
