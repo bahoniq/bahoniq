@@ -25,7 +25,7 @@
   const btnShuffle = $('carBtnShuffle');
   const btnRepeat = $('carBtnRepeat');
   const btnFav = $('carBtnFav');
-  const btnDownloadActive = $('carBtnDownload');
+  const btnDownloadActive = $('carBtnDownloadActive') || $('carBtnDownload');
 
   // Модальные окна и шторки
   const btnPlaylist = $('carBtnPlaylist');
@@ -307,7 +307,7 @@
     syncDownloadAllButton();
     if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
       updateOfflinePill('stream');
-      btnDownloadActive.classList.remove('active');
+      if (btnDownloadActive) btnDownloadActive.classList.remove('active');
     }
   }
 
@@ -445,7 +445,7 @@
 
         if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
           updateOfflinePill('offline');
-          btnDownloadActive.classList.add('active');
+          if (btnDownloadActive) btnDownloadActive.classList.add('active');
         }
         return true;
       } catch (err) {
@@ -499,7 +499,7 @@
 
     btnFav.classList.toggle('active', favorites.has(tid));
     const isOffline = offlineTrackIds.has(tid);
-    btnDownloadActive.classList.toggle('active', isOffline);
+    if (btnDownloadActive) btnDownloadActive.classList.toggle('active', isOffline);
 
     // 3. Выбор источника (синхронно):
     let targetSrc = '';
@@ -733,18 +733,20 @@
     }
   });
 
-  btnDownloadActive.addEventListener('click', async () => {
-    if (currentIndex < 0) return;
-    const track = playlist[currentIndex];
-    const tid = Number(track.id);
-    if (offlineTrackIds.has(tid)) {
-      if (confirm(`Удалить «${track.title}» из локальной памяти устройства?`)) {
-        await deleteLocalAudio(tid);
+  if (btnDownloadActive) {
+    btnDownloadActive.addEventListener('click', async () => {
+      if (currentIndex < 0) return;
+      const track = playlist[currentIndex];
+      const tid = Number(track.id);
+      if (offlineTrackIds.has(tid)) {
+        if (confirm(`Удалить «${track.title}» из локальной памяти устройства?`)) {
+          await deleteLocalAudio(tid);
+        }
+      } else {
+        downloadTrackInBackground(track);
       }
-    } else {
-      downloadTrackInBackground(track);
-    }
-  });
+    });
+  }
 
   // --- Media Session API & Мультируль ---
   function recordDiagnosticCommand(cmdName) {
@@ -1305,11 +1307,11 @@
   }
 
   // --- Открытие/закрытие панелей ---
-  btnPlaylist.onclick = () => catalogDrawer.classList.add('open');
-  btnCloseCatalog.onclick = () => catalogDrawer.classList.remove('open');
+  if (btnPlaylist && catalogDrawer) btnPlaylist.onclick = () => catalogDrawer.classList.add('open');
+  if (btnCloseCatalog && catalogDrawer) btnCloseCatalog.onclick = () => catalogDrawer.classList.remove('open');
 
   const coverBox = $('carCoverBox');
-  if (coverBox) coverBox.onclick = () => catalogDrawer.classList.add('open');
+  if (coverBox && catalogDrawer) coverBox.onclick = () => catalogDrawer.classList.add('open');
 
   window.addEventListener('pagehide', () => {
     // Освобождение Blob URL при выгрузке страницы
@@ -1318,12 +1320,17 @@
   });
 
   const metaBox = $('carMetaBox');
-  if (metaBox) metaBox.onclick = () => catalogDrawer.classList.add('open');
+  if (metaBox && catalogDrawer) metaBox.onclick = () => catalogDrawer.classList.add('open');
   const btnOpenList = $('carBtnOpenList');
-  if (btnOpenList) btnOpenList.onclick = (e) => { e.stopPropagation(); catalogDrawer.classList.add('open'); };
+  if (btnOpenList && catalogDrawer) {
+    btnOpenList.onclick = (e) => {
+      e.stopPropagation();
+      catalogDrawer.classList.add('open');
+    };
+  }
 
-  btnDiag.onclick = () => diagModal.classList.remove('hidden');
-  btnCloseDiag.onclick = () => diagModal.classList.add('hidden');
+  if (btnDiag && diagModal) btnDiag.onclick = () => diagModal.classList.remove('hidden');
+  if (btnCloseDiag && diagModal) btnCloseDiag.onclick = () => diagModal.classList.add('hidden');
 
   // Закрытие модальных окон при клике вне контента
   [diagModal, soundModal, authModal].forEach(modal => {
