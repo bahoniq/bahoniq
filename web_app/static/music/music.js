@@ -194,45 +194,73 @@
   }
 
   async function scanOfflineTracks() {
-    // 1. Сканируем OPFS
-    if (opfsRoot && typeof opfsRoot.entries === 'function') {
+    // 1. Быстро считываем все ключи из IndexedDB (Promise-based)
+    if (idb) {
+      await new Promise(resolve => {
+        try {
+          const tx = idb.transaction('tracks_blobs', 'readonly');
+          const req = tx.objectStore('tracks_blobs').getAllKeys();
+          req.onsuccess = () => {
+            (req.result || []).forEach(k => offlineTrackIds.add(Number(k)));
+            resolve();
+          };
+          req.onerror = () => resolve();
+        } catch {
+          resolve();
+        }
+      });
+    }
+
+    // 2. Если треки в плейлисте известны, проверяем файлы в OPFS точечно по ID (работает на всех магнитолах и WebViews)
+    if (opfsRoot && playlist.length > 0) {
+      await Promise.all(playlist.map(async t => {
+        try {
+          const handle = await opfsRoot.getFileHandle(`track_${t.id}.bin`);
+          const file = await handle.getFile();
+          if (file && file.size > 0) {
+            offlineTrackIds.add(t.id);
+          }
+        } catch {}
+      }));
+    }
+
+    // 3. Также сканируем OPFS итератором (если поддерживается)
+    if (opfsRoot) {
       try {
-        for await (const [name, handle] of opfsRoot.entries()) {
-          const m = name.match(/^track_(\d+)\.bin$/);
-          if (m) {
-            offlineTrackIds.add(Number(m[1]));
+        if (typeof opfsRoot.entries === 'function') {
+          for await (const [name, handle] of opfsRoot.entries()) {
+            const m = name.match(/^track_(\d+)\.bin$/);
+            if (m) offlineTrackIds.add(Number(m[1]));
+          }
+        } else if (typeof opfsRoot.values === 'function') {
+          for await (const handle of opfsRoot.values()) {
+            const m = (handle.name || '').match(/^track_(\d+)\.bin$/);
+            if (m) offlineTrackIds.add(Number(m[1]));
           }
         }
       } catch (err) {
-        console.warn('OPFS scan error:', err);
+        console.warn('OPFS iterator scan:', err);
       }
     }
 
-    // 2. Сканируем IndexedDB
-    if (idb) {
-      try {
-        const tx = idb.transaction('tracks_blobs', 'readonly');
-        const req = tx.objectStore('tracks_blobs').getAllKeys();
-        req.onsuccess = () => {
-          (req.result || []).forEach(k => offlineTrackIds.add(Number(k)));
-          renderCatalog();
-        };
-      } catch {}
-    }
-
-    // 3. Восстанавливаем список треков из локального кэша IndexedDB если сети нет
-    if (idb) {
-      try {
-        const tx = idb.transaction('tracks_meta', 'readonly');
-        const req = tx.objectStore('tracks_meta').getAll();
-        req.onsuccess = () => {
-          if (playlist.length === 0 && req.result && req.result.length > 0) {
-            playlist = req.result;
-            filteredPlaylist = [...playlist];
-            renderCatalog();
-          }
-        };
-      } catch {}
+    // 4. Восстанавливаем список треков из локального кэша IndexedDB если сети нет
+    if (idb && playlist.length === 0) {
+      await new Promise(resolve => {
+        try {
+          const tx = idb.transaction('tracks_meta', 'readonly');
+          const req = tx.objectStore('tracks_meta').getAll();
+          req.onsuccess = () => {
+            if (playlist.length === 0 && req.result && req.result.length > 0) {
+              playlist = req.result;
+              filteredPlaylist = [...playlist];
+            }
+            resolve();
+          };
+          req.onerror = () => resolve();
+        } catch {
+          resolve();
+        }
+      });
     }
 
     renderCatalog();
@@ -348,9 +376,11 @@
     // Проверяем наличие офлайн-копии
     const localBlob = await getLocalAudioBlob(track.id);
     if (localBlob) {
+      offlineTrackIds.add(track.id);
       currentBlobUrl = URL.createObjectURL(localBlob);
       audio.src = currentBlobUrl;
       updateOfflinePill('offline');
+      btnDownloadActive.classList.add('active');
     } else {
       // Стриминг с сервера через Range
       audio.src = `/api/music/tracks/${track.id}/stream`;
@@ -636,6 +666,7 @@
       if (data && data.tracks && data.tracks.length > 0) {
         playlist = data.tracks;
         filteredPlaylist = [...playlist];
+        await scanOfflineTracks();
 
         const lastTrackId = Number(localStorage.getItem('bahoniq_last_track_id'));
         let initIdx = 0;
