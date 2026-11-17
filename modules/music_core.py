@@ -212,11 +212,10 @@ async def get_telegram_client():
 
 async def get_channel_entity(client):
     """
-    Определяет Telegram Entity канала по ID или по username.
+    Определяет Telegram Entity канала по ID, автопоиском в диалогах или по username.
+    Автоматически находит канал «Музыка ДИТ» с аудиофайлами.
     """
     channel_id_env = os.getenv("TELEGRAM_CHANNEL_ID", "").strip()
-    channel_user_env = os.getenv("TELEGRAM_CHANNEL_USERNAME", "bahoniqmusic").strip().replace("@", "")
-
     if channel_id_env:
         try:
             cid = int(channel_id_env)
@@ -224,6 +223,31 @@ async def get_channel_entity(client):
         except Exception:
             pass
 
+    # Автопоиск среди диалогов пользователя: ищем «Музыка ДИТ», где загружены аудиофайлы
+    try:
+        candidates = []
+        async for d in client.iter_dialogs(limit=50):
+            if d.name and "музыка дит" in d.name.lower():
+                candidates.append(d)
+
+        # Выбираем тот канал, где есть реальные аудиофайлы
+        for cand in candidates:
+            async for m in client.iter_messages(cand.entity, limit=10):
+                if m.media and getattr(m.media, "document", None) and (getattr(m.media.document, "mime_type", "") or "").startswith("audio/"):
+                    return cand.entity
+
+        if candidates:
+            return candidates[0].entity
+    except Exception:
+        pass
+
+    # Попытка прямого ID чата с музыкой (-5288727334)
+    try:
+        return await client.get_entity(-5288727334)
+    except Exception:
+        pass
+
+    channel_user_env = os.getenv("TELEGRAM_CHANNEL_USERNAME", "bahoniqmusic").strip().replace("@", "")
     if channel_user_env:
         try:
             return await client.get_entity(channel_user_env)
