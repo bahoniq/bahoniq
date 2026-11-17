@@ -19,7 +19,7 @@ class TestInstructionGenerator(unittest.TestCase):
         self.assertTrue(doc["steps"][0]["text"].endswith("."))
         self.assertIn("Шаг 1", to_markdown(doc))
         self.assertNotIn("Рисунок", to_markdown(doc))
-        self.assertIn("<h2>Шаг 1</h2>", to_html(doc))
+        self.assertIn("<h2>1. Авторизация</h2>", to_html(doc))
 
     @patch("ai_service.generate_text", side_effect=RuntimeError("offline"))
     def test_pdf_created(self, mock_ai):

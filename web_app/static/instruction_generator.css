@@ -1,20 +1,26 @@
+/* Instruction Generator AI - Gold Standard Style */
 .ig-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
-  gap: 20px;
+  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+  gap: 24px;
   align-items: start;
 }
+
 .ig-meta {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px;
 }
+
 .ig-meta .wide {
   grid-column: 1 / -1;
 }
+
 .ig-step {
-  margin-top: 12px;
+  margin-top: 14px;
+  border-left: 3px solid var(--accent, #00e5ff);
 }
+
 .ig-step-head {
   display: flex;
   align-items: center;
@@ -22,193 +28,164 @@
   gap: 10px;
   margin-bottom: 10px;
 }
-.ig-step-nav-btns {
+
+.ig-step-btns {
   display: flex;
   gap: 6px;
 }
-.ig-step-head .button {
+
+.ig-step-btns .button {
   padding: 6px 12px;
-  min-height: 34px;
+  font-size: 13px;
 }
+
 .ig-drop {
   margin-top: 10px;
 }
+
 .ig-preview {
   display: block;
   max-width: 100%;
-  max-height: 360px;
+  max-height: 280px;
   object-fit: contain;
   margin: 12px auto;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 6px;
+  border: 1.5px solid #000;
+  border-radius: 0;
+  background: #fff;
 }
+
 .ig-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
+  gap: 10px;
+  margin-top: 16px;
 }
 
-/* Эталонный документ (Golden Standard Document Preview) */
+/* Gold Standard Document Preview (Black & White, Formal) */
 .ig-preview-doc {
-  background: var(--bg-card, #0F1D33);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 32px 28px;
-  line-height: 1.6;
-  color: var(--text-main);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  background: #ffffff !important;
+  color: #000000 !important;
+  border: 1px solid #000000 !important;
+  border-radius: 0 !important;
+  padding: 40px;
+  font-family: "Times New Roman", Times, "Liberation Serif", serif;
+  font-size: 15px;
+  line-height: 1.4;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
 }
-.ig-doc-wrapper {
+
+.ig-doc-inner {
   max-width: 100%;
 }
-.ig-doc-header {
-  border-bottom: 3px solid #009246;
-  padding-bottom: 18px;
-  margin-bottom: 22px;
+
+.ig-doc-main-header {
   text-align: center;
-}
-.ig-doc-univ {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 1.4px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  margin-bottom: 6px;
-}
-.ig-doc-badge {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.2px;
-  background: rgba(0, 146, 70, 0.14);
-  color: #009246;
-  border: 1px solid rgba(0, 146, 70, 0.35);
-  border-radius: 20px;
-  padding: 3px 10px;
-  margin-bottom: 10px;
-}
-.ig-doc-title {
-  font-size: 24px;
-  font-weight: 800;
-  margin: 4px 0 10px;
-  line-height: 1.3;
-  color: var(--text-main);
-}
-.ig-doc-meta {
-  font-size: 13px;
-  color: var(--cyan-neon, #14c8c1);
-  font-weight: 600;
-}
-.ig-doc-intro {
-  font-size: 14px;
-  line-height: 1.65;
-  margin-bottom: 20px;
-  padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.12);
-  border-radius: 8px;
+  margin-bottom: 24px;
 }
 
-/* Содержание документа */
-.ig-toc {
-  background: rgba(0, 0, 0, 0.18);
-  border: 1px solid var(--border);
-  border-left: 4px solid #009246;
-  border-radius: 8px;
-  padding: 16px 20px;
-  margin: 20px 0 26px;
-}
-.ig-toc-title {
-  font-size: 13px;
+.ig-doc-super {
+  font-size: 18px;
   font-weight: 700;
-  color: #009246;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  color: #000;
 }
-.ig-toc-list {
+
+.ig-doc-main-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #000;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.ig-doc-toc {
+  margin: 22px 0 28px;
+  padding: 16px 20px;
+  border: 1px solid #000;
+  background: #fafafa;
+}
+
+.ig-doc-toc-title {
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 12px;
+  color: #000;
+}
+
+.ig-doc-toc-items {
   margin: 0;
   padding-left: 20px;
-  font-size: 13.5px;
-  line-height: 1.8;
+  list-style-type: decimal;
 }
 
-/* Шаги инструкции */
-.ig-preview-step {
+.ig-doc-toc-items li {
+  margin: 6px 0;
+  font-size: 14px;
+  color: #111;
+}
+
+.ig-doc-divider {
+  border-top: 1px solid #000;
+  margin: 24px 0;
+}
+
+.ig-step-doc {
   margin-bottom: 28px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
-.ig-step-heading {
-  font-size: 17px;
-  font-weight: 700;
-  color: #009246;
-  margin: 0 0 10px;
-}
-.ig-step-desc {
-  font-size: 14.5px;
-  line-height: 1.68;
-  margin-bottom: 12px;
-}
-.ig-note {
-  background: rgba(217, 154, 35, 0.10);
-  border: 1px solid rgba(217, 154, 35, 0.35);
-  border-left: 4px solid #d99a23;
-  padding: 10px 14px;
-  border-radius: 0 8px 8px 0;
-  margin: 12px 0;
-  font-size: 13.5px;
-  color: #fbd38d;
 }
 
-/* Единые стандартизированные рамки скриншотов */
-.ig-image-frame {
-  margin: 16px auto 8px;
+.ig-step-num-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #000;
+  margin: 0 0 8px;
+}
+
+.ig-step-body {
+  font-size: 14.5px;
+  color: #000;
+  line-height: 1.45;
+  margin: 0 0 10px;
+  text-align: justify;
+}
+
+.ig-step-note {
+  font-size: 14px;
+  color: #000;
+  margin: 8px 0 12px;
+  padding: 6px 12px;
+  background: #f0f0f0;
+  border-left: 3px solid #000;
+}
+
+.ig-screen-box {
+  margin: 14px auto 20px;
   text-align: center;
 }
-.ig-screen-img {
+
+.ig-screen-frame {
+  display: inline-block;
+  max-width: 100%;
+  border: 1.5px solid #000;
+  background: #fff;
+  padding: 0;
+  line-height: 0;
+}
+
+.ig-screen-frame img {
   display: block;
   max-width: 100%;
-  max-height: 480px;
+  max-height: 440px;
+  height: auto;
   object-fit: contain;
-  margin: 0 auto 8px;
-  border: 1px solid #aab8b1 !important;
-  border-radius: 8px;
-  padding: 4px;
-  box-sizing: border-box;
-  background: #ffffff;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-}
-.ig-caption-text {
-  display: block;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 500;
 }
 
-/* Дневная тема */
-body.theme-day .ig-preview-doc {
-  background: var(--bg-card);
-  border-color: rgba(43, 64, 84, 0.14);
-  color: #172436;
-}
-body.theme-day .ig-doc-intro {
-  background: rgba(43, 64, 84, 0.04);
-}
-body.theme-day .ig-toc {
-  background: rgba(43, 64, 84, 0.04);
-  border-color: rgba(43, 64, 84, 0.14);
-  border-left-color: #009246;
-}
-body.theme-day .ig-note {
-  background: #FFF7E6;
-  border-color: #D99A23;
-  color: #8C5700;
-}
-body.theme-day .ig-preview-step {
-  border-top-color: rgba(43, 64, 84, 0.12);
+.ig-screen-caption {
+  font-size: 13px;
+  color: #000;
+  margin-top: 6px;
+  text-align: center;
 }
 
 @media (max-width: 900px) {
@@ -218,26 +195,23 @@ body.theme-day .ig-preview-step {
   .ig-meta {
     grid-template-columns: 1fr;
   }
-  .ig-meta .wide {
-    grid-column: auto;
-  }
 }
 
 @media (max-width: 768px) {
-  .ig-layout {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-  .ig-step-head {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .ig-actions button {
-    width: 100%;
-    justify-content: center;
-    min-height: 44px;
-  }
   .ig-preview-doc {
-    padding: 18px 14px;
+    padding: 20px 14px;
+    font-size: 14px;
+  }
+  .ig-doc-super {
+    font-size: 16px;
+  }
+  .ig-doc-main-title {
+    font-size: 17px;
+  }
+  .ig-doc-toc {
+    padding: 12px 14px;
+  }
+  .ig-screen-frame img {
+    max-height: 280px;
   }
 }

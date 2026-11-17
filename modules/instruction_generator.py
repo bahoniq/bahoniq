@@ -16,8 +16,7 @@ class InstructionGeneratorWindow:
         tk.Label(top,text="Instruction Generator AI",font=("Segoe UI",20,"bold"),bg=self.theme["card"],fg=self.theme["text"]).pack(side="left",padx=16,pady=16)
         self.status=tk.Label(top,text="Черновик",bg=self.theme["card"],fg=self.theme["gray"]); self.status.pack(side="right",padx=16)
         meta=tk.Frame(self.win,bg=self.theme["card"]); meta.pack(fill="x",padx=16,pady=(0,10))
-        self.title=self._field(meta,"Название инструкции",0,0); self.audience=self._field(meta,"Целевая аудитория",0,1); self.department=self._field(meta,"Подразделение",1,0)
-        tk.Label(meta,text="Вводная часть",bg=self.theme["card"],fg=self.theme["text"]).grid(row=1,column=1,sticky="w",padx=12,pady=(8,2)); self.intro=tk.Entry(meta); self.intro.grid(row=2,column=1,sticky="ew",padx=12,pady=(0,10)); meta.columnconfigure((0,1),weight=1)
+        self.title=self._field(meta,"Название инструкции",0,0); meta.columnconfigure(0,weight=1)
         host=tk.Frame(self.win,bg=self.theme["bg"]); host.pack(fill="both",expand=True,padx=16)
         self.canvas=tk.Canvas(host,bg=self.theme["bg"],highlightthickness=0); sb=tk.Scrollbar(host,command=self.canvas.yview); self.inner=tk.Frame(self.canvas,bg=self.theme["bg"])
         self.canvas.create_window((0,0),window=self.inner,anchor="nw"); self.canvas.configure(yscrollcommand=sb.set); self.inner.bind("<Configure>",lambda e:self.canvas.configure(scrollregion=self.canvas.bbox("all"))); self.canvas.pack(side="left",fill="both",expand=True); sb.pack(side="right",fill="y")
@@ -37,7 +36,7 @@ class InstructionGeneratorWindow:
         tk.Button(card,text="Выбрать скриншот",command=choose).pack(side="right",padx=12,pady=8)
         self.steps.append({"card":card,"label":label,"text":text,"caption":caption,"image":image})
     def _payload(self):
-        return {"title":self.title.get(),"audience":self.audience.get(),"department":self.department.get(),"intro":self.intro.get(),"steps":[{"text":s["text"].get("1.0","end"),"caption":s["caption"].get(),"image":s["image"].get()} for s in self.steps]}
+        return {"title":self.title.get(),"audience":"","department":"","intro":"","steps":[{"text":s["text"].get("1.0","end"),"caption":s["caption"].get(),"image":s["image"].get()} for s in self.steps]}
     def generate(self):
         self.status.configure(text="ИИ обрабатывает…")
         def work():

@@ -4,9 +4,13 @@
   if (!steps) return;
   let result = null;
 
+  const escapeHtml = s => String(s || '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+  }[c]));
+
   const renumber = () => [...steps.children].forEach((card, i) => {
     const titleEl = card.querySelector('.ig-step-title');
-    if (titleEl) titleEl.textContent = `Шаг ${i + 1}`;
+    if (titleEl) titleEl.textContent = `Этап ${i + 1}`;
   });
 
   function addStep(data = {}) {
@@ -14,25 +18,27 @@
     card.className = 'ig-step card';
     card.innerHTML = `
       <div class="ig-step-head">
-        <strong class="ig-step-title"></strong>
-        <div class="ig-step-nav-btns">
-          <button type="button" class="button secondary ig-up" title="Поднять выше">↑</button>
-          <button type="button" class="button secondary ig-down" title="Опустить ниже">↓</button>
-          <button type="button" class="button danger ig-delete" title="Удалить шаг">Удалить</button>
+        <strong class="ig-step-title">Этап</strong>
+        <div class="ig-step-btns">
+          <button type="button" class="button secondary ig-up" title="Переместить вверх">↑</button>
+          <button type="button" class="button secondary ig-down" title="Переместить вниз">↓</button>
+          <button type="button" class="button danger ig-delete" title="Удалить этап">Удалить</button>
         </div>
       </div>
-      <label>Черновое описание действия
-        <textarea class="ig-text" rows="3" placeholder="Например: заходим в Platonus, открываем раздел заявки и нажимаем согласовать..."></textarea>
+      <label>
+        Действие своими словами
+        <textarea class="ig-text" rows="3" placeholder="Например: переходим во вкладку Заявки, выбираем нужного студента и нажимаем кнопку Подтвердить..."></textarea>
       </label>
-      <label>Подпись к скриншоту
-        <input class="ig-caption" placeholder="Например: Раздел согласования заявок">
+      <label>
+        Подпись к скриншоту
+        <input class="ig-caption" placeholder="Например: Вкладка «Заявки» и выбор студента">
       </label>
       <label class="file-drop ig-drop">
         <input class="ig-image" type="file" accept="image/png,image/jpeg,image/webp">
-        <span class="file-title">📸 Загрузите скриншот или нажмите Ctrl+V</span>
-        <small class="ig-file-name">PNG, JPG или WebP (исходные пропорции сохраняются)</small>
+        <span class="file-title">Прикрепите скриншот (или вставьте через Ctrl+V)</span>
+        <small class="ig-file-name">PNG, JPG или WebP</small>
       </label>
-      <img class="ig-preview hidden" alt="Предпросмотр">
+      <img class="ig-preview hidden" alt="Предпросмотр скриншота">
       <textarea class="ig-data hidden"></textarea>
     `;
 
@@ -47,14 +53,14 @@
         const im = card.querySelector('.ig-preview');
         im.src = reader.result;
         im.classList.remove('hidden');
-        card.querySelector('.ig-file-name').textContent = file.name;
+        card.querySelector('.ig-file-name').textContent = file.name || 'Скриншот прикреплен';
       };
       reader.readAsDataURL(file);
     };
 
     card.querySelector('.ig-image').onchange = e => setImage(e.target.files[0]);
     card.addEventListener('paste', e => {
-      const f = [...e.clipboardData.files].find(x => x.type.startsWith('image/'));
+      const f = [...(e.clipboardData?.files || [])].find(x => x.type.startsWith('image/'));
       if (f) {
         e.preventDefault();
         setImage(f);
@@ -62,22 +68,16 @@
     });
 
     card.querySelector('.ig-delete').onclick = () => {
-      if (steps.children.length > 1) {
-        card.remove();
-        renumber();
-      }
+      if (steps.children.length > 1) card.remove();
+      renumber();
     };
     card.querySelector('.ig-up').onclick = () => {
-      if (card.previousElementSibling) {
-        steps.insertBefore(card, card.previousElementSibling);
-        renumber();
-      }
+      if (card.previousElementSibling) steps.insertBefore(card, card.previousElementSibling);
+      renumber();
     };
     card.querySelector('.ig-down').onclick = () => {
-      if (card.nextElementSibling) {
-        steps.insertBefore(card.nextElementSibling, card);
-        renumber();
-      }
+      if (card.nextElementSibling) steps.insertBefore(card.nextElementSibling, card);
+      renumber();
     };
 
     steps.appendChild(card);
@@ -85,13 +85,13 @@
   }
 
   const payload = () => ({
-    title: $('#igTitle').value,
-    audience: $('#igAudience').value,
-    department: $('#igDepartment').value,
-    intro: $('#igIntro').value,
+    title: ($('#igTitle')?.value || '').trim() || 'Инструкция по работе с системой',
+    audience: '',
+    department: '',
+    intro: '',
     steps: [...steps.children].map(c => ({
-      text: c.querySelector('.ig-text').value,
-      caption: c.querySelector('.ig-caption').value,
+      text: c.querySelector('.ig-text').value.trim(),
+      caption: c.querySelector('.ig-caption').value.trim(),
       image: c.querySelector('.ig-data').value
     }))
   });
@@ -102,19 +102,26 @@
     const btn = $('#igGenerate');
     const status = $('#igStatus');
     btn.disabled = true;
-    status.textContent = '⚡ ИИ обрабатывает черновик и приводит к эталонному стандарту...';
+    status.textContent = 'ИИ анализирует этапы и составляет эталонную инструкцию…';
 
     try {
+      const p = payload();
+      const filledSteps = p.steps.filter(s => s.text || s.image);
+      if (filledSteps.length === 0) {
+        throw new Error('Пожалуйста, заполните хотя бы один этап (описание или скриншот)');
+      }
+
       const r = await fetch('/api/instruction-generator/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload())
+        body: JSON.stringify(p)
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'Ошибка генерации');
+      if (!r.ok) throw new Error(d.detail || 'Ошибка генерации инструкции');
+
       result = d;
       render(d);
-      status.textContent = `✓ Готово · ${d.steps.length} шагов оформлено · Стандарт: ${d.style || 'КазНМУ'}`;
+      status.textContent = `Готово · ${d.steps.length} этапов · Стандарт: ${d.style || 'Золотой стандарт'}`;
     } catch (e) {
       status.textContent = '✕ Ошибка: ' + e.message;
     } finally {
@@ -122,51 +129,38 @@
     }
   };
 
-  const escapeHtml = s => String(s || '').replace(/[&<>"']/g, c => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
-  }[c]));
-
   function render(d) {
     const preview = $('#igResult');
-    const metaStr = [d.department, d.audience ? ('Для кого: ' + d.audience) : ''].filter(Boolean).join(' · ');
-
-    const tocHtml = `
-      <div class="ig-toc">
-        <div class="ig-toc-title">Содержание документа</div>
-        <ol class="ig-toc-list">
-          ${d.steps.map(s => `<li>${escapeHtml(s.caption || ('Шаг ' + s.number))}</li>`).join('')}
-        </ol>
-      </div>
-    `;
+    const tocList = d.steps.map(s => `<li><span class="ig-toc-num">${s.number}.</span> <span class="ig-toc-cap">${escapeHtml(s.caption || ('Шаг ' + s.number))}</span></li>`).join('');
 
     const stepsHtml = d.steps.map(s => `
-      <section class="ig-preview-step">
-        <h2 class="ig-step-heading">${s.number}. ${escapeHtml(s.caption || ('Шаг ' + s.number))}</h2>
-        <p class="ig-step-desc">${escapeHtml(s.text)}</p>
-        ${s.note ? `<aside class="ig-note"><b>Важно.</b> ${escapeHtml(s.note)}</aside>` : ''}
+      <section class="ig-step-doc">
+        <h2 class="ig-step-num-title">${s.number}. ${escapeHtml(s.caption || ('Шаг ' + s.number))}</h2>
+        <p class="ig-step-body">${escapeHtml(s.text)}</p>
+        ${s.note ? `<div class="ig-step-note"><b>Важно:</b> ${escapeHtml(s.note)}</div>` : ''}
         ${s.image ? `
-          <div class="ig-image-frame">
-            <img src="${s.image}" alt="${escapeHtml(s.caption)}" class="ig-screen-img">
-            <small class="ig-caption-text">Рисунок ${s.number}. ${escapeHtml(s.caption)}</small>
+          <div class="ig-screen-box">
+            <div class="ig-screen-frame">
+              <img src="${s.image}" alt="${escapeHtml(s.caption)}">
+            </div>
+            <div class="ig-screen-caption"><b>Рисунок ${s.number}.</b> ${escapeHtml(s.caption)}</div>
           </div>
         ` : ''}
       </section>
     `).join('');
 
     preview.innerHTML = `
-      <div class="ig-doc-wrapper">
-        <header class="ig-doc-header">
-          <div class="ig-doc-univ">КАЗАХСКИЙ НАЦИОНАЛЬНЫЙ МЕДИЦИНСКИЙ УНИВЕРСИТЕТ</div>
-          <div class="ig-doc-badge">ОФИЦИАЛЬНАЯ ИНСТРУКЦИЯ</div>
-          <h1 class="ig-doc-title">${escapeHtml(d.title)}</h1>
-          ${metaStr ? `<p class="ig-doc-meta">${escapeHtml(metaStr)}</p>` : ''}
-        </header>
-
-        ${d.intro ? `<div class="ig-doc-intro"><p>${escapeHtml(d.intro)}</p></div>` : ''}
-        ${tocHtml}
-        <div class="ig-steps-container">
-          ${stepsHtml}
+      <div class="ig-doc-inner">
+        <div class="ig-doc-main-header">
+          <div class="ig-doc-super">Инструкция</div>
+          <h1 class="ig-doc-main-title">${escapeHtml(d.title)}</h1>
         </div>
+        <div class="ig-doc-toc">
+          <div class="ig-doc-toc-title">Содержание</div>
+          <ol class="ig-doc-toc-items">${tocList}</ol>
+        </div>
+        <div class="ig-doc-divider"></div>
+        <div class="ig-doc-steps">${stepsHtml}</div>
       </div>
     `;
 
@@ -174,21 +168,23 @@
     $('#igExports').classList.remove('hidden');
   }
 
-  document.querySelectorAll('[data-ig-export]').forEach(b => b.onclick = async () => {
-    if (!result) return;
-    const kind = b.dataset.igExport;
-    const r = await fetch(`/api/instruction-generator/export/${kind}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(result)
-    });
-    if (!r.ok) return;
-    const blob = await r.blob();
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `instruction.${kind}`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  document.querySelectorAll('[data-ig-export]').forEach(b => {
+    b.onclick = async () => {
+      if (!result) return;
+      const kind = b.dataset.igExport;
+      const r = await fetch(`/api/instruction-generator/export/${kind}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result)
+      });
+      if (!r.ok) return;
+      const blob = await r.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `instruction.${kind}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    };
   });
 
   addStep();

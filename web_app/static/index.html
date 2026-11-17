@@ -31,7 +31,7 @@
     .sidebar-logo-img:hover { transform: scale(1.05); }
     .web-splash-logo { width: 200px !important; height: 200px !important; max-width: 200px !important; max-height: 200px !important; object-fit: contain !important; filter: drop-shadow(0 10px 30px rgba(0, 229, 255, 0.35)); }
   </style>
-  <link rel="stylesheet" href="/assets/instruction_generator.css?v=20261117_v2">
+  <link rel="stylesheet" href="/assets/instruction_generator.css?v=20261117_v3">
 </head>
 <body class="theme-night">
   <script>
@@ -621,7 +621,7 @@
 <section id="instructionGenerator" class="module-page">
   <div class="page-heading"><div><h1>Instruction Generator AI</h1><p>Стандартизированные университетские инструкции из черновиков и скриншотов.</p></div></div>
   <div class="ig-layout">
-    <div><div class="card ig-meta"><label>Название<input id="igTitle" placeholder="Инструкция по работе с системой"></label><label>Целевая аудитория<input id="igAudience" placeholder="Студенты, преподаватели…"></label><label>Подразделение<input id="igDepartment" placeholder="Центр цифровых услуг"></label><label class="wide">Вводная часть<textarea id="igIntro" rows="3"></textarea></label></div><div id="igSteps"></div><div class="ig-actions"><button id="igAdd" class="button secondary" type="button">+ Добавить шаг</button><button id="igGenerate" class="button primary" type="button">Сгенерировать инструкцию</button></div><div id="igStatus" class="result-panel">Добавьте шаги и скриншоты. Изображение можно вставить через Ctrl+V.</div></div>
+    <div><div class="card ig-meta"><label class="wide">Название инструкции<input id="igTitle" placeholder="Например: Регистрация студентов на дисциплины через ИУП"></label></div><div id="igSteps"></div><div class="ig-actions"><button id="igAdd" class="button secondary" type="button">+ Добавить шаг</button><button id="igGenerate" class="button primary" type="button">Собрать инструкцию</button></div><div id="igStatus" class="result-panel">Для каждого этапа добавьте скриншот и напишите действие своими словами. Изображение можно вставить через Ctrl+V.</div></div>
     <div><div id="igResult" class="ig-preview-doc hidden"></div><div id="igExports" class="ig-actions hidden"><button class="button primary" data-ig-export="pdf">PDF</button><button class="button secondary" data-ig-export="html">HTML</button><button class="button secondary" data-ig-export="md">Markdown</button></div></div>
   </div>
 </section>
@@ -1102,6 +1102,6 @@
       });
     }
   </script>
-  <script src="/assets/instruction_generator.js?v=20261117_v2"></script>
+  <script src="/assets/instruction_generator.js?v=20261117_v3"></script>
 </body>
 </html>
