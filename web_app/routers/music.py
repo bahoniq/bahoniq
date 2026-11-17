@@ -254,7 +254,8 @@ async def stream_track(
 async def download_track(track_id: int):
     """
     Получение полного файла для сохранения в OPFS или IndexedDB.
-    Возвращает 200 OK с точным Content-Length.
+    Дожидается полной готовности проверенного серверного файла (.bin), чтобы не конкурировать
+    по трафику с онлайн-стримингом (/stream), и отдаёт готовый файл с точным Content-Length.
     """
     track = get_track_by_id(track_id)
     if not track:
@@ -263,20 +264,14 @@ async def download_track(track_id: int):
     if not track:
         raise HTTPException(status_code=404, detail="Трек не найден")
 
-    file_size = int(track["file_size"] or 0)
     try:
-        cached_path = get_cached_track_path(track_id)
-        if cached_path is not None:
-            file_size = cached_path.stat().st_size
-        else:
-            state = await _start_or_join_progressive_download(track_id)
-            if state.expected_size > 0:
-                file_size = state.expected_size
-            elif file_size <= 0:
-                cached_path = await ensure_track_cached(track_id)
-                file_size = cached_path.stat().st_size
+        cached_path = await ensure_track_cached(track_id)
+        file_size = cached_path.stat().st_size
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Не удалось скачать аудиофайл: {exc}") from exc
+    if file_size <= 0:
+        raise HTTPException(status_code=502, detail="Пустой аудиофайл")
+
     mime_type = track["mime_type"] or "audio/mpeg"
     raw_name = track["file_name"] or f"{track['artist']} - {track['title']}.mp3"
     safe_filename = quote(raw_name)
@@ -284,12 +279,11 @@ async def download_track(track_id: int):
     headers = {
         "Content-Disposition": f'attachment; filename="{safe_filename}"; filename*=UTF-8\'\'{safe_filename}',
         "Content-Length": str(file_size),
-        "Content-Type": mime_type,
         "Cache-Control": "private, max-age=86400",
     }
-    return StreamingResponse(
-        download_full_track(track_id),
-        status_code=200,
+    return FileResponse(
+        cached_path,
+        media_type=mime_type,
         headers=headers
     )
 

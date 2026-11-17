@@ -213,56 +213,27 @@
     }
   }
 
-  // --- Сохранение аудиофайла локально (OPFS + IndexedDB) ---
+  // --- Сохранение аудиофайла локально (IndexedDB + OPFS) ---
   async function saveAudioLocally(trackId, blob, trackMeta = null) {
+    const tid = Number(trackId);
     const expectedSize = Number(trackMeta?.file_size || 0);
-    if (!blob || blob.size < 20000 || (expectedSize > 0 && blob.size !== expectedSize)) {
-      console.warn(`saveAudioLocally: rejected invalid blob size (${blob?.size || 0} bytes) for track ${trackId}`);
+    if (!blob || blob.size < 20000 || (expectedSize > 0 && Math.abs(blob.size - expectedSize) > 4096)) {
+      console.warn(`saveAudioLocally: rejected invalid blob size (${blob?.size || 0} bytes) for track ${tid}`);
       return false;
     }
-    let savedInOpfs = false;
 
-    // 1. Попытка записи в OPFS (Origin Private File System)
-    if (opfsRoot) {
-      try {
-        const partName = `track_${trackId}.part`;
-        const partHandle = await opfsRoot.getFileHandle(partName, { create: true });
-        const partWriter = await partHandle.createWritable();
-        await partWriter.write(blob);
-        await partWriter.close();
-        const partFile = await partHandle.getFile();
-        if (partFile.size !== blob.size) throw new Error('Incomplete OPFS temporary file');
-
-        const fileHandle = await opfsRoot.getFileHandle(`track_${trackId}.bin`, { create: true });
-        if (typeof fileHandle.createWritable === 'function') {
-          const writable = await fileHandle.createWritable();
-          await writable.write(partFile);
-          await writable.close();
-          const savedFile = await fileHandle.getFile();
-          if (savedFile && savedFile.size === blob.size) {
-            savedInOpfs = true;
-          }
-        }
-        await opfsRoot.removeEntry(partName).catch(() => {});
-      } catch (err) {
-        await opfsRoot.removeEntry(`track_${trackId}.part`).catch(() => {});
-        await opfsRoot.removeEntry(`track_${trackId}.bin`).catch(() => {});
-        console.warn('OPFS write fallback:', err);
-      }
-    }
-
-    // 2. Запись в IndexedDB
+    // 1. Сначала мгновенная запись в IndexedDB (без задержки антивируса ОС на закрытии файла)
     let savedInIdb = false;
     if (idb) {
       try {
         await new Promise((resolve, reject) => {
           const txB = idb.transaction('tracks_blobs', 'readwrite');
           txB.objectStore('tracks_blobs').put({
-            id: Number(trackId),
+            id: tid,
             blob: blob,
             size: blob.size,
             complete: true,
-            expectedSize: expectedSize || blob.size,
+            expectedSize: blob.size,
             date: Date.now()
           });
           txB.oncomplete = () => resolve();
@@ -280,14 +251,35 @@
       }
     }
 
-    if (savedInOpfs || savedInIdb) {
-      offlineTrackIds.add(Number(trackId));
-      persistOfflineTrackIds();
-      // Обновляем/создаем URL в оперативной памяти
-      if (memoryBlobUrls.has(Number(trackId))) {
-        URL.revokeObjectURL(memoryBlobUrls.get(Number(trackId)));
+    // 2. Однопроходная запись в OPFS (если доступна)
+    let savedInOpfs = false;
+    if (opfsRoot) {
+      try {
+        const fileHandle = await opfsRoot.getFileHandle(`track_${tid}.bin`, { create: true });
+        if (typeof fileHandle.createWritable === 'function') {
+          const writable = await fileHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          const savedFile = await fileHandle.getFile();
+          if (savedFile && savedFile.size === blob.size) {
+            savedInOpfs = true;
+          } else {
+            await opfsRoot.removeEntry(`track_${tid}.bin`).catch(() => {});
+          }
+        }
+      } catch (err) {
+        await opfsRoot.removeEntry(`track_${tid}.bin`).catch(() => {});
+        console.warn('OPFS write fallback:', err);
       }
-      memoryBlobUrls.set(Number(trackId), URL.createObjectURL(blob));
+    }
+
+    if (savedInIdb || savedInOpfs) {
+      offlineTrackIds.add(tid);
+      persistOfflineTrackIds();
+      if (memoryBlobUrls.has(tid)) {
+        URL.revokeObjectURL(memoryBlobUrls.get(tid));
+      }
+      memoryBlobUrls.set(tid, URL.createObjectURL(blob));
       return true;
     }
     return false;
@@ -473,7 +465,7 @@
   }
 
   // --- Фоновое скачивание трека в постоянную память (после старта воспроизведения, как в Telegram) ---
-  async function downloadTrackInBackground(track) {
+  async function downloadTrackInBackground(track, isManual = false) {
     if (!track) return false;
     const tid = Number(track.id);
 
@@ -484,11 +476,12 @@
     downloadAbortControllers.set(tid, controller);
 
     const task = (async () => {
-      downloadingTrackIds.add(tid);
-      updateTrackItemBadge(tid);
-
-      if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
-        updateOfflinePill('downloading', 1);
+      if (isManual) {
+        downloadingTrackIds.add(tid);
+        updateTrackItemBadge(tid);
+        if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
+          updateOfflinePill('downloading', 50);
+        }
       }
 
       try {
@@ -499,35 +492,13 @@
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
             const responseSize = Number(resp.headers.get('Content-Length') || track.file_size || 0);
-            let blob = null;
+            const blob = await resp.blob();
 
-            if (resp.body && typeof resp.body.getReader === 'function') {
-              const reader = resp.body.getReader();
-              const chunks = [];
-              let receivedBytes = 0;
-
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                if (value && value.byteLength > 0) {
-                  chunks.push(value);
-                  receivedBytes += value.byteLength;
-                  if (responseSize > 0 && currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
-                    const pct = Math.max(1, Math.min(99, Math.round((receivedBytes / responseSize) * 100)));
-                    updateOfflinePill('downloading', pct);
-                  }
-                }
-              }
-              blob = new Blob(chunks, { type: track.mime_type || 'audio/mpeg' });
-            } else {
-              blob = await resp.blob();
-            }
-
-            if (!blob || blob.size < 20000 || (responseSize > 0 && blob.size !== responseSize)) {
+            if (!blob || blob.size < 20000 || (responseSize > 0 && Math.abs(blob.size - responseSize) > 4096)) {
               throw new Error(`Downloaded blob size mismatch (${blob?.size || 0} vs ${responseSize})`);
             }
 
-            const saved = await saveAudioLocally(tid, blob, { ...track, file_size: responseSize || blob.size });
+            const saved = await saveAudioLocally(tid, blob, { ...track, file_size: blob.size });
             if (!saved) throw new Error('Failed to save blob locally');
 
             offlineTrackIds.add(tid);
@@ -878,7 +849,7 @@
           await deleteLocalAudio(tid);
         }
       } else {
-        downloadTrackInBackground(track);
+        downloadTrackInBackground(track, true);
       }
     });
   }
@@ -1440,6 +1411,11 @@
 
   // --- Старт приложения ---
   async function init() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/music/sw.js', { scope: '/music/' })
+        .then(reg => reg.update().catch(() => {}))
+        .catch(() => {});
+    }
     loadOfflineTrackIdsFromStorage();
     loadCachedPlaylistFromStorage();
     if (playlist.length > 0) {
