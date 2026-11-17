@@ -567,6 +567,44 @@ html, body {
   font-weight: 700;
 }
 
+/* МОДАЛЬНОЕ ОКНО ЗВУКА И ЭКВАЛАЙЗЕРА */
+.car-sound-presets {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.car-sound-preset {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  color: var(--text-main);
+  padding: 12px 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.car-sound-preset:active {
+  transform: scale(0.97);
+}
+
+.car-sound-preset.active {
+  background: rgba(0, 229, 255, 0.15);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.25);
+}
+
+.car-sound-slider-group {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+
 /* МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ */
 .car-auth-input {
   width: 100%;

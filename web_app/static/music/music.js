@@ -28,6 +28,15 @@
   const searchInput = $('carSearchInput');
   const tracksListEl = $('carTracksList');
 
+  const btnSound = $('carBtnSound');
+  const btnCloseSound = $('carBtnCloseSound');
+  const soundModal = $('carSoundModal');
+  const bassSlider = $('carBassSlider');
+  const trebleSlider = $('carTrebleSlider');
+  const bassValEl = $('carBassVal');
+  const trebleValEl = $('carTrebleVal');
+  const presetBtns = document.querySelectorAll('.car-sound-preset');
+
   const btnDiag = $('carBtnDiag');
   const btnCloseDiag = $('carBtnCloseDiag');
   const diagModal = $('carDiagModal');
@@ -286,8 +295,14 @@
     currentIndex = index;
     const track = playlist[currentIndex];
 
+    resumeAudioContext();
+
     trackTitle.textContent = track.title || 'Без названия';
     trackArtist.textContent = track.artist || 'Музыка ДИТ';
+    coverImg.onerror = () => {
+      coverImg.onerror = null;
+      coverImg.src = '/music/assets/logo.png';
+    };
     coverImg.src = `/api/music/tracks/${track.id}/cover`;
     diagCurrentTrack.textContent = `${track.artist} — ${track.title}`;
 
@@ -397,6 +412,7 @@
   });
 
   btnPlay.addEventListener('click', () => {
+    resumeAudioContext();
     if (currentIndex === -1 && playlist.length > 0) {
       playTrack(0);
       return;
@@ -687,6 +703,170 @@
     };
   }
 
+  // --- Звуковой процессор (Web Audio API) и сочный бас ---
+  let audioCtx = null;
+  let audioSourceNode = null;
+  let bassFilter = null;
+  let trebleFilter = null;
+  let limiterNode = null;
+  let isAudioChainInit = false;
+
+  let currentBassGain = parseFloat(localStorage.getItem('bahoniq_bass_gain') || '4.5');
+  let currentTrebleGain = parseFloat(localStorage.getItem('bahoniq_treble_gain') || '1.5');
+  let currentPreset = localStorage.getItem('bahoniq_sound_preset') || 'juicy';
+
+  const PRESETS = {
+    juicy: { bass: 4.5, treble: 1.5 },
+    car: { bass: 6.0, treble: 2.5 },
+    vocal: { bass: 1.5, treble: 3.5 },
+    flat: { bass: 0.0, treble: 0.0 }
+  };
+
+  function initAudioDSP() {
+    if (isAudioChainInit) return;
+    try {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtxClass) {
+        console.warn('Web Audio API not supported');
+        return;
+      }
+      audioCtx = new AudioCtxClass();
+
+      audioSourceNode = audioCtx.createMediaElementSource(audio);
+
+      // LowShelf фильтр на 75 Гц: даёт мягкий, глубокий и сочный бархатный панч
+      bassFilter = audioCtx.createBiquadFilter();
+      bassFilter.type = 'lowshelf';
+      bassFilter.frequency.value = 75;
+      bassFilter.gain.value = currentBassGain;
+
+      // HighShelf фильтр на 9000 Гц: добавляет воздушность и чистоту вокалу/тарелкам
+      trebleFilter = audioCtx.createBiquadFilter();
+      trebleFilter.type = 'highshelf';
+      trebleFilter.frequency.value = 9000;
+      trebleFilter.gain.value = currentTrebleGain;
+
+      // Студийный динамический компрессор-лимитер (Anti-clipping protection):
+      // Защищает динамики и дверные карты авто от треска, клиппинга и искажений при любой громкости
+      limiterNode = audioCtx.createDynamicsCompressor();
+      limiterNode.threshold.value = -1.5;
+      limiterNode.knee.value = 6;
+      limiterNode.ratio.value = 8;
+      limiterNode.attack.value = 0.003;
+      limiterNode.release.value = 0.15;
+
+      audioSourceNode.connect(bassFilter);
+      bassFilter.connect(trebleFilter);
+      trebleFilter.connect(limiterNode);
+      limiterNode.connect(audioCtx.destination);
+
+      isAudioChainInit = true;
+    } catch (e) {
+      console.warn('Audio DSP init error:', e);
+    }
+  }
+
+  function resumeAudioContext() {
+    initAudioDSP();
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+  }
+
+  function applyPreset(presetKey, save = true) {
+    const p = PRESETS[presetKey];
+    if (!p) return;
+    currentPreset = presetKey;
+    presetBtns.forEach(b => b.classList.toggle('active', b.dataset.preset === presetKey));
+    setBassGain(p.bass, false);
+    setTrebleGain(p.treble, false);
+    if (save) {
+      localStorage.setItem('bahoniq_sound_preset', presetKey);
+    }
+  }
+
+  function setBassGain(val, isCustom = true) {
+    currentBassGain = Number(val);
+    if (bassFilter && audioCtx) {
+      bassFilter.gain.setTargetAtTime(currentBassGain, audioCtx.currentTime, 0.02);
+    }
+    if (bassValEl) {
+      bassValEl.textContent = `${currentBassGain > 0 ? '+' : ''}${currentBassGain.toFixed(1)} dB`;
+    }
+    if (bassSlider) {
+      bassSlider.value = currentBassGain;
+    }
+    localStorage.setItem('bahoniq_bass_gain', currentBassGain);
+    if (isCustom) {
+      currentPreset = 'custom';
+      presetBtns.forEach(b => b.classList.remove('active'));
+      localStorage.setItem('bahoniq_sound_preset', 'custom');
+    }
+  }
+
+  function setTrebleGain(val, isCustom = true) {
+    currentTrebleGain = Number(val);
+    if (trebleFilter && audioCtx) {
+      trebleFilter.gain.setTargetAtTime(currentTrebleGain, audioCtx.currentTime, 0.02);
+    }
+    if (trebleValEl) {
+      trebleValEl.textContent = `${currentTrebleGain > 0 ? '+' : ''}${currentTrebleGain.toFixed(1)} dB`;
+    }
+    if (trebleSlider) {
+      trebleSlider.value = currentTrebleGain;
+    }
+    localStorage.setItem('bahoniq_treble_gain', currentTrebleGain);
+    if (isCustom) {
+      currentPreset = 'custom';
+      presetBtns.forEach(b => b.classList.remove('active'));
+      localStorage.setItem('bahoniq_sound_preset', 'custom');
+    }
+  }
+
+  function setupSoundControls() {
+    if (bassSlider) {
+      bassSlider.value = currentBassGain;
+      bassSlider.addEventListener('input', (e) => {
+        resumeAudioContext();
+        setBassGain(e.target.value, true);
+      });
+    }
+    if (trebleSlider) {
+      trebleSlider.value = currentTrebleGain;
+      trebleSlider.addEventListener('input', (e) => {
+        resumeAudioContext();
+        setTrebleGain(e.target.value, true);
+      });
+    }
+    if (bassValEl) {
+      bassValEl.textContent = `${currentBassGain > 0 ? '+' : ''}${currentBassGain.toFixed(1)} dB`;
+    }
+    if (trebleValEl) {
+      trebleValEl.textContent = `${currentTrebleGain > 0 ? '+' : ''}${currentTrebleGain.toFixed(1)} dB`;
+    }
+
+    presetBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        resumeAudioContext();
+        applyPreset(btn.dataset.preset, true);
+      });
+    });
+
+    if (currentPreset && PRESETS[currentPreset]) {
+      presetBtns.forEach(b => b.classList.toggle('active', b.dataset.preset === currentPreset));
+    }
+
+    if (btnSound && soundModal) {
+      btnSound.onclick = () => {
+        resumeAudioContext();
+        soundModal.classList.remove('hidden');
+      };
+    }
+    if (btnCloseSound && soundModal) {
+      btnCloseSound.onclick = () => soundModal.classList.add('hidden');
+    }
+  }
+
   // --- Открытие/закрытие панелей ---
   btnPlaylist.onclick = () => catalogDrawer.classList.add('open');
   btnCloseCatalog.onclick = () => catalogDrawer.classList.remove('open');
@@ -706,6 +886,7 @@
     await initIndexedDB();
     await initOPFS();
     setupMediaSession();
+    setupSoundControls();
     await scanOfflineTracks();
     await fetchCatalog();
   }
