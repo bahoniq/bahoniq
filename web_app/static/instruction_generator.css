@@ -164,30 +164,16 @@
   text-align: center;
 }
 
-.ig-screen-frame {
-  width: 16cm;
-  height: 9cm;
-  max-width: 100%;
-  aspect-ratio: 16 / 9;
-  border: 1.15pt solid #000000;
-  background: #ffffff;
-  padding: 0;
-  margin: 12px auto 6px auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-.ig-screen-frame img {
-  max-width: 100%;
-  max-height: 100%;
+.ig-screen-img {
+  display: block;
+  max-width: 16cm;
+  max-height: 11cm;
   width: auto;
   height: auto;
   object-fit: contain;
-  display: block;
-  margin: auto;
+  margin: 12px auto 6px auto;
+  border: 1.15pt solid #000000;
+  box-sizing: border-box;
 }
 
 .ig-screen-caption {
@@ -221,9 +207,8 @@
   .ig-doc-toc {
     padding: 12px 14px;
   }
-  .ig-screen-frame {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 16 / 9;
+  .ig-screen-img {
+    max-width: 100%;
+    max-height: 280px;
   }
 }

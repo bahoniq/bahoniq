@@ -41,20 +41,80 @@ def normalize_audience(value: Any) -> str:
     return ", ".join(parts[:-1]) + " и " + parts[-1].lower()
 
 
+def make_step_title(caption: Any, text: Any, number: int) -> str:
+    """
+    Creates an automatic concise step title strictly 2 to 7 words in length.
+    Examples: 'Авторизация в системе', 'Выбор студента', 'Добавление дисциплины'.
+    Never uses the full action description as a heading. Never cuts mid-word.
+    """
+    cap = clean_text(caption)
+    # Strip any 'Рисунок N', 'Шаг N', 'Этап N', 'Выполнение шага N'
+    cap = re.sub(r"^(?:рис(?:унок|\.)?|шаг|этап)\s*\d+(?:\.\d+)?\s*[.\-–—:]?\s*", "", cap, flags=re.I)
+    cap = re.sub(r"^выполнение\s+шага\s+\d+\s*[.\-–—:]?\s*", "", cap, flags=re.I).strip(" .")
+
+    words = cap.split()
+    if 2 <= len(words) <= 7:
+        title = " ".join(words)
+        return title[0].upper() + title[1:]
+
+    if len(words) == 1:
+        w0 = words[0].strip(".,;:«»\"'")
+        wl = w0.lower()
+        if "авториз" in wl or "вход" in wl:
+            return "Авторизация в системе"
+        if "студент" in wl:
+            return "Выбор студента"
+        if "дисциплин" in wl:
+            return "Добавление дисциплины"
+        if "заявк" in wl:
+            return "Работа с заявками"
+        if "сохран" in wl:
+            return "Сохранение изменений"
+        if "профил" in wl:
+            return "Переход в профиль"
+        if "настрой" in wl:
+            return "Параметры и настройки"
+        if "поиск" in wl:
+            return "Поиск в системе"
+        return f"{w0.capitalize()} в системе"
+
+    # If caption is missing or too long, extract a 2-7 word action phrase from text
+    raw_text = clean_text(text)
+    raw_text = re.sub(r"https?://\S+", "", raw_text)
+    raw_text = re.sub(r"^(?:потом|далее|затем|после этого|нужно|необходимо|следует|для этого)\s+", "", raw_text, flags=re.I)
+
+    first_clause = re.split(r"[.!?;]\s+", raw_text)[0].strip()
+    words = first_clause.split()
+
+    if len(words) > 7:
+        words = words[:6]
+        while len(words) > 2 and words[-1].lower().strip("«»\"'.,") in {
+            "в", "на", "с", "по", "для", "и", "к", "от", "из", "через", "о", "об", "при", "чтобы",
+            "нажимаем", "нажмите", "выбираем", "выберите", "переходим", "перейдите", "открываем", "откройте"
+        }:
+            words.pop()
+
+    if 2 <= len(words) <= 7:
+        title = " ".join(words).strip(".,;:-—– ")
+        return title[0].upper() + title[1:]
+
+    if len(words) == 1 and words[0]:
+        return f"{words[0].strip('.,;:«»\"\'').capitalize()} в системе"
+
+    return f"Этап {number}"
+
+
 def clean_caption(value: Any, number: int) -> str:
-    """Removes user-entered 'Рисунок N' to prevent duplicated prefixes."""
+    """Removes user-entered 'Рисунок N' and 'Выполнение шага N'."""
     text = clean_text(value)
     text = re.sub(r"^рис(?:унок|\.)?\s*\d+(?:\.\d+)?\s*[.\-–—:]?\s*", "", text, flags=re.I)
-    return text.rstrip(" .") or f"Выполнение шага {number}"
+    text = re.sub(r"^выполнение\s+шага\s+\d+\s*[.\-–—:]?\s*", "", text, flags=re.I).strip(" .")
+    return text.rstrip(" .") or f"Этап {number}"
 
 
 def step_heading(step: dict[str, Any]) -> str:
-    caption = clean_caption(step.get("caption"), int(step.get("number") or 0))
-    if not re.fullmatch(r"Выполнение шага \d+", caption, flags=re.I):
-        return caption
-    text = re.sub(r"https?://\S+", "", clean_text(step.get("text"))).strip(" .")
-    text = re.split(r"(?<=[.!?])\s+", text, 1)[0].strip(" .")
-    return (text[:90].rstrip() if text else f"Шаг {step.get('number', '')}")
+    num = int(step.get("number") or 1)
+    return make_step_title(step.get("caption"), step.get("text"), num)
 
 
 def fallback_rewrite(text: str) -> str:
@@ -87,17 +147,17 @@ def generate_instruction(payload: dict[str, Any]) -> dict[str, Any]:
     audience = normalize_audience(payload.get("audience"))
     department = clean_text(payload.get("department"))
     intro = clean_text(payload.get("intro"))
-    source_steps = [s for s in payload.get("steps", []) if clean_text(s.get("text"))]
+    source_steps = [s for s in payload.get("steps", []) if clean_text(s.get("text")) or s.get("image")]
     if not source_steps:
         raise ValueError("Добавьте хотя бы один заполненный шаг")
 
     system = (
-        "Ты редактор пошаговых инструкций. Работай ТОЛЬКО с фактами черновика. "
-        "Запрещено придумывать проверки, предупреждения, обязательные условия, причины, поля, кнопки и действия. "
-        "Сохраняй точные названия интерфейса, URL, числа и отрицания. Исправляй только язык, порядок слов и повторы. "
-        "Поле note заполняй лишь тогда, когда исходный текст прямо содержит слова «важно», «обязательно», "
-        "«примечание» или «обратите внимание»; иначе верни пустую строку. Верни только JSON: "
-        "{\"title\":\"...\",\"intro\":\"...\",\"steps\":[{\"text\":\"...\",\"caption\":\"...\",\"note\":\"\"}]}"
+        "Ты редактор официальных университетских инструкций. Твоя задача — составить строгий регламент по черновику.\n"
+        "Правила:\n"
+        "1. Для каждого шага обязательно создай КРАТКОЕ НАЗВАНИЕ в поле 'caption' длиной строго 2-7 слов в именительном падеже (например: «Авторизация в системе», «Выбор студента», «Добавление дисциплины», «Сохранение изменений»). Полное описание нельзя использовать как заголовок!\n"
+        "2. В поле 'text' напиши четкое пошаговое действие в повелительной форме ('Перейдите в раздел «...»', 'Нажмите кнопку «...»'). Не дублируй краткое название в начале описания.\n"
+        "3. Поле 'note' заполняй только если в исходнике прямо указано предупреждение или важное примечание, иначе оставь пустой строкой.\n"
+        "Верни строго JSON: {\"title\":\"...\",\"intro\":\"...\",\"steps\":[{\"text\":\"...\",\"caption\":\"...\",\"note\":\"\"}]}"
     )
     prompt = json.dumps({
         "style_profile": STYLE_PROFILE,
@@ -120,10 +180,13 @@ def generate_instruction(payload: dict[str, Any]) -> dict[str, Any]:
         candidate = ai_steps[index - 1] if index <= len(ai_steps) and isinstance(ai_steps[index - 1], dict) else {}
         source_text = clean_text(source.get("text"))
         explicit_note = bool(re.search(r"\b(?:важно|обязательно|примечани[ея]|обратите внимание)\b", source_text, re.I))
+        raw_caption = candidate.get("caption") or source.get("caption") or ""
+        short_title = make_step_title(raw_caption, source_text, index)
+        action_text = clean_text(candidate.get("text")) or fallback_rewrite(source_text or short_title)
         result_steps.append({
             "number": index,
-            "text": clean_text(candidate.get("text")) or fallback_rewrite(source.get("text", "")),
-            "caption": clean_caption(candidate.get("caption") or source.get("caption"), index),
+            "text": action_text,
+            "caption": short_title,
             "note": clean_text(candidate.get("note")) if explicit_note else "",
             "image": source.get("image", ""),
         })
@@ -143,33 +206,46 @@ def to_markdown(doc: dict[str, Any]) -> str:
     if doc.get("department"): lines += [f"**Подразделение:** {doc['department']}", ""]
     if doc.get("audience"): lines += [f"**Для кого:** {doc['audience']}", ""]
     if doc.get("intro"): lines += [doc['intro'], ""]
-    for step in doc.get("steps", []):
-        lines += [f"## Шаг {step['number']}", "", step["text"], ""]
+    for i, step in enumerate(doc.get("steps", []), 1):
+        num = step.get("number", i)
+        title = make_step_title(step.get("caption"), step.get("text"), num)
+        lines += [f"## {num}. {title}", "", step.get("text", ""), ""]
         if step.get("note"): lines += [f"> **Примечание:** {step['note']}", ""]
-        if step.get("image"): lines += [f"![{step['caption']}](image-step-{step['number']}.png)", ""]
-        lines += [f"*Рисунок {step['number']}. {step['caption']}*", ""] if step.get("image") else []
+        if step.get("image"):
+            lines += [f"![{title}](image-step-{num}.png)", ""]
+            lines += [f"*Рисунок {num}. {title}*", ""]
     return "\n".join(lines).strip() + "\n"
 
 
 def to_html(doc: dict[str, Any]) -> str:
     steps = doc.get("steps", [])
-    toc_items = "".join(f"<li>{step.get('number', i)}. {html.escape(step_heading(step))}</li>" for i, step in enumerate(steps, 1))
+    toc_items = "".join(
+        f"<li>{step.get('number', i)}. {html.escape(make_step_title(step.get('caption'), step.get('text'), step.get('number', i)))}</li>"
+        for i, step in enumerate(steps, 1)
+    )
     blocks = []
     for i, step in enumerate(steps, 1):
         num = step.get("number", i)
-        cap_text = clean_caption(step.get("caption"), num)
+        title = make_step_title(step.get("caption"), step.get("text"), num)
+        desc = step.get("text", "")
+        # Remove identical repeat of title at the beginning of desc if present
+        if desc.lower().startswith(title.lower()):
+            desc = re.sub(r"^" + re.escape(title) + r"[.\s:—–-]+", "", desc, flags=re.I).strip()
+            if desc:
+                desc = desc[0].upper() + desc[1:]
+
         note = f'<p class="note"><b>Важно:</b> {html.escape(step["note"])}</p>' if step.get("note") else ""
         img_html = ""
         if step.get("image"):
             img_html = f'''
-            <div class="screen-container">
-              <img src="{html.escape(step["image"])}" alt="{html.escape(cap_text)}">
+            <div class="screen-box">
+              <img class="screenshot-img" src="{html.escape(step["image"])}" alt="{html.escape(title)}">
+              <div class="caption"><b>Рисунок {num}.</b> {html.escape(title)}</div>
             </div>
-            <div class="caption"><b>Рисунок {num}.</b> {html.escape(cap_text)}</div>
             '''
         blocks.append(f'''<section class="step-card">
-          <h2>{num}. {html.escape(step_heading(step))}</h2>
-          <p>{html.escape(step.get("text", ""))}</p>
+          <h2>{num}. {html.escape(title)}</h2>
+          <p>{html.escape(desc)}</p>
           {note}
           {img_html}
         </section>''')
@@ -244,28 +320,20 @@ def to_html(doc: dict[str, Any]) -> str:
       background: #f4f4f4;
       border-left: 3px solid #000;
     }}
-    .screen-container {{
-      width: 16cm;
-      height: 9cm;
-      max-width: 100%;
-      aspect-ratio: 16 / 9;
-      background: #ffffff;
-      border: 1.15pt solid #000000;
-      margin: 12px auto 6px auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-sizing: border-box;
-      overflow: hidden;
+    .screen-box {{
+      margin: 14px auto 16px auto;
+      text-align: center;
     }}
-    .screen-container img {{
-      max-width: 100%;
-      max-height: 100%;
+    .screenshot-img {{
+      display: block;
+      max-width: 16cm;
+      max-height: 11cm;
       width: auto;
       height: auto;
       object-fit: contain;
-      display: block;
-      margin: auto;
+      margin: 12px auto 6px auto;
+      border: 1.15pt solid #000000;
+      box-sizing: border-box;
     }}
     .caption {{
       text-align: center;
@@ -278,10 +346,9 @@ def to_html(doc: dict[str, Any]) -> str:
         padding: 16px;
         margin: 8px;
       }}
-      .screen-container {{
-        width: 100%;
-        height: auto;
-        aspect-ratio: 16 / 9;
+      .screenshot-img {{
+        max-width: 100%;
+        max-height: 280px;
       }}
     }}
     </style></head><body><header><div class="super-title">Инструкция</div><h1>{html.escape(doc['title'])}</h1></header><div class="toc"><div class="toc-title">Содержание</div><ol>{toc_items}</ol></div>{''.join(blocks)}</body></html>'''
@@ -296,108 +363,23 @@ def _image_bytes(value: str) -> bytes | None:
     except Exception: return None
 
 
-def normalize_screenshot_16_9(raw: bytes) -> tuple[bytes | None, bytes | None]:
+def draw_page_border(canvas, doc, font_name: str = "Times-Roman"):
     """
-    Fits any screenshot into a fixed 16:9 container with pure white background,
-    strictly preserving original aspect ratio (never stretched or distorted).
-    If the screenshot is vertical/tall, generates an auxiliary zoomed detail crop.
-    Returns (main_png_bytes, optional_detail_png_bytes).
+    Renders continuous solid black outer border on EVERY page (both even and odd)
+    and draws the centered page number at 14mm from the bottom.
     """
-    if not raw:
-        return None, None
-    try:
-        from PIL import Image as PILImage
-        source = io.BytesIO(raw)
-        im = PILImage.open(source)
-        w, h = im.size
-        if w <= 0 or h <= 0:
-            return None, None
-
-        if im.mode in ("RGBA", "LA") or (im.mode == "P" and "transparency" in im.info):
-            im_rgba = im.convert("RGBA")
-        else:
-            im_rgba = im.convert("RGB")
-
-        target_ratio = 16.0 / 9.0
-        img_ratio = w / float(h)
-        if img_ratio >= target_ratio:
-            cw = w
-            ch = int(round(w * 9.0 / 16.0))
-            ox = 0
-            oy = (ch - h) // 2
-        else:
-            ch = h
-            cw = int(round(h * 16.0 / 9.0))
-            ox = (cw - w) // 2
-            oy = 0
-
-        bg = PILImage.new("RGB", (cw, ch), (255, 255, 255))
-        if im_rgba.mode == "RGBA":
-            bg.paste(im_rgba, (ox, oy), mask=im_rgba.getchannel("A"))
-        else:
-            bg.paste(im_rgba, (ox, oy))
-
-        out_main = io.BytesIO()
-        bg.save(out_main, format="PNG")
-        main_bytes = out_main.getvalue()
-
-        # If image is vertical / tall, create an enlarged detail crop of the active area
-        detail_bytes = None
-        if h > w * 1.15:
-            crop_h = min(h, int(round(w * 9.0 / 16.0)))
-            crop_im = im_rgba.crop((0, 0, w, crop_h))
-            crop_cw = w
-            crop_ch = int(round(w * 9.0 / 16.0))
-            crop_bg = PILImage.new("RGB", (crop_cw, crop_ch), (255, 255, 255))
-            if crop_im.mode == "RGBA":
-                crop_bg.paste(crop_im, (0, (crop_ch - crop_h) // 2), mask=crop_im.getchannel("A"))
-            else:
-                crop_bg.paste(crop_im, (0, (crop_ch - crop_h) // 2))
-            out_det = io.BytesIO()
-            crop_bg.save(out_det, format="PNG")
-            detail_bytes = out_det.getvalue()
-
-        return main_bytes, detail_bytes
-    except Exception:
-        return None, None
-
-
-def make_border_canvas(font_name: str):
-    """
-    Creates a Canvas maker that renders a solid 1.15 pt black border and centered page
-    number on EVERY page (both even and odd) during save(), guaranteeing consistent borders
-    regardless of flowables or page breaks.
-    """
-    from reportlab.pdfgen import canvas
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import mm
-
-    class InstructionBorderCanvas(canvas.Canvas):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.pages = []
-
-        def showPage(self):
-            self.pages.append(dict(self.__dict__))
-            self._startPage()
-
-        def save(self):
-            for page in self.pages:
-                self.__dict__.update(page)
-                self.saveState()
-                self.setStrokeColorRGB(0, 0, 0)
-                self.setLineWidth(1.15)
-                # Continuous black border: 10 mm from edges on ALL pages (even and odd)
-                self.rect(10 * mm, 10 * mm, A4[0] - 20 * mm, A4[1] - 20 * mm)
-                self.setFont(font_name, 11)
-                self.setFillColorRGB(0, 0, 0)
-                # Centered page number at 14 mm from bottom
-                self.drawCentredString(A4[0] / 2, 14 * mm, str(self._pageNumber))
-                self.restoreState()
-                super().showPage()
-            super().save()
-
-    return InstructionBorderCanvas
+    canvas.saveState()
+    canvas.setStrokeColorRGB(0, 0, 0)
+    canvas.setLineWidth(1.15)
+    # Continuous black frame on every page: 10 mm from edges
+    canvas.rect(10 * mm, 10 * mm, A4[0] - 20 * mm, A4[1] - 20 * mm)
+    canvas.setFont(font_name, 11)
+    canvas.setFillColorRGB(0, 0, 0)
+    # Centered page number at 14 mm from bottom
+    canvas.drawCentredString(A4[0] / 2, 14 * mm, str(canvas.getPageNumber()))
+    canvas.restoreState()
 
 
 def to_pdf(doc: dict[str, Any]) -> bytes:
@@ -446,55 +428,71 @@ def to_pdf(doc: dict[str, Any]) -> bytes:
     caption = ParagraphStyle("GSCaption", parent=normal, fontSize=11, leading=13, alignment=TA_CENTER, spaceBefore=2, spaceAfter=6)
     note_style = ParagraphStyle("GSNote", parent=normal, fontSize=12, leading=14.5, spaceBefore=2, spaceAfter=6)
 
-    # 16x9 cm image table styling (160mm x 90mm with 1.15pt black border and white background)
-    img_tbl_style = TableStyle([
-        ("BOX", (0, 0), (-1, -1), 1.15, colors.black),
-        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-    ])
-
     pdf = SimpleDocTemplate(out, pagesize=A4, leftMargin=20*mm, rightMargin=20*mm, topMargin=15*mm, bottomMargin=17*mm, title=doc["title"])
     story = [Spacer(1, 17*mm), Paragraph("Инструкция", title), Paragraph(html.escape(doc["title"]), title), Spacer(1, 5*mm)]
-    for i, step in enumerate(doc.get("steps", []), 1):
+    story.append(Paragraph("<b>Содержание</b>", heading))
+    story.append(Spacer(1, 2*mm))
+
+    steps = doc.get("steps", [])
+    for i, step in enumerate(steps, 1):
         num = step.get("number", i)
-        story.append(Paragraph(f"{num}. {html.escape(step_heading(step))}", contents))
+        title_text = make_step_title(step.get("caption"), step.get("text"), num)
+        story.append(Paragraph(f"{num}. {html.escape(title_text)}", contents))
     story += [PageBreak()]
 
-    for i, step in enumerate(doc.get("steps", []), 1):
+    for i, step in enumerate(steps, 1):
         num = step.get("number", i)
+        title_text = make_step_title(step.get("caption"), step.get("text"), num)
+        desc = step.get("text", "")
+        # Don't duplicate title in description if description starts with it
+        if desc.lower().startswith(title_text.lower()):
+            desc = re.sub(r"^" + re.escape(title_text) + r"[.\s:—–-]+", "", desc, flags=re.I).strip()
+            if desc:
+                desc = desc[0].upper() + desc[1:]
+
         chunk = [
-            Paragraph(f"{num}. {html.escape(step_heading(step))}", heading),
-            Paragraph(html.escape(step.get("text", "")), normal),
+            Paragraph(f"{num}. {html.escape(title_text)}", heading),
+            Paragraph(html.escape(desc), normal),
         ]
         if step.get("note"):
             chunk.append(Paragraph(f"<b>Важно:</b> {html.escape(step['note'])}", note_style))
 
         raw = _image_bytes(step.get("image", ""))
         if raw:
-            main_png, detail_png = normalize_screenshot_16_9(raw)
-            if main_png:
-                try:
-                    # Container 16 cm x 9 cm (160mm x 90mm)
-                    picture = Image(io.BytesIO(main_png), width=160*mm, height=90*mm)
-                    frame = Table([[picture]], colWidths=[160*mm], rowHeights=[90*mm], hAlign="CENTER")
-                    frame.setStyle(img_tbl_style)
-                    cap_text = clean_caption(step.get("caption"), num)
-                    cap = Paragraph(f"<b>Рисунок {num}.</b> {html.escape(cap_text)}", caption)
-                    chunk += [Spacer(1, 2*mm), frame, cap]
+            try:
+                from PIL import Image as PILImage
+                source = io.BytesIO(raw)
+                im = PILImage.open(source)
+                w, h = im.size
+                if w > 0 and h > 0:
+                    max_w = 160 * mm  # 16 cm
+                    max_h = 110 * mm  # 11 cm
+                    # Горизонтальное: максимальная ширина 16 см
+                    # Вертикальное: максимальная высота 11 см
+                    # Строго сохраняем пропорции, без фиксированного контейнера и без белых полей
+                    if w >= h:
+                        scale = min(max_w / w, max_h / h)
+                    else:
+                        scale = min(max_h / h, max_w / w)
+                    dw = w * scale
+                    dh = h * scale
 
-                    if detail_png:
-                        det_pic = Image(io.BytesIO(detail_png), width=160*mm, height=90*mm)
-                        det_frame = Table([[det_pic]], colWidths=[160*mm], rowHeights=[90*mm], hAlign="CENTER")
-                        det_frame.setStyle(img_tbl_style)
-                        det_cap = Paragraph(f"<b>Рисунок {num}.1.</b> {html.escape(cap_text)} (увеличенный фрагмент)", caption)
-                        chunk += [Spacer(1, 3*mm), det_frame, det_cap]
-                except Exception:
-                    pass
+                    picture = Image(io.BytesIO(raw), width=dw, height=dh)
+                    frame = Table([[picture]], colWidths=[dw], rowHeights=[dh], hAlign="CENTER")
+                    frame.setStyle(TableStyle([
+                        ("BOX", (0, 0), (-1, -1), 1.15, colors.black),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                        ("TOPPADDING", (0, 0), (-1, -1), 0),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                    ]))
+                    cap = Paragraph(f"<b>Рисунок {num}.</b> {html.escape(title_text)}", caption)
+                    chunk += [Spacer(1, 2*mm), frame, Spacer(1, 1.5*mm), cap]
+            except Exception:
+                pass
 
         story.append(KeepTogether(chunk))
 
-    pdf.build(story, canvasmaker=make_border_canvas(font))
+    on_page = lambda c, d: draw_page_border(c, d, font)
+    pdf.build(story, onFirstPage=on_page, onLaterPages=on_page)
     return out.getvalue()

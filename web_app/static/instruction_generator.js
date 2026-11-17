@@ -140,9 +140,7 @@
         ${s.note ? `<div class="ig-step-note"><b>Важно:</b> ${escapeHtml(s.note)}</div>` : ''}
         ${s.image ? `
           <div class="ig-screen-box">
-            <div class="ig-screen-frame">
-              <img src="${s.image}" alt="${escapeHtml(s.caption)}">
-            </div>
+            <img class="ig-screen-img" src="${s.image}" alt="${escapeHtml(s.caption)}">
             <div class="ig-screen-caption"><b>Рисунок ${s.number}.</b> ${escapeHtml(s.caption)}</div>
           </div>
         ` : ''}
