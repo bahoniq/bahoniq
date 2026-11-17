@@ -544,6 +544,40 @@
         console.warn(`MediaSession action "${action}" not supported:`, err);
       }
     }
+
+    // Аппаратные медиа-кнопки магнитолы (CAN-шина / Bluetooth HID / Клавиатурные события)
+    window.addEventListener('keydown', e => {
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
+        return;
+      }
+      const key = e.key || e.code;
+      if (key === 'MediaTrackNext' || key === 'TrackNext' || e.keyCode === 176) {
+        e.preventDefault();
+        recordDiagnosticCommand('МУЛЬТИРУЛЬ: СЛЕДУЮЩИЙ ТРЕК');
+        playNextTrack();
+      } else if (key === 'MediaTrackPrevious' || key === 'TrackPrevious' || e.keyCode === 177) {
+        e.preventDefault();
+        recordDiagnosticCommand('МУЛЬТИРУЛЬ: ПРЕДЫДУЩИЙ ТРЕК');
+        playPrevTrack();
+      } else if (key === 'MediaPlayPause' || key === 'PlayPause' || e.keyCode === 179) {
+        e.preventDefault();
+        recordDiagnosticCommand('МУЛЬТИРУЛЬ: ПЛЕЙ/ПАУЗА');
+        btnPlay.click();
+      } else if (key === 'MediaPlay' || e.keyCode === 126) {
+        e.preventDefault();
+        recordDiagnosticCommand('МУЛЬТИРУЛЬ: ПЛЕЙ');
+        if (audio.paused) btnPlay.click();
+      } else if (key === 'MediaPause' || e.keyCode === 127) {
+        e.preventDefault();
+        recordDiagnosticCommand('МУЛЬТИРУЛЬ: ПАУЗА');
+        if (!audio.paused) btnPlay.click();
+      } else if (key === 'MediaStop' || e.keyCode === 178) {
+        e.preventDefault();
+        recordDiagnosticCommand('МУЛЬТИРУЛЬ: СТОП');
+        audio.pause();
+        updatePlayButton(false);
+      }
+    });
   }
 
   let fetchRetryCount = 0;
