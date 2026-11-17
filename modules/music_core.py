@@ -347,6 +347,31 @@ async def sync_catalog(force: bool = False) -> Dict[str, Any]:
             "error": f"Канал недоступен: {exc}"
         }
 
+    # Собираем все связанные сущности группы «Музыка ДИТ»:
+    # когда обычной группе (Chat 5288727334) назначается публичная ссылка t.me/bahoniqmusic,
+    # Telegram мигрирует её в супергруппу (Channel 4330974221), оставляя старые 100 песен в старом Chat ID,
+    # а новые публикации складывая в новый Channel ID. Сканируем обе истории!
+    entities_to_scan = [channel]
+    seen_entity_ids = {getattr(channel, "id", None)}
+
+    channel_user_env = os.getenv("TELEGRAM_CHANNEL_USERNAME", "bahoniqmusic").strip().replace("@", "")
+    if channel_user_env:
+        try:
+            pub_ent = await client.get_entity(channel_user_env)
+            if pub_ent and getattr(pub_ent, "id", None) not in seen_entity_ids:
+                entities_to_scan.insert(0, pub_ent)
+                seen_entity_ids.add(getattr(pub_ent, "id", None))
+        except Exception:
+            pass
+
+    try:
+        old_chat = await client.get_entity(-5288727334)
+        if old_chat and getattr(old_chat, "id", None) not in seen_entity_ids:
+            entities_to_scan.append(old_chat)
+            seen_entity_ids.add(getattr(old_chat, "id", None))
+    except Exception:
+        pass
+
     conn = get_db_connection()
     new_tracks_count = 0
     updated_tracks_count = 0
@@ -357,64 +382,65 @@ async def sync_catalog(force: bool = False) -> Dict[str, Any]:
     skipped_examples: List[Dict[str, Any]] = []
 
     try:
-        # Сканируем сообщения канала
-        async for message in client.iter_messages(channel, limit=None):
-            scanned_messages += 1
-            if getattr(message, "media", None):
-                media_messages += 1
-            meta = extract_metadata(message)
-            if not meta:
+        # Сканируем сообщения как новой супергруппы (t.me/bahoniqmusic), так и домиграционной истории чата
+        for target_entity in entities_to_scan:
+            async for message in client.iter_messages(target_entity, limit=None):
+                scanned_messages += 1
                 if getattr(message, "media", None):
-                    skipped_media += 1
-                    if len(skipped_examples) < 20:
-                        document = getattr(message.media, "document", None)
-                        attrs = getattr(document, "attributes", []) if document else []
-                        file_obj = getattr(message, "file", None)
-                        skipped_examples.append({
-                            "message_id": getattr(message, "id", None),
-                            "media_type": message.media.__class__.__name__,
-                            "mime_type": getattr(document, "mime_type", "") if document else "",
-                            "file_name": getattr(file_obj, "name", "") if file_obj else "",
-                            "attributes": [a.__class__.__name__ for a in attrs],
-                            "reason": "Файл не распознан как поддерживаемое аудио",
-                        })
-                continue
+                    media_messages += 1
+                meta = extract_metadata(message)
+                if not meta:
+                    if getattr(message, "media", None):
+                        skipped_media += 1
+                        if len(skipped_examples) < 20:
+                            document = getattr(message.media, "document", None)
+                            attrs = getattr(document, "attributes", []) if document else []
+                            file_obj = getattr(message, "file", None)
+                            skipped_examples.append({
+                                "message_id": getattr(message, "id", None),
+                                "media_type": message.media.__class__.__name__,
+                                "mime_type": getattr(document, "mime_type", "") if document else "",
+                                "file_name": getattr(file_obj, "name", "") if file_obj else "",
+                                "attributes": [a.__class__.__name__ for a in attrs],
+                                "reason": "Файл не распознан как поддерживаемое аудио",
+                            })
+                    continue
 
-            total_found += 1
-            with conn:
-                cur = conn.execute(
-                    "SELECT id FROM tracks WHERE telegram_msg_id = ?",
-                    (meta["telegram_msg_id"],)
-                )
-                existing = cur.fetchone()
-                if not existing:
-                    conn.execute("""
-                        INSERT INTO tracks (
-                            telegram_msg_id, document_id, access_hash, file_reference,
-                            title, artist, album, duration, file_size, mime_type,
-                            file_name, date, caption, has_cover
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        meta["telegram_msg_id"], meta["document_id"], meta["access_hash"],
-                        meta["file_reference"], meta["title"], meta["artist"], meta["album"],
-                        meta["duration"], meta["file_size"], meta["mime_type"], meta["file_name"],
-                        meta["date"], meta["caption"], meta["has_cover"]
-                    ))
-                    new_tracks_count += 1
-                else:
-                    conn.execute("""
-                        UPDATE tracks SET
-                            document_id=?, access_hash=?, file_reference=?, title=?, artist=?,
-                            album=?, duration=?, file_size=?, mime_type=?, file_name=?, date=?,
-                            caption=?, has_cover=?
-                        WHERE telegram_msg_id=?
-                    """, (
-                        meta["document_id"], meta["access_hash"], meta["file_reference"],
-                        meta["title"], meta["artist"], meta["album"], meta["duration"],
-                        meta["file_size"], meta["mime_type"], meta["file_name"], meta["date"],
-                        meta["caption"], meta["has_cover"], meta["telegram_msg_id"]
-                    ))
-                    updated_tracks_count += 1
+                total_found += 1
+                with conn:
+                    cur = conn.execute(
+                        "SELECT id FROM tracks WHERE telegram_msg_id = ?",
+                        (meta["telegram_msg_id"],)
+                    )
+                    existing = cur.fetchone()
+                    if not existing:
+                        conn.execute("""
+                            INSERT INTO tracks (
+                                telegram_msg_id, document_id, access_hash, file_reference,
+                                title, artist, album, duration, file_size, mime_type,
+                                file_name, date, caption, has_cover
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            meta["telegram_msg_id"], meta["document_id"], meta["access_hash"],
+                            meta["file_reference"], meta["title"], meta["artist"], meta["album"],
+                            meta["duration"], meta["file_size"], meta["mime_type"], meta["file_name"],
+                            meta["date"], meta["caption"], meta["has_cover"]
+                        ))
+                        new_tracks_count += 1
+                    else:
+                        conn.execute("""
+                            UPDATE tracks SET
+                                document_id=?, access_hash=?, file_reference=?, title=?, artist=?,
+                                album=?, duration=?, file_size=?, mime_type=?, file_name=?, date=?,
+                                caption=?, has_cover=?
+                            WHERE telegram_msg_id=?
+                        """, (
+                            meta["document_id"], meta["access_hash"], meta["file_reference"],
+                            meta["title"], meta["artist"], meta["album"], meta["duration"],
+                            meta["file_size"], meta["mime_type"], meta["file_name"], meta["date"],
+                            meta["caption"], meta["has_cover"], meta["telegram_msg_id"]
+                        ))
+                        updated_tracks_count += 1
 
         now_str = datetime.now(timezone.utc).isoformat()
         with conn:
@@ -578,7 +604,7 @@ async def ensure_catalog_ready() -> None:
 
 
 async def get_telegram_document_for_track(track_id: int):
-    """Находит сообщение и Telethon document для трека (с резервным поиском в «Музыка ДИТ»)."""
+    """Находит сообщение и Telethon document для трека (включая как супергруппу t.me/bahoniqmusic, так и домиграционную историю чата «Музыка ДИТ»)."""
     track = get_track_by_id(track_id)
     if not track:
         return None, None
@@ -589,34 +615,63 @@ async def get_telegram_document_for_track(track_id: int):
 
     document = None
     msg_id = track["telegram_msg_id"]
+    expected_doc_id = int(track.get("document_id") or 0)
 
-    # 1. Попытка получить из основного канала
+    def _matches(doc) -> bool:
+        if not doc:
+            return False
+        if expected_doc_id and getattr(doc, "id", 0) and int(getattr(doc, "id", 0)) != expected_doc_id:
+            return False
+        return True
+
+    # 1. Попытка получить из основного активного канала/группы
     try:
         channel = await get_channel_entity(client)
         if channel:
             message = await client.get_messages(channel, ids=msg_id)
             if message and getattr(message, "media", None):
-                document = getattr(message.media, "document", None)
+                cand_doc = getattr(message.media, "document", None)
+                if _matches(cand_doc):
+                    document = cand_doc
     except Exception:
         pass
 
-    # 2. Резервная попытка из чата «Музыка ДИТ» (-5288727334)
+    # 2. Попытка из публичной супергруппы t.me/bahoniqmusic (для новых треков после миграции)
+    if not document:
+        channel_user_env = os.getenv("TELEGRAM_CHANNEL_USERNAME", "bahoniqmusic").strip().replace("@", "")
+        if channel_user_env:
+            try:
+                pub_ent = await client.get_entity(channel_user_env)
+                if pub_ent:
+                    message = await client.get_messages(pub_ent, ids=msg_id)
+                    if message and getattr(message, "media", None):
+                        cand_doc = getattr(message.media, "document", None)
+                        if _matches(cand_doc):
+                            document = cand_doc
+            except Exception:
+                pass
+
+    # 3. Резервная попытка из домиграционного чата «Музыка ДИТ» (-5288727334)
     if not document:
         try:
             ent = await client.get_entity(-5288727334)
             if ent:
                 message = await client.get_messages(ent, ids=msg_id)
                 if message and getattr(message, "media", None):
-                    document = getattr(message.media, "document", None)
+                    cand_doc = getattr(message.media, "document", None)
+                    if _matches(cand_doc):
+                        document = cand_doc
         except Exception:
             pass
 
-    # 3. Резервная попытка глобального поиска сообщения по ID
+    # 4. Резервная попытка глобального поиска сообщения по ID
     if not document:
         try:
             message = await client.get_messages(None, ids=msg_id)
             if message and getattr(message, "media", None):
-                document = getattr(message.media, "document", None)
+                cand_doc = getattr(message.media, "document", None)
+                if _matches(cand_doc):
+                    document = cand_doc
         except Exception:
             pass
 
