@@ -159,34 +159,30 @@
   }
 
   async function saveAudioLocally(trackId, blob, trackMeta = null) {
+    if (!blob || blob.size <= 0) {
+      return false;
+    }
     const expectedSize = Number(trackMeta?.file_size || 0);
-    if (!blob || blob.size <= 0 || (expectedSize > 0 && blob.size !== expectedSize)) {
+    // Отсекаем только явно оборванные файлы (меньше 50% от ожидаемого размера)
+    if (expectedSize > 0 && blob.size < expectedSize * 0.5) {
+      console.warn(`File for track ${trackId} too small (${blob.size} vs ${expectedSize}), rejected`);
       return false;
     }
     let saved = false;
     // 1. Попытка в OPFS (Origin Private File System)
     if (opfsRoot) {
       try {
-        const tempName = `track_${trackId}.part`;
-        const tempHandle = await opfsRoot.getFileHandle(tempName, { create: true });
-        const tempWriter = await tempHandle.createWritable();
-        await tempWriter.write(blob);
-        await tempWriter.close();
-        const tempFile = await tempHandle.getFile();
-        if (tempFile.size !== blob.size) throw new Error('OPFS temporary file size mismatch');
-
         const fileHandle = await opfsRoot.getFileHandle(`track_${trackId}.bin`, { create: true });
         const writable = await fileHandle.createWritable();
-        await writable.write(tempFile);
+        await writable.write(blob);
         await writable.close();
         const finalFile = await fileHandle.getFile();
-        if (finalFile.size !== blob.size) throw new Error('OPFS final file size mismatch');
-        await opfsRoot.removeEntry(tempName).catch(() => {});
-        offlineTrackIds.add(trackId);
-        persistOfflineTrackIds();
-        saved = true;
+        if (finalFile && finalFile.size > 0) {
+          offlineTrackIds.add(trackId);
+          persistOfflineTrackIds();
+          saved = true;
+        }
       } catch (err) {
-        try { await opfsRoot.removeEntry(`track_${trackId}.part`); } catch {}
         try { await opfsRoot.removeEntry(`track_${trackId}.bin`); } catch {}
         console.warn('OPFS write failed, falling back to IndexedDB:', err);
       }
@@ -231,11 +227,8 @@
       try {
         const fileHandle = await opfsRoot.getFileHandle(`track_${trackId}.bin`);
         const file = await fileHandle.getFile();
-        if (file && file.size > 0 && (!expectedSize || file.size === expectedSize)) return file;
-        if (file && expectedSize && file.size !== expectedSize) {
-          await opfsRoot.removeEntry(`track_${trackId}.bin`).catch(() => {});
-          offlineTrackIds.delete(trackId);
-          persistOfflineTrackIds();
+        if (file && file.size > 0 && (!expectedSize || file.size >= expectedSize * 0.7 || file.size === expectedSize)) {
+          return file;
         }
       } catch {}
     }
@@ -247,19 +240,23 @@
           const req = tx.objectStore('tracks_blobs').get(trackId);
           req.onsuccess = () => {
             const row = req.result;
-            const valid = row && row.complete === true && row.blob && row.blob.size > 0 &&
-              (!expectedSize || row.blob.size === expectedSize);
+            const blob = row?.blob;
+            const actualSize = Number(blob?.size || row?.size || 0);
+            // Поддерживаем как новые записи (complete: true), так и ранее сохранённые (complete: undefined)
+            const valid = row && blob && actualSize > 0 && row.complete !== false &&
+              (!expectedSize || actualSize >= expectedSize * 0.7 || actualSize === expectedSize);
             if (valid) {
-              resolve(row.blob);
+              resolve(blob);
               return;
             }
-            // Старые/оборванные записи не должны оставаться «офлайн».
-            offlineTrackIds.delete(trackId);
-            persistOfflineTrackIds();
-            try {
-              const cleanupTx = idb.transaction('tracks_blobs', 'readwrite');
-              cleanupTx.objectStore('tracks_blobs').delete(trackId);
-            } catch {}
+            if (row && (!blob || actualSize === 0)) {
+              offlineTrackIds.delete(trackId);
+              persistOfflineTrackIds();
+              try {
+                const cleanupTx = idb.transaction('tracks_blobs', 'readwrite');
+                cleanupTx.objectStore('tracks_blobs').delete(trackId);
+              } catch {}
+            }
             resolve(null);
           };
           req.onerror = () => resolve(null);
@@ -311,11 +308,8 @@
           const req = tx.objectStore('tracks_blobs').getAll();
           req.onsuccess = () => {
             (req.result || []).forEach(row => {
-              const track = playlist.find(t => Number(t.id) === Number(row.id));
-              const expectedSize = Number(track?.file_size || row.expectedSize || 0);
               const actualSize = Number(row.blob?.size || row.size || 0);
-              if (row.complete === true && row.blob && actualSize > 0 &&
-                  (!expectedSize || actualSize === expectedSize)) {
+              if (row.blob && actualSize > 0 && row.complete !== false) {
                 offlineTrackIds.add(Number(row.id));
               }
             });
@@ -337,11 +331,8 @@
         try {
           const handle = await opfsRoot.getFileHandle(`track_${t.id}.bin`);
           const file = await handle.getFile();
-          if (file && file.size > 0 && (!t.file_size || file.size === t.file_size)) {
+          if (file && file.size > 0) {
             offlineTrackIds.add(t.id);
-          } else if (file) {
-            await opfsRoot.removeEntry(`track_${t.id}.bin`).catch(() => {});
-            offlineTrackIds.delete(t.id);
           }
         } catch {}
         }));
@@ -351,7 +342,7 @@
     // 3. Проверяем кандидатов старого реестра и небольшой аварийный диапазон.
     if (opfsRoot) {
       const probeIds = [...registryCandidates];
-      for (let i = 1; i <= 150; i++) {
+      for (let i = 1; i <= 200; i++) {
         if (!offlineTrackIds.has(i) && !registryCandidates.has(i)) probeIds.push(i);
       }
       for (let s = 0; s < probeIds.length; s += 16) {
@@ -360,9 +351,7 @@
           try {
             const handle = await opfsRoot.getFileHandle(`track_${id}.bin`);
             const file = await handle.getFile();
-            const track = playlist.find(t => Number(t.id) === Number(id));
-            const expectedSize = Number(track?.file_size || 0);
-            if (file && file.size > 0 && (!expectedSize || file.size === expectedSize)) {
+            if (file && file.size > 0) {
               offlineTrackIds.add(id);
             }
           } catch {}
@@ -381,9 +370,8 @@
             const m = name.match(/^track_(\d+)\.bin$/);
             if (m) {
               const trackId = Number(m[1]);
-              const track = playlist.find(t => t.id === trackId);
               const file = await handle.getFile();
-              if (file.size > 0 && (!track?.file_size || file.size === track.file_size)) offlineTrackIds.add(trackId);
+              if (file && file.size > 0) offlineTrackIds.add(trackId);
             }
           }
         } else if (typeof opfsRoot.values === 'function') {
@@ -391,9 +379,8 @@
             const m = (handle.name || '').match(/^track_(\d+)\.bin$/);
             if (m) {
               const trackId = Number(m[1]);
-              const track = playlist.find(t => t.id === trackId);
               const file = await handle.getFile();
-              if (file.size > 0 && (!track?.file_size || file.size === track.file_size)) {
+              if (file && file.size > 0) {
                 offlineTrackIds.add(trackId);
               }
             }
@@ -461,8 +448,7 @@
     if (!track) return false;
     if (downloadPromises.has(track.id)) return downloadPromises.get(track.id);
 
-    // Зелёный бейдж мог прийти из устаревшего localStorage. Перед отказом от
-    // загрузки обязательно подтверждаем существование читаемого файла.
+    // Перед загрузкой проверяем, нет ли уже готового файла
     if (offlineTrackIds.has(track.id)) {
       const verifiedBlob = await getLocalAudioBlob(track.id, Number(track.file_size || 0));
       if (verifiedBlob) return true;
@@ -475,54 +461,63 @@
       updateTrackItemBadge(track.id);
       const controller = new AbortController();
       try {
-      const resp = await fetch(`/api/music/tracks/${track.id}/download`, { signal: controller.signal });
-      if (!resp.ok) throw new Error('Download failed');
+        const resp = await fetch(`/api/music/tracks/${track.id}/download`, { signal: controller.signal });
+        if (!resp.ok) throw new Error('Download failed');
 
-      const contentLength = Number(resp.headers.get('Content-Length')) || track.file_size || 0;
-      const reader = resp.body.getReader();
-      const chunks = [];
-      let receivedBytes = 0;
+        const contentLength = Number(resp.headers.get('Content-Length')) || Number(track.file_size) || 0;
+        const reader = resp.body.getReader();
+        const chunks = [];
+        let receivedBytes = 0;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        receivedBytes += value.length;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          receivedBytes += value.length;
 
-        if (contentLength > 0 && currentIndex >= 0 && playlist[currentIndex]?.id === track.id) {
-          const pct = Math.min(99, Math.round((receivedBytes / contentLength) * 100));
-          updateOfflinePill('downloading', pct);
+          if (contentLength > 0 && currentIndex >= 0 && playlist[currentIndex]?.id === track.id) {
+            const pct = Math.min(99, Math.round((receivedBytes / contentLength) * 100));
+            updateOfflinePill('downloading', pct);
+          }
         }
-      }
 
-      const completeBlob = new Blob(chunks, { type: track.mime_type || 'audio/mpeg' });
+        const completeBlob = new Blob(chunks, { type: track.mime_type || 'audio/mpeg' });
 
-      // Валидация размера
-      const expectedSize = Number(track.file_size || contentLength || 0);
-      if (completeBlob.size > 0 && (!expectedSize || completeBlob.size === expectedSize)) {
-        const saved = await saveAudioLocally(track.id, completeBlob, { ...track, file_size: expectedSize || completeBlob.size });
-        if (!saved) throw new Error('Local file validation failed');
+        if (completeBlob.size > 0) {
+          const saved = await saveAudioLocally(track.id, completeBlob, { ...track, file_size: completeBlob.size });
+          if (!saved) throw new Error('Local file validation failed');
+          offlineTrackIds.add(track.id);
+          persistOfflineTrackIds();
+          if (currentIndex >= 0 && playlist[currentIndex]?.id === track.id) {
+            updateOfflinePill('offline');
+            btnDownloadActive.classList.add('active');
+          }
+          return true;
+        } else {
+          console.warn('Downloaded empty file');
+          return false;
+        }
+      } catch (err) {
+        console.warn('Background download error:', err);
         if (currentIndex >= 0 && playlist[currentIndex]?.id === track.id) {
-          updateOfflinePill('offline');
+          if (offlineTrackIds.has(track.id)) {
+            updateOfflinePill('offline');
+          } else {
+            updateOfflinePill('stream');
+          }
         }
-        return true;
-      } else {
-        console.warn('Size mismatch, discarded incomplete file');
         return false;
+      } finally {
+        controller.abort();
+        updateTrackItemBadge(track.id);
       }
-    } catch (err) {
-      console.warn('Background download error:', err);
-      return false;
-    } finally {
-      controller.abort();
-      updateTrackItemBadge(track.id);
-    }
     })();
     downloadPromises.set(track.id, task);
     try {
       return await task;
     } finally {
       downloadPromises.delete(track.id);
+      syncDownloadAllButton();
     }
   }
 
@@ -542,6 +537,7 @@
     currentIndex = index;
     const track = playlist[currentIndex];
 
+    // Всегда активируем Web Audio контекст при выборе трека
     resumeAudioContext();
 
     trackTitle.textContent = track.title || 'Без названия';
@@ -562,8 +558,6 @@
     if (requestId !== playRequestId) return;
 
     audio.pause();
-    audio.removeAttribute('src');
-    audio.load();
     if (currentBlobUrl) {
       URL.revokeObjectURL(currentBlobUrl);
       currentBlobUrl = null;
@@ -577,8 +571,6 @@
       updateOfflinePill('offline');
       btnDownloadActive.classList.add('active');
     } else {
-      // Убираем ложный статус, иначе downloadTrackInBackground решит, что файл
-      // уже существует, и не восстановит его.
       offlineTrackIds.delete(track.id);
       persistOfflineTrackIds();
       updateTrackItemBadge(track.id);
@@ -586,8 +578,13 @@
       // Стриминг с сервера через Range
       audio.src = `/api/music/tracks/${track.id}/stream`;
       updateOfflinePill('stream');
-      // Параллельно запускаем фоновую загрузку полного файла
-      downloadTrackInBackground(track);
+      // Фоновое скачивание с небольшой задержкой, чтобы стриминг успел стартовать без конкуренции за трафик
+      const targetId = track.id;
+      setTimeout(() => {
+        if (currentIndex === index && !offlineTrackIds.has(targetId) && !downloadPromises.has(targetId)) {
+          downloadTrackInBackground(track);
+        }
+      }, 2000);
     }
 
     try {
@@ -954,8 +951,32 @@
     }
   });
 
+  // --- Кнопка пакетного скачивания и её синхронизация ---
+  const btnDownloadAll = $('carBtnDownloadAll');
+  let isDownloadingAll = false;
+
+  function syncDownloadAllButton() {
+    if (!btnDownloadAll || isDownloadingAll) return;
+    if (playlist.length === 0) {
+      btnDownloadAll.textContent = '📥 Скачать все';
+      btnDownloadAll.disabled = false;
+      return;
+    }
+    const unDownloaded = playlist.filter(t => !offlineTrackIds.has(t.id));
+    if (unDownloaded.length === 0) {
+      btnDownloadAll.textContent = '✓ Все сохранены';
+      btnDownloadAll.style.color = 'var(--accent-cyan)';
+      btnDownloadAll.style.borderColor = 'rgba(0, 229, 255, 0.4)';
+    } else {
+      btnDownloadAll.textContent = `📥 Скачать все (${unDownloaded.length})`;
+      btnDownloadAll.style.color = '';
+      btnDownloadAll.style.borderColor = '';
+    }
+  }
+
   // --- Рендеринг списка музыки в каталоге ---
   function renderCatalog() {
+    syncDownloadAllButton();
     const q = (searchInput.value || '').toLowerCase().trim();
     filteredPlaylist = playlist.filter(t => {
       const matchQ = !q || (t.title || '').toLowerCase().includes(q) || (t.artist || '').toLowerCase().includes(q);
@@ -1121,14 +1142,12 @@
 
   searchInput.addEventListener('input', () => renderCatalog());
 
-  const btnDownloadAll = $('carBtnDownloadAll');
-  let isDownloadingAll = false;
-
   if (btnDownloadAll) {
     btnDownloadAll.onclick = async () => {
       if (isDownloadingAll) return;
       const unDownloaded = playlist.filter(t => !offlineTrackIds.has(t.id));
       if (unDownloaded.length === 0) {
+        syncDownloadAllButton();
         alert('Все треки уже сохранены в памяти устройства!');
         return;
       }
@@ -1146,10 +1165,10 @@
         }
       }
 
-      btnDownloadAll.textContent = '✓ Все сохранены';
-      btnDownloadAll.disabled = false;
       isDownloadingAll = false;
+      btnDownloadAll.disabled = false;
       await scanOfflineTracks();
+      syncDownloadAllButton();
       renderCatalog();
     };
   }
