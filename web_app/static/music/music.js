@@ -48,7 +48,7 @@
   const trebleSlider = $('carTrebleSlider');
   const bassValEl = $('carBassVal');
   const trebleValEl = $('carTrebleVal');
-  const presetBtns = document.querySelectorAll('.car-preset-btn');
+  const presetBtns = document.querySelectorAll('.car-sound-preset, .car-preset-btn');
 
   // Элементы диагностики
   const diagCurrentTrack = $('diagCurrentTrack');
