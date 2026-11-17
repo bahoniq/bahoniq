@@ -71,6 +71,9 @@ app.include_router(design_academy_router)
 from .routers.excel_academy import router as excel_academy_router
 app.include_router(excel_academy_router)
 
+from .routers.instruction_generator import router as instruction_generator_router
+app.include_router(instruction_generator_router)
+
 # Опциональная защита паролем для публичного облака (задается через BAHONIQ_PASSWORD)
 AUTH_PASSWORD = os.getenv("BAHONIQ_PASSWORD", "").strip()
 AUTH_COOKIE_NAME = "bahoniq_auth"

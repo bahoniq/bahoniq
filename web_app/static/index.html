@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>BahonIQ | WORK CENTER</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#060913">
@@ -15,20 +15,23 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=20261116_mobile_bg_fix_v8">
-  <link rel="stylesheet" href="/assets/design_academy.css?v=20261116_pro_v5">
-  <link rel="stylesheet" href="/assets/design_academy_pro.css?v=20261116_pro_v5">
-  <link rel="stylesheet" href="/assets/excel_academy.css?v=20261116_office_it_v7">
+  <link rel="stylesheet" href="/assets/app.css?v=20261117_android_fix_v9">
+  <link rel="stylesheet" href="/assets/design_academy.css?v=20261117_android_fix_v9">
+  <link rel="stylesheet" href="/assets/design_academy_pro.css?v=20261117_android_fix_v9">
+  <link rel="stylesheet" href="/assets/excel_academy.css?v=20261117_android_fix_v9">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
-    .sidebar { width: 248px; overflow: hidden; display: flex; flex-direction: column; }
+    @media (min-width: 769px) {
+      .sidebar { width: 248px; overflow: hidden; display: flex; flex-direction: column; }
+    }
     .sidebar-footer { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 18px; padding-top: 16px; width: 100%; }
     .sidebar-logo-bottom { display: flex; align-items: center; justify-content: center; width: 100%; }
     .sidebar-logo-img { width: 112px !important; height: 112px !important; max-width: 112px !important; max-height: 112px !important; object-fit: contain !important; display: block; margin: 0 auto; filter: drop-shadow(0 6px 20px rgba(0, 229, 255, 0.28)); transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1); cursor: pointer; }
     .sidebar-logo-img:hover { transform: scale(1.05); }
     .web-splash-logo { width: 200px !important; height: 200px !important; max-width: 200px !important; max-height: 200px !important; object-fit: contain !important; filter: drop-shadow(0 10px 30px rgba(0, 229, 255, 0.35)); }
   </style>
+  <link rel="stylesheet" href="/assets/instruction_generator.css?v=20261117_v1">
 </head>
 <body class="theme-night">
   <script>
@@ -221,6 +224,12 @@
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
               </div>
             </div>
+
+<div class="tool-tile" data-open="instructionGenerator">
+  <div class="tool-icon icon-teal"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/><path d="M15 3v3M9 3v3"/></svg></div>
+  <div class="tool-meta"><div class="tool-name">Instruction Generator AI</div><div class="tool-desc">Создание университетских инструкций из черновиков и скриншотов.</div></div>
+  <div class="tool-arrow">›</div>
+</div>
 
             <!-- 2. Заметки (Бирюзовый) -->
             <div class="tool-tile" data-open="notes">
@@ -608,6 +617,14 @@
               </form>
             </div>
           </section>
+
+<section id="instructionGenerator" class="module-page">
+  <div class="page-heading"><div><h1>Instruction Generator AI</h1><p>Стандартизированные университетские инструкции из черновиков и скриншотов.</p></div></div>
+  <div class="ig-layout">
+    <div><div class="card ig-meta"><label>Название<input id="igTitle" placeholder="Инструкция по работе с системой"></label><label>Целевая аудитория<input id="igAudience" placeholder="Студенты, преподаватели…"></label><label>Подразделение<input id="igDepartment" placeholder="Центр цифровых услуг"></label><label class="wide">Вводная часть<textarea id="igIntro" rows="3"></textarea></label></div><div id="igSteps"></div><div class="ig-actions"><button id="igAdd" class="button secondary" type="button">+ Добавить шаг</button><button id="igGenerate" class="button primary" type="button">Сгенерировать инструкцию</button></div><div id="igStatus" class="result-panel">Добавьте шаги и скриншоты. Изображение можно вставить через Ctrl+V.</div></div>
+    <div><div id="igResult" class="ig-preview-doc hidden"></div><div id="igExports" class="ig-actions hidden"><button class="button primary" data-ig-export="pdf">PDF</button><button class="button secondary" data-ig-export="html">HTML</button><button class="button secondary" data-ig-export="md">Markdown</button></div></div>
+  </div>
+</section>
 
           <!-- TICKET WRITER AI -->
           <section id="tickets" class="module-page">
@@ -1085,5 +1102,6 @@
       });
     }
   </script>
+  <script src="/assets/instruction_generator.js?v=20261117_v1"></script>
 </body>
 </html>

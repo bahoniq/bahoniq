@@ -150,13 +150,18 @@ body.theme-day .ea-chart-modal>div{background:#E3E9EE;border-color:rgba(43,64,84
   .ea-progress{width:100%}
   .ea-stages{grid-template-columns:repeat(2,1fr);gap:6px}
   .ea-stage{padding:10px;min-height:44px}
-  .ea-layout{grid-template-columns:1fr;gap:10px}
-  .ea-sidebar,.ea-main,.ea-mentor{min-height:auto}
-  .ea-toolbar{overflow-x:auto;padding:6px;gap:6px;flex-wrap:nowrap}
+  .ea-layout{grid-template-columns:1fr;gap:14px}
+  .ea-sidebar,.ea-main,.ea-mentor{min-height:auto;width:100%;box-sizing:border-box}
+  .ea-lessons{max-height:240px}
+  .ea-toolbar{overflow-x:auto;padding:6px;gap:6px;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
   .ea-toolbar button,.ea-sheet-tabs button{min-height:44px;min-width:44px;padding:8px 12px}
   .ea-tabs button{min-height:44px;padding:8px 14px}
   .ea-lesson{min-height:44px;padding:10px}
-  .ea-grid-wrap{max-width:100vw;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .ea-grid-wrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .ea-mentor{padding:14px;margin-bottom:24px}
+  .ea-mentor-feed{max-height:45vh;overflow-y:auto}
+  .ea-mentor textarea{width:100%;box-sizing:border-box;min-height:72px}
+  .ea-mentor button{min-height:44px;width:100%;justify-content:center}
 }
 
 /* Day theme overrides for new elements */

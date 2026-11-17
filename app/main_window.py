@@ -37,6 +37,7 @@ from modules.duplicate_window import open_duplicates
 from modules.pdf_center import open_pdf_center
 from modules.report_studio import open_report_studio
 from modules.ticket_writer import open_ticket_writer
+from modules.instruction_generator import open_instruction_generator
 from modules.phonebook import open_phonebook
 
 
@@ -533,6 +534,7 @@ class MainWindow:
 
         tools = [
             ("✦", "Ticket Writer AI"),
+            ("▤", "Instruction Generator AI"),
             ("📝", "Заметки"),
             ("📊", "Excel AI"),
             ("🧹", "Очистка"),
@@ -774,6 +776,7 @@ class MainWindow:
 
         tools = [
             ("✦", "Ticket Writer AI", "Название и описание обращения", ITALY_GREEN),
+            ("▤", "Instruction Generator AI", "Инструкции из текста и скриншотов", ITALY_GREEN),
             ("✎", "Заметки", "Быстрые записи и идеи", "#597A91"),
             ("▤", "Excel AI", "Умная обработка таблиц", ITALY_RED),
             ("📖", "Platonus Wiki AI", "База инструкций и умный поиск Platonus", "#0284C7"),
@@ -1440,6 +1443,10 @@ class MainWindow:
     def open_tool(self, name):
         if name == "Заметки":
             open_notes(self.root)
+            return
+
+        if name == "Instruction Generator AI":
+            open_instruction_generator(self.root)
             return
 
         if name == "Ticket Writer AI":

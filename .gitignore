@@ -43,6 +43,7 @@ dist/
 BahonIQ Backups/
 backups/
 backup_*/
+_backup_*
 *.bak
 *.before_*
 *_backup
