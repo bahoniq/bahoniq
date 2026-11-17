@@ -182,6 +182,27 @@ html, body {
   text-overflow: ellipsis;
 }
 
+.car-btn-open-list {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  background: rgba(0, 229, 255, 0.12);
+  border: 1px solid rgba(0, 229, 255, 0.4);
+  color: var(--accent-cyan);
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.car-btn-open-list:active {
+  background: rgba(0, 229, 255, 0.25);
+  transform: scale(0.96);
+}
+
 /* Полоса прогресса */
 .car-progress-wrap {
   padding: 0 12px;

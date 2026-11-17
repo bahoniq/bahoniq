@@ -510,6 +510,8 @@
     }
   }
 
+  let fetchRetryCount = 0;
+
   // --- Загрузка каталога с сервера ---
   async function fetchCatalog() {
     try {
@@ -519,9 +521,14 @@
         return;
       }
       const data = await res.json();
-      if (data && data.tracks) {
+      if (data && data.tracks && data.tracks.length > 0) {
         playlist = data.tracks;
         filteredPlaylist = [...playlist];
+
+        if (currentIndex === -1 && playlist.length > 0) {
+          trackTitle.textContent = playlist[0].title;
+          trackArtist.textContent = playlist[0].artist;
+        }
 
         // Кэшируем метаданные в IDB для работы офлайн
         if (idb) {
@@ -533,6 +540,10 @@
         }
 
         renderCatalog();
+      } else if (fetchRetryCount < 6) {
+        // Если база пуста, ждем фоновую синхронизацию с Telegram и повторяем запрос
+        fetchRetryCount++;
+        setTimeout(fetchCatalog, 3000);
       }
     } catch (err) {
       console.warn('Network offline or catalog fetch failed, relying on local cache:', err);
@@ -568,7 +579,15 @@
 
     tracksListEl.innerHTML = '';
     if (filteredPlaylist.length === 0) {
-      tracksListEl.innerHTML = `<div style="text-align: center; padding: 32px; color: var(--text-muted);">Треки не найдены</div>`;
+      tracksListEl.innerHTML = `
+        <div style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
+          <div style="font-size: 18px; color: #fff; margin-bottom: 8px;">Канал @bahoniqmusic синхронизируется...</div>
+          <p style="font-size: 14px; margin-bottom: 16px;">При первом запуске сервер считывает аудиофайлы из Telegram. Это занимает 5–10 секунд.</p>
+          <button id="carBtnRetrySync" class="car-btn-open-list" style="margin: 0 auto;" type="button">🔄 Обновить список</button>
+        </div>
+      `;
+      const retryBtn = document.getElementById('carBtnRetrySync');
+      if (retryBtn) retryBtn.onclick = () => fetchCatalog();
       return;
     }
 
@@ -643,6 +662,13 @@
   // --- Открытие/закрытие панелей ---
   btnPlaylist.onclick = () => catalogDrawer.classList.add('open');
   btnCloseCatalog.onclick = () => catalogDrawer.classList.remove('open');
+
+  const coverBox = $('carCoverBox');
+  if (coverBox) coverBox.onclick = () => catalogDrawer.classList.add('open');
+  const metaBox = $('carMetaBox');
+  if (metaBox) metaBox.onclick = () => catalogDrawer.classList.add('open');
+  const btnOpenList = $('carBtnOpenList');
+  if (btnOpenList) btnOpenList.onclick = (e) => { e.stopPropagation(); catalogDrawer.classList.add('open'); };
 
   btnDiag.onclick = () => diagModal.classList.remove('hidden');
   btnCloseDiag.onclick = () => diagModal.classList.add('hidden');

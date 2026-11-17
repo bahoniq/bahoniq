@@ -12,7 +12,7 @@
 
   <link rel="manifest" href="/music/manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="/music/assets/icons/icon-192.png">
-  <link rel="stylesheet" href="/music/assets/music.css?v=20261117_v1">
+  <link rel="stylesheet" href="/music/assets/music.css?v=20261117_logo">
 </head>
 <body>
   <div class="car-player">
@@ -51,19 +51,20 @@
 
     <!-- Основная сцена плеера -->
     <main class="car-stage">
-      <!-- Обложка альбома -->
+      <!-- Обложка альбома (логотип приложения BahonIQ) -->
       <div class="car-cover-wrap">
-        <div class="car-cover">
-          <img id="carCoverImg" src="/api/music/tracks/0/cover" alt="Обложка трека">
+        <div class="car-cover" id="carCoverBox" title="Нажмите, чтобы открыть список музыки">
+          <img id="carCoverImg" src="/music/assets/logo.png" alt="BahonIQ Music" style="object-fit: contain; padding: 24px; background: radial-gradient(circle, #0e1e38 0%, #030712 100%);">
         </div>
       </div>
 
       <!-- Правая панель в альбомном режиме / нижняя в портретном -->
       <div class="car-right-panel">
         <!-- Метаданные трека -->
-        <div class="car-meta">
-          <div id="carTrackTitle" class="car-title">Выберите трек из каталога</div>
+        <div class="car-meta" id="carMetaBox" title="Нажмите, чтобы открыть список музыки" style="cursor: pointer;">
+          <div id="carTrackTitle" class="car-title">Список музыки загружается...</div>
           <div id="carTrackArtist" class="car-artist">Канал @bahoniqmusic</div>
+          <button id="carBtnOpenList" class="car-btn-open-list" type="button">📂 Открыть список треков</button>
         </div>
 
         <!-- Полоса перемотки -->
@@ -192,6 +193,6 @@
   <!-- Стандартный скрытый элемент HTML5 Audio -->
   <audio id="carAudioElement" preload="metadata"></audio>
 
-  <script src="/music/assets/music.js?v=20261117_v1"></script>
+  <script src="/music/assets/music.js?v=20261117_logo"></script>
 </body>
 </html>

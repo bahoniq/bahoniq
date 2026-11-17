@@ -120,6 +120,15 @@ if os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"):
     import threading
     threading.Thread(target=_keep_awake_worker, daemon=True, name="anti-sleep").start()
 
+@app.on_event("startup")
+async def startup_sync_telegram_music():
+    if os.getenv("TELEGRAM_SESSION"):
+        try:
+            from modules.music_core import sync_catalog
+            asyncio.create_task(sync_catalog(force=False))
+        except Exception:
+            pass
+
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):

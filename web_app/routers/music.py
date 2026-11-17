@@ -8,7 +8,9 @@ from typing import Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from pathlib import Path
+import asyncio
 
 from modules.music_core import (
     clear_catalog_cache,
@@ -21,6 +23,11 @@ from modules.music_core import (
 )
 
 router = APIRouter(prefix="/api/music", tags=["music"])
+
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+LOGO_PATH = STATIC_DIR / "logo.png"
+
+_auto_sync_task = None
 
 DEFAULT_VINYL_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <rect width="512" height="512" fill="#07111f" rx="32"/>
@@ -63,7 +70,7 @@ def music_status():
 
 
 @router.get("/tracks")
-def list_tracks(
+async def list_tracks(
     q: Optional[str] = Query(None, description="Поисковый запрос"),
     artist: Optional[str] = Query(None, description="Фильтр по исполнителю"),
     album: Optional[str] = Query(None, description="Фильтр по альбому"),
@@ -72,7 +79,8 @@ def list_tracks(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    """Каталог треков с поиском, фильтрами и пагинацией."""
+    """Каталог треков с поиском, фильтрами и пагинацией. При пустой базе авто-синхронизирует."""
+    global _auto_sync_task
     tracks, total = query_tracks(
         query=q,
         artist=artist,
@@ -82,6 +90,12 @@ def list_tracks(
         limit=limit,
         offset=offset
     )
+
+    # Авто-синхронизация при первом запросе, если в базе ещё нет треков
+    if total == 0 and os.getenv("TELEGRAM_SESSION"):
+        if _auto_sync_task is None or _auto_sync_task.done():
+            _auto_sync_task = asyncio.create_task(sync_catalog(force=False))
+
     return {
         "status": "ok",
         "tracks": tracks,
@@ -202,11 +216,9 @@ async def download_track(track_id: int):
 
 @router.get("/tracks/{track_id}/cover")
 def track_cover(track_id: int):
-    """Возвращает обложку трека (SVG винила высокого контраста)."""
-    track = get_track_by_id(track_id)
-    if not track:
-        raise HTTPException(status_code=404, detail="Трек не найден")
-
+    """Возвращает официальный логотип приложения BahonIQ как обложку."""
+    if LOGO_PATH.exists():
+        return FileResponse(LOGO_PATH, media_type="image/png", headers={"Cache-Control": "public, max-age=604800"})
     return Response(
         content=DEFAULT_VINYL_SVG,
         media_type="image/svg+xml",
