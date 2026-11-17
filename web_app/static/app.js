@@ -1437,23 +1437,8 @@ convertForm?.addEventListener('submit', async e => {
     }
 
     // Ctrl + V (Вставить)
-    if (code === 'KeyV' && isInput && !active.readOnly) {
-      if (e.key === 'м' || e.key === 'М') {
-        // Если при русской раскладке браузер заблокировал нативную вставку
-        try {
-          if (navigator.clipboard && navigator.clipboard.readText) {
-            navigator.clipboard.readText().then(text => {
-              if (text && isInput && !active.readOnly) {
-                const start = active.selectionStart ?? active.value.length;
-                const end = active.selectionEnd ?? active.value.length;
-                active.setRangeText(text, start, end, 'end');
-                active.dispatchEvent(new Event('input', { bubbles: true }));
-              }
-            }).catch(() => {});
-          }
-        } catch (err) {}
-      }
-    }
+    // Браузер выполняет нативную вставку автоматически на всех раскладках клавиатуры.
+    // Не вызываем программный readText/setRangeText, чтобы исключить двойную вставку контента.
   });
 })();
 
