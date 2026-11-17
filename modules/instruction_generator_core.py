@@ -152,15 +152,139 @@ def to_markdown(doc: dict[str, Any]) -> str:
 
 
 def to_html(doc: dict[str, Any]) -> str:
-    toc_items = "".join(f"<li>{step['number']}. {html.escape(step_heading(step))}</li>" for step in doc.get("steps", []))
+    steps = doc.get("steps", [])
+    toc_items = "".join(f"<li>{step.get('number', i)}. {html.escape(step_heading(step))}</li>" for i, step in enumerate(steps, 1))
     blocks = []
-    for step in doc.get("steps", []):
-        image = f'<img src="{html.escape(step["image"])}" alt="{html.escape(step["caption"])}">' if step.get("image") else ""
-        caption = f'<div class="caption"><b>Рисунок {step["number"]}.</b> {html.escape(clean_caption(step["caption"], step["number"]))}</div>' if image else ""
+    for i, step in enumerate(steps, 1):
+        num = step.get("number", i)
+        cap_text = clean_caption(step.get("caption"), num)
         note = f'<p class="note"><b>Важно:</b> {html.escape(step["note"])}</p>' if step.get("note") else ""
-        blocks.append(f'<section><h2>{step["number"]}. {html.escape(step_heading(step))}</h2><p>{html.escape(step["text"])}</p>{note}{image}{caption}</section>')
-    return f'''<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>{html.escape(doc['title'])}</title><style>
-    @page{{size:A4;margin:18mm}}body{{font:12pt "Times New Roman",Times,serif;color:#000;max-width:820px;margin:32px auto;line-height:1.35;border:1px solid #000;padding:36px;box-sizing:border-box}}header{{margin-bottom:28px}}h1{{font-size:16pt;text-align:center;margin:0 0 20px;font-weight:700}}h2{{font-size:13pt;color:#000;margin-top:20px}}.toc{{margin:20px 0 28px;padding:14px 18px;border:1px solid #000}}.toc-title{{font-weight:700;margin-bottom:8px;text-align:center}}.toc ol{{margin:0;padding-left:20px;list-style:none}}.toc li{{margin:5px 0}}img{{display:block;max-width:100%;max-height:520px;object-fit:contain;margin:12px auto 6px;border:1.2px solid #000;padding:0;box-sizing:border-box}}.caption{{text-align:center;font-size:11pt;color:#000}}.note{{margin:8px 0;color:#000}}</style></head><body><header><h1>Инструкция<br>{html.escape(doc['title'])}</h1></header><div class="toc"><div class="toc-title">Содержание</div><ol>{toc_items}</ol></div>{''.join(blocks)}</body></html>'''
+        img_html = ""
+        if step.get("image"):
+            img_html = f'''
+            <div class="screen-container">
+              <img src="{html.escape(step["image"])}" alt="{html.escape(cap_text)}">
+            </div>
+            <div class="caption"><b>Рисунок {num}.</b> {html.escape(cap_text)}</div>
+            '''
+        blocks.append(f'''<section class="step-card">
+          <h2>{num}. {html.escape(step_heading(step))}</h2>
+          <p>{html.escape(step.get("text", ""))}</p>
+          {note}
+          {img_html}
+        </section>''')
+
+    return f'''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{html.escape(doc['title'])}</title><style>
+    @page {{
+      size: A4;
+      margin: 10mm;
+    }}
+    body {{
+      font: 12pt "Times New Roman", Times, "Liberation Serif", serif;
+      color: #000;
+      max-width: 820px;
+      margin: 24px auto;
+      line-height: 1.35;
+      border: 1.15pt solid #000;
+      padding: 32px;
+      box-sizing: border-box;
+      background: #fff;
+    }}
+    header {{
+      margin-bottom: 24px;
+      text-align: center;
+    }}
+    .super-title {{
+      font-size: 15pt;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }}
+    h1 {{
+      font-size: 16pt;
+      margin: 0 0 18px;
+      font-weight: 700;
+    }}
+    .toc {{
+      margin: 18px 0 28px;
+      padding: 14px 18px;
+      border: 1.15pt solid #000;
+      background: #fafafa;
+    }}
+    .toc-title {{
+      font-weight: 700;
+      margin-bottom: 8px;
+      text-align: center;
+      font-size: 13pt;
+    }}
+    .toc ol {{
+      margin: 0;
+      padding-left: 24px;
+      list-style-type: decimal;
+    }}
+    .toc li {{
+      margin: 5px 0;
+    }}
+    .step-card {{
+      margin-bottom: 28px;
+      page-break-inside: avoid;
+    }}
+    h2 {{
+      font-size: 13pt;
+      color: #000;
+      margin: 20px 0 8px;
+      font-weight: 700;
+    }}
+    p {{
+      margin: 6px 0;
+      text-align: justify;
+    }}
+    .note {{
+      margin: 8px 0;
+      padding: 6px 12px;
+      background: #f4f4f4;
+      border-left: 3px solid #000;
+    }}
+    .screen-container {{
+      width: 16cm;
+      height: 9cm;
+      max-width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #ffffff;
+      border: 1.15pt solid #000000;
+      margin: 12px auto 6px auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      overflow: hidden;
+    }}
+    .screen-container img {{
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      margin: auto;
+    }}
+    .caption {{
+      text-align: center;
+      font-size: 11pt;
+      color: #000;
+      margin: 4px 0 16px;
+    }}
+    @media (max-width: 768px) {{
+      body {{
+        padding: 16px;
+        margin: 8px;
+      }}
+      .screen-container {{
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16 / 9;
+      }}
+    }}
+    </style></head><body><header><div class="super-title">Инструкция</div><h1>{html.escape(doc['title'])}</h1></header><div class="toc"><div class="toc-title">Содержание</div><ol>{toc_items}</ol></div>{''.join(blocks)}</body></html>'''
 
 
 def _image_bytes(value: str) -> bytes | None:
@@ -172,6 +296,110 @@ def _image_bytes(value: str) -> bytes | None:
     except Exception: return None
 
 
+def normalize_screenshot_16_9(raw: bytes) -> tuple[bytes | None, bytes | None]:
+    """
+    Fits any screenshot into a fixed 16:9 container with pure white background,
+    strictly preserving original aspect ratio (never stretched or distorted).
+    If the screenshot is vertical/tall, generates an auxiliary zoomed detail crop.
+    Returns (main_png_bytes, optional_detail_png_bytes).
+    """
+    if not raw:
+        return None, None
+    try:
+        from PIL import Image as PILImage
+        source = io.BytesIO(raw)
+        im = PILImage.open(source)
+        w, h = im.size
+        if w <= 0 or h <= 0:
+            return None, None
+
+        if im.mode in ("RGBA", "LA") or (im.mode == "P" and "transparency" in im.info):
+            im_rgba = im.convert("RGBA")
+        else:
+            im_rgba = im.convert("RGB")
+
+        target_ratio = 16.0 / 9.0
+        img_ratio = w / float(h)
+        if img_ratio >= target_ratio:
+            cw = w
+            ch = int(round(w * 9.0 / 16.0))
+            ox = 0
+            oy = (ch - h) // 2
+        else:
+            ch = h
+            cw = int(round(h * 16.0 / 9.0))
+            ox = (cw - w) // 2
+            oy = 0
+
+        bg = PILImage.new("RGB", (cw, ch), (255, 255, 255))
+        if im_rgba.mode == "RGBA":
+            bg.paste(im_rgba, (ox, oy), mask=im_rgba.getchannel("A"))
+        else:
+            bg.paste(im_rgba, (ox, oy))
+
+        out_main = io.BytesIO()
+        bg.save(out_main, format="PNG")
+        main_bytes = out_main.getvalue()
+
+        # If image is vertical / tall, create an enlarged detail crop of the active area
+        detail_bytes = None
+        if h > w * 1.15:
+            crop_h = min(h, int(round(w * 9.0 / 16.0)))
+            crop_im = im_rgba.crop((0, 0, w, crop_h))
+            crop_cw = w
+            crop_ch = int(round(w * 9.0 / 16.0))
+            crop_bg = PILImage.new("RGB", (crop_cw, crop_ch), (255, 255, 255))
+            if crop_im.mode == "RGBA":
+                crop_bg.paste(crop_im, (0, (crop_ch - crop_h) // 2), mask=crop_im.getchannel("A"))
+            else:
+                crop_bg.paste(crop_im, (0, (crop_ch - crop_h) // 2))
+            out_det = io.BytesIO()
+            crop_bg.save(out_det, format="PNG")
+            detail_bytes = out_det.getvalue()
+
+        return main_bytes, detail_bytes
+    except Exception:
+        return None, None
+
+
+def make_border_canvas(font_name: str):
+    """
+    Creates a Canvas maker that renders a solid 1.15 pt black border and centered page
+    number on EVERY page (both even and odd) during save(), guaranteeing consistent borders
+    regardless of flowables or page breaks.
+    """
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+
+    class InstructionBorderCanvas(canvas.Canvas):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.pages = []
+
+        def showPage(self):
+            self.pages.append(dict(self.__dict__))
+            self._startPage()
+
+        def save(self):
+            for page in self.pages:
+                self.__dict__.update(page)
+                self.saveState()
+                self.setStrokeColorRGB(0, 0, 0)
+                self.setLineWidth(1.15)
+                # Continuous black border: 10 mm from edges on ALL pages (even and odd)
+                self.rect(10 * mm, 10 * mm, A4[0] - 20 * mm, A4[1] - 20 * mm)
+                self.setFont(font_name, 11)
+                self.setFillColorRGB(0, 0, 0)
+                # Centered page number at 14 mm from bottom
+                self.drawCentredString(A4[0] / 2, 14 * mm, str(self._pageNumber))
+                self.restoreState()
+                super().showPage()
+            super().save()
+
+    return InstructionBorderCanvas
+
+
 def to_pdf(doc: dict[str, Any]) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER
@@ -180,7 +408,7 @@ def to_pdf(doc: dict[str, Any]) -> bytes:
     from reportlab.lib.units import mm
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table, TableStyle, CondPageBreak, KeepTogether
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table, TableStyle, KeepTogether
 
     regular_candidates = (
         "C:/Windows/Fonts/times.ttf",
@@ -208,46 +436,65 @@ def to_pdf(doc: dict[str, Any]) -> bytes:
         if font_bold not in pdfmetrics.getRegisteredFontNames():
             pdfmetrics.registerFont(TTFont(font_bold, bold_path))
         pdfmetrics.registerFontFamily("InstructionTimesFamily", normal=font, bold=font_bold, italic=font, boldItalic=font_bold)
-    out = io.BytesIO(); styles = getSampleStyleSheet()
+
+    out = io.BytesIO()
+    styles = getSampleStyleSheet()
     normal = ParagraphStyle("GSNormal", parent=styles["BodyText"], fontName=font, fontSize=12, leading=14.5, textColor=colors.black, spaceAfter=5)
     title = ParagraphStyle("GSTitle", parent=normal, fontName=font_bold, fontSize=15, leading=18, alignment=TA_CENTER, spaceAfter=14)
     contents = ParagraphStyle("GSContents", parent=normal, fontName=font_bold, fontSize=12, leading=18, leftIndent=7*mm, rightIndent=5*mm)
     heading = ParagraphStyle("GSHeading", parent=normal, fontName=font_bold, fontSize=13, leading=16, spaceBefore=7, spaceAfter=4, keepWithNext=True)
     caption = ParagraphStyle("GSCaption", parent=normal, fontSize=11, leading=13, alignment=TA_CENTER, spaceBefore=2, spaceAfter=6)
     note_style = ParagraphStyle("GSNote", parent=normal, fontSize=12, leading=14.5, spaceBefore=2, spaceAfter=6)
+
+    # 16x9 cm image table styling (160mm x 90mm with 1.15pt black border and white background)
+    img_tbl_style = TableStyle([
+        ("BOX", (0, 0), (-1, -1), 1.15, colors.black),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ])
+
     pdf = SimpleDocTemplate(out, pagesize=A4, leftMargin=20*mm, rightMargin=20*mm, topMargin=15*mm, bottomMargin=17*mm, title=doc["title"])
     story = [Spacer(1, 17*mm), Paragraph("Инструкция", title), Paragraph(html.escape(doc["title"]), title), Spacer(1, 5*mm)]
-    for step in doc.get("steps", []):
-        story.append(Paragraph(f"{step['number']}. {html.escape(step_heading(step))}", contents))
+    for i, step in enumerate(doc.get("steps", []), 1):
+        num = step.get("number", i)
+        story.append(Paragraph(f"{num}. {html.escape(step_heading(step))}", contents))
     story += [PageBreak()]
-    for step in doc.get("steps", []):
-        chunk = [Paragraph(f"{step['number']}. {html.escape(step_heading(step))}", heading), Paragraph(html.escape(step["text"]), normal)]
+
+    for i, step in enumerate(doc.get("steps", []), 1):
+        num = step.get("number", i)
+        chunk = [
+            Paragraph(f"{num}. {html.escape(step_heading(step))}", heading),
+            Paragraph(html.escape(step.get("text", "")), normal),
+        ]
         if step.get("note"):
             chunk.append(Paragraph(f"<b>Важно:</b> {html.escape(step['note'])}", note_style))
+
         raw = _image_bytes(step.get("image", ""))
         if raw:
-            try:
-                from PIL import Image as PILImage
-                source = io.BytesIO(raw); im = PILImage.open(source); w, h = im.size
-                maxw = 165*mm if w >= h else 96*mm
-                maxh = 105*mm
-                scale = min(maxw/w, maxh/h)
-                picture = Image(io.BytesIO(raw), width=w*scale, height=h*scale)
-                frame = Table([[picture]], colWidths=[w*scale], hAlign="CENTER")
-                frame.setStyle(TableStyle([("BOX",(0,0),(-1,-1),1.15,colors.black),("LEFTPADDING",(0,0),(-1,-1),0),("RIGHTPADDING",(0,0),(-1,-1),0),("TOPPADDING",(0,0),(-1,-1),0),("BOTTOMPADDING",(0,0),(-1,-1),0)]))
-                cap = Paragraph(f"<b>Рисунок {step['number']}.</b> {html.escape(clean_caption(step['caption'], step['number']))}", caption)
-                chunk += [Spacer(1, 2*mm), frame, cap]
-            except Exception: pass
+            main_png, detail_png = normalize_screenshot_16_9(raw)
+            if main_png:
+                try:
+                    # Container 16 cm x 9 cm (160mm x 90mm)
+                    picture = Image(io.BytesIO(main_png), width=160*mm, height=90*mm)
+                    frame = Table([[picture]], colWidths=[160*mm], rowHeights=[90*mm], hAlign="CENTER")
+                    frame.setStyle(img_tbl_style)
+                    cap_text = clean_caption(step.get("caption"), num)
+                    cap = Paragraph(f"<b>Рисунок {num}.</b> {html.escape(cap_text)}", caption)
+                    chunk += [Spacer(1, 2*mm), frame, cap]
+
+                    if detail_png:
+                        det_pic = Image(io.BytesIO(detail_png), width=160*mm, height=90*mm)
+                        det_frame = Table([[det_pic]], colWidths=[160*mm], rowHeights=[90*mm], hAlign="CENTER")
+                        det_frame.setStyle(img_tbl_style)
+                        det_cap = Paragraph(f"<b>Рисунок {num}.1.</b> {html.escape(cap_text)} (увеличенный фрагмент)", caption)
+                        chunk += [Spacer(1, 3*mm), det_frame, det_cap]
+                except Exception:
+                    pass
+
         story.append(KeepTogether(chunk))
-    pdf.build(story, onFirstPage=lambda c,d:_page_decor(c,d,font), onLaterPages=lambda c,d:_page_decor(c,d,font))
+
+    pdf.build(story, canvasmaker=make_border_canvas(font))
     return out.getvalue()
-
-
-def _page_decor(canvas, doc, font_name: str):
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.units import mm
-    canvas.saveState(); canvas.setStrokeColorRGB(0,0,0); canvas.setLineWidth(1)
-    canvas.rect(10*mm, 10*mm, A4[0]-20*mm, A4[1]-20*mm)
-    canvas.setFont(font_name, 11); canvas.setFillColorRGB(0,0,0)
-    canvas.drawCentredString(A4[0]/2, 14*mm, str(doc.page))
-    canvas.restoreState()
