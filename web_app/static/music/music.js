@@ -114,8 +114,9 @@
     }
   }
 
-  async function saveAudioLocally(trackId, blob) {
-    // 1. Попытка в OPFS
+  async function saveAudioLocally(trackId, blob, trackMeta = null) {
+    let saved = false;
+    // 1. Попытка в OPFS (Origin Private File System)
     if (opfsRoot) {
       try {
         const fileHandle = await opfsRoot.getFileHandle(`track_${trackId}.bin`, { create: true });
@@ -123,29 +124,30 @@
         await writable.write(blob);
         await writable.close();
         offlineTrackIds.add(trackId);
-        return true;
+        saved = true;
       } catch (err) {
         console.warn('OPFS write failed, falling back to IndexedDB:', err);
       }
     }
 
-    // 2. Fallback в IndexedDB
+    // 2. Всегда сохраняем в IndexedDB (метаданные и/или бинарник)
     if (idb) {
-      return new Promise(resolve => {
-        try {
-          const tx = idb.transaction('tracks_blobs', 'readwrite');
-          tx.objectStore('tracks_blobs').put({ id: trackId, blob: blob, size: blob.size, date: Date.now() });
-          tx.oncomplete = () => {
-            offlineTrackIds.add(trackId);
-            resolve(true);
-          };
-          tx.onerror = () => resolve(false);
-        } catch {
-          resolve(false);
+      try {
+        if (!saved) {
+          const txB = idb.transaction('tracks_blobs', 'readwrite');
+          txB.objectStore('tracks_blobs').put({ id: trackId, blob: blob, size: blob.size, date: Date.now() });
         }
-      });
+        if (trackMeta) {
+          const txM = idb.transaction('tracks_meta', 'readwrite');
+          txM.objectStore('tracks_meta').put(trackMeta);
+        }
+        offlineTrackIds.add(trackId);
+        saved = true;
+      } catch (err) {
+        console.warn('IDB write error:', err);
+      }
     }
-    return false;
+    return saved;
   }
 
   async function getLocalAudioBlob(trackId) {
@@ -192,6 +194,21 @@
   }
 
   async function scanOfflineTracks() {
+    // 1. Сканируем OPFS
+    if (opfsRoot && typeof opfsRoot.entries === 'function') {
+      try {
+        for await (const [name, handle] of opfsRoot.entries()) {
+          const m = name.match(/^track_(\d+)\.bin$/);
+          if (m) {
+            offlineTrackIds.add(Number(m[1]));
+          }
+        }
+      } catch (err) {
+        console.warn('OPFS scan error:', err);
+      }
+    }
+
+    // 2. Сканируем IndexedDB
     if (idb) {
       try {
         const tx = idb.transaction('tracks_blobs', 'readonly');
@@ -202,7 +219,8 @@
         };
       } catch {}
     }
-    // Также считываем метаданные из IDB на случай открытия офлайн
+
+    // 3. Восстанавливаем список треков из локального кэша IndexedDB если сети нет
     if (idb) {
       try {
         const tx = idb.transaction('tracks_meta', 'readonly');
@@ -216,6 +234,8 @@
         };
       } catch {}
     }
+
+    renderCatalog();
   }
 
   // --- Форматирование времени ---
@@ -274,7 +294,7 @@
 
       // Валидация размера
       if (completeBlob.size > 0 && (contentLength === 0 || completeBlob.size === contentLength || Math.abs(completeBlob.size - contentLength) < 1024)) {
-        await saveAudioLocally(track.id, completeBlob);
+        await saveAudioLocally(track.id, completeBlob, track);
         if (currentIndex >= 0 && playlist[currentIndex]?.id === track.id) {
           updateOfflinePill('offline');
         }
@@ -595,15 +615,62 @@
 
     tracksListEl.innerHTML = '';
     if (filteredPlaylist.length === 0) {
-      tracksListEl.innerHTML = `
-        <div style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
-          <div style="font-size: 18px; color: #fff; margin-bottom: 8px;">Канал @bahoniqmusic синхронизируется...</div>
-          <p style="font-size: 14px; margin-bottom: 16px;">При первом запуске сервер считывает аудиофайлы из Telegram. Это занимает 5–10 секунд.</p>
-          <button id="carBtnRetrySync" class="car-btn-open-list" style="margin: 0 auto;" type="button">🔄 Обновить список</button>
-        </div>
-      `;
-      const retryBtn = document.getElementById('carBtnRetrySync');
-      if (retryBtn) retryBtn.onclick = () => fetchCatalog();
+      if (playlist.length === 0) {
+        tracksListEl.innerHTML = `
+          <div style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
+            <div style="font-size: 18px; color: #fff; margin-bottom: 8px;">Канал @bahoniqmusic синхронизируется...</div>
+            <p style="font-size: 14px; margin-bottom: 16px;">При первом запуске сервер считывает аудиофайлы из Telegram. Это занимает 5–10 секунд.</p>
+            <button id="carBtnRetrySync" class="car-btn-open-list" style="margin: 0 auto;" type="button">🔄 Обновить список</button>
+          </div>
+        `;
+        const retryBtn = document.getElementById('carBtnRetrySync');
+        if (retryBtn) retryBtn.onclick = () => fetchCatalog();
+      } else if (activeTab === 'downloaded') {
+        tracksListEl.innerHTML = `
+          <div style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
+            <div style="font-size: 20px; color: #fff; margin-bottom: 8px;">💾 В памяти устройства пока нет треков</div>
+            <p style="font-size: 14px; line-height: 1.5; margin-bottom: 16px; color: #cbd5e1;">
+              Все <strong>${playlist.length} треков</strong> находятся на соседней вкладке <strong>«Все треки»</strong>.<br>
+              Чтобы слушать их без интернета, скачайте их в память:
+            </p>
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+              <button id="carBtnGoAllTab" class="car-btn-open-list" style="margin: 0;" type="button">📂 Открыть «Все треки»</button>
+              <button id="carBtnTriggerDownloadAll" class="car-btn-open-list" style="margin: 0; background: rgba(0, 229, 255, 0.15); color: var(--accent-cyan); border-color: rgba(0,229,255,0.4);" type="button">📥 Скачать все (${playlist.length})</button>
+            </div>
+          </div>
+        `;
+        const goAll = document.getElementById('carBtnGoAllTab');
+        if (goAll) goAll.onclick = () => {
+          document.querySelectorAll('.car-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'all'));
+          activeTab = 'all';
+          renderCatalog();
+        };
+        const trigDl = document.getElementById('carBtnTriggerDownloadAll');
+        if (trigDl && btnDownloadAll) {
+          trigDl.onclick = () => btnDownloadAll.click();
+        }
+      } else if (activeTab === 'favorites') {
+        tracksListEl.innerHTML = `
+          <div style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
+            <div style="font-size: 18px; color: #fff; margin-bottom: 8px;">❤️ Нет избранных треков</div>
+            <p style="font-size: 14px; margin-bottom: 16px;">Нажмите на сердечко во время прослушивания любого трека.</p>
+            <button id="carBtnFavGoAll" class="car-btn-open-list" style="margin: 0 auto;" type="button">📂 Открыть «Все треки»</button>
+          </div>
+        `;
+        const goAllFav = document.getElementById('carBtnFavGoAll');
+        if (goAllFav) goAllFav.onclick = () => {
+          document.querySelectorAll('.car-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'all'));
+          activeTab = 'all';
+          renderCatalog();
+        };
+      } else {
+        tracksListEl.innerHTML = `
+          <div style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
+            <div style="font-size: 18px; color: #fff; margin-bottom: 8px;">🔍 Ничего не найдено</div>
+            <p style="font-size: 14px;">Попробуйте ввести другое название или очистить строку поиска.</p>
+          </div>
+        `;
+      }
       return;
     }
 
