@@ -309,9 +309,18 @@
     }
   }
 
+  // История воспроизведения (для точного возврата назад даже в режиме Shuffle)
+  const playbackHistory = [];
+
   // --- Воспроизведение трека ---
-  async function playTrack(index) {
+  async function playTrack(index, recordHistory = true) {
     if (index < 0 || index >= playlist.length) return;
+
+    if (recordHistory && currentIndex >= 0 && currentIndex !== index) {
+      playbackHistory.push(currentIndex);
+      if (playbackHistory.length > 50) playbackHistory.shift();
+    }
+
     currentIndex = index;
     const track = playlist[currentIndex];
 
@@ -377,11 +386,18 @@
   function playNextTrack() {
     if (playlist.length === 0) return;
     if (isShuffle) {
-      const nextIdx = Math.floor(Math.random() * playlist.length);
-      playTrack(nextIdx);
+      let nextIdx = currentIndex;
+      if (playlist.length > 1) {
+        let attempts = 0;
+        while (nextIdx === currentIndex && attempts < 20) {
+          nextIdx = Math.floor(Math.random() * playlist.length);
+          attempts++;
+        }
+      }
+      playTrack(nextIdx, true);
     } else {
       const nextIdx = (currentIndex + 1) % playlist.length;
-      playTrack(nextIdx);
+      playTrack(nextIdx, true);
     }
   }
 
@@ -391,8 +407,14 @@
       audio.currentTime = 0;
       return;
     }
-    const prevIdx = (currentIndex - 1 + playlist.length) % playlist.length;
-    playTrack(prevIdx);
+    // Если есть история (особенно в Shuffle) — возвращаем реально прошлый игравший трек!
+    if (playbackHistory.length > 0) {
+      const prevIdx = playbackHistory.pop();
+      playTrack(prevIdx, false);
+    } else {
+      const prevIdx = (currentIndex - 1 + playlist.length) % playlist.length;
+      playTrack(prevIdx, false);
+    }
   }
 
   // --- События HTML5 Audio ---
@@ -419,7 +441,7 @@
     if (repeatMode === 'one') {
       audio.currentTime = 0;
       audio.play();
-    } else if (repeatMode === 'all' || currentIndex < playlist.length - 1) {
+    } else if (repeatMode === 'all' || isShuffle || currentIndex < playlist.length - 1) {
       playNextTrack();
     } else {
       updatePlayButton(false);
