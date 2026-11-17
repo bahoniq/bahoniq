@@ -26,5 +26,14 @@ class TestInstructionGenerator(unittest.TestCase):
         pdf_bytes = to_pdf(generate_instruction(sample()))
         self.assertTrue(pdf_bytes.startswith(b"%PDF"))
 
+    @patch("ai_service.generate_text", side_effect=RuntimeError("offline"))
+    def test_caption_and_audience_are_normalized(self, mock_ai):
+        data = sample()
+        data["audience"] = "деканат,студенты"
+        data["steps"][0]["caption"] = "Рисунок 1. Авторизация"
+        doc = generate_instruction(data)
+        self.assertEqual(doc["audience"], "Деканат и студенты")
+        self.assertEqual(doc["steps"][0]["caption"], "Авторизация")
+
 if __name__ == "__main__":
     unittest.main()

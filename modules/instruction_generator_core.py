@@ -30,6 +30,33 @@ def clean_text(value: Any) -> str:
     return "\n".join(re.sub(r"[ \t]+", " ", line).strip() for line in text.splitlines() if line.strip()).strip()
 
 
+def normalize_audience(value: Any) -> str:
+    """Turns terse comma-separated labels into a presentable document field."""
+    text = clean_text(value)
+    if not text:
+        return ""
+    parts = [p.strip().capitalize() for p in re.split(r"[,;]+", text) if p.strip()]
+    if len(parts) == 1:
+        return parts[0]
+    return ", ".join(parts[:-1]) + " и " + parts[-1].lower()
+
+
+def clean_caption(value: Any, number: int) -> str:
+    """Removes user-entered 'Рисунок N' to prevent duplicated prefixes."""
+    text = clean_text(value)
+    text = re.sub(r"^рис(?:унок|\.)?\s*\d+(?:\.\d+)?\s*[.\-–—:]?\s*", "", text, flags=re.I)
+    return text.rstrip(" .") or f"Выполнение шага {number}"
+
+
+def step_heading(step: dict[str, Any]) -> str:
+    caption = clean_caption(step.get("caption"), int(step.get("number") or 0))
+    if not re.fullmatch(r"Выполнение шага \d+", caption, flags=re.I):
+        return caption
+    text = re.sub(r"https?://\S+", "", clean_text(step.get("text"))).strip(" .")
+    text = re.split(r"(?<=[.!?])\s+", text, 1)[0].strip(" .")
+    return (text[:90].rstrip() if text else f"Шаг {step.get('number', '')}")
+
+
 def fallback_rewrite(text: str) -> str:
     value = clean_text(text)
     if not value:
@@ -57,7 +84,7 @@ def _extract_json(raw: str) -> dict[str, Any]:
 
 def generate_instruction(payload: dict[str, Any]) -> dict[str, Any]:
     title = clean_text(payload.get("title")) or "Инструкция"
-    audience = clean_text(payload.get("audience"))
+    audience = normalize_audience(payload.get("audience"))
     department = clean_text(payload.get("department"))
     intro = clean_text(payload.get("intro"))
     source_steps = [s for s in payload.get("steps", []) if clean_text(s.get("text"))]
@@ -92,7 +119,7 @@ def generate_instruction(payload: dict[str, Any]) -> dict[str, Any]:
         result_steps.append({
             "number": index,
             "text": clean_text(candidate.get("text")) or fallback_rewrite(source.get("text", "")),
-            "caption": clean_text(candidate.get("caption")) or clean_text(source.get("caption")) or f"Выполнение шага {index}",
+            "caption": clean_caption(candidate.get("caption") or source.get("caption"), index),
             "note": clean_text(candidate.get("note")),
             "image": source.get("image", ""),
         })
@@ -149,41 +176,70 @@ def to_pdf(doc: dict[str, Any]) -> bytes:
     from reportlab.lib.units import mm
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, KeepTogether
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table,
+        TableStyle, CondPageBreak,
+    )
     font = "Helvetica"
     for fp in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "C:/Windows/Fonts/arial.ttf"):
         if Path(fp).exists():
             font = "BahonIQUni"; pdfmetrics.registerFont(TTFont(font, fp)); break
     out = io.BytesIO(); styles = getSampleStyleSheet()
     normal = ParagraphStyle("BNormal", parent=styles["BodyText"], fontName=font, fontSize=10.5, leading=15, spaceAfter=8)
-    title = ParagraphStyle("BTitle", parent=normal, fontSize=22, leading=27, textColor=colors.HexColor("#17352A"), spaceAfter=14)
-    heading = ParagraphStyle("BHeading", parent=normal, fontSize=14, leading=18, textColor=colors.HexColor("#007A3D"), spaceBefore=12, spaceAfter=7)
+    title = ParagraphStyle("BTitle", parent=normal, fontSize=22, leading=28, alignment=1, textColor=colors.HexColor("#17352A"), spaceAfter=14)
+    eyebrow = ParagraphStyle("BEyebrow", parent=normal, fontSize=10, leading=13, alignment=1, textColor=colors.HexColor("#66756D"), spaceAfter=10)
+    contents = ParagraphStyle("BContents", parent=normal, fontSize=11, leading=17, leftIndent=8*mm, rightIndent=8*mm)
+    heading = ParagraphStyle("BHeading", parent=normal, fontSize=14, leading=18, textColor=colors.HexColor("#007A3D"), spaceBefore=10, spaceAfter=7, keepWithNext=True)
     caption = ParagraphStyle("BCaption", parent=normal, fontSize=8.5, leading=11, textColor=colors.HexColor("#66756D"), alignment=TA_CENTER)
-    pdf = SimpleDocTemplate(out, pagesize=A4, leftMargin=18*mm, rightMargin=18*mm, topMargin=16*mm, bottomMargin=16*mm, title=doc["title"])
-    story = [Paragraph(html.escape(doc["title"]), title)]
+    pdf = SimpleDocTemplate(out, pagesize=A4, leftMargin=18*mm, rightMargin=18*mm, topMargin=22*mm, bottomMargin=18*mm, title=doc["title"])
+    story = [Spacer(1, 22*mm), Paragraph("КАЗАХСКИЙ НАЦИОНАЛЬНЫЙ МЕДИЦИНСКИЙ УНИВЕРСИТЕТ", eyebrow), Spacer(1, 5*mm), Paragraph("ИНСТРУКЦИЯ", eyebrow), Paragraph(html.escape(doc["title"]), title)]
     meta = " · ".join(x for x in (doc.get("department"), doc.get("audience")) if x)
-    if meta: story += [Paragraph(html.escape(meta), caption), Spacer(1, 6*mm)]
-    if doc.get("intro"): story += [Paragraph(html.escape(doc["intro"]), normal), Spacer(1, 3*mm)]
+    if meta: story += [Paragraph(html.escape(meta), caption), Spacer(1, 7*mm)]
+    if doc.get("intro"): story += [Paragraph(html.escape(doc["intro"]), normal), Spacer(1, 8*mm)]
+    story += [Paragraph("Содержание", heading)]
     for step in doc.get("steps", []):
-        chunk = [Paragraph(f"Шаг {step['number']}", heading), Paragraph(html.escape(step["text"]), normal)]
-        if step.get("note"): chunk.append(Paragraph(f"<b>Примечание.</b> {html.escape(step['note'])}", normal))
+        story.append(Paragraph(f"{step['number']}. {html.escape(step_heading(step))}", contents))
+    story += [PageBreak()]
+    for step in doc.get("steps", []):
+        story += [CondPageBreak(55*mm), Paragraph(f"{step['number']}. {html.escape(step_heading(step))}", heading), Paragraph(html.escape(step["text"]), normal)]
+        if step.get("note"):
+            note_table = Table([[Paragraph(f"<b>Важно.</b> {html.escape(step['note'])}", normal)]], colWidths=[165*mm])
+            note_table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#FFF7E6")),("BOX",(0,0),(-1,-1),0.7,colors.HexColor("#D99A23")),("LEFTPADDING",(0,0),(-1,-1),10),("RIGHTPADDING",(0,0),(-1,-1),10),("TOPPADDING",(0,0),(-1,-1),7),("BOTTOMPADDING",(0,0),(-1,-1),2)]))
+            story += [note_table, Spacer(1, 3*mm)]
         raw = _image_bytes(step.get("image", ""))
         if raw:
             try:
                 from PIL import Image as PILImage
                 source = io.BytesIO(raw); im = PILImage.open(source); w, h = im.size
-                maxw, maxh = 165*mm, 105*mm; scale = min(maxw/w, maxh/h, 1)
-                chunk += [Spacer(1, 3*mm), Image(io.BytesIO(raw), width=w*scale, height=h*scale), Paragraph(f"Рисунок {step['number']}. {html.escape(step['caption'])}", caption)]
+                maxw = 165*mm if w >= h else 92*mm
+                maxh = 112*mm
+                scale = min(maxw/w, maxh/h)
+                picture = Image(io.BytesIO(raw), width=w*scale, height=h*scale)
+                frame = Table([[picture]], colWidths=[w*scale + 4*mm], hAlign="CENTER")
+                frame.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.7,colors.HexColor("#AAB8B1")),("LEFTPADDING",(0,0),(-1,-1),2*mm),("RIGHTPADDING",(0,0),(-1,-1),2*mm),("TOPPADDING",(0,0),(-1,-1),2*mm),("BOTTOMPADDING",(0,0),(-1,-1),2*mm)]))
+                story += [Spacer(1, 2*mm), frame, Spacer(1, 1.5*mm), Paragraph(f"Рисунок {step['number']}. {html.escape(clean_caption(step['caption'], step['number']))}", caption), Spacer(1, 3*mm)]
             except Exception: pass
-        story.append(KeepTogether(chunk))
-    pdf.build(story, onFirstPage=_footer, onLaterPages=_footer)
+    def first_page(canvas, flow_doc):
+        _page_decor(canvas, flow_doc, doc, title_page=True)
+    def later_page(canvas, flow_doc):
+        _page_decor(canvas, flow_doc, doc, title_page=False)
+    pdf.build(story, onFirstPage=first_page, onLaterPages=later_page)
     return out.getvalue()
 
 
-def _footer(canvas, doc):
+def _page_decor(canvas, doc, instruction: dict[str, Any], title_page: bool = False):
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
     from reportlab.pdfbase import pdfmetrics
     footer_font = "BahonIQUni" if "BahonIQUni" in pdfmetrics.getRegisteredFontNames() else "Helvetica"
-    canvas.saveState(); canvas.setFont(footer_font, 8); canvas.setFillColorRGB(.4,.46,.43)
-    canvas.drawString(18*2.8346, 10*2.8346, "КазНМУ · Instruction Generator AI")
-    canvas.drawRightString(A4[0]-18*2.8346, 10*2.8346, f"Страница {doc.page}"); canvas.restoreState()
+    canvas.saveState(); canvas.setStrokeColorRGB(.10,.23,.18); canvas.setLineWidth(.8)
+    canvas.rect(10*mm, 10*mm, A4[0]-20*mm, A4[1]-20*mm)
+    canvas.setFont(footer_font, 8); canvas.setFillColorRGB(.4,.46,.43)
+    department = clean_text(instruction.get("department")) or "КазНМУ"
+    canvas.drawString(18*mm, 13*mm, department)
+    canvas.drawRightString(A4[0]-18*mm, 13*mm, f"Страница {doc.page}")
+    if not title_page:
+        canvas.setFont(footer_font, 7.5)
+        canvas.drawString(18*mm, A4[1]-14*mm, clean_text(instruction.get("title"))[:80])
+        canvas.setStrokeColorRGB(0,.57,.27); canvas.line(18*mm,A4[1]-16*mm,A4[0]-18*mm,A4[1]-16*mm)
+    canvas.restoreState()
