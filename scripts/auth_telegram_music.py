@@ -86,6 +86,20 @@ async def main():
     session_string = client.session.save()
     await client.disconnect()
 
+    # Сохраняем в локальный файл и копируем в буфер обмена Windows
+    try:
+        from pathlib import Path
+        import subprocess
+        session_file = Path(__file__).resolve().parent.parent / "telegram_session.txt"
+        session_file.write_text(session_string, encoding="utf-8")
+        if sys.platform == "win32":
+            subprocess.run(["clip"], input=session_string.encode("utf-16"), check=False)
+            copied_notice = " (и автоматически скопирована в буфер обмена Windows!)"
+        else:
+            copied_notice = ""
+    except Exception:
+        copied_notice = ""
+
     print("\n" + "=" * 64)
     print("  ГОТОВО! СКОПИРУЙТЕ ЭТИ ДАННЫЕ В RENDER ENVIRONMENT VARIABLES:")
     print("=" * 64)
@@ -95,6 +109,7 @@ async def main():
     if full_id:
         print(f"TELEGRAM_CHANNEL_ID={full_id}")
     print(f"\nTELEGRAM_SESSION={session_string}\n")
+    print(f"✓ Строка сессии сохранена в файл telegram_session.txt{copied_notice}")
     print("=" * 64)
     print("ВНИМАНИЕ: Строка сессии даёт доступ к аккаунту! Никогда не публикуйте")
     print("её в Git, не передавайте в чаты и храните только в настройках Render Environment.")

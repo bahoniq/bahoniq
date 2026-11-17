@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 CLOUD_ACCESS_CREDENTIALS.md
+telegram_session.txt
 
 # Python cache and local environments
 __pycache__/
