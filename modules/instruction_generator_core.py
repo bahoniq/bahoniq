@@ -189,6 +189,9 @@ def generate_instruction(payload: dict[str, Any]) -> dict[str, Any]:
             "caption": short_title,
             "note": clean_text(candidate.get("note")) if explicit_note else "",
             "image": source.get("image", ""),
+            "mode": source.get("mode", "standard"),
+            "width": source.get("width"),
+            "height": source.get("height"),
         })
     return {
         "title": clean_text(data.get("title")) or title,
@@ -237,9 +240,11 @@ def to_html(doc: dict[str, Any]) -> str:
         note = f'<p class="note"><b>Важно:</b> {html.escape(step["note"])}</p>' if step.get("note") else ""
         img_html = ""
         if step.get("image"):
+            mode = step.get("mode", "standard")
+            mode_cls = "compact-window" if mode == "compact" else "salem-standard"
             img_html = f'''
             <div class="screen-box">
-              <img class="screenshot-img" src="{html.escape(step["image"])}" alt="{html.escape(title)}">
+              <img class="screenshot-img {mode_cls}" src="{html.escape(step["image"])}" alt="{html.escape(title)}">
               <div class="caption"><b>Рисунок {num}.</b> {html.escape(title)}</div>
             </div>
             '''
@@ -326,14 +331,23 @@ def to_html(doc: dict[str, Any]) -> str:
     }}
     .screenshot-img {{
       display: block;
-      max-width: 16cm;
+      margin: 12px auto 6px auto;
+      border: 1.15pt solid #000000;
+      box-sizing: border-box;
+    }}
+    .screenshot-img.salem-standard {{
+      width: 16.5cm;
+      max-width: 100%;
+      height: auto;
+      aspect-ratio: 1299 / 623;
+      object-fit: cover;
+    }}
+    .screenshot-img.compact-window {{
+      max-width: 16.5cm;
       max-height: 11cm;
       width: auto;
       height: auto;
       object-fit: contain;
-      margin: 12px auto 6px auto;
-      border: 1.15pt solid #000000;
-      box-sizing: border-box;
     }}
     .caption {{
       text-align: center;
@@ -465,17 +479,24 @@ def to_pdf(doc: dict[str, Any]) -> bytes:
                 im = PILImage.open(source)
                 w, h = im.size
                 if w > 0 and h > 0:
-                    max_w = 160 * mm  # 16 cm
-                    max_h = 110 * mm  # 11 cm
-                    # Горизонтальное: максимальная ширина 16 см
-                    # Вертикальное: максимальная высота 11 см
-                    # Строго сохраняем пропорции, без фиксированного контейнера и без белых полей
-                    if w >= h:
-                        scale = min(max_w / w, max_h / h)
+                    mode = step.get("mode", "standard")
+                    ratio = w / h
+                    # SalemHR Gold Standard: 1299:623 (approx 2.085:1), 16.5 cm x 7.914 cm
+                    is_salem_ratio = abs(ratio - (1299 / 623)) < 0.08
+                    if mode == "compact":
+                        # Compact window mode: centered, max width 16.5 cm, max height 11 cm, keep proportions
+                        scale = min((165 * mm) / w, (110 * mm) / h)
+                        dw = round(w * scale, 2)
+                        dh = round(h * scale, 2)
+                    elif is_salem_ratio:
+                        # SalemHR Gold Standard exact dimensions
+                        dw = 165 * mm
+                        dh = round(165 * (623 / 1299) * mm, 2)  # ~79.14 mm (~7.9 cm)
                     else:
-                        scale = min(max_h / h, max_w / w)
-                    dw = w * scale
-                    dh = h * scale
+                        # Image with other proportions: fit cleanly without stretching or letterboxing
+                        scale = min((165 * mm) / w, (110 * mm) / h)
+                        dw = round(w * scale, 2)
+                        dh = round(h * scale, 2)
 
                     picture = Image(io.BytesIO(raw), width=dw, height=dh)
                     frame = Table([[picture]], colWidths=[dw], rowHeights=[dh], hAlign="CENTER")

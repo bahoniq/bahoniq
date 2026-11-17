@@ -62,11 +62,41 @@ class TestInstructionGenerator(unittest.TestCase):
         doc = sample()
         doc["steps"][0]["image"] = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
         html_out = to_html(doc)
-        self.assertIn("16cm", html_out)
+        self.assertIn("16.5cm", html_out)
         self.assertIn("11cm", html_out)
         self.assertIn("1.15pt", html_out)
-        self.assertIn("screenshot-img", html_out)
+        self.assertIn("salem-standard", html_out)
         self.assertIn("<b>Рисунок 1.</b> Авторизация в системе", html_out)
+
+    def test_salem_standard_image_pdf(self):
+        # Create SalemHR standard image 1299x623
+        salem_im = PILImage.new("RGB", (1299, 623), color=(80, 140, 200))
+        buf = io.BytesIO()
+        salem_im.save(buf, format="PNG")
+        import base64
+        data_uri = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+        doc = {
+            "title": "Инструкция SalemHR",
+            "steps": [
+                {
+                    "number": 1,
+                    "text": "Перейдите в модуль личного кабинета и подтвердите учетные данные.",
+                    "caption": "Авторизация в системе",
+                    "image": data_uri,
+                    "mode": "standard"
+                },
+                {
+                    "number": 2,
+                    "text": "В открывшемся компактном окне выберите параметры экспорта.",
+                    "caption": "Выбор параметров",
+                    "image": data_uri,
+                    "mode": "compact"
+                }
+            ]
+        }
+        pdf_bytes = to_pdf(doc)
+        self.assertTrue(pdf_bytes.startswith(b"%PDF"))
 
     def test_pdf_borders_on_all_5_pages(self):
         try:
