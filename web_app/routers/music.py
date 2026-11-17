@@ -124,7 +124,8 @@ async def list_tracks(
     )
 
     # Авто-синхронизация при первом запросе, если в базе ещё нет треков
-    if total == 0 and os.getenv("TELEGRAM_SESSION"):
+    has_session = bool(os.getenv("TELEGRAM_SESSION") or (STATIC_DIR.parent.parent / "telegram_session.txt").exists())
+    if total == 0 and has_session:
         if _auto_sync_task is None or _auto_sync_task.done():
             _auto_sync_task = asyncio.create_task(sync_catalog(force=False))
 

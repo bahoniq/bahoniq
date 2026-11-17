@@ -122,7 +122,7 @@ if os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"):
 
 @app.on_event("startup")
 async def startup_sync_telegram_music():
-    if os.getenv("TELEGRAM_SESSION"):
+    if os.getenv("TELEGRAM_SESSION") or (STATIC.parent.parent / "telegram_session.txt").exists():
         try:
             from modules.music_core import sync_catalog
             asyncio.create_task(sync_catalog(force=False))
@@ -146,6 +146,7 @@ async def auth_middleware(request: Request, call_next):
         or path.startswith("/assets/")
         or path.startswith("/music/assets/")
         or path.startswith("/music/icons/")
+        or path.startswith("/api/music/")
     ):
         return await call_next(request)
     

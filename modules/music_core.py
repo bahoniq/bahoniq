@@ -181,6 +181,10 @@ async def get_telegram_client():
         api_id_str = os.getenv("TELEGRAM_API_ID", "").strip()
         api_hash = os.getenv("TELEGRAM_API_HASH", "").strip()
         session_str = os.getenv("TELEGRAM_SESSION", "").strip()
+        if not session_str:
+            session_file = DATA_DIR.parent / "telegram_session.txt"
+            if session_file.exists():
+                session_str = session_file.read_text(encoding="utf-8").strip()
 
         if not api_id_str or not api_hash or not session_str:
             return None
@@ -217,17 +221,7 @@ async def get_channel_entity(client):
         except Exception:
             pass
 
-    # Явно заданный username важнее эвристик и старых диалогов. Ранее здесь
-    # использовался зашитый ID старого канала, из-за чего синхронизация могла
-    # успешно читать не тот канал и возвращать 0 треков.
-    channel_user_env = os.getenv("TELEGRAM_CHANNEL_USERNAME", "bahoniqmusic").strip().replace("@", "")
-    if channel_user_env:
-        try:
-            return await client.get_entity(channel_user_env)
-        except Exception:
-            pass
-
-    # Автопоиск среди диалогов — только резервный вариант.
+    # 1. Поиск среди диалогов пользователя группы/канала «Музыка ДИТ» с аудиофайлами
     try:
         candidates = []
         async for d in client.iter_dialogs(limit=50):
@@ -245,7 +239,23 @@ async def get_channel_entity(client):
     except Exception:
         pass
 
-    # Попытка через invite link если задан
+    # 2. Попытка прямого ID чата с музыкой (-5288727334)
+    try:
+        ent = await client.get_entity(-5288727334)
+        if ent:
+            return ent
+    except Exception:
+        pass
+
+    # 3. По username канала (если задан)
+    channel_user_env = os.getenv("TELEGRAM_CHANNEL_USERNAME", "bahoniqmusic").strip().replace("@", "")
+    if channel_user_env:
+        try:
+            return await client.get_entity(channel_user_env)
+        except Exception:
+            pass
+
+    # 4. Попытка через invite link если задан
     invite_env = os.getenv("TELEGRAM_CHANNEL_INVITE", "").strip()
     if invite_env:
         try:
@@ -386,7 +396,7 @@ def get_catalog_status() -> Dict[str, Any]:
         total_tracks = conn.execute("SELECT COUNT(*) FROM tracks").fetchone()[0]
         last_sync_row = conn.execute("SELECT value FROM sync_meta WHERE key='last_sync'").fetchone()
         last_sync = last_sync_row[0] if last_sync_row else None
-        has_session = bool(os.getenv("TELEGRAM_SESSION", "").strip())
+        has_session = bool(os.getenv("TELEGRAM_SESSION", "").strip() or (DATA_DIR.parent / "telegram_session.txt").exists())
         has_creds = bool(os.getenv("TELEGRAM_API_ID") and os.getenv("TELEGRAM_API_HASH"))
 
         return {
@@ -493,12 +503,27 @@ async def get_telegram_document_for_track(track_id: int):
     if not client:
         return track, None
 
-    channel = await get_channel_entity(client)
-    message = await client.get_messages(channel, ids=track["telegram_msg_id"])
-    if not message or not getattr(message, "media", None):
-        return track, None
+    document = None
+    # 1. Попытка получить из основного канала
+    try:
+        channel = await get_channel_entity(client)
+        if channel:
+            message = await client.get_messages(channel, ids=track["telegram_msg_id"])
+            if message and getattr(message, "media", None):
+                document = getattr(message.media, "document", None)
+    except Exception:
+        pass
 
-    document = getattr(message.media, "document", None)
+    # 2. Если в основном канале сообщение не найдено, проверяем прямой чат -5288727334
+    if not document:
+        try:
+            alt_channel = await client.get_entity(-5288727334)
+            message = await client.get_messages(alt_channel, ids=track["telegram_msg_id"])
+            if message and getattr(message, "media", None):
+                document = getattr(message.media, "document", None)
+        except Exception:
+            pass
+
     return track, document
 
 
