@@ -196,15 +196,25 @@
     if (idb) {
       try {
         if (!saved) {
-          const txB = idb.transaction('tracks_blobs', 'readwrite');
-          txB.objectStore('tracks_blobs').put({
-            id: trackId, blob, size: blob.size, expectedSize: expectedSize || blob.size,
-            complete: true, date: Date.now()
+          await new Promise((resolve, reject) => {
+            const txB = idb.transaction('tracks_blobs', 'readwrite');
+            txB.objectStore('tracks_blobs').put({
+              id: trackId, blob, size: blob.size, expectedSize: expectedSize || blob.size,
+              complete: true, date: Date.now()
+            });
+            txB.oncomplete = () => resolve();
+            txB.onerror = () => reject(txB.error || new Error('IndexedDB audio write failed'));
+            txB.onabort = () => reject(txB.error || new Error('IndexedDB audio write aborted'));
           });
         }
         if (trackMeta) {
-          const txM = idb.transaction('tracks_meta', 'readwrite');
-          txM.objectStore('tracks_meta').put(trackMeta);
+          await new Promise((resolve, reject) => {
+            const txM = idb.transaction('tracks_meta', 'readwrite');
+            txM.objectStore('tracks_meta').put(trackMeta);
+            txM.oncomplete = () => resolve();
+            txM.onerror = () => reject(txM.error || new Error('IndexedDB metadata write failed'));
+            txM.onabort = () => reject(txM.error || new Error('IndexedDB metadata write aborted'));
+          });
         }
         offlineTrackIds.add(trackId);
         persistOfflineTrackIds();
@@ -225,6 +235,7 @@
         if (file && expectedSize && file.size !== expectedSize) {
           await opfsRoot.removeEntry(`track_${trackId}.bin`).catch(() => {});
           offlineTrackIds.delete(trackId);
+          persistOfflineTrackIds();
         }
       } catch {}
     }
@@ -238,7 +249,18 @@
             const row = req.result;
             const valid = row && row.complete === true && row.blob && row.blob.size > 0 &&
               (!expectedSize || row.blob.size === expectedSize);
-            resolve(valid ? row.blob : null);
+            if (valid) {
+              resolve(row.blob);
+              return;
+            }
+            // Старые/оборванные записи не должны оставаться «офлайн».
+            offlineTrackIds.delete(trackId);
+            persistOfflineTrackIds();
+            try {
+              const cleanupTx = idb.transaction('tracks_blobs', 'readwrite');
+              cleanupTx.objectStore('tracks_blobs').delete(trackId);
+            } catch {}
+            resolve(null);
           };
           req.onerror = () => resolve(null);
         } catch {
@@ -270,17 +292,33 @@
   }
 
   async function scanOfflineTracks() {
-    loadOfflineTrackIdsFromStorage();
+    // localStorage — только список кандидатов для быстрой проверки, но не
+    // доказательство наличия файла. Истина — успешно прочитанный OPFS/IDB Blob.
+    const registryCandidates = new Set();
+    try {
+      const raw = localStorage.getItem(OFFLINE_IDS_STORAGE_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(arr)) arr.forEach(id => registryCandidates.add(Number(id)));
+    } catch {}
+    offlineTrackIds.clear();
     loadCachedPlaylistFromStorage();
 
-    // 1. Быстро считываем все ключи из IndexedDB (Promise-based)
+    // 1. Проверяем сами записи IndexedDB, а не только их ключи.
     if (idb) {
       await new Promise(resolve => {
         try {
           const tx = idb.transaction('tracks_blobs', 'readonly');
-          const req = tx.objectStore('tracks_blobs').getAllKeys();
+          const req = tx.objectStore('tracks_blobs').getAll();
           req.onsuccess = () => {
-            (req.result || []).forEach(k => offlineTrackIds.add(Number(k)));
+            (req.result || []).forEach(row => {
+              const track = playlist.find(t => Number(t.id) === Number(row.id));
+              const expectedSize = Number(track?.file_size || row.expectedSize || 0);
+              const actualSize = Number(row.blob?.size || row.size || 0);
+              if (row.complete === true && row.blob && actualSize > 0 &&
+                  (!expectedSize || actualSize === expectedSize)) {
+                offlineTrackIds.add(Number(row.id));
+              }
+            });
             resolve();
           };
           req.onerror = () => resolve();
@@ -310,11 +348,11 @@
       }
     }
 
-    // 3. Прямой зондаж диапазона ID 1..150 для слабых магнитол без итератора
+    // 3. Проверяем кандидатов старого реестра и небольшой аварийный диапазон.
     if (opfsRoot) {
-      const probeIds = [];
+      const probeIds = [...registryCandidates];
       for (let i = 1; i <= 150; i++) {
-        if (!offlineTrackIds.has(i)) probeIds.push(i);
+        if (!offlineTrackIds.has(i) && !registryCandidates.has(i)) probeIds.push(i);
       }
       for (let s = 0; s < probeIds.length; s += 16) {
         const batch = probeIds.slice(s, s + 16);
@@ -322,13 +360,18 @@
           try {
             const handle = await opfsRoot.getFileHandle(`track_${id}.bin`);
             const file = await handle.getFile();
-            if (file && file.size > 0) {
+            const track = playlist.find(t => Number(t.id) === Number(id));
+            const expectedSize = Number(track?.file_size || 0);
+            if (file && file.size > 0 && (!expectedSize || file.size === expectedSize)) {
               offlineTrackIds.add(id);
             }
           } catch {}
         }));
       }
     }
+
+    // Перезаписываем быстрый реестр только реально подтверждёнными файлами.
+    persistOfflineTrackIds();
 
     // 4. Также сканируем OPFS итератором (если поддерживается)
     if (opfsRoot) {
@@ -415,8 +458,18 @@
 
   // --- Загрузка трека в фоне при первом прослушивании ---
   async function downloadTrackInBackground(track) {
-    if (!track || offlineTrackIds.has(track.id)) return true;
+    if (!track) return false;
     if (downloadPromises.has(track.id)) return downloadPromises.get(track.id);
+
+    // Зелёный бейдж мог прийти из устаревшего localStorage. Перед отказом от
+    // загрузки обязательно подтверждаем существование читаемого файла.
+    if (offlineTrackIds.has(track.id)) {
+      const verifiedBlob = await getLocalAudioBlob(track.id, Number(track.file_size || 0));
+      if (verifiedBlob) return true;
+      offlineTrackIds.delete(track.id);
+      persistOfflineTrackIds();
+      updateTrackItemBadge(track.id);
+    }
 
     const task = (async () => {
       updateTrackItemBadge(track.id);
@@ -524,6 +577,12 @@
       updateOfflinePill('offline');
       btnDownloadActive.classList.add('active');
     } else {
+      // Убираем ложный статус, иначе downloadTrackInBackground решит, что файл
+      // уже существует, и не восстановит его.
+      offlineTrackIds.delete(track.id);
+      persistOfflineTrackIds();
+      updateTrackItemBadge(track.id);
+      btnDownloadActive.classList.remove('active');
       // Стриминг с сервера через Range
       audio.src = `/api/music/tracks/${track.id}/stream`;
       updateOfflinePill('stream');
