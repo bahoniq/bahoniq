@@ -13,6 +13,7 @@
 from __future__ import annotations
 import asyncio
 import io
+import logging
 import mimetypes
 import os
 import re
@@ -24,6 +25,8 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT_DIR / "data"
 DB_PATH = DATA_DIR / "music_catalog.db"
+MUSIC_CACHE_DIR = DATA_DIR / "music_stream_cache"
+LOGGER = logging.getLogger(__name__)
 
 # Синглтон-клиент Telethon
 _client = None
@@ -31,7 +34,15 @@ _client_lock = asyncio.Lock()
 # Ограничиваем количество одновременных MTProto-загрузок. Нельзя использовать
 # один per-track lock и для стрима, и для фонового download: длительный Range-
 # запрос тогда блокирует офлайн-сохранение этого же трека.
-_telegram_download_slots = asyncio.Semaphore(8)
+_cache_locks: Dict[int, asyncio.Lock] = {}
+
+
+def _get_cache_lock(track_id: int) -> asyncio.Lock:
+    lock = _cache_locks.get(track_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _cache_locks[track_id] = lock
+    return lock
 
 
 def get_db_connection() -> sqlite3.Connection:
@@ -221,7 +232,15 @@ async def get_channel_entity(client):
         except Exception:
             pass
 
-    # 1. Поиск среди диалогов пользователя группы/канала «Музыка ДИТ» с аудиофайлами
+    # Явно настроенный username важнее эвристического поиска и старых каналов.
+    channel_user_env = os.getenv("TELEGRAM_CHANNEL_USERNAME", "bahoniqmusic").strip().replace("@", "")
+    if channel_user_env:
+        try:
+            return await client.get_entity(channel_user_env)
+        except Exception:
+            pass
+
+    # Поиск среди диалогов пользователя — только резервный вариант.
     try:
         candidates = []
         async for d in client.iter_dialogs(limit=50):
@@ -239,23 +258,7 @@ async def get_channel_entity(client):
     except Exception:
         pass
 
-    # 2. Попытка прямого ID чата с музыкой (-5288727334)
-    try:
-        ent = await client.get_entity(-5288727334)
-        if ent:
-            return ent
-    except Exception:
-        pass
-
-    # 3. По username канала (если задан)
-    channel_user_env = os.getenv("TELEGRAM_CHANNEL_USERNAME", "bahoniqmusic").strip().replace("@", "")
-    if channel_user_env:
-        try:
-            return await client.get_entity(channel_user_env)
-        except Exception:
-            pass
-
-    # 4. Попытка через invite link если задан
+    # Попытка через invite link если задан.
     invite_env = os.getenv("TELEGRAM_CHANNEL_INVITE", "").strip()
     if invite_env:
         try:
@@ -514,17 +517,110 @@ async def get_telegram_document_for_track(track_id: int):
     except Exception:
         pass
 
-    # 2. Если в основном канале сообщение не найдено, проверяем прямой чат -5288727334
-    if not document:
-        try:
-            alt_channel = await client.get_entity(-5288727334)
-            message = await client.get_messages(alt_channel, ids=track["telegram_msg_id"])
-            if message and getattr(message, "media", None):
-                document = getattr(message.media, "document", None)
-        except Exception:
-            pass
-
     return track, document
+
+
+def _cache_limit_bytes() -> int:
+    try:
+        mb = max(64, int(os.getenv("MUSIC_SERVER_CACHE_MB", "256")))
+    except ValueError:
+        mb = 256
+    return mb * 1024 * 1024
+
+
+def _prune_music_cache(protected: Optional[Path] = None) -> None:
+    """Удаляет самые старые серверные аудиофайлы при превышении лимита."""
+    MUSIC_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    files = [p for p in MUSIC_CACHE_DIR.glob("track_*.bin") if p.is_file()]
+    total = sum(p.stat().st_size for p in files)
+    limit = _cache_limit_bytes()
+    for path in sorted(files, key=lambda p: p.stat().st_mtime):
+        if total <= limit:
+            break
+        if protected and path == protected:
+            continue
+        try:
+            size = path.stat().st_size
+            path.unlink()
+            total -= size
+        except OSError:
+            continue
+
+
+async def ensure_track_cached(track_id: int) -> Path:
+    """Надёжно загружает Telegram-документ один раз и возвращает локальный файл.
+
+    Стрим и офлайн-скачивание используют один и тот же проверенный файл, поэтому
+    браузер всегда получает ровно заявленный Content-Length.
+    """
+    track = get_track_by_id(track_id)
+    if not track:
+        raise FileNotFoundError(f"Track {track_id} not found")
+
+    MUSIC_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    final_path = MUSIC_CACHE_DIR / f"track_{track_id}_{track['telegram_msg_id']}.bin"
+    expected_db_size = int(track.get("file_size") or 0)
+    if final_path.exists() and final_path.stat().st_size > 0:
+        if not expected_db_size or final_path.stat().st_size == expected_db_size:
+            final_path.touch()
+            return final_path
+        final_path.unlink(missing_ok=True)
+
+    async with _get_cache_lock(track_id):
+        if final_path.exists() and final_path.stat().st_size > 0:
+            if not expected_db_size or final_path.stat().st_size == expected_db_size:
+                final_path.touch()
+                return final_path
+            final_path.unlink(missing_ok=True)
+
+        live_track, document = await get_telegram_document_for_track(track_id)
+        if not document:
+            raise FileNotFoundError(f"Telegram document for track {track_id} is unavailable")
+        expected_size = int(getattr(document, "size", 0) or expected_db_size)
+        client = await get_telegram_client()
+        if not client:
+            raise RuntimeError("Telegram client is not authorized")
+
+        part_path = final_path.with_suffix(".part")
+        part_path.unlink(missing_ok=True)
+        written = 0
+        try:
+            with part_path.open("wb") as output:
+                async for chunk in client.iter_download(document, chunk_size=256 * 1024):
+                    if not chunk:
+                        continue
+                    output.write(chunk)
+                    written += len(chunk)
+            if written <= 0 or (expected_size > 0 and written != expected_size):
+                raise IOError(f"Incomplete Telegram file: expected={expected_size}, received={written}")
+            os.replace(part_path, final_path)
+            if expected_db_size != written:
+                conn = get_db_connection()
+                try:
+                    with conn:
+                        conn.execute("UPDATE tracks SET file_size=? WHERE id=?", (written, track_id))
+                finally:
+                    conn.close()
+            _prune_music_cache(protected=final_path)
+            return final_path
+        except BaseException:
+            part_path.unlink(missing_ok=True)
+            raise
+
+
+async def read_cached_track_chunks(
+    path: Path, start: int, length: int, chunk_size: int = 256 * 1024
+) -> AsyncGenerator[bytes, None]:
+    """Отдаёт точный диапазон байтов из проверенного локального файла."""
+    remaining = max(0, int(length))
+    with path.open("rb") as source:
+        source.seek(max(0, int(start)))
+        while remaining > 0:
+            chunk = source.read(min(chunk_size, remaining))
+            if not chunk:
+                raise IOError("Cached music file ended before requested range")
+            remaining -= len(chunk)
+            yield chunk
 
 
 async def stream_track_chunks(
@@ -537,40 +633,16 @@ async def stream_track_chunks(
     Генератор чанков аудиофайла через Telethon iter_download.
     Использует single-flight блокировку и корректно обрабатывает обрыв соединения клиентом.
     """
-    track, document = await get_telegram_document_for_track(track_id)
-    if not document:
-        return
-
-    client = await get_telegram_client()
-    # Загружаем диапазон независимо от фонового полного скачивания. Семафор
-    # защищает Telegram от шквала запросов, но не создаёт взаимную блокировку.
-    async with _telegram_download_slots:
-        try:
-            remaining = max(0, int(length))
-            async for chunk in client.iter_download(document, offset=start, limit=remaining, chunk_size=chunk_size):
-                if not chunk or remaining <= 0:
-                    break
-                piece = chunk[:remaining]
-                if piece:
-                    yield piece
-                    remaining -= len(piece)
-                if remaining <= 0:
-                    break
-        except (asyncio.CancelledError, GeneratorExit):
-            # Клиент отключился или перемотал трек — штатное прерывание стрима
-            return
-        except Exception:
-            return
+    path = await ensure_track_cached(track_id)
+    async for chunk in read_cached_track_chunks(path, start, length, chunk_size):
+        yield chunk
 
 
 async def download_full_track(track_id: int) -> AsyncGenerator[bytes, None]:
     """Потоковая отдача полного аудиофайла для сохранения в OPFS/IndexedDB."""
-    track = get_track_by_id(track_id)
-    if not track:
-        return
-
-    file_size = track["file_size"]
-    async for chunk in stream_track_chunks(track_id, start=0, length=file_size, chunk_size=256 * 1024):
+    path = await ensure_track_cached(track_id)
+    file_size = path.stat().st_size
+    async for chunk in read_cached_track_chunks(path, start=0, length=file_size):
         yield chunk
 
 

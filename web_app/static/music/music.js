@@ -160,6 +160,43 @@
     });
   }
 
+  // Однократный перенос офлайн-треков из имени БД ранних версий плеера.
+  async function migrateLegacyIndexedDB() {
+    if (!idb || !indexedDB.databases) return;
+    try {
+      const databases = await indexedDB.databases();
+      if (!databases.some(db => db.name === 'BahonIQ_Music_DB')) return;
+      const legacy = await new Promise(resolve => {
+        const req = indexedDB.open('BahonIQ_Music_DB');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      });
+      if (!legacy || !legacy.objectStoreNames.contains('tracks_blobs')) return;
+      const rows = await new Promise(resolve => {
+        const tx = legacy.transaction('tracks_blobs', 'readonly');
+        const req = tx.objectStore('tracks_blobs').getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      });
+      for (const row of rows) {
+        const blob = row?.blob;
+        if (!blob || blob.size < 20000) continue;
+        await new Promise(resolve => {
+          const tx = idb.transaction('tracks_blobs', 'readwrite');
+          tx.objectStore('tracks_blobs').put({
+            ...row, id: Number(row.id), blob, size: blob.size, complete: true
+          });
+          tx.oncomplete = resolve;
+          tx.onerror = resolve;
+          tx.onabort = resolve;
+        });
+      }
+      legacy.close();
+    } catch (err) {
+      console.warn('Legacy offline storage migration skipped:', err);
+    }
+  }
+
   // --- OPFS (Origin Private File System) Хранилище ---
   let opfsRoot = null;
   async function initOPFS() {
@@ -177,7 +214,8 @@
 
   // --- Сохранение аудиофайла локально (OPFS + IndexedDB) ---
   async function saveAudioLocally(trackId, blob, trackMeta = null) {
-    if (!blob || blob.size < 20000) {
+    const expectedSize = Number(trackMeta?.file_size || 0);
+    if (!blob || blob.size < 20000 || (expectedSize > 0 && blob.size !== expectedSize)) {
       console.warn(`saveAudioLocally: rejected invalid blob size (${blob?.size || 0} bytes) for track ${trackId}`);
       return false;
     }
@@ -186,17 +224,28 @@
     // 1. Попытка записи в OPFS (Origin Private File System)
     if (opfsRoot) {
       try {
+        const partName = `track_${trackId}.part`;
+        const partHandle = await opfsRoot.getFileHandle(partName, { create: true });
+        const partWriter = await partHandle.createWritable();
+        await partWriter.write(blob);
+        await partWriter.close();
+        const partFile = await partHandle.getFile();
+        if (partFile.size !== blob.size) throw new Error('Incomplete OPFS temporary file');
+
         const fileHandle = await opfsRoot.getFileHandle(`track_${trackId}.bin`, { create: true });
         if (typeof fileHandle.createWritable === 'function') {
           const writable = await fileHandle.createWritable();
-          await writable.write(blob);
+          await writable.write(partFile);
           await writable.close();
           const savedFile = await fileHandle.getFile();
-          if (savedFile && savedFile.size >= 20000) {
+          if (savedFile && savedFile.size === blob.size) {
             savedInOpfs = true;
           }
         }
+        await opfsRoot.removeEntry(partName).catch(() => {});
       } catch (err) {
+        await opfsRoot.removeEntry(`track_${trackId}.part`).catch(() => {});
+        await opfsRoot.removeEntry(`track_${trackId}.bin`).catch(() => {});
         console.warn('OPFS write fallback:', err);
       }
     }
@@ -212,6 +261,7 @@
             blob: blob,
             size: blob.size,
             complete: true,
+            expectedSize: expectedSize || blob.size,
             date: Date.now()
           });
           txB.oncomplete = () => resolve();
@@ -243,7 +293,7 @@
   }
 
   // --- Получение аудиофайла из локального хранилища ---
-  async function getLocalAudioBlob(trackId) {
+  async function getLocalAudioBlob(trackId, expectedSize = 0) {
     const tid = Number(trackId);
 
     // 1. Проверяем OPFS
@@ -251,9 +301,10 @@
       try {
         const handle = await opfsRoot.getFileHandle(`track_${tid}.bin`);
         const file = await handle.getFile();
-        if (file && file.size >= 20000) {
+        if (file && file.size >= 20000 && (!expectedSize || file.size === expectedSize)) {
           return file;
         }
+        if (file) await opfsRoot.removeEntry(`track_${tid}.bin`).catch(() => {});
       } catch {}
     }
 
@@ -267,7 +318,7 @@
             const row = req.result;
             const b = row?.blob;
             const size = Number(b?.size || row?.size || 0);
-            if (b && size >= 20000) {
+            if (b && size >= 20000 && row.complete === true && (!expectedSize || size === expectedSize)) {
               resolve(b);
             } else {
               resolve(null);
@@ -326,7 +377,9 @@
             (req.result || []).forEach(row => {
               const b = row?.blob;
               const size = Number(b?.size || row?.size || 0);
-              if (b && size >= 20000) {
+              const track = playlist.find(t => Number(t.id) === Number(row.id));
+              const expected = Number(track?.file_size || row?.expectedSize || 0);
+              if (b && size >= 20000 && row.complete === true && (!expected || size === expected)) {
                 offlineTrackIds.add(Number(row.id));
               }
             });
@@ -347,7 +400,8 @@
           try {
             const handle = await opfsRoot.getFileHandle(`track_${t.id}.bin`);
             const file = await handle.getFile();
-            if (file && file.size >= 20000) {
+            const expected = Number(t.file_size || 0);
+            if (file && file.size >= 20000 && (!expected || file.size === expected)) {
               offlineTrackIds.add(Number(t.id));
             }
           } catch {}
@@ -431,11 +485,12 @@
 
         // Браузерный нативный blob() — быстрое прямое считывание без фрагментации памяти JS
         const blob = await resp.blob();
-        if (!blob || blob.size < 20000) {
+        const responseSize = Number(resp.headers.get('Content-Length') || 0);
+        if (!blob || blob.size < 20000 || (responseSize > 0 && blob.size !== responseSize)) {
           throw new Error('Downloaded blob too small or empty');
         }
 
-        const saved = await saveAudioLocally(tid, blob, track);
+        const saved = await saveAudioLocally(tid, blob, { ...track, file_size: responseSize || blob.size });
         if (!saved) throw new Error('Failed to save blob locally');
 
         offlineTrackIds.add(tid);
@@ -532,7 +587,7 @@
 
     // 5. Фоновая подгрузка локального Blob URL, если трек офлайн, но ещё не в оперативной памяти
     if (isOffline && !memoryBlobUrls.has(tid)) {
-      getLocalAudioBlob(tid).then(blob => {
+      getLocalAudioBlob(tid, Number(track.file_size || 0)).then(blob => {
         if (blob && requestId === playRequestId) {
           const url = URL.createObjectURL(blob);
           memoryBlobUrls.set(tid, url);
@@ -1357,6 +1412,7 @@
       renderCatalog();
     }
     await initIndexedDB();
+    await migrateLegacyIndexedDB();
     await initOPFS();
     setupMediaSession();
     setupSoundControls();

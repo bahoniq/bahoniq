@@ -15,6 +15,7 @@ import asyncio
 from modules.music_core import (
     clear_catalog_cache,
     download_full_track,
+    ensure_track_cached,
     get_catalog_status,
     get_track_by_id,
     query_tracks,
@@ -174,8 +175,13 @@ async def stream_track(
     file_size = track["file_size"]
     mime_type = track["mime_type"] or "audio/mpeg"
 
+    try:
+        cached_path = await ensure_track_cached(track_id)
+        file_size = cached_path.stat().st_size
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Не удалось получить аудиофайл: {exc}") from exc
     if file_size <= 0:
-        raise HTTPException(status_code=400, detail="Некорректный размер файла")
+        raise HTTPException(status_code=502, detail="Telegram вернул пустой аудиофайл")
 
     # Обработка Range-запроса (например: bytes=1048576- или bytes=0-1048575)
     if range_header:
@@ -229,7 +235,11 @@ async def download_track(track_id: int):
     if not track:
         raise HTTPException(status_code=404, detail="Трек не найден")
 
-    file_size = track["file_size"]
+    try:
+        cached_path = await ensure_track_cached(track_id)
+        file_size = cached_path.stat().st_size
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Не удалось скачать аудиофайл: {exc}") from exc
     mime_type = track["mime_type"] or "audio/mpeg"
     raw_name = track["file_name"] or f"{track['artist']} - {track['title']}.mp3"
     safe_filename = quote(raw_name)
