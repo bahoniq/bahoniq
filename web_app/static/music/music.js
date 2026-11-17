@@ -492,51 +492,68 @@
       }
 
       try {
-        const resp = await fetch(`/api/music/tracks/${tid}/download`, { signal: controller.signal });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+          try {
+            const resp = await fetch(`/api/music/tracks/${tid}/download`, { signal: controller.signal });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-        const responseSize = Number(resp.headers.get('Content-Length') || track.file_size || 0);
-        let blob = null;
+            const responseSize = Number(resp.headers.get('Content-Length') || track.file_size || 0);
+            let blob = null;
 
-        if (resp.body && typeof resp.body.getReader === 'function') {
-          const reader = resp.body.getReader();
-          const chunks = [];
-          let receivedBytes = 0;
+            if (resp.body && typeof resp.body.getReader === 'function') {
+              const reader = resp.body.getReader();
+              const chunks = [];
+              let receivedBytes = 0;
 
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            if (value && value.byteLength > 0) {
-              chunks.push(value);
-              receivedBytes += value.byteLength;
-              if (responseSize > 0 && currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
-                const pct = Math.max(1, Math.min(99, Math.round((receivedBytes / responseSize) * 100)));
-                updateOfflinePill('downloading', pct);
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                if (value && value.byteLength > 0) {
+                  chunks.push(value);
+                  receivedBytes += value.byteLength;
+                  if (responseSize > 0 && currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
+                    const pct = Math.max(1, Math.min(99, Math.round((receivedBytes / responseSize) * 100)));
+                    updateOfflinePill('downloading', pct);
+                  }
+                }
               }
+              blob = new Blob(chunks, { type: track.mime_type || 'audio/mpeg' });
+            } else {
+              blob = await resp.blob();
+            }
+
+            if (!blob || blob.size < 20000 || (responseSize > 0 && blob.size !== responseSize)) {
+              throw new Error(`Downloaded blob size mismatch (${blob?.size || 0} vs ${responseSize})`);
+            }
+
+            const saved = await saveAudioLocally(tid, blob, { ...track, file_size: responseSize || blob.size });
+            if (!saved) throw new Error('Failed to save blob locally');
+
+            offlineTrackIds.add(tid);
+            downloadingTrackIds.delete(tid);
+            downloadPromises.delete(tid);
+            persistOfflineTrackIds();
+            updateTrackItemBadge(tid);
+            syncDownloadAllButton();
+
+            if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
+              updateOfflinePill('offline');
+              if (btnDownloadActive) btnDownloadActive.classList.add('active');
+            }
+            return true;
+          } catch (attemptErr) {
+            if (controller.signal.aborted || (attemptErr && attemptErr.name === 'AbortError')) {
+              throw attemptErr;
+            }
+            if (attempt < 3) {
+              await new Promise(r => setTimeout(r, 2000));
+            } else {
+              throw attemptErr;
             }
           }
-          blob = new Blob(chunks, { type: track.mime_type || 'audio/mpeg' });
-        } else {
-          blob = await resp.blob();
         }
-
-        if (!blob || blob.size < 20000 || (responseSize > 0 && blob.size !== responseSize)) {
-          throw new Error('Downloaded blob incomplete or empty');
-        }
-
-        const saved = await saveAudioLocally(tid, blob, { ...track, file_size: responseSize || blob.size });
-        if (!saved) throw new Error('Failed to save blob locally');
-
-        offlineTrackIds.add(tid);
-        persistOfflineTrackIds();
-        updateTrackItemBadge(tid);
-        syncDownloadAllButton();
-
-        if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
-          updateOfflinePill('offline');
-          if (btnDownloadActive) btnDownloadActive.classList.add('active');
-        }
-        return true;
+        return false;
       } catch (err) {
         if (err && err.name !== 'AbortError') {
           console.warn(`Download error for track ${tid}:`, err);
@@ -548,17 +565,14 @@
       } finally {
         downloadAbortControllers.delete(tid);
         downloadingTrackIds.delete(tid);
+        downloadPromises.delete(tid);
         updateTrackItemBadge(tid);
         syncDownloadAllButton();
       }
     })();
 
     downloadPromises.set(tid, task);
-    try {
-      return await task;
-    } finally {
-      downloadPromises.delete(tid);
-    }
+    return await task;
   }
 
   // --- Запуск воспроизведения трека (СИНХРОННО В СТЕКЕ КЛИКА) ---
@@ -1105,7 +1119,7 @@
       const tid = Number(track.id);
       const isCur = currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid;
       const isOff = offlineTrackIds.has(tid);
-      const isDown = downloadPromises.has(tid);
+      const isDown = downloadingTrackIds.has(tid);
 
       const item = document.createElement('div');
       item.className = `car-track-item ${isCur ? 'current' : ''}`;
@@ -1147,7 +1161,7 @@
     const el = document.getElementById(`track-item-${tid}`);
     if (!el) return;
     const isOff = offlineTrackIds.has(tid);
-    const isDown = downloadPromises.has(tid);
+    const isDown = downloadingTrackIds.has(tid);
     let badge = el.querySelector('.car-track-badge');
     if (isOff) {
       if (!badge) {

@@ -800,7 +800,11 @@ async def _start_or_join_progressive_download(track_id: int) -> _ProgressiveDown
                 if state.written <= 0 or (expected_size > 0 and state.written != expected_size):
                     raise IOError(f"Incomplete Telegram file: expected={expected_size}, received={state.written}")
 
-                os.replace(part_path, final_path)
+                async with state.cond:
+                    os.replace(part_path, final_path)
+                    state.done = True
+                    state.cond.notify_all()
+
                 if expected_db_size != state.written:
                     try:
                         conn = get_db_connection()
@@ -812,9 +816,6 @@ async def _start_or_join_progressive_download(track_id: int) -> _ProgressiveDown
                     except Exception:
                         pass
                 _prune_music_cache(protected=final_path)
-                state.done = True
-                async with state.cond:
-                    state.cond.notify_all()
                 return final_path
             except BaseException as exc:
                 state.error = exc
@@ -897,8 +898,7 @@ async def stream_track_chunks(
             if state.error is not None:
                 raise state.error
 
-            target_path = state.final_path if state.final_path.exists() else state.part_path
-            available = state.final_path.stat().st_size if state.final_path.exists() else state.written
+            available = state.written
             if available <= pos:
                 if state.done:
                     break
@@ -906,7 +906,11 @@ async def stream_track_chunks(
                 continue
 
             to_read = min(chunk_size, end_pos - pos, available - pos)
-            with target_path.open("rb") as source:
+            try:
+                f_obj = state.final_path.open("rb") if state.final_path.exists() else state.part_path.open("rb")
+            except FileNotFoundError:
+                f_obj = state.final_path.open("rb") if state.final_path.exists() else state.part_path.open("rb")
+            with f_obj as source:
                 source.seek(pos)
                 data = source.read(to_read)
             if not data:
