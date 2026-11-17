@@ -659,6 +659,34 @@
 
   searchInput.addEventListener('input', () => renderCatalog());
 
+  const btnDownloadAll = $('carBtnDownloadAll');
+  let isDownloadingAll = false;
+
+  if (btnDownloadAll) {
+    btnDownloadAll.onclick = async () => {
+      if (isDownloadingAll) return;
+      const unDownloaded = playlist.filter(t => !offlineTrackIds.has(t.id));
+      if (unDownloaded.length === 0) {
+        alert('Все треки уже сохранены в памяти устройства!');
+        return;
+      }
+      isDownloadingAll = true;
+      btnDownloadAll.disabled = true;
+
+      let count = 0;
+      for (const track of unDownloaded) {
+        count++;
+        btnDownloadAll.textContent = `📥 ${count}/${unDownloaded.length}...`;
+        await downloadTrackInBackground(track);
+      }
+
+      btnDownloadAll.textContent = '✓ Все сохранены';
+      btnDownloadAll.disabled = false;
+      isDownloadingAll = false;
+      renderCatalog();
+    };
+  }
+
   // --- Открытие/закрытие панелей ---
   btnPlaylist.onclick = () => catalogDrawer.classList.add('open');
   btnCloseCatalog.onclick = () => catalogDrawer.classList.remove('open');
