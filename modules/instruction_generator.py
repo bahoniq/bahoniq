@@ -16,7 +16,7 @@ class InstructionGeneratorWindow:
         tk.Label(top,text="Instruction Generator AI",font=("Segoe UI",20,"bold"),bg=self.theme["card"],fg=self.theme["text"]).pack(side="left",padx=16,pady=16)
         self.status=tk.Label(top,text="Черновик",bg=self.theme["card"],fg=self.theme["gray"]); self.status.pack(side="right",padx=16)
         meta=tk.Frame(self.win,bg=self.theme["card"]); meta.pack(fill="x",padx=16,pady=(0,10))
-        rule_text = "Золотое правило: желательно делать все скриншоты одного размера и снимать всё рабочее окно браузера или программы. Это обеспечит единый масштаб, хорошую читаемость и одинаковое оформление изображений в готовой инструкции."
+        rule_text = "Единый формат 16,5 × 7,9 см: загружайте любые скриншоты — система автоматически находит выделенные элементы (красные рамки и маркеры), увеличивает их для идеальной читаемости и формирует все рисунки в аккуратном едином размере."
         tk.Label(meta,text=rule_text,font=("Segoe UI",9,"italic"),bg="#FEF9C3",fg="#854D0E",wraplength=880,justify="left",padx=10,pady=6).grid(row=0,column=0,sticky="ew",padx=12,pady=(6,4))
         self.title=self._field(meta,"Название инструкции",1,0); meta.columnconfigure(0,weight=1)
         host=tk.Frame(self.win,bg=self.theme["bg"]); host.pack(fill="both",expand=True,padx=16)
