@@ -22,6 +22,7 @@ from modules.music_core import (
     get_catalog_status,
     get_saved_telegram_session_str,
     get_telegram_client,
+    get_telegram_document_for_track,
     get_track_by_id,
     query_tracks,
     save_telegram_session_str,
@@ -291,9 +292,77 @@ async def download_track(track_id: int):
     )
 
 
+def _extract_embedded_cover_bytes(audio_path: Path) -> Optional[tuple[bytes, str]]:
+    """Извлекает встроенную обложку APIC из MP3-файла, если она есть."""
+    try:
+        data = audio_path.read_bytes()
+    except OSError:
+        return None
+    if len(data) < 128 or data[:3] != b"ID3":
+        return None
+    # Ищем JPEG или PNG внутри ID3v2 заголовка (первые 512 КБ)
+    head = data[:524288]
+    jpeg_start = head.find(b"\xff\xd8\xff")
+    if jpeg_start != -1:
+        jpeg_end = head.find(b"\xff\xd9", jpeg_start)
+        if jpeg_end != -1 and (jpeg_end + 2 - jpeg_start) > 1024:
+            return head[jpeg_start:jpeg_end + 2], "image/jpeg"
+    png_start = head.find(b"\x89PNG\r\n\x1a\n")
+    if png_start != -1:
+        png_end = head.find(b"IEND\xaeB`\x82", png_start)
+        if png_end != -1 and (png_end + 8 - png_start) > 1024:
+            return head[png_start:png_end + 8], "image/png"
+    return None
+
+
 @router.get("/tracks/{track_id}/cover")
-def track_cover(track_id: int):
-    """Возвращает официальный логотип приложения BahonIQ как обложку."""
+async def track_cover(track_id: int, fallback: Optional[str] = Query(None)):
+    """Возвращает реальную обложку трека (из кэша MP3 или миниатюры Telegram), либо 404 при fallback=404, либо логотип BQ."""
+    from modules.music_core import MUSIC_CACHE_DIR
+    MUSIC_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cover_cache_path = MUSIC_CACHE_DIR / f"cover_{track_id}.img"
+    cover_mime_path = MUSIC_CACHE_DIR / f"cover_{track_id}.mime"
+
+    if cover_cache_path.exists() and cover_cache_path.stat().st_size > 512:
+        mime = cover_mime_path.read_text(encoding="utf-8").strip() if cover_mime_path.exists() else "image/jpeg"
+        return FileResponse(cover_cache_path, media_type=mime, headers={"Cache-Control": "public, max-age=604800"})
+
+    # 1. Пробуем достать встроенную обложку из уже скачанного на сервер аудиофайла
+    cached_audio = get_cached_track_path(track_id)
+    if cached_audio is not None:
+        extracted = _extract_embedded_cover_bytes(cached_audio)
+        if extracted:
+            img_bytes, mime = extracted
+            try:
+                cover_cache_path.write_bytes(img_bytes)
+                cover_mime_path.write_text(mime, encoding="utf-8")
+            except OSError:
+                pass
+            return Response(content=img_bytes, media_type=mime, headers={"Cache-Control": "public, max-age=604800"})
+
+    # 2. Если у трека отмечено наличие миниатюры в Telegram (has_cover), скачиваем thumb
+    track = get_track_by_id(track_id)
+    if track and track.get("has_cover"):
+        try:
+            client = await get_telegram_client()
+            if client:
+                _, doc = await get_telegram_document_for_track(track_id)
+                if doc and getattr(doc, "thumbs", None):
+                    raw_thumb = await client.download_media(doc, file=bytes, thumb=-1)
+                    if isinstance(raw_thumb, (bytes, bytearray)) and len(raw_thumb) > 512:
+                        mime = "image/png" if raw_thumb[:4] == b"\x89PNG" else "image/jpeg"
+                        try:
+                            cover_cache_path.write_bytes(bytes(raw_thumb))
+                            cover_mime_path.write_text(mime, encoding="utf-8")
+                        except OSError:
+                            pass
+                        return Response(content=bytes(raw_thumb), media_type=mime, headers={"Cache-Control": "public, max-age=604800"})
+        except Exception:
+            pass
+
+    if fallback == "404":
+        raise HTTPException(status_code=404, detail="No embedded cover")
+
     if LOGO_PATH.exists():
         return FileResponse(LOGO_PATH, media_type="image/png", headers={"Cache-Control": "public, max-age=604800"})
     return Response(

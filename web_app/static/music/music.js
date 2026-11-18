@@ -90,6 +90,229 @@
 
   const repeatOneBadge = $('carRepeatOneBadge');
   const toastEl = $('carToast');
+  const metaDurationEl = $('carMetaDuration');
+  const inlineStatusEl = $('carInlineStatus');
+  const waveformBarsEl = $('carWaveformBars');
+  const btnDriveMode = $('carBtnDriveMode');
+  const driveModeLabel = $('carDriveModeLabel');
+  const btnFavDrive = $('carBtnFavDrive');
+  const upNextStrip = $('carUpNextStrip');
+  const upNextTitleEl = $('carUpNextTitle');
+  const upNextMetaEl = $('carUpNextMeta');
+
+  // --- Палитры живой атмосферы и генератор обложек для треков ---
+  const AMBIENT_PALETTES = [
+    { bg1: '#58082c', bg2: '#1a0b2e', accent: '#ff2a85', amb: ['#ff1e6b', '#00e5ff', '#7928ca'] },
+    { bg1: '#063b2d', bg2: '#0f2438', accent: '#fbbf24', amb: ['#10b981', '#f59e0b', '#0284c7'] },
+    { bg1: '#1e1b4b', bg2: '#09192f', accent: '#38bdf8', amb: ['#6366f1', '#00e5ff', '#ec4899'] },
+    { bg1: '#3b0764', bg2: '#0c192c', accent: '#c084fc', amb: ['#a855f7', '#00e5ff', '#f43f5e'] },
+    { bg1: '#451a03', bg2: '#111827', accent: '#fb923c', amb: ['#f97316', '#eab308', '#0ea5e9'] },
+    { bg1: '#0f172a', bg2: '#064e3b', accent: '#2dd4bf', amb: ['#14b8a6', '#38bdf8', '#6366f1'] }
+  ];
+
+  function hashTrackString(str) {
+    let h = 2166136261;
+    const s = String(str || '');
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return Math.abs(h);
+  }
+
+  function makeTrackArtworkSvgDataUri(track) {
+    const title = String(track?.title || 'Музыка').trim();
+    const artist = String(track?.artist || 'BahonIQ Music').trim();
+    const h = hashTrackString(`${artist}::${title}`);
+    const pal = AMBIENT_PALETTES[h % AMBIENT_PALETTES.length];
+    const shortTitle = title.length > 22 ? title.slice(0, 21) + '…' : title;
+    const shortArtist = artist.length > 28 ? artist.slice(0, 27) + '…' : artist;
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600">
+      <defs>
+        <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="${pal.bg1}"/>
+          <stop offset="55%" stop-color="${pal.bg2}"/>
+          <stop offset="100%" stop-color="#050811"/>
+        </linearGradient>
+        <radialGradient id="glow" cx="72%" cy="28%" r="55%">
+          <stop offset="0%" stop-color="${pal.accent}" stop-opacity="0.65"/>
+          <stop offset="100%" stop-color="${pal.accent}" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <rect width="600" height="600" fill="url(#g)"/>
+      <rect width="600" height="600" fill="url(#glow)"/>
+      <circle cx="430" cy="180" r="150" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+      <circle cx="430" cy="180" r="105" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+      <circle cx="430" cy="180" r="55" fill="${pal.accent}" fill-opacity="0.28" stroke="${pal.accent}" stroke-width="3"/>
+      <text x="48" y="475" fill="rgba(255,255,255,0.78)" font-family="Segoe UI, sans-serif" font-size="22" font-weight="600" letter-spacing="1.5">${escapeHtml(shortArtist.toUpperCase())}</text>
+      <text x="48" y="528" fill="#ffffff" font-family="Segoe UI, sans-serif" font-size="38" font-weight="900">${escapeHtml(shortTitle)}</text>
+    </svg>`;
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  }
+
+  function applyTrackAmbientAndCover(track) {
+    if (!track) return;
+    const tid = Number(track.id);
+    const h = hashTrackString(`${track.artist || ''}::${track.title || ''}`);
+    const pal = AMBIENT_PALETTES[h % AMBIENT_PALETTES.length];
+    document.documentElement.style.setProperty('--amb-1', pal.amb[0]);
+    document.documentElement.style.setProperty('--amb-2', pal.amb[1]);
+    document.documentElement.style.setProperty('--amb-3', pal.amb[2]);
+
+    const generatedCover = makeTrackArtworkSvgDataUri(track);
+    coverImg.onerror = () => {
+      coverImg.onerror = () => {
+        coverImg.onerror = null;
+        coverImg.src = '/music/assets/logo.png';
+      };
+      coverImg.src = generatedCover;
+    };
+    // Если на сервере есть реальная обложка в MP3/Telegram — загрузится она, иначе сработает fallback=404 -> стильная обложка трека
+    coverImg.src = `/api/music/tracks/${tid}/cover?fallback=404`;
+  }
+
+  // --- Анимированная звуковая волна (Waveform) ---
+  const WAVEFORM_BARS_COUNT = 48;
+  let currentWaveformHeights = [];
+  let currentProgressRatio = 0;
+
+  function buildWaveformShapeForTrack(track) {
+    const seed = hashTrackString(`${track?.id || 0}::${track?.title || ''}`);
+    const arr = [];
+    for (let i = 0; i < WAVEFORM_BARS_COUNT; i++) {
+      const wave1 = Math.sin((i / WAVEFORM_BARS_COUNT) * Math.PI) * 55;
+      const wave2 = Math.abs(Math.sin(seed * 0.01 + i * 0.65)) * 38;
+      arr.push(Math.max(18, Math.min(100, Math.round(16 + wave1 + wave2))));
+    }
+    currentWaveformHeights = arr;
+    renderWaveformBars(currentProgressRatio);
+  }
+
+  function renderWaveformBars(ratio = 0) {
+    if (!waveformBarsEl) return;
+    currentProgressRatio = Math.max(0, Math.min(1, Number(ratio) || 0));
+    if (currentWaveformHeights.length === 0) {
+      buildWaveformShapeForTrack(playlist[currentIndex] || { id: 1, title: 'BahonIQ' });
+      return;
+    }
+    if (waveformBarsEl.children.length !== WAVEFORM_BARS_COUNT) {
+      waveformBarsEl.innerHTML = '';
+      for (let i = 0; i < WAVEFORM_BARS_COUNT; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'wf-bar';
+        waveformBarsEl.appendChild(bar);
+      }
+    }
+    const headIdx = Math.min(WAVEFORM_BARS_COUNT - 1, Math.floor(currentProgressRatio * WAVEFORM_BARS_COUNT));
+    const children = waveformBarsEl.children;
+    for (let i = 0; i < WAVEFORM_BARS_COUNT; i++) {
+      const bar = children[i];
+      const h = currentWaveformHeights[i] || 40;
+      bar.className = 'wf-bar' + (i < headIdx ? ' played' : '') + (i === headIdx && currentProgressRatio > 0 ? ' head' : '');
+      bar.style.height = `${Math.max(10, Math.round((h / 100) * 40))}px`;
+    }
+  }
+
+  if (waveformBarsEl) {
+    const seekFromPointer = (clientX) => {
+      const rect = waveformBarsEl.getBoundingClientRect();
+      if (!rect.width) return;
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      renderWaveformBars(ratio);
+      if (!isNaN(audio.duration) && audio.duration > 0) {
+        audio.currentTime = ratio * audio.duration;
+        timeCurrent.textContent = formatTime(audio.currentTime);
+        try { localStorage.setItem(LAST_POS_STORAGE_KEY, String(Math.floor(audio.currentTime))); } catch {}
+      }
+    };
+    let isSeekingWave = false;
+    waveformBarsEl.addEventListener('pointerdown', e => {
+      isSeekingWave = true;
+      seekFromPointer(e.clientX);
+    });
+    window.addEventListener('pointermove', e => {
+      if (isSeekingWave) seekFromPointer(e.clientX);
+    });
+    window.addEventListener('pointerup', () => {
+      isSeekingWave = false;
+    });
+  }
+
+  // Плавное дыхание звуковой волны во время воспроизведения
+  setInterval(() => {
+    if (audio.paused || !waveformBarsEl || currentWaveformHeights.length === 0) return;
+    const headIdx = Math.min(WAVEFORM_BARS_COUNT - 1, Math.floor(currentProgressRatio * WAVEFORM_BARS_COUNT));
+    const children = waveformBarsEl.children;
+    for (let i = 0; i <= headIdx && i < children.length; i++) {
+      const base = currentWaveformHeights[i] || 50;
+      const jitter = Math.sin(Date.now() / 180 + i * 0.7) * 11;
+      const h = Math.max(12, Math.min(42, Math.round(((base + jitter) / 100) * 40)));
+      children[i].style.height = `${h}px`;
+    }
+  }, 140);
+
+  // --- Обновление строки «Далее в очереди» ---
+  function peekNextTrackInQueue() {
+    if (playlist.length === 0) return null;
+    const queue = getActiveQueueIndices();
+    if (queue.length === 0) return null;
+    if (isShuffle) {
+      const validSet = new Set(queue);
+      shuffleBag = shuffleBag.filter(i => validSet.has(i) && i !== currentIndex);
+      if (shuffleBag.length === 0 && queue.length > 1) {
+        shuffleBag = queue.filter(i => i !== currentIndex);
+        for (let i = shuffleBag.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffleBag[i], shuffleBag[j]] = [shuffleBag[j], shuffleBag[i]];
+        }
+      }
+      const nextIdx = shuffleBag.length > 0 ? shuffleBag[shuffleBag.length - 1] : queue[0];
+      return playlist[nextIdx] || null;
+    }
+    const pos = queue.indexOf(currentIndex);
+    const nextIdx = pos >= 0 ? queue[(pos + 1) % queue.length] : (currentIndex + 1) % playlist.length;
+    return playlist[nextIdx] || null;
+  }
+
+  function updateUpNextStrip() {
+    if (!upNextTitleEl) return;
+    const nextTrack = peekNextTrackInQueue();
+    if (!nextTrack) {
+      upNextTitleEl.textContent = '—';
+      if (upNextMetaEl) upNextMetaEl.textContent = '';
+      return;
+    }
+    const ntid = Number(nextTrack.id);
+    const isOff = offlineTrackIds.has(ntid);
+    upNextTitleEl.textContent = `${nextTrack.title || 'Без названия'} — ${nextTrack.artist || 'Музыка ДИТ'}`;
+    if (upNextMetaEl) {
+      upNextMetaEl.textContent = `(${formatTime(nextTrack.duration)} · ${isOff ? 'офлайн' : 'онлайн'})`;
+    }
+  }
+
+  if (upNextStrip) {
+    upNextStrip.addEventListener('click', () => {
+      playNextTrack();
+    });
+  }
+
+  // --- Переключатель двух режимов: Обычный / В дороге ---
+  let isDriveMode = localStorage.getItem('bahoniq_drive_mode') === 'true';
+  function syncDriveModeUI() {
+    document.body.classList.toggle('drive-mode', isDriveMode);
+    if (btnDriveMode) btnDriveMode.classList.toggle('active', isDriveMode);
+    if (driveModeLabel) driveModeLabel.textContent = isDriveMode ? 'Обычный вид' : 'В дороге';
+  }
+  syncDriveModeUI();
+  if (btnDriveMode) {
+    btnDriveMode.addEventListener('click', () => {
+      isDriveMode = !isDriveMode;
+      localStorage.setItem('bahoniq_drive_mode', isDriveMode ? 'true' : 'false');
+      syncDriveModeUI();
+      showCarToast(isDriveMode ? '🚗 Режим «В дороге»: крупные кнопки' : '🎛️ Обычный режим плеера');
+    });
+  }
 
   function showCarToast(msg) {
     if (!toastEl) return;
@@ -547,18 +770,20 @@
 
   // --- Индикатор статуса источника звука (Офлайн / Стриминг / Загрузка) ---
   function updateOfflinePill(state, progress = 0) {
-    if (!offlineStatus || !offlineText) return;
-    offlineStatus.className = 'car-offline-pill';
-    if (state === 'offline') {
-      offlineStatus.classList.add('offline');
-      offlineText.textContent = 'Офлайн (в памяти)';
-    } else if (state === 'stream') {
-      offlineStatus.classList.add('stream');
-      offlineText.textContent = 'Онлайн стриминг';
-    } else if (state === 'downloading') {
-      offlineStatus.classList.add('downloading');
-      offlineText.textContent = progress > 0 ? `Сохранение ${progress}%` : 'Сохранение в память...';
+    if (inlineStatusEl) {
+      inlineStatusEl.className = 'car-inline-status';
+      if (state === 'offline') {
+        inlineStatusEl.classList.add('offline');
+        inlineStatusEl.textContent = 'сохранено офлайн';
+      } else if (state === 'downloading') {
+        inlineStatusEl.classList.add('downloading');
+        inlineStatusEl.textContent = progress > 0 ? `сохранение ${progress}%` : 'сохранение...';
+      } else {
+        inlineStatusEl.textContent = 'онлайн';
+      }
     }
+    if (!offlineStatus || !offlineText) return;
+    offlineStatus.className = 'car-offline-pill hidden';
   }
 
   // --- Фоновое скачивание трека в постоянную память (после старта воспроизведения, как в Telegram) ---
@@ -709,19 +934,23 @@
     // 2. Метаданные трека
     trackTitle.textContent = track.title || 'Без названия';
     trackArtist.textContent = track.artist || 'Музыка ДИТ';
-    coverImg.onerror = () => {
-      coverImg.onerror = null;
-      coverImg.src = '/music/assets/logo.png';
-    };
-    coverImg.src = `/api/music/tracks/${tid}/cover`;
+    if (metaDurationEl) metaDurationEl.textContent = formatTime(track.duration);
+    timeTotal.textContent = formatTime(track.duration);
+    applyTrackAmbientAndCover(track);
+    buildWaveformShapeForTrack(track);
     if (diagCurrentTrack) diagCurrentTrack.textContent = `${track.artist} — ${track.title}`;
     localStorage.setItem('bahoniq_last_track_id', tid);
 
     const isFav = favorites.has(tid);
     btnFav.classList.toggle('active', isFav);
     btnFav.classList.toggle('fav-active', isFav);
+    if (btnFavDrive) {
+      btnFavDrive.classList.toggle('active', isFav);
+      btnFavDrive.classList.toggle('fav-active', isFav);
+    }
     const isOffline = offlineTrackIds.has(tid);
     if (btnDownloadActive) btnDownloadActive.classList.toggle('active', isOffline);
+    updateUpNextStrip();
 
     // 3. Выбор источника (синхронно):
     // Если трек уже сохранён в памяти устройства — воспроизводим локальный Blob URL (0 мс, без сети).
@@ -773,6 +1002,7 @@
   }
 
   function updatePlayButton(playing) {
+    document.body.classList.toggle('playing', Boolean(playing));
     if (playing) {
       iconPlay.classList.add('hidden');
       iconPause.classList.remove('hidden');
@@ -887,10 +1117,13 @@
   let lastSavedSec = -1;
   audio.addEventListener('timeupdate', () => {
     if (!isNaN(audio.duration) && audio.duration > 0) {
-      const pct = (audio.currentTime / audio.duration) * 100;
+      const ratio = audio.currentTime / audio.duration;
+      const pct = ratio * 100;
       seekBar.value = pct;
+      renderWaveformBars(ratio);
       timeCurrent.textContent = formatTime(audio.currentTime);
       timeTotal.textContent = formatTime(audio.duration);
+      if (metaDurationEl) metaDurationEl.textContent = formatTime(audio.duration);
 
       const curSec = Math.floor(audio.currentTime);
       if (curSec !== lastSavedSec && curSec % 3 === 0) {
@@ -1048,6 +1281,7 @@
     shuffleBag = [];
     btnShuffle.classList.toggle('active', isShuffle);
     localStorage.setItem('bahoniq_shuffle', isShuffle ? 'true' : 'false');
+    updateUpNextStrip();
     showCarToast(isShuffle ? '🔀 Случайный порядок: ВКЛ (без повторов)' : '➡️ По порядку: ВКЛ');
   });
 
@@ -1066,22 +1300,30 @@
     localStorage.setItem('bahoniq_repeat', repeatMode);
   });
 
-  btnFav.addEventListener('click', () => {
+  function toggleCurrentTrackFavorite() {
     if (currentIndex < 0 || !playlist[currentIndex]) return;
     const track = playlist[currentIndex];
     const tid = Number(track.id);
-    if (favorites.has(tid)) {
-      favorites.delete(tid);
-      btnFav.classList.remove('active', 'fav-active');
-      showCarToast('Убрано из Избранного');
-    } else {
+    const nowFav = !favorites.has(tid);
+    if (nowFav) {
       favorites.add(tid);
-      btnFav.classList.add('active', 'fav-active');
       showCarToast('❤️ Добавлено в Избранное');
+    } else {
+      favorites.delete(tid);
+      showCarToast('Убрано из Избранного');
+    }
+    btnFav.classList.toggle('active', nowFav);
+    btnFav.classList.toggle('fav-active', nowFav);
+    if (btnFavDrive) {
+      btnFavDrive.classList.toggle('active', nowFav);
+      btnFavDrive.classList.toggle('fav-active', nowFav);
     }
     persistFavorites();
     if (activeTab === 'favorites') renderCatalog();
-  });
+  }
+
+  btnFav.addEventListener('click', toggleCurrentTrackFavorite);
+  if (btnFavDrive) btnFavDrive.addEventListener('click', toggleCurrentTrackFavorite);
 
   if (btnDownloadActive) {
     btnDownloadActive.addEventListener('click', async () => {
@@ -1220,10 +1462,16 @@
           const tid = Number(t.id);
           trackTitle.textContent = t.title || 'Без названия';
           trackArtist.textContent = t.artist || 'Музыка ДИТ';
-          coverImg.src = `/api/music/tracks/${tid}/cover`;
+          if (metaDurationEl) metaDurationEl.textContent = formatTime(t.duration);
+          applyTrackAmbientAndCover(t);
+          buildWaveformShapeForTrack(t);
           const isFav = favorites.has(tid);
           btnFav.classList.toggle('active', isFav);
           btnFav.classList.toggle('fav-active', isFav);
+          if (btnFavDrive) {
+            btnFavDrive.classList.toggle('active', isFav);
+            btnFavDrive.classList.toggle('fav-active', isFav);
+          }
           const isOff = offlineTrackIds.has(tid);
           if (btnDownloadActive) btnDownloadActive.classList.toggle('active', isOff);
           updateOfflinePill(isOff ? 'offline' : 'stream');
@@ -1232,9 +1480,12 @@
             timeTotal.textContent = formatTime(t.duration);
             if (savedPos > 0 && savedPos < t.duration) {
               timeCurrent.textContent = formatTime(savedPos);
-              seekBar.value = (savedPos / t.duration) * 100;
+              const ratio = savedPos / t.duration;
+              seekBar.value = ratio * 100;
+              renderWaveformBars(ratio);
             }
           }
+          updateUpNextStrip();
         }
 
         // Кэшируем метаданные в IndexedDB для работы офлайн
@@ -1649,31 +1900,126 @@
     }
   }
 
-  // --- Открытие/закрытие панелей ---
+  // --- Открытие/закрытие панелей и СВАЙП (перелистывание пальцем) ---
   if (btnPlaylist && catalogDrawer) btnPlaylist.onclick = () => catalogDrawer.classList.add('open');
   if (btnCloseCatalog && catalogDrawer) btnCloseCatalog.onclick = () => catalogDrawer.classList.remove('open');
 
   const coverBox = $('carCoverBox');
-  if (coverBox && catalogDrawer) {
-    let touchStartX = 0;
-    let touchStartY = 0;
-    coverBox.addEventListener('touchstart', e => {
+  const stageEl = document.querySelector('.car-stage');
+
+  // Подключаем живой свайп (перелистывание пальцем или мышью влево/вправо) по обложке и сцене плеера
+  function attachSwipeNavigation() {
+    const swipeTarget = stageEl || coverBox;
+    if (!swipeTarget) return;
+
+    let startX = 0;
+    let startY = 0;
+    let currentX = 0;
+    let tracking = false;
+    let didSwipe = false;
+
+    const isInteractiveControl = (el) => {
+      if (!el || !el.closest) return false;
+      return Boolean(el.closest('button, a, input, #carWaveformBars, .waveform-bars'));
+    };
+
+    const onStart = (x, y, target) => {
+      if (isInteractiveControl(target)) return;
+      startX = x;
+      startY = y;
+      currentX = x;
+      tracking = true;
+      didSwipe = false;
+      if (coverBox) coverBox.style.transition = 'transform 0.05s linear';
+    };
+
+    const onMove = (x, y) => {
+      if (!tracking) return;
+      currentX = x;
+      const dx = x - startX;
+      const dy = y - startY;
+      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
+        didSwipe = true;
+        if (coverBox) {
+          const clampDx = Math.max(-75, Math.min(75, dx * 0.45));
+          coverBox.style.transform = `translateX(${clampDx}px) rotate(${clampDx * 0.04}deg)`;
+        }
+      }
+    };
+
+    const onEnd = (x, y) => {
+      if (!tracking) return;
+      tracking = false;
+      const dx = x - startX;
+      const dy = y - startY;
+
+      if (coverBox) {
+        coverBox.style.transition = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
+        coverBox.style.transform = '';
+      }
+
+      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        didSwipe = true;
+        if (dx < 0) {
+          playNextTrack();
+        } else {
+          playPrevTrack();
+        }
+      }
+    };
+
+    // Touch-события (телефон и экран магнитолы)
+    swipeTarget.addEventListener('touchstart', e => {
       if (e.touches && e.touches.length === 1) {
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
+        onStart(e.touches[0].clientX, e.touches[0].clientY, e.target);
       }
     }, { passive: true });
-    coverBox.addEventListener('touchend', e => {
-      if (!e.changedTouches || e.changedTouches.length === 0) return;
-      const dx = e.changedTouches[0].clientX - touchStartX;
-      const dy = e.changedTouches[0].clientY - touchStartY;
-      if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.4) {
-        if (dx < 0) playNextTrack();
-        else playPrevTrack();
+
+    swipeTarget.addEventListener('touchmove', e => {
+      if (e.touches && e.touches.length === 1) {
+        onMove(e.touches[0].clientX, e.touches[0].clientY);
       }
     }, { passive: true });
-    coverBox.onclick = () => catalogDrawer.classList.add('open');
+
+    swipeTarget.addEventListener('touchend', e => {
+      if (e.changedTouches && e.changedTouches.length > 0) {
+        onEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+      }
+    }, { passive: true });
+
+    if (coverBox) {
+      coverBox.addEventListener('dragstart', e => e.preventDefault());
+    }
+    if (coverImg) {
+      coverImg.addEventListener('dragstart', e => e.preventDefault());
+    }
+
+    // Pointer/Mouse-события (для планшетов, ГУ на Android с Pointer Events и ПК)
+    swipeTarget.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'touch') return; // уже обработано touchstart
+      onStart(e.clientX, e.clientY, e.target);
+    });
+    window.addEventListener('pointermove', e => {
+      if (e.pointerType === 'touch' || !tracking) return;
+      onMove(e.clientX, e.clientY);
+    });
+    window.addEventListener('pointerup', e => {
+      if (e.pointerType === 'touch' || !tracking) return;
+      onEnd(e.clientX, e.clientY);
+    });
+
+    if (coverBox && catalogDrawer) {
+      coverBox.onclick = (e) => {
+        if (didSwipe) {
+          didSwipe = false;
+          e.stopPropagation();
+          return;
+        }
+        catalogDrawer.classList.add('open');
+      };
+    }
   }
+  attachSwipeNavigation();
 
   window.addEventListener('pagehide', () => {
     // Освобождение Blob URL при выгрузке страницы

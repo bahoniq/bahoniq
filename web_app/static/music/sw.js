@@ -1,5 +1,5 @@
 ﻿/* BahonIQ РњСѓР·С‹РєР° РІ Р°РІС‚Рѕ - РР·РѕР»РёСЂРѕРІР°РЅРЅС‹Р№ Service Worker (Scope: /music/) */
-const CACHE_NAME = 'bahoniq-music-shell-v25';
+const CACHE_NAME = 'bahoniq-music-shell-v28';
 const SHELL_ASSETS = [
   '/music/',
   '/music/manifest.webmanifest',
