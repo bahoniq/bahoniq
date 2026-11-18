@@ -833,37 +833,353 @@ body.drive-mode .drive-only-fav {
   color: var(--accent-cyan);
 }
 
-.car-sound-presets {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+/* ==========================================================================
+   Широкое горизонтальное окно «Звук и эквалайзер» (Точный визуальный эталон)
+   ========================================================================== */
+.car-sound-modal-wide {
+  max-width: 680px !important;
+  width: 92% !important;
+  background: radial-gradient(circle at 85% 15%, rgba(0, 229, 255, 0.14), transparent 50%),
+              radial-gradient(circle at 15% 85%, var(--amb-1, rgba(14, 165, 233, 0.12)), transparent 55%),
+              linear-gradient(145deg, rgba(12, 23, 38, 0.96), rgba(6, 14, 24, 0.98)) !important;
+  border: 1.5px solid rgba(0, 229, 255, 0.32) !important;
+  border-radius: 24px !important;
+  padding: 24px 28px !important;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.75), 0 0 35px rgba(0, 229, 255, 0.12) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  color: #f8fafc !important;
+  box-sizing: border-box !important;
 }
 
-.car-sound-preset {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
+/* Шапка */
+.car-sound-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.car-sound-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.car-sound-head-icon {
+  width: 24px;
+  height: 24px;
+  color: #00e5ff;
+  filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.5));
+}
+.car-sound-modal-head h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+.car-sound-close-btn {
+  width: 42px;
+  height: 42px;
   border-radius: 12px;
-  color: var(--text-main);
-  padding: 12px 10px;
-  font-size: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+}
+.car-sound-close-btn:hover,
+.car-sound-close-btn:active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-color: rgba(0, 229, 255, 0.4);
+}
+
+/* 4 пресета в один ряд */
+.car-sound-presets-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.car-sound-preset {
+  background: rgba(14, 25, 40, 0.70);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  color: #94a3b8;
+  padding: 12px 6px;
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
-  text-align: center;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  touch-action: manipulation;
+  user-select: none;
 }
-
+.car-sound-preset:hover {
+  background: rgba(18, 32, 52, 0.85);
+  color: #e2e8f0;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+.car-preset-icon {
+  width: 22px;
+  height: 22px;
+  transition: color 0.2s, stroke 0.2s, transform 0.2s;
+}
 .car-sound-preset.active {
-  background: rgba(0, 229, 255, 0.15);
-  border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
-  box-shadow: 0 0 12px rgba(0, 229, 255, 0.25);
+  background: linear-gradient(145deg, rgba(0, 229, 255, 0.18), rgba(0, 163, 196, 0.10)) !important;
+  border: 1.8px solid #00e5ff !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.35), inset 0 0 10px rgba(0, 229, 255, 0.15) !important;
+}
+/* Цвета иконок как на эталоне: бирюзовые и сиреневые */
+.car-sound-preset[data-preset="juicy"] .car-preset-icon,
+.car-sound-preset[data-preset="car"] .car-preset-icon { color: #22d3ee; }
+.car-sound-preset[data-preset="vocal"] .car-preset-icon,
+.car-sound-preset[data-preset="flat"] .car-preset-icon { color: #a78bfa; }
+.car-sound-preset.active .car-preset-icon {
+  filter: drop-shadow(0 0 6px currentColor);
 }
 
-.car-sound-slider-group {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 12px 14px;
+/* Блоки ползунков */
+.car-sound-sliders-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.car-sound-slider-block {
+  background: rgba(11, 22, 36, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 18px;
+  padding: 14px 20px 16px;
+  position: relative;
+  overflow: hidden;
+}
+.car-slider-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.car-slider-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+.car-slider-icon {
+  width: 19px;
+  height: 19px;
+}
+.car-icon-bass {
+  color: #00e5ff;
+}
+.car-icon-treble {
+  color: #ffd166;
+}
+.car-slider-val {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.car-val-bass {
+  color: #00e5ff;
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
+}
+.car-val-treble {
+  color: #ffd166;
+  text-shadow: 0 0 10px rgba(255, 209, 102, 0.4);
+}
+
+/* Трек и декоративная аудиоволна */
+.car-slider-track-box {
+  position: relative;
+  width: 100%;
+  height: 38px;
+  display: flex;
+  align-items: center;
+}
+.car-slider-wave-svg {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 58%;
+  height: 30px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.95;
+}
+
+/* Стилизация ползунка <input type="range"> */
+.car-sound-range {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 36px;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.car-sound-range:focus {
+  outline: none;
+}
+
+/* WebKit Track */
+.car-sound-range::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  transition: background 0.15s;
+}
+.car-range-bass::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, #00e5ff 0%, #00e5ff var(--slider-pct, 45%), rgba(255, 255, 255, 0.12) var(--slider-pct, 45%), rgba(255, 255, 255, 0.12) 100%);
+}
+.car-range-treble::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, #ffd166 0%, #ffd166 var(--slider-pct, 45.8%), rgba(255, 255, 255, 0.12) var(--slider-pct, 45.8%), rgba(255, 255, 255, 0.12) 100%);
+}
+
+/* WebKit Thumb */
+.car-sound-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  margin-top: -7.5px;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.car-sound-range:active::-webkit-slider-thumb {
+  cursor: grabbing;
+  transform: scale(1.15);
+}
+.car-range-bass::-webkit-slider-thumb {
+  background: #00e5ff;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.8), 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+.car-range-treble::-webkit-slider-thumb {
+  background: #ffd166;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 14px rgba(255, 209, 102, 0.8), 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+/* Firefox Track & Thumb */
+.car-sound-range::-moz-range-track {
+  width: 100%;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.car-range-bass::-moz-range-progress {
+  background: #00e5ff;
+  border-radius: 4px;
+}
+.car-range-treble::-moz-range-progress {
+  background: #ffd166;
+  border-radius: 4px;
+}
+.car-sound-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
+  cursor: grab;
+}
+.car-range-bass::-moz-range-thumb {
+  background: #00e5ff;
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.8);
+}
+.car-range-treble::-moz-range-thumb {
+  background: #ffd166;
+  box-shadow: 0 0 12px rgba(255, 209, 102, 0.8);
+}
+
+/* Компактный блок «Защита динамиков активна» */
+.car-sound-protect-card {
+  margin-top: 14px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.10), rgba(6, 78, 59, 0.20));
+  border: 1px solid rgba(16, 185, 129, 0.32);
+  border-radius: 16px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.car-protect-badge {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
   border-radius: 12px;
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.car-protect-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.car-protect-info strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #34d399;
+}
+.car-protect-info span {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.35;
+}
+
+/* Адаптивность для узких экранов (мобильные / portrait) */
+@media (max-width: 640px) {
+  .car-sound-modal-wide {
+    padding: 18px 16px !important;
+    max-width: 95% !important;
+    border-radius: 20px !important;
+  }
+  .car-sound-modal-head h2 {
+    font-size: 19px;
+  }
+  .car-sound-presets-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .car-sound-preset {
+    min-height: 62px;
+    font-size: 13px;
+  }
+  .car-sound-slider-block {
+    padding: 12px 14px 14px;
+  }
+  .car-slider-label {
+    font-size: 13.5px;
+  }
+  .car-slider-val {
+    font-size: 14px;
+  }
+  .car-slider-wave-svg {
+    width: 50%;
+  }
 }
 
 .car-auth-input {
@@ -914,4 +1230,119 @@ body.drive-mode .drive-only-fav {
 
 .hidden {
   display: none !important;
+}
+
+
+/* ===== EQ reference polish v33 ===== */
+.car-sound-modal-wide {
+  position: relative;
+  width: min(94vw, 1040px) !important;
+  max-width: 1040px !important;
+  max-height: calc(100dvh - 32px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: linear-gradient(150deg, rgba(10, 30, 44, 0.97), rgba(5, 14, 24, 0.99)) !important;
+  padding: 28px 34px !important;
+}
+/* атмосферный цвет обложки — мягкая подсветка, не перекрывает контраст */
+.car-sound-modal-wide::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 88% 0%, var(--amb-2, #00e5ff) 0%, transparent 55%),
+    radial-gradient(ellipse at 6% 100%, var(--amb-1, #0ea5e9) 0%, transparent 50%);
+  opacity: 0.20;
+  pointer-events: none;
+}
+.car-sound-modal-wide > * { position: relative; z-index: 1; }
+
+.car-sound-modal-head h2 { font-size: 25px; }
+.car-sound-head-icon { width: 30px; height: 30px; }
+.car-sound-close-btn { width: 48px; height: 48px; border-radius: 14px; }
+
+.car-sound-preset {
+  min-height: 96px;
+  color: #f1f5f9;
+  font-size: 15px;
+  font-weight: 700;
+  gap: 8px;
+}
+.car-sound-preset .car-preset-icon {
+  width: 32px !important;
+  height: 32px !important;
+}
+
+.car-slider-label { font-size: 16px; }
+.car-slider-icon { width: 22px; height: 22px; }
+.car-slider-val { font-size: 17px; }
+.car-sound-slider-block { padding: 16px 22px 18px; }
+.car-slider-track-box { height: 44px; }
+.car-sound-range { height: 44px; }
+.car-sound-range::-webkit-slider-thumb { width: 28px; height: 28px; margin-top: -10.5px; }
+.car-sound-range::-moz-range-thumb { width: 26px; height: 26px; }
+
+/* волна по центру шкалы, как на эталоне */
+.car-slider-wave-svg {
+  left: 30%;
+  right: auto;
+  width: 54%;
+  height: 36px;
+}
+
+/* блок защиты: вертикальный разделитель */
+.car-protect-badge {
+  width: 44px; height: 44px;
+  background: transparent;
+  border: none;
+}
+.car-protect-badge svg { width: 36px; height: 36px; }
+.car-protect-info {
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+  padding-left: 18px;
+  gap: 4px;
+}
+.car-protect-info strong { font-size: 17px; color: #4ade80; }
+.car-protect-info span { font-size: 14px; color: #e2e8f0; }
+
+/* Экран Android-магнитолы: окно остаётся широким, но полностью помещается по высоте. */
+@media (min-width: 641px) and (max-height: 680px) {
+  .car-modal-overlay { padding: 10px 18px; }
+  .car-sound-modal-wide {
+    width: min(96vw, 1040px) !important;
+    max-height: calc(100dvh - 20px);
+    padding: 18px 26px !important;
+    border-radius: 20px !important;
+  }
+  .car-sound-modal-head { margin-bottom: 12px; }
+  .car-sound-modal-head h2 { font-size: 22px; }
+  .car-sound-head-icon { width: 26px; height: 26px; }
+  .car-sound-close-btn { width: 44px; height: 44px; }
+  .car-sound-presets-row { gap: 10px; margin-bottom: 10px; }
+  .car-sound-preset { min-height: 70px; padding: 8px 6px; gap: 4px; font-size: 14px; }
+  .car-sound-preset .car-preset-icon { width: 26px !important; height: 26px !important; }
+  .car-sound-sliders-wrap { gap: 8px; }
+  .car-sound-slider-block { padding: 10px 18px 11px; border-radius: 15px; }
+  .car-slider-head { margin-bottom: 3px; }
+  .car-slider-label { font-size: 14px; }
+  .car-slider-val { font-size: 15px; }
+  .car-slider-track-box, .car-sound-range { height: 34px; }
+  .car-slider-wave-svg { height: 28px; }
+  .car-sound-protect-card { margin-top: 9px; padding: 8px 16px; }
+  .car-protect-badge { width: 36px; height: 36px; }
+  .car-protect-badge svg { width: 30px; height: 30px; }
+  .car-protect-info strong { font-size: 15px; }
+  .car-protect-info span { font-size: 12px; }
+}
+
+@media (max-width: 640px) {
+  .car-modal-overlay { padding: 8px; align-items: flex-start; }
+  .car-sound-modal-wide {
+    width: 100% !important;
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+  }
+  .car-sound-preset { min-height: 70px; font-size: 14px; }
+  .car-sound-preset .car-preset-icon { width: 28px !important; height: 28px !important; }
+  .car-slider-wave-svg { left: 24%; width: 60%; }
 }

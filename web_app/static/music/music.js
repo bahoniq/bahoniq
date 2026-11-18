@@ -1855,6 +1855,8 @@
     }
     if (bassSlider) {
       bassSlider.value = currentBassGain;
+      const pct = Math.max(0, Math.min(100, (currentBassGain / 10) * 100));
+      bassSlider.style.setProperty('--slider-pct', `${pct.toFixed(1)}%`);
     }
     localStorage.setItem('bahoniq_bass_gain', currentBassGain);
     if (isCustom) {
@@ -1875,6 +1877,8 @@
     }
     if (trebleSlider) {
       trebleSlider.value = currentTrebleGain;
+      const pct = Math.max(0, Math.min(100, ((currentTrebleGain - (-4)) / 12) * 100));
+      trebleSlider.style.setProperty('--slider-pct', `${pct.toFixed(1)}%`);
     }
     localStorage.setItem('bahoniq_treble_gain', currentTrebleGain);
     if (isCustom) {

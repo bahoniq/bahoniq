@@ -12,7 +12,7 @@
 
   <link rel="manifest" href="/music/manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="/music/assets/icons/icon-192.png">
-  <link rel="stylesheet" href="/music/assets/music.css?v=20261118_v28">
+  <link rel="stylesheet" href="/music/assets/music.css?v=20261118_v33">
 </head>
 <body>
   <!-- Живая атмосфера трека (Ambient-подсветка из обложки, дышит в ритм музыки) -->
@@ -202,12 +202,13 @@
       </div>
     </section>
 
-    <!-- Модальное окно настроек звука и сочного баса -->
+        <!-- Модальное окно настроек звука и эквалайзера -->
     <div id="carSoundModal" class="car-modal-overlay hidden">
-      <div class="car-modal" style="max-width: 440px;">
-        <div class="car-modal-head">
-          <h3 style="display: flex; align-items: center; gap: 8px;">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <div class="car-modal car-sound-modal-wide">
+        <!-- Шапка окна -->
+        <div class="car-sound-modal-head">
+          <div class="car-sound-title-wrap">
+            <svg class="car-sound-head-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="4" y1="21" x2="4" y2="14"/>
               <line x1="4" y1="10" x2="4" y2="3"/>
               <line x1="12" y1="21" x2="12" y2="12"/>
@@ -218,52 +219,185 @@
               <line x1="9" y1="8" x2="15" y2="8"/>
               <line x1="17" y1="16" x2="23" y2="16"/>
             </svg>
-            Звук и эквалайзер
-          </h3>
-          <button id="carBtnCloseSound" class="icon-btn" type="button">✕</button>
+            <h2>Звук и эквалайзер</h2>
+          </div>
+          <button id="carBtnCloseSound" class="car-sound-close-btn" type="button" aria-label="Закрыть">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
 
-        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px; font-weight: 600;">Пресеты звучания:</div>
-        <div class="car-sound-presets">
-          <button class="car-sound-preset active" data-preset="juicy" type="button">✨ Сочный бас</button>
-          <button class="car-sound-preset" data-preset="car" type="button">🚗 Авто-драйв</button>
-          <button class="car-sound-preset" data-preset="vocal" type="button">🎤 Вокал</button>
-          <button class="car-sound-preset" data-preset="flat" type="button">🎵 Оригинал</button>
+        <!-- 4 пресета в один ряд -->
+        <div class="car-sound-presets-row">
+          <button class="car-sound-preset active" data-preset="juicy" type="button">
+            <svg class="car-preset-icon" viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true">
+              <path d="M10 3l1.9 5.1L17 10l-5.1 1.9L10 17l-1.9-5.1L3 10l5.1-1.9L10 3z"/>
+              <path d="M18 2.5l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9.9-2.4z"/>
+              <path d="M18.5 14l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8z"/>
+            </svg>
+            <span>Сочный бас</span>
+          </button>
+          <button class="car-sound-preset" data-preset="car" type="button">
+            <svg class="car-preset-icon" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4.2 12.2 6 7.5A2.4 2.4 0 0 1 8.2 6h7.6A2.4 2.4 0 0 1 18 7.5l1.8 4.7" fill="currentColor" fill-opacity="0.14"/>
+              <path d="M7.2 10.2h9.6L15.7 7.8H8.3l-1.1 2.4Z" fill="currentColor" stroke="none" opacity="0.75"/>
+              <rect x="2.8" y="11.2" width="18.4" height="6.3" rx="2.2"/>
+              <path d="M5.6 17.5v1.6M18.4 17.5v1.6"/>
+              <circle cx="7" cy="14.3" r="1" fill="currentColor" stroke="none"/>
+              <circle cx="17" cy="14.3" r="1" fill="currentColor" stroke="none"/>
+              <path d="M10 14.5h4" opacity="0.75"/>
+            </svg>
+            <span>Авто-драйв</span>
+          </button>
+          <button class="car-sound-preset" data-preset="vocal" type="button">
+            <svg class="car-preset-icon" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="8.4" y="2.8" width="7.2" height="12.1" rx="3.6" fill="currentColor" fill-opacity="0.14"/>
+              <path d="M5.8 11.3v.7a6.2 6.2 0 0 0 12.4 0v-.7"/>
+              <path d="M12 18.2v3M8.8 21.2h6.4"/>
+              <path d="M10.7 6.4h2.6M10.7 9h2.6" opacity="0.72"/>
+            </svg>
+            <span>Вокал</span>
+          </button>
+          <button class="car-sound-preset" data-preset="flat" type="button">
+            <svg class="car-preset-icon" viewBox="0 0 24 24" width="26" height="26" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 17.5V6.3l10-2v11.2" fill="none" stroke-width="2"/>
+              <path d="M9 9.6l10-2" fill="none" stroke-width="3"/>
+              <ellipse cx="6.6" cy="17.6" rx="2.9" ry="2.4" stroke-width="0.5"/>
+              <ellipse cx="16.6" cy="15.6" rx="2.9" ry="2.4" stroke-width="0.5"/>
+            </svg>
+            <span>Оригинал</span>
+          </button>
         </div>
 
-        <div class="car-sound-sliders" style="margin-top: 18px; display: flex; flex-direction: column; gap: 16px;">
-          <div class="car-sound-slider-group">
-            <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; margin-bottom: 6px;">
-              <span>🔊 Глубокий бас (75 Гц)</span>
-              <span id="carBassVal" style="color: var(--accent-cyan); font-family: monospace;">+4.5 dB</span>
+        <!-- Широкие блоки ползунков -->
+        <div class="car-sound-sliders-wrap">
+          <!-- Глубокий бас (75 Гц) -->
+          <div class="car-sound-slider-block car-sound-slider-bass">
+            <div class="car-slider-head">
+              <div class="car-slider-label">
+                <svg class="car-slider-icon car-icon-bass" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                </svg>
+                <span>Глубокий бас · 75 Гц</span>
+              </div>
+              <span id="carBassVal" class="car-slider-val car-val-bass">+4.5 dB</span>
             </div>
-            <input id="carBassSlider" type="range" min="0" max="10" step="0.5" value="4.5" style="width: 100%; accent-color: var(--accent-cyan); height: 8px; border-radius: 4px; cursor: pointer;">
-            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 4px;">
-              <span>Оригинал (0 dB)</span>
-              <span>Сочный (+4..5 dB)</span>
-              <span>Мощный (+10 dB)</span>
+            <div class="car-slider-track-box">
+<svg class="car-slider-wave-svg" viewBox="0 0 270 32" preserveAspectRatio="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="grad_bass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.9"/>
+      <stop offset="65%" stop-color="#00e5ff" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#00e5ff" stop-opacity="0.05"/>
+    </linearGradient>
+  </defs>
+  <rect x="15.0" y="14.8" width="3.5" height="2.5" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="23.0" y="14.8" width="3.5" height="2.5" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="31.0" y="14.8" width="3.5" height="2.5" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="39.0" y="14.7" width="3.5" height="2.6" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="47.0" y="14.5" width="3.5" height="3.0" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="55.0" y="14.2" width="3.5" height="3.7" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="63.0" y="13.7" width="3.5" height="4.6" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="71.0" y="13.1" width="3.5" height="5.9" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="79.0" y="12.3" width="3.5" height="7.4" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="87.0" y="11.4" width="3.5" height="9.2" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="95.0" y="10.3" width="3.5" height="11.4" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="103.0" y="9.1" width="3.5" height="13.8" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="111.0" y="7.8" width="3.5" height="16.4" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="119.0" y="6.4" width="3.5" height="19.1" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="127.0" y="5.2" width="3.5" height="21.5" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="135.0" y="4.2" width="3.5" height="23.7" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="143.0" y="3.3" width="3.5" height="25.4" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="151.0" y="2.8" width="3.5" height="26.5" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="159.0" y="2.6" width="3.5" height="26.9" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="167.0" y="2.8" width="3.5" height="26.5" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="175.0" y="3.3" width="3.5" height="25.4" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="183.0" y="4.2" width="3.5" height="23.7" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="191.0" y="5.2" width="3.5" height="21.5" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="199.0" y="6.4" width="3.5" height="19.1" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="207.0" y="7.8" width="3.5" height="16.4" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="215.0" y="9.1" width="3.5" height="13.8" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="223.0" y="10.3" width="3.5" height="11.4" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="231.0" y="11.4" width="3.5" height="9.2" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="239.0" y="12.3" width="3.5" height="7.4" rx="1.75" fill="url(#grad_bass)"/>
+  <rect x="247.0" y="13.1" width="3.5" height="5.9" rx="1.75" fill="url(#grad_bass)"/>
+</svg>
+              <input id="carBassSlider" class="car-sound-range car-range-bass" type="range" min="0" max="10" step="0.5" value="4.5">
             </div>
           </div>
 
-          <div class="car-sound-slider-group">
-            <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; margin-bottom: 6px;">
-              <span>✨ Чистота и воздух (9 кГц)</span>
-              <span id="carTrebleVal" style="color: var(--accent-gold); font-family: monospace;">+1.5 dB</span>
+          <!-- Чёткость и воздух (9 кГц) -->
+          <div class="car-sound-slider-block car-sound-slider-treble">
+            <div class="car-slider-head">
+              <div class="car-slider-label">
+                <svg class="car-slider-icon car-icon-treble" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/>
+                  <path d="M19 16l1.2 3.3L23.5 20.5l-3.3 1.2L19 25l-1.2-3.3L14.5 20.5l3.3-1.2L19 16z" transform="scale(0.8) translate(5, -2)" opacity="0.85"/>
+                </svg>
+                <span>Чёткость и воздух · 9 кГц</span>
+              </div>
+              <span id="carTrebleVal" class="car-slider-val car-val-treble">+1.5 dB</span>
             </div>
-            <input id="carTrebleSlider" type="range" min="-4" max="8" step="0.5" value="1.5" style="width: 100%; accent-color: var(--accent-gold); height: 8px; border-radius: 4px; cursor: pointer;">
-            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 4px;">
-              <span>Мягче (-4 dB)</span>
-              <span>Оригинал (0 dB)</span>
-              <span>Звонко (+8 dB)</span>
+            <div class="car-slider-track-box">
+<svg class="car-slider-wave-svg" viewBox="0 0 270 32" preserveAspectRatio="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="grad_treble" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffd166" stop-opacity="0.9"/>
+      <stop offset="65%" stop-color="#ffd166" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ffd166" stop-opacity="0.05"/>
+    </linearGradient>
+  </defs>
+  <rect x="15.0" y="14.8" width="3.5" height="2.5" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="23.0" y="14.8" width="3.5" height="2.5" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="31.0" y="14.8" width="3.5" height="2.5" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="39.0" y="14.8" width="3.5" height="2.5" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="47.0" y="14.7" width="3.5" height="2.6" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="55.0" y="14.5" width="3.5" height="3.0" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="63.0" y="14.2" width="3.5" height="3.7" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="71.0" y="13.7" width="3.5" height="4.6" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="79.0" y="13.1" width="3.5" height="5.9" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="87.0" y="12.3" width="3.5" height="7.4" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="95.0" y="11.4" width="3.5" height="9.2" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="103.0" y="10.3" width="3.5" height="11.4" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="111.0" y="9.1" width="3.5" height="13.8" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="119.0" y="7.8" width="3.5" height="16.4" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="127.0" y="6.4" width="3.5" height="19.1" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="135.0" y="5.2" width="3.5" height="21.5" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="143.0" y="4.2" width="3.5" height="23.7" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="151.0" y="3.3" width="3.5" height="25.4" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="159.0" y="2.8" width="3.5" height="26.5" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="167.0" y="2.6" width="3.5" height="26.9" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="175.0" y="2.8" width="3.5" height="26.5" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="183.0" y="3.3" width="3.5" height="25.4" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="191.0" y="4.2" width="3.5" height="23.7" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="199.0" y="5.2" width="3.5" height="21.5" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="207.0" y="6.4" width="3.5" height="19.1" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="215.0" y="7.8" width="3.5" height="16.4" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="223.0" y="9.1" width="3.5" height="13.8" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="231.0" y="10.3" width="3.5" height="11.4" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="239.0" y="11.4" width="3.5" height="9.2" rx="1.75" fill="url(#grad_treble)"/>
+  <rect x="247.0" y="12.3" width="3.5" height="7.4" rx="1.75" fill="url(#grad_treble)"/>
+</svg>
+              <input id="carTrebleSlider" class="car-sound-range car-range-treble" type="range" min="-4" max="8" step="0.5" value="1.5">
             </div>
           </div>
         </div>
 
-        <div style="margin-top: 18px; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 12px; padding: 12px; display: flex; align-items: center; gap: 10px;">
-          <div style="font-size: 22px;">🛡️</div>
-          <div style="font-size: 12px; color: #cbd5e1; line-height: 1.4;">
-            <strong style="color: var(--accent-green); display: block; font-size: 13px;">Защита динамиков активна (Студийный лимитер)</strong>
-            Предотвращает хрип и клиппинг в дверных картах и динамиках авто при любой громкости.
+        <!-- Компактный блок защиты динамиков -->
+        <div class="car-sound-protect-card">
+          <div class="car-protect-badge">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <polyline points="9 12 11 14 15 10"/>
+            </svg>
+          </div>
+          <div class="car-protect-info">
+            <strong>Защита динамиков активна</strong>
+            <span>Предотвращает хрипы и клиппинг на высокой громкости</span>
           </div>
         </div>
       </div>
@@ -292,6 +426,6 @@
   <!-- Всплывающее уведомление (Toast) для авто -->
   <div id="carToast" class="car-toast hidden"></div>
 
-  <script src="/music/assets/music.js?v=20261118_v28"></script>
+  <script src="/music/assets/music.js?v=20261118_v33"></script>
 </body>
 </html>
