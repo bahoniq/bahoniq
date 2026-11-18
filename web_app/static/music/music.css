@@ -651,3 +651,80 @@ html, body {
 .hidden {
   display: none !important;
 }
+
+/* Бейдж «1» для режима Повтора одной песни (Repeat One) */
+.icon-btn {
+  position: relative;
+}
+
+.icon-btn.repeat-one {
+  color: var(--accent-gold);
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.35);
+}
+
+.repeat-one-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent-gold);
+  color: #030712;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.icon-btn.fav-active {
+  color: #fb7185;
+  border-color: #fb7185;
+  box-shadow: 0 0 14px rgba(251, 113, 133, 0.35);
+}
+
+.icon-btn.fav-active svg {
+  fill: #fb7185;
+}
+
+/* Автомобильный Toast-индикатор переключения режимов */
+.car-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 350;
+  background: rgba(13, 26, 45, 0.96);
+  color: #ffffff;
+  border: 1px solid rgba(0, 229, 255, 0.45);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), 0 0 20px rgba(0, 229, 255, 0.2);
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  pointer-events: none;
+  white-space: nowrap;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.car-tab-count {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+}
+
+.car-tab.active .car-tab-count {
+  background: rgba(0, 0, 0, 0.22);
+  color: #000;
+}
+

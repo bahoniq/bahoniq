@@ -12,7 +12,7 @@
 
   <link rel="manifest" href="/music/manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="/music/assets/icons/icon-192.png">
-  <link rel="stylesheet" href="/music/assets/music.css?v=20261117_v12">
+  <link rel="stylesheet" href="/music/assets/music.css?v=20261118_v25">
 </head>
 <body>
   <div class="car-player">
@@ -119,13 +119,14 @@
             </svg>
           </button>
 
-          <button id="carBtnRepeat" class="icon-btn" type="button" title="Повтор">
+          <button id="carBtnRepeat" class="icon-btn" type="button" title="Повтор: Выключен">
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="17 1 21 5 17 9"/>
               <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
               <polyline points="7 23 3 19 7 15"/>
               <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
             </svg>
+            <span id="carRepeatOneBadge" class="repeat-one-badge hidden">1</span>
           </button>
 
           <button id="carBtnFav" class="icon-btn" type="button" title="В избранное">
@@ -278,6 +279,9 @@
   <!-- Стандартный скрытый элемент HTML5 Audio -->
   <audio id="carAudioElement" preload="metadata"></audio>
 
-  <script src="/music/assets/music.js?v=20261117_v22"></script>
+  <!-- Всплывающее уведомление (Toast) для авто -->
+  <div id="carToast" class="car-toast hidden"></div>
+
+  <script src="/music/assets/music.js?v=20261118_v25"></script>
 </body>
 </html>

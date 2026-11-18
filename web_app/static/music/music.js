@@ -73,13 +73,113 @@
 
   const OFFLINE_IDS_STORAGE_KEY = 'bahoniq_offline_track_ids';
   const CACHED_PLAYLIST_KEY = 'bahoniq_cached_playlist';
+  const FAVORITES_STORAGE_KEY = 'bahoniq_favorite_track_ids';
+  const RECENT_STORAGE_KEY = 'bahoniq_recent_track_ids';
+  const LAST_POS_STORAGE_KEY = 'bahoniq_last_track_pos';
 
   const offlineTrackIds = new Set();
   const downloadingTrackIds = new Set();
   const downloadPromises = new Map();
   const downloadAbortControllers = new Map();
   const favorites = new Set();
+  const recentTrackIds = [];
   const playbackHistory = [];
+  let shuffleBag = [];
+  let playbackContextTab = 'all'; // 'all' | 'downloaded' | 'recent' | 'favorites'
+  let toastTimer = null;
+
+  const repeatOneBadge = $('carRepeatOneBadge');
+  const toastEl = $('carToast');
+
+  function showCarToast(msg) {
+    if (!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.classList.remove('hidden');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toastEl.classList.add('hidden');
+    }, 2000);
+  }
+
+  function persistFavorites() {
+    try {
+      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(Array.from(favorites)));
+    } catch {}
+    if (idb && idb.objectStoreNames.contains('favorites')) {
+      try {
+        const tx = idb.transaction('favorites', 'readwrite');
+        const store = tx.objectStore('favorites');
+        store.clear();
+        favorites.forEach(id => store.put({ id: Number(id) }));
+      } catch {}
+    }
+    updateTabCounters();
+  }
+
+  function loadFavoritesFromStorage() {
+    try {
+      const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          arr.forEach(id => favorites.add(Number(id)));
+        }
+      }
+    } catch {}
+  }
+
+  function persistRecentTracks() {
+    try {
+      localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(recentTrackIds.slice(0, 50)));
+    } catch {}
+    updateTabCounters();
+  }
+
+  function loadRecentTracksFromStorage() {
+    try {
+      const raw = localStorage.getItem(RECENT_STORAGE_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          recentTrackIds.length = 0;
+          arr.forEach(id => {
+            const n = Number(id);
+            if (n && !recentTrackIds.includes(n)) recentTrackIds.push(n);
+          });
+        }
+      }
+    } catch {}
+  }
+
+  function recordRecentTrack(trackId) {
+    const tid = Number(trackId);
+    if (!tid) return;
+    const existingIdx = recentTrackIds.indexOf(tid);
+    if (existingIdx !== -1) recentTrackIds.splice(existingIdx, 1);
+    recentTrackIds.unshift(tid);
+    if (recentTrackIds.length > 50) recentTrackIds.length = 50;
+    persistRecentTracks();
+  }
+
+  function updateTabCounters() {
+    document.querySelectorAll('.car-tab').forEach(btn => {
+      const tab = btn.dataset.tab;
+      let count = 0;
+      if (tab === 'all') count = playlist.length;
+      else if (tab === 'downloaded') count = playlist.filter(t => offlineTrackIds.has(Number(t.id))).length;
+      else if (tab === 'recent') count = recentTrackIds.filter(id => playlist.some(t => Number(t.id) === Number(id))).length;
+      else if (tab === 'favorites') count = playlist.filter(t => favorites.has(Number(t.id))).length;
+
+      const labels = {
+        all: 'Все треки',
+        downloaded: 'Скачанные (Офлайн)',
+        recent: 'Недавние',
+        favorites: 'Избранное'
+      };
+      const base = labels[tab] || btn.textContent;
+      btn.innerHTML = `${base} <span class="car-tab-count">${count}</span>`;
+    });
+  }
 
   // Кэш сгенерированных Object URL в оперативной памяти (для мгновенного старта 0мс)
   const memoryBlobUrls = new Map();
@@ -217,7 +317,7 @@
   async function saveAudioLocally(trackId, blob, trackMeta = null) {
     const tid = Number(trackId);
     const expectedSize = Number(trackMeta?.file_size || 0);
-    if (!blob || blob.size < 20000 || (expectedSize > 0 && Math.abs(blob.size - expectedSize) > 4096)) {
+    if (!blob || blob.size < 20000) {
       console.warn(`saveAudioLocally: rejected invalid blob size (${blob?.size || 0} bytes) for track ${tid}`);
       return false;
     }
@@ -294,7 +394,7 @@
       try {
         const handle = await opfsRoot.getFileHandle(`track_${tid}.bin`);
         const file = await handle.getFile();
-        if (file && file.size >= 20000 && (!expectedSize || file.size === expectedSize || Math.abs(file.size - expectedSize) < 4096)) {
+        if (file && file.size >= 20000) {
           return file;
         }
         if (file && file.size < 20000) await opfsRoot.removeEntry(`track_${tid}.bin`).catch(() => {});
@@ -311,7 +411,7 @@
             const row = req.result;
             const b = row?.blob;
             const size = Number(b?.size || row?.size || 0);
-            if (b && size >= 20000 && row.complete !== false && (!expectedSize || size === expectedSize || Math.abs(size - expectedSize) < 4096)) {
+            if (b && size >= 20000 && row.complete !== false) {
               resolve(b);
             } else {
               resolve(null);
@@ -370,9 +470,7 @@
             (req.result || []).forEach(row => {
               const b = row?.blob;
               const size = Number(b?.size || row?.size || 0);
-              const track = playlist.find(t => Number(t.id) === Number(row.id));
-              const expected = Number(track?.file_size || row?.expectedSize || 0);
-              if (b && size >= 20000 && row.complete !== false && (!expected || size === expected || Math.abs(size - expected) < 4096)) {
+              if (b && size >= 20000 && row.complete !== false) {
                 const tid = Number(row.id);
                 offlineTrackIds.add(tid);
                 if (!memoryBlobUrls.has(tid)) {
@@ -398,8 +496,7 @@
             const tid = Number(t.id);
             const handle = await opfsRoot.getFileHandle(`track_${tid}.bin`);
             const file = await handle.getFile();
-            const expected = Number(t.file_size || 0);
-            if (file && file.size >= 20000 && (!expected || file.size === expected || Math.abs(file.size - expected) < 4096)) {
+            if (file && file.size >= 20000) {
               offlineTrackIds.add(tid);
               if (!memoryBlobUrls.has(tid)) {
                 memoryBlobUrls.set(tid, URL.createObjectURL(file));
@@ -491,7 +588,30 @@
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
             const responseSize = Number(resp.headers.get('Content-Length') || track.file_size || 0);
-            const blob = await resp.blob();
+            let blob = null;
+
+            if (resp.body && typeof resp.body.getReader === 'function' && responseSize > 0) {
+              const reader = resp.body.getReader();
+              const chunks = [];
+              let received = 0;
+              let lastPct = 0;
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                if (value) {
+                  chunks.push(value);
+                  received += value.byteLength;
+                  const pct = Math.min(99, Math.floor((received / responseSize) * 100));
+                  if (pct >= lastPct + 5 && currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
+                    lastPct = pct;
+                    updateOfflinePill('downloading', pct);
+                  }
+                }
+              }
+              blob = new Blob(chunks, { type: resp.headers.get('Content-Type') || track.mime_type || 'audio/mpeg' });
+            } else {
+              blob = await resp.blob();
+            }
 
             if (!blob || blob.size < 20000 || (responseSize > 0 && Math.abs(blob.size - responseSize) > 4096)) {
               throw new Error(`Downloaded blob size mismatch (${blob?.size || 0} vs ${responseSize})`);
@@ -506,6 +626,7 @@
             downloadPromises.delete(tid);
             persistOfflineTrackIds();
             updateTrackItemBadge(tid);
+            updateTabCounters();
             syncDownloadAllButton();
 
             if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
@@ -514,6 +635,10 @@
                 btnDownloadActive.classList.remove('loading');
                 btnDownloadActive.classList.add('active');
               }
+              // После сохранения текущего трека тихо предзагружаем следующий трек в очереди
+              setTimeout(() => {
+                if (!audio.paused) prefetchNextTrackInQueue();
+              }, 1500);
             }
             return true;
           } catch (attemptErr) {
@@ -567,6 +692,8 @@
     currentIndex = index;
     const track = playlist[currentIndex];
     const tid = Number(track.id);
+    recordRecentTrack(tid);
+    localStorage.setItem(LAST_POS_STORAGE_KEY, '0');
 
     // Отменяем незавершённые фоновые загрузки других треков, чтобы не мешать текущему потоку
     for (const [otherTid, ctrl] of downloadAbortControllers.entries()) {
@@ -590,7 +717,9 @@
     if (diagCurrentTrack) diagCurrentTrack.textContent = `${track.artist} — ${track.title}`;
     localStorage.setItem('bahoniq_last_track_id', tid);
 
-    btnFav.classList.toggle('active', favorites.has(tid));
+    const isFav = favorites.has(tid);
+    btnFav.classList.toggle('active', isFav);
+    btnFav.classList.toggle('fav-active', isFav);
     const isOffline = offlineTrackIds.has(tid);
     if (btnDownloadActive) btnDownloadActive.classList.toggle('active', isOffline);
 
@@ -655,20 +784,81 @@
     }
   }
 
-  function playNextTrack() {
-    if (playlist.length === 0) return;
+  function getActiveQueueIndices() {
+    if (playlist.length === 0) return [];
+    let indices = [];
+    if (playbackContextTab === 'downloaded') {
+      playlist.forEach((t, idx) => {
+        if (offlineTrackIds.has(Number(t.id))) indices.push(idx);
+      });
+    } else if (playbackContextTab === 'favorites') {
+      playlist.forEach((t, idx) => {
+        if (favorites.has(Number(t.id))) indices.push(idx);
+      });
+    } else if (playbackContextTab === 'recent') {
+      recentTrackIds.forEach(tid => {
+        const idx = playlist.findIndex(t => Number(t.id) === Number(tid));
+        if (idx >= 0) indices.push(idx);
+      });
+    }
+    if (indices.length === 0) {
+      indices = playlist.map((_, i) => i);
+    }
+    return indices;
+  }
+
+  function pickNextShuffleIndex(queueIndices) {
+    if (queueIndices.length <= 1) return queueIndices[0] ?? 0;
+    const validSet = new Set(queueIndices);
+    shuffleBag = shuffleBag.filter(i => validSet.has(i) && i !== currentIndex);
+    if (shuffleBag.length === 0) {
+      shuffleBag = queueIndices.filter(i => i !== currentIndex);
+      // Перемешивание Фишера — Йейтса без повторов
+      for (let i = shuffleBag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffleBag[i], shuffleBag[j]] = [shuffleBag[j], shuffleBag[i]];
+      }
+    }
+    return shuffleBag.pop();
+  }
+
+  function prefetchNextTrackInQueue() {
+    if (playlist.length <= 1 || downloadPromises.size > 0) return;
+    const queue = getActiveQueueIndices();
+    if (queue.length === 0) return;
+    let nextIdx = -1;
     if (isShuffle) {
-      let nextIdx = currentIndex;
-      if (playlist.length > 1) {
-        let attempts = 0;
-        while (nextIdx === currentIndex && attempts < 20) {
-          nextIdx = Math.floor(Math.random() * playlist.length);
-          attempts++;
+      if (shuffleBag.length === 0 && queue.length > 1) {
+        shuffleBag = queue.filter(i => i !== currentIndex);
+        for (let i = shuffleBag.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffleBag[i], shuffleBag[j]] = [shuffleBag[j], shuffleBag[i]];
         }
       }
+      const candidate = shuffleBag.length > 0 ? shuffleBag[shuffleBag.length - 1] : -1;
+      if (candidate >= 0 && playlist[candidate]) nextIdx = candidate;
+    } else {
+      const pos = queue.indexOf(currentIndex);
+      nextIdx = pos >= 0 ? queue[(pos + 1) % queue.length] : (currentIndex + 1) % playlist.length;
+    }
+    if (nextIdx >= 0 && playlist[nextIdx]) {
+      const nextTrack = playlist[nextIdx];
+      const ntid = Number(nextTrack.id);
+      if (!offlineTrackIds.has(ntid) && !downloadPromises.has(ntid)) {
+        downloadTrackInBackground(nextTrack, false);
+      }
+    }
+  }
+
+  function playNextTrack() {
+    if (playlist.length === 0) return;
+    const queue = getActiveQueueIndices();
+    if (isShuffle) {
+      const nextIdx = pickNextShuffleIndex(queue);
       playTrack(nextIdx, true);
     } else {
-      const nextIdx = (currentIndex + 1) % playlist.length;
+      const pos = queue.indexOf(currentIndex);
+      const nextIdx = pos >= 0 ? queue[(pos + 1) % queue.length] : (currentIndex + 1) % playlist.length;
       playTrack(nextIdx, true);
     }
   }
@@ -681,21 +871,34 @@
     }
     if (playbackHistory.length > 0) {
       const prevId = playbackHistory.pop();
-      const prevIdx = playlist.findIndex(t => t.id === prevId);
-      playTrack(prevIdx >= 0 ? prevIdx : (currentIndex - 1 + playlist.length) % playlist.length, false);
-    } else {
-      const prevIdx = (currentIndex - 1 + playlist.length) % playlist.length;
-      playTrack(prevIdx, false);
+      const prevIdx = playlist.findIndex(t => Number(t.id) === Number(prevId));
+      if (prevIdx >= 0) {
+        playTrack(prevIdx, false);
+        return;
+      }
     }
+    const queue = getActiveQueueIndices();
+    const pos = queue.indexOf(currentIndex);
+    const prevIdx = pos >= 0 ? queue[(pos - 1 + queue.length) % queue.length] : (currentIndex - 1 + playlist.length) % playlist.length;
+    playTrack(prevIdx, false);
   }
 
   // --- События HTML5 Audio элемента ---
+  let lastSavedSec = -1;
   audio.addEventListener('timeupdate', () => {
     if (!isNaN(audio.duration) && audio.duration > 0) {
       const pct = (audio.currentTime / audio.duration) * 100;
       seekBar.value = pct;
       timeCurrent.textContent = formatTime(audio.currentTime);
       timeTotal.textContent = formatTime(audio.duration);
+
+      const curSec = Math.floor(audio.currentTime);
+      if (curSec !== lastSavedSec && curSec % 3 === 0) {
+        lastSavedSec = curSec;
+        try {
+          localStorage.setItem(LAST_POS_STORAGE_KEY, String(curSec));
+        } catch {}
+      }
 
       if ('mediaSession' in navigator && navigator.mediaSession.setPositionState) {
         try {
@@ -758,19 +961,26 @@
   });
 
   audio.addEventListener('ended', () => {
+    try { localStorage.setItem(LAST_POS_STORAGE_KEY, '0'); } catch {}
     if (repeatMode === 'one') {
       audio.currentTime = 0;
       audio.play().catch(() => {});
-    } else if (repeatMode === 'all' || isShuffle || currentIndex < playlist.length - 1) {
-      playNextTrack();
     } else {
-      updatePlayButton(false);
+      const queue = getActiveQueueIndices();
+      const pos = queue.indexOf(currentIndex);
+      const isLastInQueue = pos >= 0 ? pos === queue.length - 1 : currentIndex >= playlist.length - 1;
+      if (repeatMode === 'all' || isShuffle || !isLastInQueue) {
+        playNextTrack();
+      } else {
+        updatePlayButton(false);
+      }
     }
   });
 
   seekBar.addEventListener('input', () => {
     if (!isNaN(audio.duration) && audio.duration > 0) {
       audio.currentTime = (seekBar.value / 100) * audio.duration;
+      try { localStorage.setItem(LAST_POS_STORAGE_KEY, String(Math.floor(audio.currentTime))); } catch {}
     }
   });
 
@@ -778,6 +988,21 @@
     resumeAudioContext();
     if (currentIndex === -1 && playlist.length > 0) {
       playTrack(0);
+      return;
+    }
+    // Если после запуска машины трек был только выбран в UI, но audio.src ещё пустой
+    if (!audio.src || audio.src === window.location.href) {
+      const resumeSec = Number(localStorage.getItem(LAST_POS_STORAGE_KEY) || '0');
+      playTrack(currentIndex >= 0 ? currentIndex : 0, false);
+      if (resumeSec > 2) {
+        const restoreOnce = () => {
+          if (audio.duration && resumeSec < audio.duration - 2) {
+            audio.currentTime = resumeSec;
+          }
+          audio.removeEventListener('loadedmetadata', restoreOnce);
+        };
+        audio.addEventListener('loadedmetadata', restoreOnce);
+      }
       return;
     }
     if (audio.paused) {
@@ -794,57 +1019,68 @@
   btnPrev.addEventListener('click', playPrevTrack);
   btnNext.addEventListener('click', playNextTrack);
 
-  // Восстановление режимов Shuffle и Repeat
-  if (btnShuffle) {
-    btnShuffle.classList.toggle('active', isShuffle);
-  }
-  if (btnRepeat) {
+  function syncRepeatButtonUI() {
+    if (!btnRepeat) return;
     if (repeatMode === 'all') {
       btnRepeat.classList.add('active');
+      btnRepeat.classList.remove('repeat-one');
+      if (repeatOneBadge) repeatOneBadge.classList.add('hidden');
       btnRepeat.title = 'Повтор: Все треки';
     } else if (repeatMode === 'one') {
-      btnRepeat.classList.add('active');
-      btnRepeat.title = 'Повтор: Один трек';
+      btnRepeat.classList.add('active', 'repeat-one');
+      if (repeatOneBadge) repeatOneBadge.classList.remove('hidden');
+      btnRepeat.title = 'Повтор: Один трек (1)';
     } else {
-      btnRepeat.classList.remove('active');
+      btnRepeat.classList.remove('active', 'repeat-one');
+      if (repeatOneBadge) repeatOneBadge.classList.add('hidden');
       btnRepeat.title = 'Повтор: Выключен';
     }
   }
 
+  // Восстановление режимов Shuffle и Repeat
+  if (btnShuffle) {
+    btnShuffle.classList.toggle('active', isShuffle);
+  }
+  syncRepeatButtonUI();
+
   btnShuffle.addEventListener('click', () => {
     isShuffle = !isShuffle;
+    shuffleBag = [];
     btnShuffle.classList.toggle('active', isShuffle);
     localStorage.setItem('bahoniq_shuffle', isShuffle ? 'true' : 'false');
+    showCarToast(isShuffle ? '🔀 Случайный порядок: ВКЛ (без повторов)' : '➡️ По порядку: ВКЛ');
   });
 
   btnRepeat.addEventListener('click', () => {
     if (repeatMode === 'none') {
       repeatMode = 'all';
-      btnRepeat.classList.add('active');
-      btnRepeat.title = 'Повтор: Все треки';
+      showCarToast('🔁 Повтор: Все треки');
     } else if (repeatMode === 'all') {
       repeatMode = 'one';
-      btnRepeat.classList.add('active');
-      btnRepeat.title = 'Повтор: Один трек';
+      showCarToast('🔂 Повтор: Одна песня (1)');
     } else {
       repeatMode = 'none';
-      btnRepeat.classList.remove('active');
-      btnRepeat.title = 'Повтор: Выключен';
+      showCarToast('➡️ Повтор: Выключен');
     }
+    syncRepeatButtonUI();
     localStorage.setItem('bahoniq_repeat', repeatMode);
   });
 
   btnFav.addEventListener('click', () => {
-    if (currentIndex < 0) return;
+    if (currentIndex < 0 || !playlist[currentIndex]) return;
     const track = playlist[currentIndex];
     const tid = Number(track.id);
     if (favorites.has(tid)) {
       favorites.delete(tid);
-      btnFav.classList.remove('active');
+      btnFav.classList.remove('active', 'fav-active');
+      showCarToast('Убрано из Избранного');
     } else {
       favorites.add(tid);
-      btnFav.classList.add('active');
+      btnFav.classList.add('active', 'fav-active');
+      showCarToast('❤️ Добавлено в Избранное');
     }
+    persistFavorites();
+    if (activeTab === 'favorites') renderCatalog();
   });
 
   if (btnDownloadActive) {
@@ -981,9 +1217,24 @@
         if (currentIndex === -1 && playlist.length > 0) {
           currentIndex = initIdx;
           const t = playlist[initIdx];
+          const tid = Number(t.id);
           trackTitle.textContent = t.title || 'Без названия';
           trackArtist.textContent = t.artist || 'Музыка ДИТ';
-          coverImg.src = `/api/music/tracks/${t.id}/cover`;
+          coverImg.src = `/api/music/tracks/${tid}/cover`;
+          const isFav = favorites.has(tid);
+          btnFav.classList.toggle('active', isFav);
+          btnFav.classList.toggle('fav-active', isFav);
+          const isOff = offlineTrackIds.has(tid);
+          if (btnDownloadActive) btnDownloadActive.classList.toggle('active', isOff);
+          updateOfflinePill(isOff ? 'offline' : 'stream');
+          const savedPos = Number(localStorage.getItem(LAST_POS_STORAGE_KEY) || '0');
+          if (t.duration > 0) {
+            timeTotal.textContent = formatTime(t.duration);
+            if (savedPos > 0 && savedPos < t.duration) {
+              timeCurrent.textContent = formatTime(savedPos);
+              seekBar.value = (savedPos / t.duration) * 100;
+            }
+          }
         }
 
         // Кэшируем метаданные в IndexedDB для работы офлайн
@@ -1030,14 +1281,22 @@
   // --- Рендеринг списка музыки в каталоге ---
   function renderCatalog() {
     syncDownloadAllButton();
+    updateTabCounters();
     const q = (searchInput.value || '').toLowerCase().trim();
-    filteredPlaylist = playlist.filter(t => {
-      const matchQ = !q || (t.title || '').toLowerCase().includes(q) || (t.artist || '').toLowerCase().includes(q);
-      if (!matchQ) return false;
-      if (activeTab === 'downloaded') return offlineTrackIds.has(Number(t.id));
-      if (activeTab === 'favorites') return favorites.has(Number(t.id));
-      return true;
-    });
+    const matchFn = t => !q || (t.title || '').toLowerCase().includes(q) || (t.artist || '').toLowerCase().includes(q);
+
+    if (activeTab === 'recent') {
+      filteredPlaylist = recentTrackIds
+        .map(id => playlist.find(t => Number(t.id) === Number(id)))
+        .filter(t => t && matchFn(t));
+    } else {
+      filteredPlaylist = playlist.filter(t => {
+        if (!matchFn(t)) return false;
+        if (activeTab === 'downloaded') return offlineTrackIds.has(Number(t.id));
+        if (activeTab === 'favorites') return favorites.has(Number(t.id));
+        return true;
+      });
+    }
 
     tracksListEl.innerHTML = '';
     if (filteredPlaylist.length === 0) {
@@ -1055,6 +1314,20 @@
         `;
         const goAll = document.getElementById('carBtnGoAllTab');
         if (goAll) goAll.onclick = () => {
+          document.querySelectorAll('.car-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'all'));
+          activeTab = 'all';
+          renderCatalog();
+        };
+      } else if (activeTab === 'recent') {
+        tracksListEl.innerHTML = `
+          <div style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
+            <div style="font-size: 18px; color: #fff; margin-bottom: 8px;">🕒 История прослушивания пуста</div>
+            <p style="font-size: 14px; margin-bottom: 16px;">Здесь автоматически появятся песни, которые вы недавно включали.</p>
+            <button id="carBtnRecentGoAll" class="car-btn-open-list" style="margin: 0 auto;" type="button">📂 Открыть «Все треки»</button>
+          </div>
+        `;
+        const goAllRec = document.getElementById('carBtnRecentGoAll');
+        if (goAllRec) goAllRec.onclick = () => {
           document.querySelectorAll('.car-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'all'));
           activeTab = 'all';
           renderCatalog();
@@ -1122,6 +1395,8 @@
       item.onclick = () => {
         const targetIdx = playlist.findIndex(t => Number(t.id) === tid);
         if (targetIdx >= 0) {
+          playbackContextTab = activeTab;
+          shuffleBag = [];
           playTrack(targetIdx);
           catalogDrawer.classList.remove('open');
         }
@@ -1379,7 +1654,26 @@
   if (btnCloseCatalog && catalogDrawer) btnCloseCatalog.onclick = () => catalogDrawer.classList.remove('open');
 
   const coverBox = $('carCoverBox');
-  if (coverBox && catalogDrawer) coverBox.onclick = () => catalogDrawer.classList.add('open');
+  if (coverBox && catalogDrawer) {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    coverBox.addEventListener('touchstart', e => {
+      if (e.touches && e.touches.length === 1) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+    coverBox.addEventListener('touchend', e => {
+      if (!e.changedTouches || e.changedTouches.length === 0) return;
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+        if (dx < 0) playNextTrack();
+        else playPrevTrack();
+      }
+    }, { passive: true });
+    coverBox.onclick = () => catalogDrawer.classList.add('open');
+  }
 
   window.addEventListener('pagehide', () => {
     // Освобождение Blob URL при выгрузке страницы
@@ -1419,17 +1713,46 @@
 
   // --- Старт приложения ---
   async function init() {
+    // Скрываем кнопку скачивания APK, если плеер уже открыт внутри установленного приложения или WebView
+    const btnApk = $('carBtnApk');
+    const isStandaloneApp = window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true ||
+      /; wv\)/.test(navigator.userAgent || '');
+    if (btnApk && isStandaloneApp) {
+      btnApk.style.display = 'none';
+    }
+
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/music/sw.js', { scope: '/music/' })
         .then(reg => reg.update().catch(() => {}))
         .catch(() => {});
     }
     loadOfflineTrackIdsFromStorage();
+    loadFavoritesFromStorage();
+    loadRecentTracksFromStorage();
     loadCachedPlaylistFromStorage();
     if (playlist.length > 0) {
       renderCatalog();
     }
     await initIndexedDB();
+    // Подтягиваем избранное из IndexedDB, если оно там было сохранено
+    if (idb && idb.objectStoreNames.contains('favorites')) {
+      await new Promise(resolve => {
+        try {
+          const tx = idb.transaction('favorites', 'readonly');
+          const req = tx.objectStore('favorites').getAll();
+          req.onsuccess = () => {
+            (req.result || []).forEach(r => {
+              if (r && r.id) favorites.add(Number(r.id));
+            });
+            resolve();
+          };
+          req.onerror = () => resolve();
+        } catch {
+          resolve();
+        }
+      });
+    }
     await migrateLegacyIndexedDB();
     await initOPFS();
     setupMediaSession();

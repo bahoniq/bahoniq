@@ -732,10 +732,20 @@ def get_cached_track_path(track_id: int) -> Optional[Path]:
         return None
     final_path = MUSIC_CACHE_DIR / f"track_{track_id}_{track['telegram_msg_id']}.bin"
     expected_db_size = int(track.get("file_size") or 0)
-    if final_path.exists() and final_path.stat().st_size > 0:
-        if not expected_db_size or final_path.stat().st_size == expected_db_size:
+    if final_path.exists() and final_path.stat().st_size >= 20000:
+        actual_size = final_path.stat().st_size
+        if not expected_db_size or actual_size == expected_db_size:
             final_path.touch()
             return final_path
+        # Если локальный кэш валиден (например, WAV/MP3 заголовок), используем его как резерв
+        try:
+            with final_path.open("rb") as f:
+                head = f.read(4)
+            if head in (b"RIFF", b"ID3\x03", b"ID3\x04", b"\xff\xfb", b"\xff\xf3", b"OggS", b"fLaC"):
+                final_path.touch()
+                return final_path
+        except OSError:
+            pass
     return None
 
 
