@@ -87,6 +87,60 @@ def get_db_connection() -> sqlite3.Connection:
     return conn
 
 
+def get_saved_telegram_session_str() -> str:
+    """Возвращает актуальную строку сессии Telegram из БД sync_meta, .env или telegram_session.txt."""
+    try:
+        conn = get_db_connection()
+        try:
+            row = conn.execute("SELECT value FROM sync_meta WHERE key='runtime_telegram_session'").fetchone()
+            if row and row[0] and row[0].strip():
+                return row[0].strip()
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    session_str = os.getenv("TELEGRAM_SESSION", "").strip()
+    if session_str:
+        return session_str
+    session_file = DATA_DIR.parent / "telegram_session.txt"
+    if session_file.exists():
+        try:
+            return session_file.read_text(encoding="utf-8").strip()
+        except Exception:
+            pass
+    return ""
+
+
+async def save_telegram_session_str(session_str: str) -> None:
+    """Сохраняет новую строку сессии в sync_meta и локальный файл, и сбрасывает клиент для переподключения."""
+    global _client, _cached_channel_entity, _cached_channel_client
+    clean = (session_str or "").strip()
+    conn = get_db_connection()
+    try:
+        with conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO sync_meta (key, value) VALUES ('runtime_telegram_session', ?)",
+                (clean,),
+            )
+    finally:
+        conn.close()
+    os.environ["TELEGRAM_SESSION"] = clean
+    try:
+        session_file = DATA_DIR.parent / "telegram_session.txt"
+        session_file.write_text(clean, encoding="utf-8")
+    except Exception:
+        pass
+    async with _client_lock:
+        if _client is not None:
+            try:
+                await _client.disconnect()
+            except Exception:
+                pass
+        _client = None
+        _cached_channel_entity = None
+        _cached_channel_client = None
+
+
 def extract_metadata(msg: Any) -> Optional[Dict[str, Any]]:
     """
     Извлекает метаданные трека БЕЗ скачивания аудиофайла:
@@ -195,11 +249,7 @@ async def get_telegram_client():
 
         api_id_str = os.getenv("TELEGRAM_API_ID", "").strip()
         api_hash = os.getenv("TELEGRAM_API_HASH", "").strip()
-        session_str = os.getenv("TELEGRAM_SESSION", "").strip()
-        if not session_str:
-            session_file = DATA_DIR.parent / "telegram_session.txt"
-            if session_file.exists():
-                session_str = session_file.read_text(encoding="utf-8").strip()
+        session_str = get_saved_telegram_session_str()
 
         if not api_id_str or not api_hash or not session_str:
             return None
@@ -481,7 +531,7 @@ def get_catalog_status() -> Dict[str, Any]:
         total_tracks = conn.execute("SELECT COUNT(*) FROM tracks").fetchone()[0]
         last_sync_row = conn.execute("SELECT value FROM sync_meta WHERE key='last_sync'").fetchone()
         last_sync = last_sync_row[0] if last_sync_row else None
-        has_session = bool(os.getenv("TELEGRAM_SESSION", "").strip() or (DATA_DIR.parent / "telegram_session.txt").exists())
+        has_session = bool(get_saved_telegram_session_str())
         has_creds = bool(os.getenv("TELEGRAM_API_ID") and os.getenv("TELEGRAM_API_HASH"))
 
         return {
@@ -953,11 +1003,11 @@ async def download_full_track(track_id: int) -> AsyncGenerator[bytes, None]:
 
 
 def clear_catalog_cache():
-    """Очищает кэш метаданных SQLite (восстановимый кэш)."""
+    """Очищает кэш метаданных SQLite (восстановимый кэш, сохраняет runtime_telegram_session)."""
     conn = get_db_connection()
     try:
         with conn:
             conn.execute("DELETE FROM tracks")
-            conn.execute("DELETE FROM sync_meta")
+            conn.execute("DELETE FROM sync_meta WHERE key != 'runtime_telegram_session'")
     finally:
         conn.close()

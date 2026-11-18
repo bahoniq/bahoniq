@@ -13,8 +13,8 @@
       margin: 0;
     }
     .admin-card {
-      max-width: 680px;
-      margin: 32px auto;
+      max-width: 720px;
+      margin: 24px auto;
       background: #0d1a2d;
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 16px;
@@ -25,40 +25,92 @@
       font-size: 22px;
       color: #00e5ff;
       margin-top: 0;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
+    }
+    h2 {
+      font-size: 16px;
+      color: #facc15;
+      margin: 24px 0 12px 0;
     }
     .status-row {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       padding: 10px 0;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       font-size: 14px;
+      gap: 12px;
     }
     .status-row .val {
       font-weight: 600;
       color: #fff;
+      text-align: right;
     }
     .badge-ok { color: #22c55e; }
     .badge-warn { color: #facc15; }
     .badge-err { color: #ef4444; }
     .btn-row {
       display: flex;
-      gap: 12px;
-      margin-top: 24px;
+      gap: 10px;
+      margin-top: 20px;
+      flex-wrap: wrap;
     }
     .button {
-      padding: 12px 20px;
-      border-radius: 8px;
+      padding: 11px 18px;
+      border-radius: 10px;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
       border: none;
-      transition: opacity 0.2s;
+      transition: opacity 0.2s, transform 0.1s;
     }
-    .button:hover { opacity: 0.9; }
+    .button:hover { opacity: 0.92; }
+    .button:active { transform: scale(0.98); }
+    .button:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-primary { background: #00e5ff; color: #000; }
+    .btn-gold { background: #facc15; color: #000; }
     .btn-danger { background: #ef4444; color: #fff; }
     .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; text-decoration: none; display: inline-flex; align-items: center; }
+    .auth-box {
+      margin-top: 22px;
+      padding: 18px;
+      border-radius: 12px;
+      background: rgba(3, 7, 18, 0.65);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+    }
+    .field-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .input {
+      flex: 1;
+      min-width: 210px;
+      height: 42px;
+      background: #030712;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      color: #fff;
+      padding: 0 14px;
+      font-size: 14px;
+    }
+    .input:focus {
+      border-color: #00e5ff;
+      outline: none;
+    }
+    .session-output {
+      margin-top: 12px;
+      padding: 12px;
+      background: #020617;
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 12px;
+      word-break: break-all;
+      color: #86efac;
+      display: none;
+    }
     .log-box {
       margin-top: 20px;
       background: #030712;
@@ -68,9 +120,12 @@
       font-family: monospace;
       font-size: 12.5px;
       color: #94a3b8;
-      min-height: 80px;
+      min-height: 90px;
+      max-height: 220px;
+      overflow-y: auto;
       white-space: pre-wrap;
     }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
@@ -78,7 +133,11 @@
     <h1>Управление каналом «Музыка в авто»</h1>
 
     <div class="status-row">
-      <span>Telegram-сессия:</span>
+      <span>Живая авторизация Telegram:</span>
+      <span id="stLiveAuth" class="val">Проверка...</span>
+    </div>
+    <div class="status-row">
+      <span>Конфигурация сессии:</span>
       <span id="stTgConfigured" class="val">Проверка...</span>
     </div>
     <div class="status-row">
@@ -97,7 +156,36 @@
     <div class="btn-row">
       <button id="btnSync" class="button btn-primary" type="button">🔄 Синхронизировать канал</button>
       <button id="btnClear" class="button btn-danger" type="button">Очистить кэш метаданных</button>
-      <a href="/music/" class="button btn-secondary">В плеер</a>
+      <a href="/music/" class="button btn-secondary">🎵 Открыть плеер</a>
+    </div>
+
+    <!-- Блок быстрой веб-авторизации Telegram прямо из браузера -->
+    <div class="auth-box">
+      <h2 style="margin-top: 0;">🔐 Быстрое подключение / обновление сессии Telegram</h2>
+      <p style="font-size: 13px; color: #cbd5e1; margin: 0 0 10px 0; line-height: 1.45;">
+        Если сессия устарела или сбросилась после деплоя, войдите по номеру телефона прямо здесь — сервер сам создаст новую <code>TELEGRAM_SESSION</code>, сохранит её в базу и синхронизирует все треки.
+      </p>
+
+      <!-- Шаг 1: Номер телефона -->
+      <div id="stepPhone" class="field-row">
+        <input id="inpPhone" class="input" type="tel" placeholder="Номер телефона (например, +77001234567)">
+        <button id="btnSendCode" class="button btn-gold" type="button">📲 Получить код в Telegram</button>
+      </div>
+
+      <!-- Шаг 2: Код и 2FA -->
+      <div id="stepCode" class="field-row hidden">
+        <input id="inpCode" class="input" type="text" placeholder="Код из Telegram (5 цифр)" autocomplete="one-time-code">
+        <input id="inp2FA" class="input hidden" type="password" placeholder="Облачный пароль 2FA (если включён)">
+        <button id="btnVerifyCode" class="button btn-primary" type="button">✓ Подтвердить и синхронизировать</button>
+      </div>
+
+      <!-- Вывод сгенерированной строки для Render -->
+      <div id="sessionOutBox" class="session-output">
+        <div style="color: #fff; font-family: sans-serif; font-weight: 700; margin-bottom: 6px;">
+          ✓ Сессия активирована! Скопируйте эту строку в переменную <code>TELEGRAM_SESSION</code> на Render, чтобы она сохранялась навсегда:
+        </div>
+        <div id="sessionOutText"></div>
+      </div>
     </div>
 
     <div id="adminLog" class="log-box">Готов к работе.</div>
@@ -111,17 +199,93 @@
 
     async function loadStatus() {
       try {
-        const res = await fetch('/api/music/status');
+        const [res, authRes] = await Promise.all([
+          fetch('/api/music/status'),
+          fetch('/api/music/auth/session-status')
+        ]);
         const data = await res.json();
-        document.getElementById('stTgConfigured').innerHTML = data.telegram_configured ? '<span class="badge-ok">✓ Настроена в Render</span>' : '<span class="badge-err">✕ Не настроена (укажите TELEGRAM_SESSION)</span>';
+        const authData = await authRes.json();
+
+        const liveEl = document.getElementById('stLiveAuth');
+        if (authData.authorized) {
+          liveEl.innerHTML = `<span class="badge-ok">✓ Активна (${authData.user || 'ОК'})</span>`;
+        } else {
+          liveEl.innerHTML = `<span class="badge-err">✕ Сессия не авторизована — войдите ниже</span>`;
+        }
+
+        document.getElementById('stTgConfigured').innerHTML = data.telegram_configured
+          ? '<span class="badge-ok">✓ Задана</span>'
+          : '<span class="badge-err">✕ Не задана</span>';
         document.getElementById('stChannel').textContent = '@' + (data.channel_username || 'bahoniqmusic');
         document.getElementById('stTotalTracks').textContent = data.total_tracks;
         document.getElementById('stLastSync').textContent = data.last_sync ? new Date(data.last_sync).toLocaleString() : 'Никогда';
-        log('Статус успешно обновлен.');
       } catch (err) {
         log('Ошибка загрузки статуса: ' + err.message);
       }
     }
+
+    document.getElementById('btnSendCode').onclick = async () => {
+      const phone = document.getElementById('inpPhone').value.trim();
+      if (!phone) {
+        alert('Введите номер телефона в международном формате (+7...)');
+        return;
+      }
+      const btn = document.getElementById('btnSendCode');
+      btn.disabled = true;
+      log(`Отправка кода подтверждения на ${phone}...`);
+      try {
+        const res = await fetch('/api/music/auth/send-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Ошибка отправки кода');
+        document.getElementById('stepCode').classList.remove('hidden');
+        log('✓ Код отправлен в приложение Telegram! Введите его в поле выше.');
+      } catch (err) {
+        log('✕ ' + err.message);
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    document.getElementById('btnVerifyCode').onclick = async () => {
+      const code = document.getElementById('inpCode').value.trim();
+      const password = document.getElementById('inp2FA').value.trim();
+      const btn = document.getElementById('btnVerifyCode');
+      btn.disabled = true;
+      log('Проверка кода и вход в Telegram...');
+      try {
+        const res = await fetch('/api/music/auth/verify-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Ошибка подтверждения');
+        if (data.status === '2fa_required') {
+          document.getElementById('inp2FA').classList.remove('hidden');
+          log('⚠ Включена двухэтапная аутентификация (2FA). Введите ваш облачный пароль и нажмите кнопку ещё раз.');
+          return;
+        }
+        log(`✓ Успешный вход: ${data.user}. Треков синхронизировано: ${data.sync?.total_tracks ?? 0}`);
+        if (data.session_string) {
+          const outBox = document.getElementById('sessionOutBox');
+          const outTxt = document.getElementById('sessionOutText');
+          outTxt.textContent = data.session_string;
+          outBox.style.display = 'block';
+          try { await navigator.clipboard.writeText(data.session_string); log('✓ Строка TELEGRAM_SESSION скопирована в буфер обмена!'); } catch {}
+        }
+        await loadStatus();
+      } catch (err) {
+        log('✕ ' + err.message);
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    };
 
     document.getElementById('btnSync').onclick = async () => {
       const btn = document.getElementById('btnSync');
@@ -143,8 +307,7 @@
     document.getElementById('btnClear').onclick = async () => {
       if (!confirm('Очистить серверный кэш метаданных? (Локально скачанные треки на устройствах не пострадают)')) return;
       try {
-        const res = await fetch('/api/music/clear-cache', { method: 'POST' });
-        const data = await res.json();
+        await fetch('/api/music/clear-cache', { method: 'POST' });
         log('Кэш метаданных очищен.');
         loadStatus();
       } catch (err) {

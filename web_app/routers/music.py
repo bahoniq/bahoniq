@@ -20,8 +20,11 @@ from modules.music_core import (
     ensure_track_cached,
     get_cached_track_path,
     get_catalog_status,
+    get_saved_telegram_session_str,
+    get_telegram_client,
     get_track_by_id,
     query_tracks,
+    save_telegram_session_str,
     stream_track_chunks,
     sync_catalog,
 )
@@ -128,7 +131,7 @@ async def list_tracks(
     )
 
     # Авто-синхронизация при первом запросе, если в базе ещё нет треков
-    has_session = bool(os.getenv("TELEGRAM_SESSION") or (STATIC_DIR.parent.parent / "telegram_session.txt").exists())
+    has_session = bool(get_saved_telegram_session_str())
     if total == 0 and has_session:
         await ensure_catalog_ready()
         tracks, total = query_tracks(
@@ -326,3 +329,149 @@ def trigger_clear_cache(
 
     clear_catalog_cache()
     return {"status": "ok", "message": "Серверный кэш метаданных успешно очищен"}
+
+
+_web_auth_state: dict = {
+    "client": None,
+    "phone": "",
+    "phone_code_hash": "",
+}
+_web_auth_lock = asyncio.Lock()
+
+
+@router.get("/auth/session-status")
+async def music_session_status():
+    """Проверяет живую авторизацию текущей Telegram-сессии."""
+    client = await get_telegram_client()
+    if client is not None:
+        try:
+            me = await client.get_me()
+            return {
+                "authorized": True,
+                "user": f"{getattr(me, 'first_name', '') or ''} (@{getattr(me, 'username', '') or getattr(me, 'id', '')})".strip(),
+            }
+        except Exception:
+            pass
+    return {"authorized": False, "user": None}
+
+
+@router.post("/auth/send-code")
+async def music_auth_send_code(
+    request: Request,
+    x_music_admin_token: Optional[str] = Header(None, alias="X-Music-Admin-Token"),
+):
+    """Отправляет код авторизации Telegram на указанный номер телефона."""
+    if not _check_admin_auth(request, x_music_admin_token):
+        raise HTTPException(status_code=403, detail="Доступ запрещён: войдите в Work Center")
+    payload = await request.json()
+    phone = str(payload.get("phone") or "").strip()
+    if not phone:
+        raise HTTPException(status_code=400, detail="Укажите номер телефона в формате +7...")
+
+    api_id_str = os.getenv("TELEGRAM_API_ID", "").strip()
+    api_hash = os.getenv("TELEGRAM_API_HASH", "").strip()
+    if not api_id_str or not api_hash:
+        raise HTTPException(status_code=500, detail="TELEGRAM_API_ID и TELEGRAM_API_HASH не заданы в .env / Render")
+
+    from telethon import TelegramClient
+    from telethon.sessions import StringSession
+
+    async with _web_auth_lock:
+        old_client = _web_auth_state.get("client")
+        if old_client is not None:
+            try:
+                await old_client.disconnect()
+            except Exception:
+                pass
+        client = TelegramClient(StringSession(), int(api_id_str), api_hash)
+        await client.connect()
+        try:
+            sent = await client.send_code_request(phone)
+        except Exception as exc:
+            await client.disconnect()
+            raise HTTPException(status_code=400, detail=f"Ошибка отправки кода Telegram: {exc}") from exc
+
+        _web_auth_state["client"] = client
+        _web_auth_state["phone"] = phone
+        _web_auth_state["phone_code_hash"] = sent.phone_code_hash
+        return {"status": "code_sent", "phone": phone}
+
+
+@router.post("/auth/verify-code")
+async def music_auth_verify_code(
+    request: Request,
+    x_music_admin_token: Optional[str] = Header(None, alias="X-Music-Admin-Token"),
+):
+    """Подтверждает код из Telegram (и облачный пароль 2FA при наличии), сохраняет StringSession и синхронизирует каталог."""
+    if not _check_admin_auth(request, x_music_admin_token):
+        raise HTTPException(status_code=403, detail="Доступ запрещён: войдите в Work Center")
+    payload = await request.json()
+    code = str(payload.get("code") or "").strip()
+    password = str(payload.get("password") or "").strip()
+
+    from telethon.errors import SessionPasswordNeededError
+
+    async with _web_auth_lock:
+        client = _web_auth_state.get("client")
+        phone = _web_auth_state.get("phone")
+        phone_code_hash = _web_auth_state.get("phone_code_hash")
+        if not client or not phone:
+            raise HTTPException(status_code=400, detail="Сначала запросите код подтверждения")
+
+        try:
+            if code:
+                await client.sign_in(phone=phone, code=code, phone_code_hash=phone_code_hash)
+            elif password:
+                await client.sign_in(password=password)
+            else:
+                raise HTTPException(status_code=400, detail="Введите код из Telegram")
+        except SessionPasswordNeededError:
+            if password:
+                try:
+                    await client.sign_in(password=password)
+                except Exception as exc:
+                    raise HTTPException(status_code=400, detail=f"Неверный облачный пароль 2FA: {exc}") from exc
+            else:
+                return {"status": "2fa_required", "message": "Требуется облачный пароль двухэтапной аутентификации (2FA)"}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Ошибка входа: {exc}") from exc
+
+        me = await client.get_me()
+        session_string = client.session.save()
+        await client.disconnect()
+        _web_auth_state["client"] = None
+
+    await save_telegram_session_str(session_string)
+    sync_res = await sync_catalog(force=True)
+    return {
+        "status": "ok",
+        "user": f"{getattr(me, 'first_name', '') or ''} (@{getattr(me, 'username', '') or getattr(me, 'id', '')})".strip(),
+        "session_string": session_string,
+        "sync": sync_res,
+    }
+
+
+@router.post("/auth/set-session")
+async def music_auth_set_session(
+    request: Request,
+    x_music_admin_token: Optional[str] = Header(None, alias="X-Music-Admin-Token"),
+):
+    """Позволяет вставить готовую строку TELEGRAM_SESSION напрямую и сразу запустить синхронизацию."""
+    if not _check_admin_auth(request, x_music_admin_token):
+        raise HTTPException(status_code=403, detail="Доступ запрещён: войдите в Work Center")
+    payload = await request.json()
+    session_string = str(payload.get("session_string") or "").strip()
+    if len(session_string) < 50:
+        raise HTTPException(status_code=400, detail="Некорректная строка TELEGRAM_SESSION")
+
+    await save_telegram_session_str(session_string)
+    client = await get_telegram_client()
+    if not client:
+        raise HTTPException(status_code=400, detail="Эта строка сессии недействительна или деавторизована в Telegram")
+    me = await client.get_me()
+    sync_res = await sync_catalog(force=True)
+    return {
+        "status": "ok",
+        "user": f"{getattr(me, 'first_name', '') or ''} (@{getattr(me, 'username', '') or getattr(me, 'id', '')})".strip(),
+        "sync": sync_res,
+    }
