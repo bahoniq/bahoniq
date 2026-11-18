@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="/assets/app.css?v=20261117_android_fix_v9">
   <link rel="stylesheet" href="/assets/design_academy.css?v=20261117_android_fix_v9">
   <link rel="stylesheet" href="/assets/design_academy_pro.css?v=20261117_android_fix_v9">
-  <link rel="stylesheet" href="/assets/excel_academy.css?v=20261117_android_fix_v9">
+  <link rel="stylesheet" href="/assets/excel_academy.css?v=20261118_real_work_v1">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
@@ -32,7 +32,7 @@
     .web-splash-logo { width: 200px !important; height: 200px !important; max-width: 200px !important; max-height: 200px !important; object-fit: contain !important; filter: drop-shadow(0 10px 30px rgba(0, 229, 255, 0.35)); }
   </style>
   <link rel="stylesheet" href="/assets/instruction_generator.css?v=20261117_salemhr">
-<link rel="stylesheet" href="/assets/theme_violet.css?v=20261118_violet2">
+<link rel="stylesheet" href="/assets/theme_violet.css?v=20261118_violet3">
 </head>
 <body class="theme-night">
   <script>
@@ -883,8 +883,9 @@
           <!-- EXCEL ACADEMY STUDIO -->
           <section id="excelAcademy" class="module-page excel-academy">
             <div class="ea-header card"><div><h1>Excel Academy Studio <span class="ea-pill">OFFICE + IT • PRO</span></h1><p>Реальные задачи: реестры, сопоставление баз, очистка, контроль, аналитика и отчёты.</p></div><div class="ea-progress"><span>Прогресс курса</span><strong id="eaProgressText">0 / 72 (0%)</strong><div><i id="eaProgressFill"></i></div><button id="eaResetProgressBtn" class="button secondary ea-reset-progress-btn" type="button" title="Сбросить весь прогресс Excel Academy к началу">Сбросить прогресс</button></div></div>
+            <div class="ea-mode-switch" role="tablist" aria-label="Режим Excel Academy"><button class="active" data-ea-mode="course" type="button">Курс и тренажёр</button><button data-ea-mode="work" type="button">Рабочие файлы <span>8 кейсов</span></button></div>
             <div id="eaStages" class="ea-stages"></div>
-            <div class="ea-layout">
+            <div id="eaCourseLayout" class="ea-layout">
               <aside class="card ea-sidebar"><div class="ea-stage-label"><b id="eaStageLabel">ЭТАП 1</b><span id="eaStageCount">0/12</span></div><input id="eaSearch" type="search" placeholder="Поиск урока..."><div id="eaLessons" class="ea-lessons"></div></aside>
               <main class="card ea-main">
                 <header class="ea-lesson-head"><div><small id="eaBadge">ЭТАП 1 · УРОК 1</small><h2 id="eaTitle">Загрузка...</h2><p id="eaSummary"></p></div><div class="ea-tabs"><button class="active" data-ea-step="learn">1 Изучение</button><button data-ea-step="practice">2 Практика</button><button data-ea-step="review">3 Проверка</button></div></header>
@@ -899,6 +900,16 @@
                 <div id="eaReview" class="ea-review hidden"><div id="eaScore" class="ea-score">0%</div><h3>Результат проверки</h3><div id="eaResults" class="ea-results"></div><button id="eaBack" class="button secondary">← Вернуться к таблице</button><button id="eaComplete" class="button primary hidden">Завершить урок →</button></div>
               </main>
               <aside class="card ea-mentor"><h3>ИИ-наставник</h3><small>Видит текущую книгу и формулы</small><div id="eaMentorFeed" class="ea-mentor-feed"></div><textarea id="eaQuestion" placeholder="Спросите о формуле или ошибке..."></textarea><button id="eaAsk" class="button primary">Спросить наставника</button></aside>
+            </div>
+            <div id="eaWorkMode" class="ea-work-mode hidden">
+              <aside class="card ea-work-list"><div class="ea-work-list-head"><small>ПРАКТИКА НА РЕАЛЬНЫХ XLSX</small><b>Входящие задачи</b></div><div id="eaWorkCases"></div></aside>
+              <main class="card ea-work-detail">
+                <div class="ea-work-kicker" id="eaWorkArea">Выберите кейс</div><h2 id="eaWorkTitle">Рабочее задание</h2><p id="eaWorkBrief">Получите исходный файл, выполните задачу в настоящем Excel и загрузите результат на проверку.</p>
+                <section><h3>Что нужно сдать</h3><ul id="eaWorkDeliverables"></ul></section>
+                <div class="ea-work-flow"><div><i>1</i><b>Скачайте исходник</b><span>Данные уже похожи на рабочую выгрузку</span></div><div><i>2</i><b>Выполните в Excel</b><span>Формулы, Power Query или ручная обработка — на ваш выбор</span></div><div><i>3</i><b>Загрузите результат</b><span>Проверяются цифры, структура и сохранность исходника</span></div></div>
+                <div class="ea-work-actions"><a id="eaWorkDownload" class="button secondary" href="#">↓ Скачать XLSX</a><label class="button secondary">Выбрать результат<input id="eaWorkFile" type="file" accept=".xlsx,.xlsm" hidden></label><span id="eaWorkFileName">Файл не выбран</span><button id="eaWorkSubmit" class="button primary" type="button" disabled>Проверить файл</button></div>
+                <div id="eaWorkResults" class="ea-work-results"><p>Проверка покажет не только ошибки, но и что именно уже выполнено правильно.</p></div>
+              </main>
             </div>
             <div id="eaChartModal" class="ea-chart-modal"><div><h3 id="eaChartTitle">Диаграмма</h3><div id="eaChartView" class="ea-chart-view"></div><button id="eaChartClose" class="button secondary">Закрыть</button></div></div>
           </section>
@@ -1125,7 +1136,7 @@
   <script src="/assets/app.js?v=20261118_ticket_v2"></script>
   <script src="/assets/design_academy.js?v=20261116_pro_v5"></script>
   <script src="/assets/design_academy_pro.js?v=20261116_pro_v5"></script>
-  <script src="/assets/excel_academy.js?v=20261116_office_it_v7"></script>
+  <script src="/assets/excel_academy.js?v=20261118_real_work_v1"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

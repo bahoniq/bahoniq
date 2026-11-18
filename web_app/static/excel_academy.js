@@ -54,6 +54,10 @@
     resizeStartWidth: 96,
     book: null,
     done: getSavedDone(),
+    mode: 'course',
+    workCases: [],
+    workCase: null,
+    workFile: null,
     history: [],
     future: []
   };
@@ -1707,6 +1711,73 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 500);
   }
 
+  function setAcademyMode(mode) {
+    state.mode = mode;
+    qa('[data-ea-mode]').forEach(b => b.classList.toggle('active', b.dataset.eaMode === mode));
+    q('#eaStages')?.classList.toggle('hidden', mode !== 'course');
+    q('#eaCourseLayout')?.classList.toggle('hidden', mode !== 'course');
+    q('#eaWorkMode')?.classList.toggle('hidden', mode !== 'work');
+    if (mode === 'work' && !state.workCases.length) loadWorkCases();
+  }
+
+  function getWorkDone() {
+    try { return new Set(JSON.parse(localStorage.getItem('bahoniq_excel_academy_work_done') || '[]')); }
+    catch { return new Set(); }
+  }
+
+  function renderWorkCases() {
+    const done = getWorkDone();
+    q('#eaWorkCases').innerHTML = state.workCases.map((item, i) =>
+      `<button type="button" class="ea-work-case ${state.workCase?.id === item.id ? 'active' : ''}" data-work-case="${esc(item.id)}"><i>${done.has(item.id) ? '✓' : i + 1}</i><span><b>${esc(item.title)}</b><small>${esc(item.area)}</small></span></button>`
+    ).join('');
+    qa('[data-work-case]').forEach(b => b.onclick = () => selectWorkCase(b.dataset.workCase));
+  }
+
+  function selectWorkCase(id) {
+    state.workCase = state.workCases.find(x => x.id === id);
+    state.workFile = null;
+    if (!state.workCase) return;
+    q('#eaWorkArea').textContent = state.workCase.area;
+    q('#eaWorkTitle').textContent = state.workCase.title;
+    q('#eaWorkBrief').textContent = state.workCase.brief;
+    q('#eaWorkDeliverables').innerHTML = state.workCase.deliverables.map(x => `<li>${esc(x)}</li>`).join('');
+    q('#eaWorkDownload').href = `/api/excel-academy/work-cases/${encodeURIComponent(id)}/download`;
+    q('#eaWorkFile').value = '';
+    q('#eaWorkFileName').textContent = 'Файл не выбран';
+    q('#eaWorkSubmit').disabled = true;
+    q('#eaWorkResults').innerHTML = '<p>Исходные листы защищены проверкой: работайте на новых листах и не меняйте полученные данные.</p>';
+    renderWorkCases();
+  }
+
+  async function loadWorkCases() {
+    try {
+      const data = await api('/api/excel-academy/work-cases');
+      state.workCases = data.cases || [];
+      renderWorkCases();
+      if (state.workCases.length) selectWorkCase(state.workCases[0].id);
+    } catch (err) {
+      q('#eaWorkResults').innerHTML = `<div class="fail">Не удалось загрузить кейсы: ${esc(err.message)}</div>`;
+    }
+  }
+
+  async function submitWorkCase() {
+    if (!state.workCase || !state.workFile) return;
+    const button = q('#eaWorkSubmit');
+    button.disabled = true; button.textContent = 'Проверяю…';
+    q('#eaWorkResults').innerHTML = '<p>Читаю книгу и сверяю результат с исходными данными…</p>';
+    const fd = new FormData(); fd.append('file', state.workFile);
+    try {
+      const data = await api(`/api/excel-academy/work-cases/${encodeURIComponent(state.workCase.id)}/submit`, {method:'POST', body:fd});
+      q('#eaWorkResults').innerHTML = `<div class="ea-work-score ${data.passed ? 'ok' : 'fail'}"><strong>${data.score}%</strong><span>${esc(data.summary)}</span></div>` + data.results.map(x => `<div class="ea-work-check ${x.passed ? 'ok' : 'fail'}"><b>${x.passed ? '✓' : '×'} ${esc(x.title)}</b><span>${esc(x.message)}</span></div>`).join('');
+      if (data.passed) {
+        const done=getWorkDone(); done.add(state.workCase.id);
+        localStorage.setItem('bahoniq_excel_academy_work_done', JSON.stringify([...done])); renderWorkCases();
+      }
+    } catch (err) {
+      q('#eaWorkResults').innerHTML = `<div class="ea-work-score fail"><strong>Ошибка</strong><span>${esc(err.message)}</span></div>`;
+    } finally { button.disabled = false; button.textContent = 'Проверить файл'; }
+  }
+
   // Bind UI Controls
   function bind() {
     q('#eaStart').onclick = () => setStep('practice');
@@ -1741,6 +1812,13 @@
     q('#eaImport').onchange = e => e.target.files[0] && importXlsx(e.target.files[0]);
     q('#eaExport').onclick = exportXlsx;
     q('#eaChartClose').onclick = () => q('#eaChartModal')?.classList.remove('open');
+    qa('[data-ea-mode]').forEach(b => b.onclick = () => setAcademyMode(b.dataset.eaMode));
+    q('#eaWorkFile').onchange = e => {
+      state.workFile = e.target.files[0] || null;
+      q('#eaWorkFileName').textContent = state.workFile?.name || 'Файл не выбран';
+      q('#eaWorkSubmit').disabled = !state.workFile;
+    };
+    q('#eaWorkSubmit').onclick = submitWorkCase;
   }
 
   // Initial loader

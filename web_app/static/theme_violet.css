@@ -199,3 +199,18 @@ body.theme-day .ea-protip-box { background: rgba(245, 184, 75, 0.10); border-col
 body.theme-day .ea-protip-box b { color: #F5B84B; }
 body.theme-day .ea-protip-box p { color: #F0DCAE; }
 body.theme-day .ea-filter-banner { background: var(--vl-accent-bg); border-bottom-color: var(--vl-accent-ln); color: var(--vl-accent); }
+
+/* ---------- Excel Academy Studio — Режим рабочих XLSX файлов ---------- */
+body.theme-day .ea-mode-switch { background: rgba(33, 27, 50, 0.96) !important; border-color: var(--vl-edge) !important; }
+body.theme-day .ea-mode-switch button { color: var(--vl-muted) !important; }
+body.theme-day .ea-mode-switch button.active { background: linear-gradient(135deg, #7c3aed, #2563eb) !important; color: #fff !important; box-shadow: 0 6px 20px rgba(124, 58, 237, 0.35) !important; }
+body.theme-day .ea-work-case { border-color: var(--vl-edge-soft) !important; color: var(--vl-text) !important; }
+body.theme-day .ea-work-case:hover,
+body.theme-day .ea-work-case.active { background: rgba(185, 138, 247, 0.16) !important; }
+body.theme-day .ea-work-case i { background: rgba(255, 255, 255, 0.08) !important; color: var(--vl-accent) !important; }
+body.theme-day .ea-work-detail section { background: rgba(43, 36, 63, 0.7) !important; border-color: var(--vl-edge) !important; }
+body.theme-day .ea-work-detail section h3 { color: var(--vl-accent) !important; }
+body.theme-day .ea-work-flow > div { background: var(--vl-surface) !important; border-color: var(--vl-edge) !important; }
+body.theme-day .ea-work-check { background: var(--vl-surface) !important; }
+body.theme-day .ea-work-score.ok { background: rgba(34, 197, 94, 0.16) !important; color: #86efac !important; }
+body.theme-day .ea-work-score.fail { background: rgba(239, 68, 68, 0.16) !important; color: #fca5a5 !important; }

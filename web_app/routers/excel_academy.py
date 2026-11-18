@@ -1,16 +1,49 @@
 """API Excel Academy Studio Pro."""
 from __future__ import annotations
-import io, json, re
+import io, json, re, tempfile
+from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from starlette.concurrency import run_in_threadpool
 from ai_service import generate_text
 from ..modules.excel_academy_studio.curriculum import get_curriculum, get_lesson
 from ..modules.excel_academy_studio.validation import validate_workbook
+from ..modules.excel_academy_studio.work_cases import CASE_BY_ID, public_cases, source_path, validate_submission
 
 router=APIRouter(prefix="/api/excel-academy",tags=["Excel Academy Studio"])
+@router.get("/work-cases")
+def work_cases(): return {"cases":public_cases()}
+
+@router.get("/work-cases/{case_id}")
+def work_case(case_id:str):
+    case=CASE_BY_ID.get(case_id)
+    if not case: raise HTTPException(404,"Рабочий кейс не найден")
+    return {k:v for k,v in case.items() if k!="file"}
+
+@router.get("/work-cases/{case_id}/download")
+def download_work_case(case_id:str):
+    try: path=source_path(case_id)
+    except KeyError: raise HTTPException(404,"Рабочий кейс не найден")
+    if not path.exists(): raise HTTPException(404,"Исходный XLSX не найден")
+    return FileResponse(path,media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",filename=path.name)
+
+@router.post("/work-cases/{case_id}/submit")
+async def submit_work_case(case_id:str,file:UploadFile=File(...)):
+    if case_id not in CASE_BY_ID: raise HTTPException(404,"Рабочий кейс не найден")
+    data=await file.read()
+    if len(data)>25*1024*1024: raise HTTPException(413,"Файл больше 25 МБ")
+    if not data.startswith(b"PK"): raise HTTPException(400,"Загрузите файл XLSX")
+    tmp_path=None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".xlsx",delete=False) as tmp:
+            tmp.write(data); tmp_path=Path(tmp.name)
+        return await run_in_threadpool(validate_submission,case_id,tmp_path)
+    except Exception as exc:
+        raise HTTPException(400,f"Не удалось проверить XLSX: {exc}")
+    finally:
+        if tmp_path: tmp_path.unlink(missing_ok=True)
 @router.get("/curriculum")
 def curriculum(): return get_curriculum()
 @router.get("/lesson/{lesson_id}")
