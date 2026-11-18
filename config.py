@@ -170,19 +170,21 @@ GOLD_LIGHT = "#FBF6E5"
 
 DAY_THEME = {
 
-    "bg": "#E6ECF2",
+    # Violet: премиальная графитово-фиолетовая тема. Имя DAY_THEME
+    # сохранено только ради совместимости со старой конфигурацией.
+    "bg": "#171425",
 
-    "card": "#F4F7FA",
+    "card": "#29233D",
 
-    "text": "#0F172A",
+    "text": "#F7F3FF",
 
-    "gray": "#475569",
+    "gray": "#BDB2D7",
 
-    "border": "#CBD5E1",
+    "border": "#4A3D68",
 
-    "hover": "#E2E8F0",
+    "hover": "#352D4D",
 
-    "input": "#F8FAFC",
+    "input": "#211B32",
 }
 
 

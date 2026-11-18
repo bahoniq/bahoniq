@@ -74,7 +74,7 @@ def load_theme():
 
         # Если файл отсутствует,
         # повреждён или недоступен,
-        # оставляем дневную тему.
+        # оставляем тему Violet.
 
         state.current_theme = "day"
 
@@ -116,8 +116,8 @@ def toggle_theme():
     """
     Переключает тему:
 
-        day -> night
-        night -> day
+        Violet -> Aqua
+        Aqua -> Violet
 
     После переключения
     сохраняет выбор пользователя.

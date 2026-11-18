@@ -26,36 +26,37 @@
   --modal-bg: rgba(8, 17, 30, 0.96);
 }
 
-/* Дневная тема (Soft Mist / Cool Slate — спокойная серо-голубая гамма) */
+/* Violet — премиальная графитово-фиолетовая альтернатива теме Aqua.
+   Класс theme-day сохранён для совместимости с прежними настройками. */
 body.theme-day {
-  --bg-dark: #CDD7E0;
-  --bg-sidebar: #DDE5EB;
-  --bg-card: #E7EDF2;
-  --bg-card-hover: #DEE7ED;
-  --bg-input: #DCE5EB;
+  --bg-dark: #171425;
+  --bg-sidebar: rgba(20, 16, 31, 0.97);
+  --bg-card: rgba(43, 36, 63, 0.92);
+  --bg-card-hover: rgba(55, 45, 79, 0.96);
+  --bg-input: rgba(33, 27, 50, 0.96);
 
-  --border: rgba(43, 64, 84, 0.16);
-  --border-focus: #087F8C;
-  --border-card-hover: rgba(8, 127, 140, 0.42);
+  --border: rgba(196, 165, 255, 0.18);
+  --border-focus: #2DD4D0;
+  --border-card-hover: rgba(158, 119, 237, 0.66);
 
-  --text-main: #172436;
-  --text-muted: #506176;
-  --text-sub: #66778A;
+  --text-main: #F7F3FF;
+  --text-muted: #C8BEDD;
+  --text-sub: #9588B2;
 
-  --green: #087F5B;
-  --green-neon: #0F8F88;
-  --cyan-neon: #087F8C;
-  --red: #C94A56;
-  --blue: #3973C6;
-  --purple: #7856B8;
-  --yellow: #B97822;
+  --green: #0F9F92;
+  --green-neon: #22D3C5;
+  --cyan-neon: #36E3E0;
+  --red: #E34D70;
+  --blue: #70A5FF;
+  --purple: #B98AF7;
+  --yellow: #F5B84B;
 
   --card-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.20),
-    0 5px 16px rgba(43, 64, 84, 0.10);
+    inset 0 1px 0 rgba(255, 255, 255, 0.075),
+    0 9px 26px rgba(5, 3, 13, 0.28);
 
-  --glow: rgba(8, 127, 140, 0.06);
-  --modal-bg: #E3E9EE;
+  --glow: rgba(150, 105, 235, 0.16);
+  --modal-bg: rgba(26, 21, 40, 0.98);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -90,26 +91,26 @@ button, .button, .tab, .sidebar-nav, .tool-icon, .table-scroll-btn, .sidebar-log
 }
 
 body.theme-day {
-  background-color: #CDD7E0;
+  background-color: #171425;
   background-image:
     linear-gradient(
       to right,
-      rgba(37, 63, 82, 0.025) 1px,
+      rgba(191, 164, 255, 0.025) 1px,
       transparent 1px
     ),
     linear-gradient(
       to bottom,
-      rgba(37, 63, 82, 0.025) 1px,
+      rgba(191, 164, 255, 0.025) 1px,
       transparent 1px
     ),
     radial-gradient(
       1100px 700px at 82% 18%,
-      rgba(8, 127, 140, 0.035),
+      rgba(111, 75, 190, 0.16),
       transparent 70%
     ),
     radial-gradient(
       900px 600px at 18% 78%,
-      rgba(60, 100, 125, 0.025),
+      rgba(32, 211, 197, 0.055),
       transparent 70%
     );
   background-size:
@@ -3263,3 +3264,135 @@ body.theme-day .welcome-accent {
 .excel-preview-head span,.excel-preview-sheet span{font-size:11px;color:var(--text-sub)}
 .excel-preview-sheet{padding-top:9px}.excel-preview-sheet strong{font-size:12px}.excel-preview-sheet small{width:100%;font-size:11px;color:var(--text-sub)}
 body.theme-day .excel-template-catalog{background:rgba(43,64,84,.035)}
+
+/* ==========================================================================
+   VIOLET THEME — финальный слой совместимости для всех модулей
+   Старые светлые точечные правила перекрываются здесь единой палитрой.
+   ========================================================================== */
+body.theme-day .sidebar {
+  background: rgba(20, 16, 31, 0.97);
+  border-right-color: rgba(196, 165, 255, 0.16);
+}
+body.theme-day .topbar {
+  background: rgba(27, 21, 42, 0.96);
+  border-bottom-color: rgba(196, 165, 255, 0.16);
+}
+body.theme-day .system-item {
+  background: rgba(255, 255, 255, 0.025);
+  border-color: rgba(196, 165, 255, 0.13);
+}
+body.theme-day .system-item:hover {
+  background: rgba(55, 45, 79, 0.96);
+  border-color: rgba(54, 227, 224, 0.34);
+  color: #FFFFFF;
+}
+body.theme-day .sys-icon {
+  background: rgba(34, 211, 197, 0.09);
+  border-color: rgba(54, 227, 224, 0.24);
+  color: #36E3E0;
+}
+body.theme-day .sidebar-footer {
+  border-top-color: rgba(196, 165, 255, 0.15);
+}
+body.theme-day .sidebar-logo-img,
+body.theme-day .web-splash-logo {
+  filter: drop-shadow(0 7px 22px rgba(54, 227, 224, 0.25)) !important;
+}
+body.theme-day .theme-toggle-btn {
+  background: rgba(61, 48, 89, 0.72);
+  border-color: rgba(190, 155, 255, 0.30);
+  color: #F7F3FF;
+}
+body.theme-day .theme-toggle-btn:hover {
+  background: rgba(76, 59, 110, 0.88);
+  border-color: #B98AF7;
+}
+body.theme-day .welcome-accent {
+  background: linear-gradient(90deg, #FFFFFF 0%, #36E3E0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+body.theme-day .tool-tile,
+body.theme-day .card,
+body.theme-day .preview-card {
+  background: linear-gradient(135deg, rgba(48, 40, 70, 0.94), rgba(38, 31, 57, 0.93));
+  border-color: rgba(196, 165, 255, 0.20);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 9px 26px rgba(5,3,13,.26);
+}
+body.theme-day .tool-tile:hover {
+  background: linear-gradient(135deg, rgba(61, 49, 88, 0.98), rgba(46, 37, 68, 0.97));
+  border-color: rgba(185, 138, 247, 0.62);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.09), 0 12px 30px rgba(5,3,13,.34);
+}
+body.theme-day .tool-arrow,
+body.theme-day .desktop-badge {
+  background: rgba(255,255,255,.035);
+  border-color: rgba(196,165,255,.16);
+  color: var(--text-muted);
+}
+body.theme-day .icon-teal { background: rgba(34,211,197,.11); color:#36E3E0; border-color:rgba(54,227,224,.28); }
+body.theme-day .icon-blue { background: rgba(112,165,255,.12); color:#83B2FF; border-color:rgba(112,165,255,.30); }
+body.theme-day .icon-purple { background: rgba(185,138,247,.13); color:#CDA8FF; border-color:rgba(185,138,247,.32); }
+body.theme-day .icon-red { background: rgba(227,77,112,.12); color:#F07A96; border-color:rgba(227,77,112,.28); }
+body.theme-day .icon-amber { background: rgba(245,184,75,.12); color:#F5C667; border-color:rgba(245,184,75,.28); }
+body.theme-day .icon-design { background: rgba(235,91,184,.13); color:#F083CC; border-color:rgba(235,91,184,.30); }
+
+body.theme-day input,
+body.theme-day textarea,
+body.theme-day select,
+body.theme-day .wiki-tree-search,
+body.theme-day .wiki-question-textarea,
+body.theme-day .wiki-form-input,
+body.theme-day .wiki-form-textarea,
+body.theme-day .acad-lesson-search,
+body.theme-day .acad-reply-textarea,
+body.theme-day .acad-code-textarea {
+  background: #211B32 !important;
+  color: #F7F3FF !important;
+  border-color: rgba(196,165,255,.22) !important;
+}
+body.theme-day input:focus,
+body.theme-day textarea:focus,
+body.theme-day select:focus {
+  border-color: #36E3E0 !important;
+  box-shadow: 0 0 0 3px rgba(54,227,224,.11) !important;
+}
+body.theme-day .academy-shell,
+body.theme-day .academy-lessons,
+body.theme-day .wiki-topic-block,
+body.theme-day .wiki-answer-content,
+body.theme-day .wiki-article-body,
+body.theme-day .acad-quiz-card,
+body.theme-day .acad-trap-card,
+body.theme-day .acad-answer-dock,
+body.theme-day .desktop-modal-card,
+body.theme-day .modal-card,
+body.theme-day .modal-box,
+body.theme-day .excel-templates-box,
+body.theme-day #excelTemplatePreviewCard {
+  background: rgba(43,36,63,.96) !important;
+  color: #F7F3FF !important;
+  border-color: rgba(196,165,255,.20) !important;
+}
+body.theme-day .academy-route,
+body.theme-day .modal-info-panel,
+body.theme-day .excel-template-catalog,
+body.theme-day .template-chip {
+  background: rgba(33,27,50,.90) !important;
+  color: var(--text-muted) !important;
+  border-color: rgba(196,165,255,.18) !important;
+}
+body.theme-day .template-chip:hover,
+body.theme-day .template-chip.active {
+  background: rgba(54,227,224,.10) !important;
+  color: #36E3E0 !important;
+  border-color: rgba(54,227,224,.40) !important;
+}
+body.theme-day thead th {
+  background: #241D36 !important;
+  color: #F7F3FF !important;
+  border-color: rgba(196,165,255,.18) !important;
+}
+body.theme-day tbody tr:nth-child(even) { background: rgba(255,255,255,.018) !important; }
+body.theme-day tbody tr:hover { background: rgba(54,227,224,.055) !important; }
+body.theme-day tbody td { color: var(--text-muted) !important; border-color: rgba(196,165,255,.12) !important; }

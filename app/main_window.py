@@ -244,10 +244,10 @@ class MainWindow:
         self.clock_label.pack(side="left", padx=(0, 10), pady=(8, 0))
         state.clock_label = self.clock_label
 
-        # КНОПКА ТЕМЫ (☀ / 🌙)
+        # КНОПКА ПЕРЕКЛЮЧЕНИЯ AQUA / VIOLET
         self.theme_button = tk.Button(
             self.controls,
-            text="☀ Тема",
+            text="☾ Violet",
             command=self.change_theme,
             font=("Segoe UI", 10, "bold"),
             relief="flat",
@@ -1152,9 +1152,9 @@ class MainWindow:
         # THEME BUTTON
         if state.theme_button is not None:
             if state.current_theme == "night":
-                state.theme_button.configure(text="🌙 Тема")
+                state.theme_button.configure(text="☾ Violet")
             else:
-                state.theme_button.configure(text="☀ Тема")
+                state.theme_button.configure(text="◈ Aqua")
 
         # ITALIAN SPECIAL ELEMENTS
         try:
