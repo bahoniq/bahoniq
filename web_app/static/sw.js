@@ -1,7 +1,10 @@
-// BahonIQ Work Center Service Worker
-const CACHE_NAME = 'bahoniq-pwa-v11';
+// BahonIQ Work Center Service Worker — Offline Shell Support
+const CACHE_NAME = 'bahoniq-pwa-v12';
 const PRECACHE_URLS = [
   '/',
+  '/assets/app.css',
+  '/assets/theme_violet.css',
+  '/assets/app.js',
   '/assets/favicon.ico',
   '/assets/icon-192.png',
   '/assets/icon-512.png',
@@ -20,7 +23,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) return caches.delete(key);
+          if (key.startsWith('bahoniq-pwa-') && key !== CACHE_NAME) return caches.delete(key);
         })
       )
     ).then(() => self.clients.claim())
@@ -28,11 +31,22 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Для сетевых запросов и API используем Network First
-  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
+  if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/music')) {
     return;
   }
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request)
+      .then((response) => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      })
+      .catch(() =>
+        caches.match(event.request).then((exact) => exact || caches.match(event.request, { ignoreSearch: true }))
+      )
   );
 });

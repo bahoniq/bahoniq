@@ -1,10 +1,11 @@
-﻿/* BahonIQ РњСѓР·С‹РєР° РІ Р°РІС‚Рѕ - РР·РѕР»РёСЂРѕРІР°РЅРЅС‹Р№ Service Worker (Scope: /music/) */
-const CACHE_NAME = 'bahoniq-music-shell-v28';
+﻿/* BahonIQ Музыка в авто - Изолированный Service Worker (Scope: /music/) — 100% Offline Ready */
+const CACHE_NAME = 'bahoniq-music-shell-v29';
 const SHELL_ASSETS = [
   '/music/',
   '/music/manifest.webmanifest',
   '/music/assets/music.css',
   '/music/assets/music.js',
+  '/music/assets/logo.png',
   '/music/assets/icons/icon-192.png',
   '/music/assets/icons/icon-512.png',
   '/music/assets/icons/maskable-icon-512.png'
@@ -28,43 +29,79 @@ self.addEventListener('activate', event => {
   );
 });
 
+// Быстрый сетевой запрос с таймаутом (если сеть в авто слабая или отсутствует — не ждём 30 сек, сразу отдаём из памяти)
+function fetchWithTimeout(request, timeoutMs = 2500) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Network timeout')), timeoutMs);
+    fetch(request).then(response => {
+      clearTimeout(timer);
+      resolve(response);
+    }).catch(err => {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
+
 self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
 
-  // Р”Р»СЏ API-Р·Р°РїСЂРѕСЃРѕРІ Рё СЃС‚СЂРёРјРёРЅРіР° РѕС‚РґР°С‘Рј РЅР°РїСЂСЏРјСѓСЋ РІ СЃРµС‚СЊ (Р°СѓРґРёРѕ РєСЌС€РёСЂСѓРµС‚СЃСЏ РєР»РёРµРЅС‚РѕРј С‡РµСЂРµР· OPFS/IndexedDB)
+  // Для API-запросов и стриминга отдаём напрямую (аудио и список треков кэшируются плеером в IndexedDB/OPFS)
   if (url.pathname.startsWith('/api/')) {
     return;
   }
 
-  // Р”Р»СЏ СЃРєСЂРёРїС‚РѕРІ Рё СЃС‚РёР»РµР№: Network First СЃ РєСЌС€-fallback (РґР»СЏ РјРіРЅРѕРІРµРЅРЅРѕРіРѕ РѕР±РЅРѕРІР»РµРЅРёСЏ Р±РµР· СЂСѓС‡РЅРѕР№ С‡РёСЃС‚РєРё РєСЌС€Р°)
-  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
+  // Для навигации внутри /music/ (запуск APK или открытие вкладки без интернета)
+  if (event.request.mode === 'navigate' && (url.pathname === '/music' || url.pathname.startsWith('/music/'))) {
     event.respondWith(
-      fetch(event.request)
+      fetchWithTimeout(event.request, 2500)
         .then(response => {
           if (response && response.status === 200) {
-            const respClone = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, respClone));
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put('/music/', clone));
           }
           return response;
         })
-        .catch(() => caches.match(event.request))
+        .catch(() => {
+          return caches.match('/music/', { ignoreSearch: true })
+            .then(cached => cached || caches.match(event.request, { ignoreSearch: true }));
+        })
     );
     return;
   }
 
-  // Р”Р»СЏ РЅР°РІРёРіР°С†РёРё РІРЅСѓС‚СЂРё /music/ РІРѕР·РІСЂР°С‰Р°РµРј РєСЌС€РёСЂРѕРІР°РЅРЅСѓСЋ РѕР±РѕР»РѕС‡РєСѓ РїР»РµРµСЂР°
-  if (event.request.mode === 'navigate' && url.pathname.startsWith('/music/')) {
+  // Для скриптов и стилей (/music/assets/music.js?v=..., music.css?v=...)
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match('/music/'))
+      fetchWithTimeout(event.request, 2500)
+        .then(response => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request)
+            .then(exact => exact || caches.match(event.request, { ignoreSearch: true }));
+        })
     );
     return;
   }
 
-  // Р”Р»СЏ РѕСЃС‚Р°Р»СЊРЅС‹С… СЃС‚Р°С‚РёС‡РµСЃРєРёС… СЂРµСЃСѓСЂСЃРѕРІ РїР»РµРµСЂР° - Cache First СЃ fallback РІ СЃРµС‚СЊ
+  // Для остальных статических ресурсов плеера (иконки, логотип, манифест) — Cache First с ignoreSearch
   if (url.pathname.startsWith('/music/')) {
     event.respondWith(
-      caches.match(event.request).then(cached => {
-        return cached || fetch(event.request);
+      caches.match(event.request, { ignoreSearch: true }).then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).then(response => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          }
+          return response;
+        });
       })
     );
   }

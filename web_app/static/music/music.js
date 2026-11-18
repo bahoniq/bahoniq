@@ -1504,6 +1504,34 @@
       }
     } catch (err) {
       console.warn('Network offline or catalog fetch failed, relying on local cache:', err);
+      if (currentIndex === -1 && playlist.length > 0) {
+        const lastTrackId = Number(localStorage.getItem('bahoniq_last_track_id'));
+        let initIdx = 0;
+        if (lastTrackId) {
+          const found = playlist.findIndex(t => Number(t.id) === lastTrackId);
+          if (found >= 0) initIdx = found;
+        }
+        currentIndex = initIdx;
+        const t = playlist[initIdx];
+        const tid = Number(t.id);
+        trackTitle.textContent = t.title || 'Без названия';
+        trackArtist.textContent = t.artist || 'Музыка ДИТ';
+        if (metaDurationEl) metaDurationEl.textContent = formatTime(t.duration);
+        applyTrackAmbientAndCover(t);
+        buildWaveformShapeForTrack(t);
+        const isFav = favorites.has(tid);
+        btnFav.classList.toggle('active', isFav);
+        btnFav.classList.toggle('fav-active', isFav);
+        if (btnFavDrive) {
+          btnFavDrive.classList.toggle('active', isFav);
+          btnFavDrive.classList.toggle('fav-active', isFav);
+        }
+        const isOff = offlineTrackIds.has(tid);
+        if (btnDownloadActive) btnDownloadActive.classList.toggle('active', isOff);
+        updateOfflinePill(isOff ? 'offline' : 'stream');
+        updateUpNextStrip();
+        renderCatalog();
+      }
     }
   }
 
