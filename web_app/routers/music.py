@@ -335,6 +335,7 @@ _web_auth_state: dict = {
     "client": None,
     "phone": "",
     "phone_code_hash": "",
+    "qr_login": None,
 }
 _web_auth_lock = asyncio.Lock()
 
@@ -353,6 +354,90 @@ async def music_session_status():
         except Exception:
             pass
     return {"authorized": False, "user": None}
+
+
+@router.post("/auth/qr-start")
+async def music_auth_qr_start(
+    request: Request,
+    x_music_admin_token: Optional[str] = Header(None, alias="X-Music-Admin-Token"),
+):
+    """Генерирует QR-ссылку (tg://login?token=...) для мгновенного входа сканированием с телефона БЕЗ кода."""
+    if not _check_admin_auth(request, x_music_admin_token):
+        raise HTTPException(status_code=403, detail="Доступ запрещён: войдите в Work Center")
+
+    api_id_str = os.getenv("TELEGRAM_API_ID", "").strip()
+    api_hash = os.getenv("TELEGRAM_API_HASH", "").strip()
+    if not api_id_str or not api_hash:
+        raise HTTPException(status_code=500, detail="TELEGRAM_API_ID и TELEGRAM_API_HASH не заданы в .env")
+
+    from telethon import TelegramClient
+    from telethon.sessions import StringSession
+
+    async with _web_auth_lock:
+        old_client = _web_auth_state.get("client")
+        if old_client is not None:
+            try:
+                await old_client.disconnect()
+            except Exception:
+                pass
+        client = TelegramClient(StringSession(), int(api_id_str), api_hash)
+        await client.connect()
+        try:
+            qr_login = await client.qr_login()
+        except Exception as exc:
+            await client.disconnect()
+            raise HTTPException(status_code=400, detail=f"Ошибка генерации QR Telegram: {exc}") from exc
+
+        _web_auth_state["client"] = client
+        _web_auth_state["qr_login"] = qr_login
+        return {"status": "qr_ready", "url": qr_login.url}
+
+
+@router.post("/auth/qr-poll")
+async def music_auth_qr_poll(
+    request: Request,
+    x_music_admin_token: Optional[str] = Header(None, alias="X-Music-Admin-Token"),
+):
+    """Проверяет, отсканирован ли QR-код в приложении Telegram на телефоне, и автоматически обновляет токен до истечения 30 сек."""
+    if not _check_admin_auth(request, x_music_admin_token):
+        raise HTTPException(status_code=403, detail="Доступ запрещён: войдите в Work Center")
+
+    from telethon.errors import SessionPasswordNeededError
+
+    async with _web_auth_lock:
+        client = _web_auth_state.get("client")
+        qr_login = _web_auth_state.get("qr_login")
+        if not client or not qr_login:
+            return {"status": "expired"}
+
+        try:
+            await qr_login.wait(timeout=1.5)
+        except asyncio.TimeoutError:
+            # Если до истечения 30-секундного токена осталось мало времени — заранее перевыпускаем свежий QR
+            return {"status": "waiting"}
+        except SessionPasswordNeededError:
+            return {"status": "2fa_required", "message": "Введите облачный пароль 2FA"}
+        except Exception:
+            try:
+                await qr_login.recreate()
+                return {"status": "waiting", "url": qr_login.url}
+            except Exception:
+                return {"status": "expired"}
+
+        me = await client.get_me()
+        session_string = client.session.save()
+        await client.disconnect()
+        _web_auth_state["client"] = None
+        _web_auth_state["qr_login"] = None
+
+    await save_telegram_session_str(session_string)
+    sync_res = await sync_catalog(force=True)
+    return {
+        "status": "ok",
+        "user": f"{getattr(me, 'first_name', '') or ''} (@{getattr(me, 'username', '') or getattr(me, 'id', '')})".strip(),
+        "session_string": session_string,
+        "sync": sync_res,
+    }
 
 
 @router.post("/auth/send-code")
@@ -415,8 +500,8 @@ async def music_auth_verify_code(
         client = _web_auth_state.get("client")
         phone = _web_auth_state.get("phone")
         phone_code_hash = _web_auth_state.get("phone_code_hash")
-        if not client or not phone:
-            raise HTTPException(status_code=400, detail="Сначала запросите код подтверждения")
+        if not client:
+            raise HTTPException(status_code=400, detail="Сначала запустите QR-вход или запросите код")
 
         try:
             if code:
@@ -424,7 +509,7 @@ async def music_auth_verify_code(
             elif password:
                 await client.sign_in(password=password)
             else:
-                raise HTTPException(status_code=400, detail="Введите код из Telegram")
+                raise HTTPException(status_code=400, detail="Введите код из Telegram или облачный пароль 2FA")
         except SessionPasswordNeededError:
             if password:
                 try:

@@ -13,7 +13,7 @@
       margin: 0;
     }
     .admin-card {
-      max-width: 720px;
+      max-width: 740px;
       margin: 24px auto;
       background: #0d1a2d;
       border: 1px solid rgba(255, 255, 255, 0.12);
@@ -77,6 +77,34 @@
       border-radius: 12px;
       background: rgba(3, 7, 18, 0.65);
       border: 1px solid rgba(0, 229, 255, 0.25);
+    }
+    .qr-wrap {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-top: 14px;
+      padding: 16px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(250, 204, 21, 0.35);
+      border-radius: 12px;
+      flex-wrap: wrap;
+    }
+    .qr-img-box {
+      width: 210px;
+      height: 210px;
+      background: #ffffff;
+      padding: 12px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      flex-shrink: 0;
+    }
+    .qr-img-box img, .qr-img-box canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
     }
     .field-row {
       display: flex;
@@ -159,20 +187,41 @@
       <a href="/music/" class="button btn-secondary">🎵 Открыть плеер</a>
     </div>
 
-    <!-- Блок быстрой веб-авторизации Telegram прямо из браузера -->
+    <!-- СПОСОБ 1: ВХОД ПО QR-КОДУ БЕЗ SMS И БЕЗ КОДА -->
     <div class="auth-box">
-      <h2 style="margin-top: 0;">🔐 Быстрое подключение / обновление сессии Telegram</h2>
-      <p style="font-size: 13px; color: #cbd5e1; margin: 0 0 10px 0; line-height: 1.45;">
-        Если сессия устарела или сбросилась после деплоя, войдите по номеру телефона прямо здесь — сервер сам создаст новую <code>TELEGRAM_SESSION</code>, сохранит её в базу и синхронизирует все треки.
+      <h2 style="margin-top: 0;">📷 Способ 1 (Самый надежный — БЕЗ ожидания кода): Вход по QR-коду</h2>
+      <p style="font-size: 13px; color: #cbd5e1; margin: 0 0 12px 0; line-height: 1.5;">
+        Если код в Telegram не приходит, просто нажмите кнопку ниже и отсканируйте QR-код камерой телефона:<br>
+        <strong>Telegram на телефоне → Настройки → Устройства → Подключить устройство</strong>.
       </p>
+      <button id="btnShowQr" class="button btn-gold" type="button">📷 Показать QR-код для входа</button>
 
-      <!-- Шаг 1: Номер телефона -->
-      <div id="stepPhone" class="field-row">
-        <input id="inpPhone" class="input" type="tel" placeholder="Номер телефона (например, +77001234567)">
-        <button id="btnSendCode" class="button btn-gold" type="button">📲 Получить код в Telegram</button>
+      <div id="qrContainer" class="qr-wrap hidden">
+        <div id="qrBox" class="qr-img-box"></div>
+        <div style="flex: 1; min-width: 220px; font-size: 13.5px; line-height: 1.55; color: #e2e8f0;">
+          <div style="color: #facc15; font-weight: 700; margin-bottom: 6px;">Отсканируйте этот QR в Telegram на телефоне:</div>
+          1. Откройте <b>Telegram</b> на смартфоне<br>
+          2. Перейдите в <b>Настройки → Устройства</b><br>
+          3. Нажмите <b>«Подключить устройство»</b> и наведите камеру сюда.<br>
+          <div id="qrStatusText" style="margin-top: 10px; color: #00e5ff; font-weight: 600;">⏳ Ожидание сканирования...</div>
+        </div>
       </div>
 
-      <!-- Шаг 2: Код и 2FA -->
+      <!-- Если на аккаунте включен облачный пароль 2FA -->
+      <div id="step2FAOnly" class="field-row hidden" style="margin-top: 14px;">
+        <input id="inpQr2FA" class="input" type="password" placeholder="Введите ваш облачный пароль Telegram (2FA)">
+        <button id="btnSubmitQr2FA" class="button btn-primary" type="button">✓ Подтвердить пароль 2FA</button>
+      </div>
+
+      <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
+
+      <!-- СПОСОБ 2: ПО НОМЕРУ ТЕЛЕФОНА -->
+      <div style="font-size: 13px; color: #94a3b8; font-weight: 600; margin-bottom: 6px;">Способ 2: Вход по номеру телефона (если приходит код)</div>
+      <div id="stepPhone" class="field-row">
+        <input id="inpPhone" class="input" type="tel" placeholder="Номер телефона (+77001234567)">
+        <button id="btnSendCode" class="button btn-secondary" type="button">📲 Запросить код</button>
+      </div>
+
       <div id="stepCode" class="field-row hidden">
         <input id="inpCode" class="input" type="text" placeholder="Код из Telegram (5 цифр)" autocomplete="one-time-code">
         <input id="inp2FA" class="input hidden" type="password" placeholder="Облачный пароль 2FA (если включён)">
@@ -191,10 +240,32 @@
     <div id="adminLog" class="log-box">Готов к работе.</div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
     const logBox = document.getElementById('adminLog');
+    let qrPollTimer = null;
+
     function log(msg) {
       logBox.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + logBox.textContent;
+    }
+
+    function renderQrUrl(url) {
+      const box = document.getElementById('qrBox');
+      box.innerHTML = '';
+      if (window.QRCode) {
+        new QRCode(box, {
+          text: url,
+          width: 186,
+          height: 186,
+          colorDark: '#000000',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } else {
+        const img = document.createElement('img');
+        img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=186x186&data=' + encodeURIComponent(url);
+        box.appendChild(img);
+      }
     }
 
     async function loadStatus() {
@@ -210,7 +281,7 @@
         if (authData.authorized) {
           liveEl.innerHTML = `<span class="badge-ok">✓ Активна (${authData.user || 'ОК'})</span>`;
         } else {
-          liveEl.innerHTML = `<span class="badge-err">✕ Сессия не авторизована — войдите ниже</span>`;
+          liveEl.innerHTML = `<span class="badge-err">✕ Сессия не авторизована — отсканируйте QR ниже</span>`;
         }
 
         document.getElementById('stTgConfigured').innerHTML = data.telegram_configured
@@ -224,6 +295,103 @@
       }
     }
 
+    // --- QR ВХОД БЕЗ КОДА ---
+    let qrCreatedAt = 0;
+    async function startNewQrCode() {
+      const res = await fetch('/api/music/auth/qr-start', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Ошибка генерации QR');
+      qrCreatedAt = Date.now();
+      document.getElementById('qrContainer').classList.remove('hidden');
+      document.getElementById('qrStatusText').textContent = '⏳ QR активен (автообновление каждые 20 сек) — сканируйте сейчас!';
+      renderQrUrl(data.url);
+    }
+
+    document.getElementById('btnShowQr').onclick = async () => {
+      const btn = document.getElementById('btnShowQr');
+      btn.disabled = true;
+      if (qrPollTimer) clearInterval(qrPollTimer);
+      log('Генерация свежего QR-кода Telegram...');
+      try {
+        await startNewQrCode();
+        log('✓ Свежий QR-код на экране! Сразу наведите камеру Telegram.');
+
+        qrPollTimer = setInterval(async () => {
+          try {
+            // Автоматически перевыпускаем QR каждые 20 секунд, чтобы он НИКОГДА не истекал (auth_token_expired)
+            if (Date.now() - qrCreatedAt > 20000) {
+              await startNewQrCode();
+              return;
+            }
+            const pRes = await fetch('/api/music/auth/qr-poll', { method: 'POST' });
+            const pData = await pRes.json();
+            if (pData.url) {
+              qrCreatedAt = Date.now();
+              renderQrUrl(pData.url);
+            }
+            if (pData.status === '2fa_required') {
+              clearInterval(qrPollTimer);
+              document.getElementById('qrStatusText').textContent = '🔐 QR отсканирован! Введите облачный пароль 2FA ниже:';
+              document.getElementById('step2FAOnly').classList.remove('hidden');
+              log('⚠ QR отсканирован. Введите ваш облачный пароль 2FA.');
+            } else if (pData.status === 'ok') {
+              clearInterval(qrPollTimer);
+              document.getElementById('qrContainer').classList.add('hidden');
+              log(`✓ Успешный вход по QR: ${pData.user}. Треков синхронизировано: ${pData.sync?.total_tracks ?? 0}`);
+              showSessionString(pData.session_string);
+              await loadStatus();
+            } else if (pData.status === 'expired') {
+              await startNewQrCode();
+            }
+          } catch {}
+        }, 2000);
+      } catch (err) {
+        log('✕ ' + err.message);
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    document.getElementById('btnSubmitQr2FA').onclick = async () => {
+      const password = document.getElementById('inpQr2FA').value.trim();
+      if (!password) return;
+      const btn = document.getElementById('btnSubmitQr2FA');
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/music/auth/verify-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: '', password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Неверный пароль 2FA');
+        document.getElementById('qrContainer').classList.add('hidden');
+        document.getElementById('step2FAOnly').classList.add('hidden');
+        log(`✓ Успешный вход: ${data.user}. Треков синхронизировано: ${data.sync?.total_tracks ?? 0}`);
+        showSessionString(data.session_string);
+        await loadStatus();
+      } catch (err) {
+        log('✕ ' + err.message);
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    async function showSessionString(sessionStr) {
+      if (!sessionStr) return;
+      const outBox = document.getElementById('sessionOutBox');
+      const outTxt = document.getElementById('sessionOutText');
+      outTxt.textContent = sessionStr;
+      outBox.style.display = 'block';
+      try {
+        await navigator.clipboard.writeText(sessionStr);
+        log('✓ Строка TELEGRAM_SESSION автоматически скопирована в буфер обмена!');
+      } catch {}
+    }
+
+    // --- ВХОД ПО НОМЕРУ ТЕЛЕФОНА ---
     document.getElementById('btnSendCode').onclick = async () => {
       const phone = document.getElementById('inpPhone').value.trim();
       if (!phone) {
@@ -271,13 +439,7 @@
           return;
         }
         log(`✓ Успешный вход: ${data.user}. Треков синхронизировано: ${data.sync?.total_tracks ?? 0}`);
-        if (data.session_string) {
-          const outBox = document.getElementById('sessionOutBox');
-          const outTxt = document.getElementById('sessionOutText');
-          outTxt.textContent = data.session_string;
-          outBox.style.display = 'block';
-          try { await navigator.clipboard.writeText(data.session_string); log('✓ Строка TELEGRAM_SESSION скопирована в буфер обмена!'); } catch {}
-        }
+        await showSessionString(data.session_string);
         await loadStatus();
       } catch (err) {
         log('✕ ' + err.message);
