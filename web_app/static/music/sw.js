@@ -1,5 +1,5 @@
-/* BahonIQ Музыка в авто - Изолированный Service Worker (Scope: /music/) */
-const CACHE_NAME = 'bahoniq-music-shell-v22';
+﻿/* BahonIQ РњСѓР·С‹РєР° РІ Р°РІС‚Рѕ - РР·РѕР»РёСЂРѕРІР°РЅРЅС‹Р№ Service Worker (Scope: /music/) */
+const CACHE_NAME = 'bahoniq-music-shell-v24';
 const SHELL_ASSETS = [
   '/music/',
   '/music/manifest.webmanifest',
@@ -31,12 +31,12 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Для API-запросов и стриминга отдаём напрямую в сеть (аудио кэшируется клиентом через OPFS/IndexedDB)
+  // Р”Р»СЏ API-Р·Р°РїСЂРѕСЃРѕРІ Рё СЃС‚СЂРёРјРёРЅРіР° РѕС‚РґР°С‘Рј РЅР°РїСЂСЏРјСѓСЋ РІ СЃРµС‚СЊ (Р°СѓРґРёРѕ РєСЌС€РёСЂСѓРµС‚СЃСЏ РєР»РёРµРЅС‚РѕРј С‡РµСЂРµР· OPFS/IndexedDB)
   if (url.pathname.startsWith('/api/')) {
     return;
   }
 
-  // Для скриптов и стилей: Network First с кэш-fallback (для мгновенного обновления без ручной чистки кэша)
+  // Р”Р»СЏ СЃРєСЂРёРїС‚РѕРІ Рё СЃС‚РёР»РµР№: Network First СЃ РєСЌС€-fallback (РґР»СЏ РјРіРЅРѕРІРµРЅРЅРѕРіРѕ РѕР±РЅРѕРІР»РµРЅРёСЏ Р±РµР· СЂСѓС‡РЅРѕР№ С‡РёСЃС‚РєРё РєСЌС€Р°)
   if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
     event.respondWith(
       fetch(event.request)
@@ -52,7 +52,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Для навигации внутри /music/ возвращаем кэшированную оболочку плеера
+  // Р”Р»СЏ РЅР°РІРёРіР°С†РёРё РІРЅСѓС‚СЂРё /music/ РІРѕР·РІСЂР°С‰Р°РµРј РєСЌС€РёСЂРѕРІР°РЅРЅСѓСЋ РѕР±РѕР»РѕС‡РєСѓ РїР»РµРµСЂР°
   if (event.request.mode === 'navigate' && url.pathname.startsWith('/music/')) {
     event.respondWith(
       fetch(event.request).catch(() => caches.match('/music/'))
@@ -60,7 +60,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Для остальных статических ресурсов плеера - Cache First с fallback в сеть
+  // Р”Р»СЏ РѕСЃС‚Р°Р»СЊРЅС‹С… СЃС‚Р°С‚РёС‡РµСЃРєРёС… СЂРµСЃСѓСЂСЃРѕРІ РїР»РµРµСЂР° - Cache First СЃ fallback РІ СЃРµС‚СЊ
   if (url.pathname.startsWith('/music/')) {
     event.respondWith(
       caches.match(event.request).then(cached => {
