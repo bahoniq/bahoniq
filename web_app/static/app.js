@@ -281,7 +281,7 @@ const pdfOps = {
 };
 let pdfOperation = "pdf_word";
 
-// Потоковое чтение SSE (Server-Sent Events) для мгновенного стриминга ИИ
+// Потоковое чтение SSE (Server-Sent Events)
 async function consumeSSE(url, formData, onChunk, onDone, onError) {
   try {
     const res = await fetch(url, { credentials: 'same-origin', method: 'POST', body: formData });
@@ -694,14 +694,14 @@ $('#ticketForm')?.addEventListener('submit', async e => {
   const problemVal = $('#ticketProblem').value.trim();
   if (!problemVal) return;
   fd.append('problem', problemVal);
-  setBusy(b, true, '⚡ BahonIQ AI печатает в реальном времени…');
+  setBusy(b, true, 'Формирование заявки…');
 
   const titleInput = $('#ticketTitle');
   const descInput = $('#ticketDescription');
   const resPanel = $('#ticketResult');
   titleInput.value = '';
   descInput.value = '';
-  showResult(resPanel, '⚡ <i>Стриминг: ответ появляется мгновенно по токенам…</i>');
+  showResult(resPanel, 'Формирование заявки…');
 
   let streamText = '';
   await consumeSSE(
@@ -716,16 +716,19 @@ $('#ticketForm')?.addEventListener('submit', async e => {
       setBusy(b, false);
       if (doneData.title) titleInput.value = doneData.title;
       if (doneData.description) descInput.value = doneData.description;
-      showResult(resPanel, '✅ Заявка сформирована BahonIQ AI (мгновенный стриминг).');
+      showResult(resPanel, 'Заявка сформирована');
     },
-    async (err) => {
+    async () => {
       try {
         const data = await api('/api/tickets/generate', { method: 'POST', body: fd });
         titleInput.value = data.title || '';
         descInput.value = data.description || '';
-        showResult(resPanel, 'Заявка сформирована BahonIQ AI.');
+        showResult(resPanel, 'Заявка сформирована');
       } catch (fbErr) {
-        showResult(resPanel, esc(fbErr.message || err.message), true);
+        const cleanMsg = (fbErr && fbErr.message && !/ollama|gemini|http|traceback/i.test(fbErr.message))
+          ? fbErr.message
+          : 'Не удалось сформировать заявку. Проверьте текст обращения и повторите попытку.';
+        showResult(resPanel, esc(cleanMsg), true);
       } finally {
         setBusy(b, false);
       }
