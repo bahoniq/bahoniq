@@ -203,13 +203,17 @@ body:not(.theme-night) .ig-golden-rule-content strong {
 }
 
 .ig-screen-box {
+  width: 100%;
+  max-width: 100%;
   margin: 14px auto 20px;
   text-align: center;
+  box-sizing: border-box;
 }
 
 .ig-screen-img {
   display: block;
-  max-width: 16cm;
+  /* Never exceed the real inner width of the preview/PDF page. */
+  max-width: 100%;
   max-height: 11cm;
   width: auto;
   height: auto;

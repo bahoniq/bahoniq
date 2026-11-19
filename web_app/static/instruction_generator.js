@@ -72,7 +72,7 @@
       const dataVal = card.querySelector('.ig-data')?.value || '';
       if (!dataVal) return;
 
-      const mode = card.dataset.mode || 'standard';
+      const mode = card.dataset.mode || 'compact';
       const cropW = Number(card.dataset.cropW) || 0;
       const cropH = Number(card.dataset.cropH) || 0;
       const isNarrow = card.dataset.isNarrow === 'true';
@@ -102,10 +102,12 @@
     }
   }
 
-  // Detects red / highlighter marker annotations drawn by user (rectangles, circles, arrows)
+  // Detect only confident user annotations. Ordinary red UI controls must not trigger a crop.
   function detectMarkerRegion(img) {
     try {
-      const scanW = Math.min(img.naturalWidth, 1000);
+      const processor = window.InstructionImageProcessor;
+      if (!processor) return null;
+      const scanW = Math.min(img.naturalWidth, 1200);
       const scanH = Math.round(scanW * (img.naturalHeight / img.naturalWidth));
       if (scanW <= 0 || scanH <= 0) return null;
 
@@ -114,59 +116,21 @@
       c.height = scanH;
       const ctx = c.getContext('2d', { willReadFrequently: true });
       ctx.drawImage(img, 0, 0, scanW, scanH);
-      const d = ctx.getImageData(0, 0, scanW, scanH).data;
-
-      let minX = scanW, minY = scanH, maxX = 0, maxY = 0;
-      let count = 0;
-
-      for (let y = 0; y < scanH; y++) {
-        for (let x = 0; x < scanW; x++) {
-          const idx = (y * scanW + x) * 4;
-          const r = d[idx], g = d[idx + 1], b = d[idx + 2];
-          // User red pen / rectangle annotation: strong red contrast
-          if (r > 150 && (r - g) > 42 && (r - b) > 42) {
-            if (x < minX) minX = x;
-            if (x > maxX) maxX = x;
-            if (y < minY) minY = y;
-            if (y > maxY) maxY = y;
-            count++;
-          }
-        }
-      }
-
-      // If red not found, check for yellow / orange highlighter
-      if (count < 25) {
-        minX = scanW; minY = scanH; maxX = 0; maxY = 0; count = 0;
-        for (let y = 0; y < scanH; y++) {
-          for (let x = 0; x < scanW; x++) {
-            const idx = (y * scanW + x) * 4;
-            const r = d[idx], g = d[idx + 1], b = d[idx + 2];
-            if (r > 210 && g > 180 && b < 90) {
-              if (x < minX) minX = x;
-              if (x > maxX) maxX = x;
-              if (y < minY) minY = y;
-              if (y > maxY) maxY = y;
-              count++;
-            }
-          }
-        }
-      }
-
-      // Ensure annotation is localized (not the entire background)
-      const totalPixels = scanW * scanH;
-      if (count >= 25 && count <= totalPixels * 0.40 && maxX > minX && maxY > minY) {
-        const scaleX = img.naturalWidth / scanW;
-        const scaleY = img.naturalHeight / scanH;
-        return {
-          x: minX * scaleX,
-          y: minY * scaleY,
-          w: (maxX - minX) * scaleX,
-          h: (maxY - minY) * scaleY,
-          cx: ((minX + maxX) / 2) * scaleX,
-          cy: ((minY + maxY) / 2) * scaleY,
-          count
-        };
-      }
+      const rgba = ctx.getImageData(0, 0, scanW, scanH).data;
+      const detection = processor.detectAnnotationsFromRGBA(rgba, scanW, scanH);
+      if (!detection.found) return null;
+      const scaleX = img.naturalWidth / scanW;
+      const scaleY = img.naturalHeight / scanH;
+      const u = detection.union;
+      return {
+        x: u.x * scaleX, y: u.y * scaleY,
+        w: u.w * scaleX, h: u.h * scaleY,
+        cx: u.cx * scaleX, cy: u.cy * scaleY,
+        confidence: detection.confidence,
+        regions: detection.regions.length,
+        spread: detection.spread,
+        suggestedMode: processor.chooseMode(detection, scanW, scanH),
+      };
     } catch (e) {
       console.warn('Marker detection skipped:', e);
     }
@@ -176,7 +140,7 @@
   function addStep(data = {}) {
     const card = document.createElement('article');
     card.className = 'ig-step card';
-    card.dataset.mode = 'standard';
+    card.dataset.mode = 'compact';
     card.innerHTML = `
       <div class="ig-step-head">
         <strong class="ig-step-title">Этап</strong>
@@ -197,7 +161,7 @@
       <label class="file-drop ig-drop">
         <input class="ig-image" type="file" accept="image/png,image/jpeg,image/webp">
         <span class="file-title">Прикрепите скриншот (или вставьте через Ctrl+V)</span>
-        <small class="ig-file-name">Подходит любой скриншот. Области с выделением/рамками автоматически увеличиваются в единый размер 16,5 × 7,9 см.</small>
+        <small class="ig-file-name">Скриншот вставляется целиком без автоматического увеличения и обрезания. Пропорции сохраняются.</small>
       </label>
       <div class="ig-editor-zone"></div>
       <textarea class="ig-data hidden"></textarea>
@@ -266,8 +230,8 @@
         <div class="ig-cropper-card">
           <div class="ig-mode-bar">
             <div class="ig-mode-group">
-              <button type="button" class="ig-mode-btn ig-mode-standard active" title="Единый альбомный кадр 16,5 × 7,9 см в PDF">📐 Стандартный формат (16,5 × 7,9 см)</button>
-              <button type="button" class="ig-mode-btn ig-mode-compact" title="Для небольших диалоговых окон">🪟 Компактное окно</button>
+              <button type="button" class="ig-mode-btn ig-mode-standard" title="Необязательный единый альбомный кадр 16,5 × 7,9 см">📐 Единый альбомный кадр</button>
+              <button type="button" class="ig-mode-btn ig-mode-compact active" title="Сохранить исходные пропорции без обрезания">🖼 Исходные пропорции</button>
             </div>
             <div class="ig-tool-actions">
               <button type="button" class="button secondary ig-btn-replace" title="Загрузить другой снимок">🔄 Заменить скриншот</button>
@@ -277,18 +241,18 @@
           <div class="ig-badge-container"></div>
 
           <!-- Standard Cropper Viewport -->
-          <div class="ig-viewport-wrap">
+          <div class="ig-viewport-wrap hidden">
             <canvas class="ig-cropper-canvas"></canvas>
             <div class="ig-viewport-hint">Перетаскивайте кадр мышью</div>
           </div>
 
           <!-- Compact Viewport (hidden by default) -->
-          <div class="ig-compact-wrap hidden">
+          <div class="ig-compact-wrap">
             <img class="ig-compact-img" src="${originalDataUrl}" alt="Компактный скриншот">
           </div>
 
           <!-- Cropper Toolbar -->
-          <div class="ig-toolbar">
+          <div class="ig-toolbar hidden">
             <div class="ig-zoom-group">
               <button type="button" class="ig-zoom-btn ig-zoom-out" title="Уменьшить">−</button>
               <input type="range" class="ig-zoom-slider" min="1.0" max="3.5" step="0.01" value="1.0">
@@ -308,7 +272,7 @@
               <span class="ig-live-preview-target">Стандартный формат</span>
             </div>
             <div class="ig-live-preview-container">
-              <div class="ig-live-preview-frame standard">
+              <div class="ig-live-preview-frame compact">
                 <img class="ig-live-preview-img" alt="Предпросмотр">
               </div>
             </div>
@@ -332,12 +296,15 @@
       const toolbar = editorZone.querySelector('.ig-toolbar');
       const canvas = editorZone.querySelector('.ig-cropper-canvas');
       const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       const liveFrame = editorZone.querySelector('.ig-live-preview-frame');
       const liveImg = editorZone.querySelector('.ig-live-preview-img');
       const liveTarget = editorZone.querySelector('.ig-live-preview-target');
 
-      let mode = 'standard';
+      let mode = 'compact';
       let zoom = 1.0;
+      let fitMode = true;
       let offsetX = 0;
       let offsetY = 0;
       let isDragging = false;
@@ -366,25 +333,17 @@
 
       function focusOnMarker(m) {
         if (!m) {
+          fitMode = true;
           zoom = 1.0;
           centerOffsets(zoom);
           return;
         }
-        // Desired view box around marker with context
-        let desiredViewW = Math.max(m.w * 2.8, origW * 0.42);
-        let desiredViewH = Math.max(m.h * 2.8, origH * 0.42);
-
-        if (desiredViewW / desiredViewH < TARGET_ASPECT) {
-          desiredViewW = desiredViewH * TARGET_ASPECT;
-        } else {
-          desiredViewH = desiredViewW / TARGET_ASPECT;
-        }
-
-        desiredViewW = Math.min(origW, desiredViewW);
-        desiredViewH = Math.min(origH, desiredViewH);
-
-        const targetZoom = origW / desiredViewW;
-        zoom = Math.min(2.5, Math.max(1.25, Math.round(targetZoom * 100) / 100));
+        fitMode = false;
+        const crop = window.InstructionImageProcessor.computeCrop(
+          origW, origH, m, TARGET_ASPECT, { padding: 0.22, minContext: 0.30 }
+        );
+        const desiredScale = cw / crop.w;
+        zoom = Math.min(3.5, Math.max(1.0, desiredScale / baseScale));
 
         const curScale = baseScale * zoom;
         const dw = origW * curScale;
@@ -399,26 +358,31 @@
         offsetY = Math.min(0, Math.max(minY, offsetY));
       }
 
-      // Initial focus: if marker detected, automatically zoom in on it!
-      if (marker) {
-        focusOnMarker(marker);
-      } else {
-        centerOffsets(zoom);
-      }
+      // Safe default: always preserve the full screenshot exactly as uploaded.
+      // A detected annotation only enables the optional “К отметке” button;
+      // it never changes the image automatically.
+      fitMode = true;
+      centerOffsets(zoom);
 
       function updateBadges(cropW, cropH) {
         let badgesHtml = '';
         if (mode === 'compact') {
           badgesHtml += `
             <div class="ig-badge ig-badge-compact">
-              <span>ℹ️ Режим «Компактное окно»: окно отображается целиком без кадрирования</span>
+              <span>✓ Исходные пропорции: скриншот отображается целиком без кадрирования</span>
             </div>
           `;
         } else {
-          if (marker) {
+          if (marker && marker.confidence >= 0.78 && !fitMode) {
             badgesHtml += `
               <div class="ig-badge ig-badge-success">
-                <span>🎯 Авто-фокус: область с отметкой увеличена для чёткости в PDF</span>
+                <span>🎯 Отметка найдена (${Math.round(marker.confidence * 100)}%): применён безопасный кроп с контекстом</span>
+              </div>
+            `;
+          } else if (fitMode) {
+            badgesHtml += `
+              <div class="ig-badge ig-badge-compact">
+                <span>✓ Полный скриншот: края сохранены, пропорции не изменены</span>
               </div>
             `;
           }
@@ -446,7 +410,7 @@
           card.dataset.cropH = String(origH);
           liveFrame.className = 'ig-live-preview-frame compact';
           liveImg.src = originalDataUrl;
-          liveTarget.textContent = 'Компактное окно';
+          liveTarget.textContent = 'Исходные пропорции';
           updateBadges(origW, origH);
           return;
         }
@@ -454,7 +418,36 @@
         // Standard 16.5 x 7.9 cm Mode:
         card.dataset.mode = 'standard';
         liveFrame.className = 'ig-live-preview-frame standard';
-        liveTarget.textContent = 'Стандартный формат';
+        liveTarget.textContent = fitMode ? 'Полный вид' : 'Кадр с отметкой';
+
+        if (fitMode) {
+          const expCanvas = document.createElement('canvas');
+          expCanvas.width = TARGET_W;
+          expCanvas.height = TARGET_H;
+          const expCtx = expCanvas.getContext('2d');
+          expCtx.imageSmoothingEnabled = true;
+          expCtx.imageSmoothingQuality = 'high';
+          expCtx.fillStyle = '#f1f5f9';
+          expCtx.fillRect(0, 0, TARGET_W, TARGET_H);
+
+          // Keep the original screenshot untouched: no crop, blur or distortion.
+          // Neutral background is used only for unavoidable free space.
+          const fgScale = Math.min(1, TARGET_W / origW, TARGET_H / origH);
+          const fgW = origW * fgScale, fgH = origH * fgScale;
+          expCtx.drawImage(currentImg, (TARGET_W - fgW) / 2, (TARGET_H - fgH) / 2, fgW, fgH);
+
+          const expData = expCanvas.toDataURL('image/png');
+          dataEl.value = expData;
+          liveImg.src = expData;
+          ctx.clearRect(0, 0, cw, ch);
+          ctx.drawImage(expCanvas, 0, 0, cw, ch);
+          card.dataset.cropW = String(origW);
+          card.dataset.cropH = String(origH);
+          zoomSlider.value = '1.00';
+          zoomVal.textContent = 'Полный';
+          updateBadges(origW, origH);
+          return;
+        }
 
         const curScale = baseScale * zoom;
         const dw = origW * curScale;
@@ -489,6 +482,8 @@
         expCanvas.width = expW;
         expCanvas.height = expH;
         const expCtx = expCanvas.getContext('2d');
+        expCtx.imageSmoothingEnabled = true;
+        expCtx.imageSmoothingQuality = 'high';
         expCtx.drawImage(currentImg, cropX, cropY, cropW, cropH, 0, 0, expW, expH);
 
         const expData = expCanvas.toDataURL('image/png');
@@ -502,7 +497,8 @@
 
       function setZoom(newZoom, pivotClientX, pivotClientY) {
         newZoom = Math.min(3.5, Math.max(1.0, newZoom));
-        if (Math.abs(newZoom - zoom) < 0.001) return;
+        if (!fitMode && Math.abs(newZoom - zoom) < 0.001) return;
+        fitMode = false;
 
         const rect = canvas.getBoundingClientRect();
         const pivotX = (pivotClientX !== undefined ? (pivotClientX - rect.left) : cw / 2);
@@ -524,6 +520,7 @@
 
       // Drag / Pan interaction
       canvas.addEventListener('mousedown', e => {
+        fitMode = false;
         isDragging = true;
         dragStartX = e.clientX;
         dragStartY = e.clientY;
@@ -549,6 +546,7 @@
       // Touch events for mobile/tablet
       canvas.addEventListener('touchstart', e => {
         if (e.touches.length === 1) {
+          fitMode = false;
           isDragging = true;
           dragStartX = e.touches[0].clientX;
           dragStartY = e.touches[0].clientY;
@@ -585,6 +583,7 @@
       btnZoomOut.onclick = () => setZoom(zoom - 0.15);
 
       btnReset.onclick = () => {
+        fitMode = true;
         zoom = 1.0;
         centerOffsets(zoom);
         updateOutput();
@@ -799,7 +798,7 @@
       text: c.querySelector('.ig-text').value.trim(),
       caption: c.querySelector('.ig-caption').value.trim(),
       image: c.querySelector('.ig-data').value,
-      mode: c.dataset.mode || 'standard',
+      mode: c.dataset.mode || 'compact',
       width: Number(c.dataset.cropW) || null,
       height: Number(c.dataset.cropH) || null,
     }))
@@ -830,7 +829,7 @@
 
       result = d;
       render(d);
-      status.textContent = `Готово · ${d.steps.length} этапов · Альбомный формат 16,5 × 7,9 см`;
+      status.textContent = `Готово · ${d.steps.length} этапов · исходные пропорции сохранены`;
     } catch (e) {
       status.textContent = '✕ Ошибка: ' + e.message;
     } finally {
