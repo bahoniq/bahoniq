@@ -70,6 +70,7 @@
   let activeTab = 'all'; // 'all' | 'downloaded' | 'favorites'
   let isDownloadingAll = false;
   let playRequestId = 0;
+  const streamRetryByTrack = new Map();
 
   const OFFLINE_IDS_STORAGE_KEY = 'bahoniq_offline_track_ids';
   const CACHED_PLAYLIST_KEY = 'bahoniq_cached_playlist';
@@ -964,7 +965,10 @@
       updateOfflinePill(isOffline ? 'offline' : 'stream');
     }
 
-    if (audio.src !== targetSrc) {
+    const absoluteTargetSrc = targetSrc.startsWith('blob:')
+      ? targetSrc
+      : new URL(targetSrc, window.location.origin).href;
+    if (audio.src !== absoluteTargetSrc) {
       audio.src = targetSrc;
     }
 
@@ -1154,6 +1158,9 @@
     if (diagAudioStatus) diagAudioStatus.textContent = 'Воспроизведение';
     btnPlay.classList.remove('loading');
     updatePlayButton(true);
+    if (currentIndex >= 0 && playlist[currentIndex]) {
+      streamRetryByTrack.delete(Number(playlist[currentIndex].id));
+    }
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
 
     // Автоматическое сохранение в память устройства после фактического старта воспроизведения (как в Telegram)
@@ -1188,6 +1195,23 @@
   audio.addEventListener('error', (e) => {
     console.warn('Audio stream error event:', e);
     btnPlay.classList.remove('loading');
+    const track = currentIndex >= 0 ? playlist[currentIndex] : null;
+    const tid = Number(track?.id || 0);
+    const retries = streamRetryByTrack.get(tid) || 0;
+    const isOnlineSource = tid > 0 && !String(audio.currentSrc || audio.src || '').startsWith('blob:');
+    if (isOnlineSource && retries < 2) {
+      streamRetryByTrack.set(tid, retries + 1);
+      if (diagAudioStatus) diagAudioStatus.textContent = 'Переподключение...';
+      recordDiagnosticCommand(`ПОВТОР ПОТОКА ${retries + 1}/2`);
+      const expectedRequest = playRequestId;
+      setTimeout(() => {
+        if (expectedRequest !== playRequestId || Number(playlist[currentIndex]?.id) !== tid) return;
+        audio.src = `/api/music/tracks/${tid}/stream?retry=${Date.now()}`;
+        audio.load();
+        audio.play().catch(err => console.warn('Audio retry failed:', err));
+      }, 700 * (retries + 1));
+      return;
+    }
     updatePlayButton(false);
     if (diagAudioStatus) diagAudioStatus.textContent = 'Ошибка потока';
     recordDiagnosticCommand('ОШИБКА ПОТОКА');

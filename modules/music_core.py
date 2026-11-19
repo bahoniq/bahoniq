@@ -23,9 +23,12 @@ from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT_DIR / "data"
+DATA_DIR = Path(os.getenv("MUSIC_DATA_DIR", str(ROOT_DIR / "data"))).expanduser().resolve()
 DB_PATH = DATA_DIR / "music_catalog.db"
 MUSIC_CACHE_DIR = DATA_DIR / "music_stream_cache"
+SESSION_FILE = Path(
+    os.getenv("TELEGRAM_SESSION_FILE", str(DATA_DIR.parent / "telegram_session.txt"))
+).expanduser().resolve()
 LOGGER = logging.getLogger(__name__)
 
 # Автоматическая подгрузка переменных окружения из .env
@@ -48,6 +51,7 @@ _sync_lock = asyncio.Lock()
 # запрос тогда блокирует офлайн-сохранение этого же трека.
 _cache_locks: Dict[int, asyncio.Lock] = {}
 _active_downloads: Dict[int, "_ProgressiveDownload"] = {}
+_runtime_session_override = ""
 
 
 def _get_cache_lock(track_id: int) -> asyncio.Lock:
@@ -96,47 +100,50 @@ def get_db_connection() -> sqlite3.Connection:
     return conn
 
 
-def get_saved_telegram_session_str() -> str:
-    """Возвращает актуальную строку сессии Telegram.
-    Приоритет:
-    1. Переменная окружения TELEGRAM_SESSION (Render / .env) — наивысший приоритет
-    2. Файл telegram_session.txt
-    3. Запись в SQLite sync_meta (fallback)
-    """
-    # 1. Переменная окружения имеет абсолютный приоритет (Render / .env)
-    session_str = os.getenv("TELEGRAM_SESSION", "").strip()
-    if session_str:
-        return session_str
+def _session_candidates() -> List[Tuple[str, str]]:
+    """Уникальные кандидаты сессии: свежая локальная раньше старой Render env."""
+    candidates: List[Tuple[str, str]] = []
 
-    # 2. Локальный файл сессии
-    session_file = DATA_DIR.parent / "telegram_session.txt"
-    if session_file.exists():
-        try:
-            txt = session_file.read_text(encoding="utf-8").strip()
-            if txt:
-                return txt
-        except Exception:
-            pass
+    def add(source: str, value: str) -> None:
+        clean = (value or "").strip()
+        if clean and all(existing != clean for _, existing in candidates):
+            candidates.append((source, clean))
 
-    # 3. База данных (runtime fallback)
+    add("runtime", _runtime_session_override)
+    try:
+        if SESSION_FILE.exists():
+            add("file", SESSION_FILE.read_text(encoding="utf-8"))
+    except OSError as exc:
+        LOGGER.warning("Cannot read Telegram session file %s: %s", SESSION_FILE, exc)
+
     try:
         conn = get_db_connection()
         try:
-            row = conn.execute("SELECT value FROM sync_meta WHERE key='runtime_telegram_session'").fetchone()
-            if row and row[0] and row[0].strip():
-                return row[0].strip()
+            row = conn.execute(
+                "SELECT value FROM sync_meta WHERE key='runtime_telegram_session'"
+            ).fetchone()
+            add("database", row[0] if row else "")
         finally:
             conn.close()
-    except Exception:
-        pass
+    except Exception as exc:
+        LOGGER.warning("Cannot read Telegram session from database: %s", exc)
 
-    return ""
+    add("environment", os.getenv("TELEGRAM_SESSION", ""))
+    return candidates
+
+
+def get_saved_telegram_session_str() -> str:
+    """Возвращает наиболее свежую сохранённую строку сессии."""
+    candidates = _session_candidates()
+    return candidates[0][1] if candidates else ""
 
 
 async def save_telegram_session_str(session_str: str) -> None:
     """Сохраняет новую строку сессии в sync_meta и локальный файл, и сбрасывает клиент для переподключения."""
-    global _client, _cached_channel_entity, _cached_channel_client
+    global _client, _cached_channel_entity, _cached_channel_client, _runtime_session_override
     clean = (session_str or "").strip()
+    if len(clean) < 50:
+        raise ValueError("Telegram StringSession is empty or malformed")
     conn = get_db_connection()
     try:
         with conn:
@@ -146,12 +153,15 @@ async def save_telegram_session_str(session_str: str) -> None:
             )
     finally:
         conn.close()
+    _runtime_session_override = clean
     os.environ["TELEGRAM_SESSION"] = clean
     try:
-        session_file = DATA_DIR.parent / "telegram_session.txt"
-        session_file.write_text(clean, encoding="utf-8")
-    except Exception:
-        pass
+        SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = SESSION_FILE.with_suffix(SESSION_FILE.suffix + ".tmp")
+        tmp_path.write_text(clean, encoding="utf-8")
+        os.replace(tmp_path, SESSION_FILE)
+    except OSError as exc:
+        LOGGER.warning("Cannot persist Telegram session to %s: %s", SESSION_FILE, exc)
     async with _client_lock:
         if _client is not None:
             try:
@@ -264,16 +274,16 @@ async def get_telegram_client():
     Инициализирует и возвращает подключенный синглтон TelegramClient.
     Секреты берутся исключительно из переменных окружения.
     """
-    global _client
+    global _client, _cached_channel_entity, _cached_channel_client
     async with _client_lock:
         if _client is not None and _client.is_connected():
             return _client
 
         api_id_str = os.getenv("TELEGRAM_API_ID", "").strip()
         api_hash = os.getenv("TELEGRAM_API_HASH", "").strip()
-        session_str = get_saved_telegram_session_str()
+        candidates = _session_candidates()
 
-        if not api_id_str or not api_hash or not session_str:
+        if not api_id_str or not api_hash or not candidates:
             return None
 
         try:
@@ -282,18 +292,45 @@ async def get_telegram_client():
         except ImportError:
             return None
 
-        try:
-            api_id = int(api_id_str)
-            client = TelegramClient(StringSession(session_str), api_id, api_hash)
-            await client.connect()
-            if not await client.is_user_authorized():
-                await client.disconnect()
-                return None
-            _client = client
-            return _client
-        except Exception as exc:
-            LOGGER.warning("Telegram client connection failed: %s", exc)
-            return None
+        api_id = int(api_id_str)
+        for source, session_str in candidates:
+            client = None
+            try:
+                client = TelegramClient(StringSession(session_str), api_id, api_hash)
+                await asyncio.wait_for(client.connect(), timeout=20)
+                if not await asyncio.wait_for(client.is_user_authorized(), timeout=15):
+                    await client.disconnect()
+                    LOGGER.warning("Telegram session from %s is not authorized", source)
+                    continue
+                _client = client
+                _cached_channel_entity = None
+                _cached_channel_client = None
+                os.environ["TELEGRAM_SESSION"] = session_str
+                LOGGER.info("Telegram session restored from %s", source)
+                return _client
+            except Exception as exc:
+                LOGGER.warning("Telegram session from %s failed: %s", source, exc)
+                if client is not None:
+                    try:
+                        await client.disconnect()
+                    except Exception:
+                        pass
+        return None
+
+
+async def reset_telegram_client() -> None:
+    """Сбрасывает оборванное MTProto-соединение для автопереподключения."""
+    global _client, _cached_channel_entity, _cached_channel_client
+    async with _client_lock:
+        old_client = _client
+        _client = None
+        _cached_channel_entity = None
+        _cached_channel_client = None
+        if old_client is not None:
+            try:
+                await old_client.disconnect()
+            except Exception:
+                pass
 
 
 async def _entity_has_audio(client, entity) -> bool:
@@ -661,7 +698,7 @@ async def ensure_catalog_ready() -> None:
     if total > 0:
         return
 
-    has_session = bool(os.getenv("TELEGRAM_SESSION", "").strip() or (DATA_DIR.parent / "telegram_session.txt").exists())
+    has_session = bool(get_saved_telegram_session_str())
     has_creds = bool(os.getenv("TELEGRAM_API_ID") and os.getenv("TELEGRAM_API_HASH"))
     if not (has_session and has_creds):
         return
@@ -870,15 +907,40 @@ async def _start_or_join_progressive_download(track_id: int) -> _ProgressiveDown
 
         async def _runner() -> Path:
             try:
-                with part_path.open("wb") as output:
-                    async for chunk in client.iter_download(document, chunk_size=256 * 1024):
-                        if not chunk:
-                            continue
-                        output.write(chunk)
-                        output.flush()
-                        state.written += len(chunk)
-                        async with state.cond:
-                            state.cond.notify_all()
+                current_client = client
+                current_document = document
+                for attempt in range(2):
+                    try:
+                        state.error = None
+                        state.written = 0
+                        part_path.unlink(missing_ok=True)
+                        with part_path.open("wb") as output:
+                            async for chunk in current_client.iter_download(
+                                current_document, chunk_size=256 * 1024
+                            ):
+                                if not chunk:
+                                    continue
+                                output.write(chunk)
+                                output.flush()
+                                state.written += len(chunk)
+                                async with state.cond:
+                                    state.cond.notify_all()
+                        break
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as download_exc:
+                        if attempt >= 1:
+                            raise
+                        LOGGER.warning(
+                            "Telegram stream for track %s broke; reconnecting once: %s",
+                            track_id,
+                            download_exc,
+                        )
+                        await reset_telegram_client()
+                        _, current_document = await get_telegram_document_for_track(track_id)
+                        current_client = await get_telegram_client()
+                        if current_client is None or current_document is None:
+                            raise RuntimeError("Telegram reconnect failed") from download_exc
 
                 if state.written <= 0 or (expected_size > 0 and state.written != expected_size):
                     raise IOError(f"Incomplete Telegram file: expected={expected_size}, received={state.written}")

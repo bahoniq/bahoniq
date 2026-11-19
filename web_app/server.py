@@ -132,12 +132,12 @@ if os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"):
 
 @app.on_event("startup")
 async def startup_sync_telegram_music():
-    if os.getenv("TELEGRAM_SESSION") or (STATIC.parent.parent / "telegram_session.txt").exists():
-        try:
-            from modules.music_core import sync_catalog
+    try:
+        from modules.music_core import get_saved_telegram_session_str, sync_catalog
+        if get_saved_telegram_session_str():
             asyncio.create_task(sync_catalog(force=False))
-        except Exception:
-            pass
+    except Exception:
+        pass
 
 
 @app.middleware("http")

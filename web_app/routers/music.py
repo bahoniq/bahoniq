@@ -25,6 +25,7 @@ from modules.music_core import (
     get_telegram_document_for_track,
     get_track_by_id,
     query_tracks,
+    reset_telegram_client,
     save_telegram_session_str,
     stream_track_chunks,
     sync_catalog,
@@ -358,7 +359,7 @@ async def track_cover(track_id: int, fallback: Optional[str] = Query(None)):
                             pass
                         return Response(content=bytes(raw_thumb), media_type=mime, headers={"Cache-Control": "public, max-age=604800"})
         except Exception:
-            pass
+            await reset_telegram_client()
 
     if fallback == "404":
         raise HTTPException(status_code=404, detail="No embedded cover")
@@ -421,7 +422,7 @@ async def music_session_status():
                 "user": f"{getattr(me, 'first_name', '') or ''} (@{getattr(me, 'username', '') or getattr(me, 'id', '')})".strip(),
             }
         except Exception:
-            pass
+            await reset_telegram_client()
     return {"authorized": False, "user": None}
 
 
