@@ -193,12 +193,12 @@ def open_anydesk(parent):
     )
 
     window.geometry(
-        "520x360"
+        "520x460"
     )
 
     window.minsize(
         520,
-        360
+        460
     )
 
     window.configure(
@@ -407,6 +407,94 @@ def open_anydesk(parent):
         pady=5
     )
 
+    # ========================================================
+    # AUTO-CLEANUP SCHEDULE SECTION
+    # ========================================================
+    sep = tk.Frame(card, bg=theme.get("border", "#333333"), height=1)
+    sep.pack(fill="x", padx=20, pady=(10, 8))
+
+    try:
+        from scripts.schedule_anydesk_clean import (
+            get_schedule_status,
+            install_weekly_schedule,
+            install_daily_schedule,
+            uninstall_all,
+        )
+    except Exception:
+        get_schedule_status = lambda: {"description": "Недоступно", "enabled": False}
+        install_weekly_schedule = lambda: False
+        install_daily_schedule = lambda: False
+        uninstall_all = lambda: False
+
+    sched_info = get_schedule_status()
+    sched_label = tk.Label(
+        card,
+        text=f"⏰ Расписание автоочистки: {sched_info.get('description', 'Отключено')}",
+        font=("Segoe UI", 9, "bold"),
+        bg=theme["card"],
+        fg="#00E5FF" if sched_info.get("enabled") else theme["gray"],
+    )
+    sched_label.pack(pady=3)
+
+    btn_frame = tk.Frame(card, bg=theme["card"])
+    btn_frame.pack(pady=4)
+
+    def set_weekly():
+        if install_weekly_schedule():
+            sched_label.configure(text="⏰ Расписание: Пн 09:00 и Чт 17:30", fg="#00E5FF")
+            status.configure(text="✓ Включено: Пн 09:00 и Чт 17:30", fg="#009246")
+
+    def set_daily():
+        if install_daily_schedule():
+            sched_label.configure(text="⏰ Расписание: Каждый день в 09:00", fg="#00E5FF")
+            status.configure(text="✓ Включено: Каждый день в 09:00", fg="#009246")
+
+    def disable_sched():
+        uninstall_all()
+        sched_label.configure(text="⏰ Расписание: Отключено", fg=theme["gray"])
+        status.configure(text="Расписание автоочистки отключено", fg=theme["gray"])
+
+    b_weekly = tk.Button(
+        btn_frame,
+        text="Пн 09:00 + Чт 17:30",
+        command=set_weekly,
+        font=("Segoe UI", 8, "bold"),
+        bg=theme.get("hover", "#222222"),
+        fg=theme.get("text", "#FFFFFF"),
+        relief="flat",
+        cursor="hand2",
+        padx=8,
+        pady=4,
+    )
+    b_weekly.pack(side="left", padx=3)
+
+    b_daily = tk.Button(
+        btn_frame,
+        text="Каждый день 09:00",
+        command=set_daily,
+        font=("Segoe UI", 8),
+        bg=theme.get("hover", "#222222"),
+        fg=theme.get("text", "#FFFFFF"),
+        relief="flat",
+        cursor="hand2",
+        padx=8,
+        pady=4,
+    )
+    b_daily.pack(side="left", padx=3)
+
+    b_off = tk.Button(
+        btn_frame,
+        text="Отключить",
+        command=disable_sched,
+        font=("Segoe UI", 8),
+        bg=theme.get("hover", "#222222"),
+        fg=theme.get("text", "#FFFFFF"),
+        relief="flat",
+        cursor="hand2",
+        padx=8,
+        pady=4,
+    )
+    b_off.pack(side="left", padx=3)
 
     # ========================================================
     # STATUS
@@ -425,5 +513,5 @@ def open_anydesk(parent):
     )
 
     status.pack(
-        pady=(12, 5)
+        pady=(8, 5)
     )

@@ -28,6 +28,15 @@ DB_PATH = DATA_DIR / "music_catalog.db"
 MUSIC_CACHE_DIR = DATA_DIR / "music_stream_cache"
 LOGGER = logging.getLogger(__name__)
 
+# Автоматическая подгрузка переменных окружения из .env
+_ENV_FILE = ROOT_DIR / ".env"
+if _ENV_FILE.exists():
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(_ENV_FILE)
+    except ImportError:
+        pass
+
 # Синглтон-клиент Telethon
 _client = None
 _client_lock = asyncio.Lock()
@@ -88,7 +97,28 @@ def get_db_connection() -> sqlite3.Connection:
 
 
 def get_saved_telegram_session_str() -> str:
-    """Возвращает актуальную строку сессии Telegram из БД sync_meta, .env или telegram_session.txt."""
+    """Возвращает актуальную строку сессии Telegram.
+    Приоритет:
+    1. Переменная окружения TELEGRAM_SESSION (Render / .env) — наивысший приоритет
+    2. Файл telegram_session.txt
+    3. Запись в SQLite sync_meta (fallback)
+    """
+    # 1. Переменная окружения имеет абсолютный приоритет (Render / .env)
+    session_str = os.getenv("TELEGRAM_SESSION", "").strip()
+    if session_str:
+        return session_str
+
+    # 2. Локальный файл сессии
+    session_file = DATA_DIR.parent / "telegram_session.txt"
+    if session_file.exists():
+        try:
+            txt = session_file.read_text(encoding="utf-8").strip()
+            if txt:
+                return txt
+        except Exception:
+            pass
+
+    # 3. База данных (runtime fallback)
     try:
         conn = get_db_connection()
         try:
@@ -99,15 +129,7 @@ def get_saved_telegram_session_str() -> str:
             conn.close()
     except Exception:
         pass
-    session_str = os.getenv("TELEGRAM_SESSION", "").strip()
-    if session_str:
-        return session_str
-    session_file = DATA_DIR.parent / "telegram_session.txt"
-    if session_file.exists():
-        try:
-            return session_file.read_text(encoding="utf-8").strip()
-        except Exception:
-            pass
+
     return ""
 
 
@@ -269,7 +291,8 @@ async def get_telegram_client():
                 return None
             _client = client
             return _client
-        except Exception:
+        except Exception as exc:
+            LOGGER.warning("Telegram client connection failed: %s", exc)
             return None
 
 
