@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Роутер BahonIQ Academy (FastAPI + Gemini Flash 24/7 + 60 уроков + микрошаги + тесты + PDF-книга)."""
+"""Роутер Code Academy (FastAPI + ИИ-тренер + 60 уроков + микрошаги + тесты + PDF-книга)."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ from ..modules.code_academy.python_runtime import execute_python
 
 LOGGER = logging.getLogger("bahoniq.routers.academy")
 
-router = APIRouter(prefix="/api/academy", tags=["BahonIQ Academy"])
+router = APIRouter(prefix="/api/academy", tags=["Code Academy"])
 
 
 async def _parse_body(request: Request) -> dict[str, Any]:
@@ -77,7 +77,7 @@ def _generate_live_theory_sync(lesson: dict[str, Any]) -> str:
     try:
         return str(generate_text(
             prompt=prompt,
-            system_instruction="Ты — живой дружелюбный ИИ-наставник BahonIQ Academy.",
+            system_instruction="Ты — живой дружелюбный ИИ-наставник Code Academy.",
             temperature=0.35,
             timeout=30,
         )).strip()
@@ -133,7 +133,7 @@ def _generate_unique_lesson_content(
     try:
         raw = generate_text(
             prompt=prompt,
-            system_instruction="Ты — методист и AI-тренер BahonIQ Academy. Верни чистый JSON строго по теме конкретного урока.",
+            system_instruction="Ты — методист и AI-тренер Code Academy. Верни чистый JSON строго по теме конкретного урока.",
             temperature=0.3,
             timeout=35,
         )
@@ -166,7 +166,7 @@ def _evaluate_step1_sync(lesson: dict[str, Any], user_answer: str) -> dict[str, 
         }
 
     system_inst = (
-        "Ты — строгий, проницательный, справедливый и доброжелательный ИИ-тренер BahonIQ Academy.\n"
+        "Ты — строгий, проницательный, справедливый и доброжелательный ИИ-тренер Code Academy.\n"
         "Ученик выполняет микрошаг Типа А («Чтение кода / Поймай ловушку»).\n\n"
         "СТРОЖАЙШИЕ ПРАВИЛА ПРОВЕРКИ ПОД МИКРОСКОПОМ:\n"
         "1. Сравни ответ ученика СТРОГО с эталонным смыслом и кодом ловушки.\n"
@@ -244,7 +244,7 @@ def _evaluate_step2_sync(
     criteria = lesson.get("step2_expected_criteria") or ""
 
     system_inst = (
-        "Ты — строгий, бескомпромиссный, справедливый и доброжелательный ИИ-тренер по программированию BahonIQ Academy.\n"
+        "Ты — строгий, бескомпромиссный, справедливый и доброжелательный ИИ-тренер по программированию Code Academy.\n"
         "Твоя обязанность — проверить практический код ученика под микроскопом СТРОГО по условию задачи.\n\n"
         "СТРОЖАЙШИЕ ПРАВИЛА ПРОВЕРКИ:\n"
         "1. ТОЧНОЕ СООТВЕТСТВИЕ УСЛОВИЮ ЗАДАЧИ:\n"
@@ -561,35 +561,77 @@ async def academy_progress_mark_post(request: Request):
 
 @router.post("/mentor-ask")
 async def academy_mentor_ask_post(request: Request):
-    """Живой диалог с ИИ-ментором по уроку (контекстный ответ без раскрытия спойлеров)."""
+    """Живой диалог со свободным ИИ-тренером Code Academy (любые вопросы по программированию и текущему уроку)."""
     body = await _parse_body(request)
     lesson_id = int(body.get("lesson_id") or 1)
     question = str(body.get("question") or "").strip()
     current_code = str(body.get("code") or "").strip()
+    current_output = str(body.get("output") or "").strip()
+    theory_override = str(body.get("theory") or "").strip()
+    trap_override = str(body.get("trap_code") or "").strip()
+    task_override = str(body.get("task_prompt") or "").strip()
+    history = body.get("history") or []
 
     if not question:
-        raise HTTPException(400, "Введите вопрос для наставника.")
+        raise HTTPException(400, "Введите вопрос для ИИ-тренера.")
 
     lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
     lesson_ctx = ""
     if lesson:
+        stage_title = lesson.get("stage_title") or f"Этап {lesson.get('stage_id', 1)}"
+        lesson_title = lesson.get("title", "")
+        lesson_summary = lesson.get("summary", "")
+        step1_concept = theory_override or lesson.get("step1_concept", "") or lesson.get("ai_theory", "")
+        step1_trap = trap_override or lesson.get("step1_trap_code", "")
+        task_prompt = task_override or lesson.get("step2_task_prompt", "") or lesson.get("task_prompt", "")
+
         lesson_ctx = (
-            f"Тема: {lesson['title']} ({lesson.get('stage_title', '')})\n"
-            f"Суть: {lesson['summary']}\n"
-            f"Шаг 1: {lesson.get('step1_concept', '')}\n"
-            f"Шаг 2: {lesson.get('step2_concept', '')}\n"
+            f"Текущий этап: {stage_title}\n"
+            f"Тема урока: {lesson_title}\n"
+            f"Суть темы: {lesson_summary}\n"
         )
+        if step1_concept:
+            lesson_ctx += f"Теория шага 1: {step1_concept[:600]}\n"
+        if step1_trap:
+            lesson_ctx += f"Код ловушки/примера в уроке:\n{step1_trap}\n"
+        if task_prompt:
+            lesson_ctx += f"Практическое задание урока: {task_prompt}\n"
+
+    history_ctx = ""
+    if isinstance(history, list) and history:
+        items = []
+        for h in history[-6:]:
+            if isinstance(h, dict):
+                role = "Ученик" if h.get("role") == "user" else "ИИ-тренер"
+                txt = (h.get("text") or "").strip()
+                if txt:
+                    items.append(f"{role}: {txt}")
+        if items:
+            history_ctx = "Предыдущие реплики диалога в этом уроке:\n" + "\n".join(items) + "\n\n"
 
     system_inst = (
-        "Ты — персональный ИИ-ментор BahonIQ Academy (BahonIQ AI 24/7). "
-        "Ученик задаёт вопрос во время изучения урока. "
-        "Отвечай дружелюбно, на простых примерах из жизни или проекта BahonIQ. "
-        "НЕ РЕШАЙ ВСЮ ЗАДАЧУ ЗА НЕГО, но понятно объясни механику."
+        "Ты — персональный ИИ-тренер по программированию в Code Academy.\n"
+        "Ученик может задать тебе АБСОЛЮТНО ЛЮБОЙ ВОПРОС: по Python, SQL, архитектуре ПО, синтаксису, библиотекам, "
+        "алгоритмам, структурам данных или деталям текущего урока.\n\n"
+        "ПРАВИЛА И СТИЛЬ ОТВЕТА:\n"
+        "1. Отвечай доходчиво, доброжелательно, живым человеческим языком без сухой академической воды.\n"
+        "2. Всегда приводи короткие, наглядные и рабочие примеры кода с комментариями к каждой строке.\n"
+        "3. Если вопрос касается темы или кода текущего урока — учитывай его контекст и код ученика на экране.\n"
+        "4. Если ученик спрашивает общую тему или концепт программирования (например: разница import и from ... import, "
+        "ООП, декораторы, SQL JOIN, архитектурные паттерны) — дай исчерпывающее, доступное объяснение с простыми аналогиями и примером кода.\n"
+        "5. Если ученик просит решить за него практическое задание урока целиком — не давай готовое решение в лоб, "
+        "а дай наводящую подсказку и покажи принцип на похожем абстрактном примере.\n"
+        "6. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО называть любые технические имена моделей или компаний (никаких Gemini, Flash, Ollama, OpenAI и т.п.). "
+        "Ты — персональный ИИ-тренер Code Academy."
     )
+
     prompt = (
-        f"{lesson_ctx}\n"
-        f"Код на экране ученика:\n{current_code or '(пусто)'}\n\n"
-        f"Вопрос ученика: {question}"
+        f"КОНТЕКСТ ТЕКУЩЕГО УРОКА УЧЕНИКА:\n"
+        f"{lesson_ctx or '(информация об уроке отсутствует)'}\n"
+        f"Код в редакторе ученика сейчас:\n{current_code or '(редактор пуст)'}\n\n"
+        f"Вывод консоли:\n{current_output or '(нет вывода)'}\n\n"
+        f"{history_ctx}"
+        f"ВОПРОС УЧЕНИКА:\n{question}"
     )
 
     try:
@@ -597,12 +639,12 @@ async def academy_mentor_ask_post(request: Request):
             generate_text,
             prompt=prompt,
             system_instruction=system_inst,
-            temperature=0.3,
-            timeout=30,
+            temperature=0.35,
+            timeout=35,
         )
         return {"answer": str(answer).strip()}
     except Exception as exc:
-        raise HTTPException(400, f"Ошибка ментора: {exc}") from exc
+        raise HTTPException(400, f"Ошибка ИИ-тренера: {exc}") from exc
 
 
 @router.get("/export-pdf")

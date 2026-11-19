@@ -15,10 +15,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=20261117_android_fix_v9">
+  <link rel="stylesheet" href="/assets/app.css?v=20261119_code_mentor_v1">
   <link rel="stylesheet" href="/assets/design_academy.css?v=20261117_android_fix_v9">
   <link rel="stylesheet" href="/assets/design_academy_pro.css?v=20261117_android_fix_v9">
-  <link rel="stylesheet" href="/assets/excel_academy.css?v=20261118_real_work_v1">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
     img { max-width: 100%; height: auto; }
@@ -344,21 +343,7 @@
               </div>
             </div>
 
-            <!-- 12. Excel Academy Studio -->
-            <div class="tool-tile" data-open="excelAcademy">
-              <div class="tool-icon icon-teal">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/><path d="m7 13 2 2 4-5"/></svg>
-              </div>
-              <div class="tool-meta">
-                <div class="tool-name">Excel Academy Studio</div>
-                <div class="tool-desc">Профессиональное обучение Excel: формулы, очистка, сводные таблицы, диаграммы и проекты с ИИ-наставником.</div>
-              </div>
-              <div class="tool-arrow" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m9 18 6-6-6-6"/></svg>
-              </div>
-            </div>
-
-            <!-- 13. Музыка в авто (PWA) -->
+            <!-- 12. Музыка в авто (PWA) -->
             <a href="/music/" target="_blank" class="tool-tile" style="text-decoration: none; color: inherit;">
               <div class="tool-icon" style="background: rgba(0, 229, 255, 0.15); color: #00e5ff;">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -698,15 +683,19 @@
             <dialog id="contactDialog"><form id="contactForm" method="dialog"><h2 id="contactHeading">Контакт</h2><input id="contactId" name="contact_id" type="hidden"><div class="contact-grid"><label>Подразделение<input name="department"></label><label>Должность<input name="position"></label><label>ФИО<input name="name" required></label><label>Расположение<input name="location"></label><label>Городской номер<input name="city_phone"></label><label>Внутренний номер<input name="extension"></label><label>Мобильный<input name="mobile"></label><label>Email<input name="email" type="email"></label></div><div class="button-row"><button class="button secondary" value="cancel" formnovalidate>Отмена</button><button id="saveContact" class="button primary" value="default">Сохранить</button></div></form></dialog>
           </section>
 
-          <!-- BAHONIQ AI ACADEMY (60 УРОКОВ + ЖИВОЙ ИИ-ТРЕНЕР BAHONIQ AI + МИКРОШАГИ + ТЕСТЫ) -->
+          <!-- CODE ACADEMY (60 УРОКОВ + ЖИВОЙ ИИ-ТРЕНЕР + МИКРОШАГИ + ТЕСТЫ + ЧАТ С НАСТАВНИКОМ) -->
           <section id="academy" class="module-page">
             <div class="acad-top-header card">
               <div class="acad-top-title-group">
-                <h1>BahonIQ Academy <span class="acad-ai-pill">BahonIQ AI 24/7</span></h1>
+                <h1>Code Academy <span class="acad-ai-pill">ИИ-тренер</span></h1>
                 <p>Интерактивный диалог с живым ИИ-тренером: микрошаги «от А до Я», чтение кода, практика и контрольные тесты.</p>
               </div>
 
               <div class="acad-top-right" style="display:flex;align-items:center;gap:12px;">
+                <button id="acadToggleChatBtn" class="acad-btn-chat-toggle" type="button" title="Открыть или скрыть панель свободного чата с ИИ-тренером">
+                  <span>💬 ИИ-тренер</span>
+                  <span id="acadChatCountBadge" class="acad-chat-badge hidden">0</span>
+                </button>
                 <button id="acadRestoreProgressBtn" class="acad-btn-secondary" style="height: 38px; padding: 0 12px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 8px; background: rgba(0,229,255,0.1); border: 1px solid rgba(0,229,255,0.3); color: var(--cyan-neon);" type="button" title="Восстановить пройденные уроки в облаке">⚡ Восстановить прогресс</button>
                 <div class="acad-progress-widget">
                   <div class="acad-progress-labels">
@@ -725,8 +714,8 @@
               <!-- Заполняется динамически из /api/academy/roadmap -->
             </div>
 
-            <!-- Главная 2-колоночная рабочая область (Сайдбар 60 уроков + Живой поток ИИ-тренера) -->
-            <div class="acad-workspace-grid">
+            <!-- Главная рабочая область (Сайдбар 60 уроков + Живой поток ИИ-тренера + Чат с наставником) -->
+            <div id="acadWorkspaceGrid" class="acad-workspace-grid with-chat">
               <!-- Левая колонка: 60 уроков по 4 этапам -->
               <aside class="card acad-lessons-sidebar">
                 <div class="acad-sidebar-head">
@@ -748,7 +737,7 @@
                       <span id="acadLessonStageBadge" class="acad-stage-badge">Этап 1</span>
                       <span id="acadLessonStatusBadge" class="acad-status-badge">В процессе</span>
                       <button id="acadMarkPassedBtn" class="acad-regen-btn" style="border-color: rgba(0,230,118,0.4); color: var(--green-neon);" title="Отметить текущий урок пройденным вручную">✔ Отметить пройденным</button>
-                      <button id="acadRegenAiBtn" class="acad-regen-btn" title="Сгенерировать новый уникальный пример и задачу от BahonIQ AI">
+                      <button id="acadRegenAiBtn" class="acad-regen-btn" title="Сгенерировать новый уникальный пример и задачу от ИИ-тренера">
                         <span class="acad-regen-icon">🔄</span> Новый пример от ИИ
                       </button>
                     </div>
@@ -836,6 +825,53 @@
                   </div>
                 </div>
               </div>
+
+              <!-- 3. Правая панель: Свободный чат с ИИ-тренером -->
+              <aside id="acadMentorChatPanel" class="card acad-mentor-chat">
+                <div class="acad-chat-header">
+                  <div class="acad-chat-title-group">
+                    <div class="acad-chat-title">
+                      <span class="acad-chat-avatar">🤖</span>
+                      <div>
+                        <h3>ИИ-тренер</h3>
+                        <small id="acadChatLessonHint">Контекст: Текущий урок</small>
+                      </div>
+                    </div>
+                    <div class="acad-chat-header-actions">
+                      <button id="acadClearChatBtn" class="acad-chat-btn-clear" type="button" title="Очистить диалог по текущему уроку">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
+                        <span>Очистить</span>
+                      </button>
+                      <button id="acadCloseChatBtn" class="acad-chat-btn-close" type="button" title="Скрыть панель чата" aria-label="Скрыть панель">✕</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="acad-chat-quick">
+                  <button type="button" class="acad-quick-q" data-q="Объясни эту тему ещё проще на жизненном примере.">Проще на примере</button>
+                  <button type="button" class="acad-quick-q" data-q="Дай небольшую наводящую подсказку, не раскрывая готовый код.">Подсказка</button>
+                  <button type="button" class="acad-quick-q" data-q="Разбери мой текущий код построчно и найди возможные проблемы.">Разбери мой код</button>
+                </div>
+
+                <div id="acadChatMessages" class="acad-chat-messages">
+                  <div class="acad-msg acad-msg-ai">
+                    Привет! Я твой персональный ИИ-тренер. Здесь ты можешь задать мне совершенно любой вопрос — по Python, SQL, архитектуре или текущему уроку. Разберём всё понятным языком и на простых примерах!
+                  </div>
+                </div>
+
+                <div class="acad-chat-input-row">
+                  <textarea id="acadChatInput" class="acad-chat-textarea" rows="2" placeholder="Спросите что угодно по Python, SQL, архитектуре или коду..."></textarea>
+                  <div class="acad-chat-btn-subrow">
+                    <small class="acad-chat-key-hint">Enter — отправить, Shift+Enter — новая строка</small>
+                    <button id="acadChatSendBtn" class="button primary acad-chat-send-btn" type="button">
+                      <span>Спросить</span>
+                    </button>
+                  </div>
+                </div>
+              </aside>
+
+              <!-- Затемнение для мобильного режима чата -->
+              <div id="acadChatBackdrop" class="acad-chat-backdrop"></div>
             </div>
           </section>
 
@@ -878,40 +914,6 @@
                 <header><div><b>ИИ-наставник</b><span id="dasMentorProvider">Контекст урока подключён</span></div></header><div id="dasMentorFeed" class="das-mentor-feed"><p>Я помогу найти ошибку и подскажу следующий шаг, но не буду выполнять работу вместо вас.</p></div><select id="dasMentorMode"><option value="hint">Дай подсказку</option><option value="explain">Объясни проще</option><option value="error">Найди ошибку</option><option value="review">Оцени работу</option></select><textarea id="dasMentorQuestion" rows="2" placeholder="Спросите наставника..."></textarea><button id="dasMentorAsk" class="button primary" type="button">Спросить наставника</button>
               </aside>
             </div>
-          </section>
-
-          <!-- EXCEL ACADEMY STUDIO -->
-          <section id="excelAcademy" class="module-page excel-academy">
-            <div class="ea-header card"><div><h1>Excel Academy Studio <span class="ea-pill">OFFICE + IT • PRO</span></h1><p>Реальные задачи: реестры, сопоставление баз, очистка, контроль, аналитика и отчёты.</p></div><div class="ea-progress"><span>Прогресс курса</span><strong id="eaProgressText">0 / 72 (0%)</strong><div><i id="eaProgressFill"></i></div><button id="eaResetProgressBtn" class="button secondary ea-reset-progress-btn" type="button" title="Сбросить весь прогресс Excel Academy к началу">Сбросить прогресс</button></div></div>
-            <div class="ea-mode-switch" role="tablist" aria-label="Режим Excel Academy"><button class="active" data-ea-mode="course" type="button">Курс и тренажёр</button><button data-ea-mode="work" type="button">Рабочие файлы <span>8 кейсов</span></button></div>
-            <div id="eaStages" class="ea-stages"></div>
-            <div id="eaCourseLayout" class="ea-layout">
-              <aside class="card ea-sidebar"><div class="ea-stage-label"><b id="eaStageLabel">ЭТАП 1</b><span id="eaStageCount">0/12</span></div><input id="eaSearch" type="search" placeholder="Поиск урока..."><div id="eaLessons" class="ea-lessons"></div></aside>
-              <main class="card ea-main">
-                <header class="ea-lesson-head"><div><small id="eaBadge">ЭТАП 1 · УРОК 1</small><h2 id="eaTitle">Загрузка...</h2><p id="eaSummary"></p></div><div class="ea-tabs"><button class="active" data-ea-step="learn">1 Изучение</button><button data-ea-step="practice">2 Практика</button><button data-ea-step="review">3 Проверка</button></div></header>
-                <div id="eaLearn" class="ea-learn"><h3>Главная идея</h3><p id="eaTheory"></p><div class="ea-task"><b>Задание</b><p id="eaTask"></p></div><b>Порядок работы</b><ol id="eaSteps"></ol><button id="eaStart" class="button primary">Перейти к таблице →</button></div>
-                <div id="eaEditor" class="ea-editor hidden">
-                  <div class="ea-toolbar"><button id="eaBold"><b>B</b></button><button id="eaCenter">По центру</button><button id="eaMoney">₸ Формат</button><label title="Заливка">🎨 <input id="eaFill" type="color" value="#14532d"></label><button data-ea-op="sort">Сортировка</button><button data-ea-op="filter">Фильтр</button><button data-ea-op="replace">Замена</button><button data-ea-op="remove_blanks">Пустые</button><button data-ea-op="deduplicate">Дубликаты</button><button data-ea-op="conditional">Условное</button><button id="eaResetLesson" title="Сбросить ячейки к исходным данным текущего урока">↺ Сброс урока</button><span></span><button data-ea-chart="bar">▥</button><button data-ea-chart="line">⌁</button><button data-ea-chart="pie">◕</button><button id="eaPivot">Сводная</button><label class="button secondary">Импорт XLSX<input id="eaImport" type="file" accept=".xlsx,.xlsm" hidden></label><button id="eaExport">Экспорт XLSX</button></div>
-                  <div class="ea-formula"><b id="eaNameBox">A1</b><span>fx</span><input id="eaFormula" placeholder="Формулы на английском: =SUM, =AVERAGE, =IF, =VLOOKUP, =ROUNDUP, =ROUNDDOWN, =COUNTA, =IFERROR..."></div>
-                  <div class="ea-grid-wrap"><table id="eaGrid" class="ea-grid"></table></div>
-                  <div class="ea-sheets"><div id="eaSheetTabs" class="ea-sheet-tabs"></div><button id="eaAddSheet">＋ лист</button><div id="eaStatsBar" class="ea-stats-bar"><span>Выделено: <b id="eaStatCount">1</b></span><span>Сумма: <b id="eaStatSum">0</b></span><span>Среднее: <b id="eaStatAvg">0</b></span></div><span id="eaStatus" class="ea-status">Автосохранение включено</span></div>
-                  <div class="das-editor-footer"><button id="eaValidate" class="button primary">Проверить работу</button></div>
-                </div>
-                <div id="eaReview" class="ea-review hidden"><div id="eaScore" class="ea-score">0%</div><h3>Результат проверки</h3><div id="eaResults" class="ea-results"></div><button id="eaBack" class="button secondary">← Вернуться к таблице</button><button id="eaComplete" class="button primary hidden">Завершить урок →</button></div>
-              </main>
-              <aside class="card ea-mentor"><h3>ИИ-наставник</h3><small>Видит текущую книгу и формулы</small><div id="eaMentorFeed" class="ea-mentor-feed"></div><textarea id="eaQuestion" placeholder="Спросите о формуле или ошибке..."></textarea><button id="eaAsk" class="button primary">Спросить наставника</button></aside>
-            </div>
-            <div id="eaWorkMode" class="ea-work-mode hidden">
-              <aside class="card ea-work-list"><div class="ea-work-list-head"><small>ПРАКТИКА НА РЕАЛЬНЫХ XLSX</small><b>Входящие задачи</b></div><div id="eaWorkCases"></div></aside>
-              <main class="card ea-work-detail">
-                <div class="ea-work-kicker" id="eaWorkArea">Выберите кейс</div><h2 id="eaWorkTitle">Рабочее задание</h2><p id="eaWorkBrief">Получите исходный файл, выполните задачу в настоящем Excel и загрузите результат на проверку.</p>
-                <section><h3>Что нужно сдать</h3><ul id="eaWorkDeliverables"></ul></section>
-                <div class="ea-work-flow"><div><i>1</i><b>Скачайте исходник</b><span>Данные уже похожи на рабочую выгрузку</span></div><div><i>2</i><b>Выполните в Excel</b><span>Формулы, Power Query или ручная обработка — на ваш выбор</span></div><div><i>3</i><b>Загрузите результат</b><span>Проверяются цифры, структура и сохранность исходника</span></div></div>
-                <div class="ea-work-actions"><a id="eaWorkDownload" class="button secondary" href="#">↓ Скачать XLSX</a><label class="button secondary">Выбрать результат<input id="eaWorkFile" type="file" accept=".xlsx,.xlsm" hidden></label><span id="eaWorkFileName">Файл не выбран</span><button id="eaWorkSubmit" class="button primary" type="button" disabled>Проверить файл</button></div>
-                <div id="eaWorkResults" class="ea-work-results"><p>Проверка покажет не только ошибки, но и что именно уже выполнено правильно.</p></div>
-              </main>
-            </div>
-            <div id="eaChartModal" class="ea-chart-modal"><div><h3 id="eaChartTitle">Диаграмма</h3><div id="eaChartView" class="ea-chart-view"></div><button id="eaChartClose" class="button secondary">Закрыть</button></div></div>
           </section>
 
           <!-- ЗАМЕТКИ -->
@@ -1133,10 +1135,9 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261118_ticket_v2"></script>
+  <script src="/assets/app.js?v=20261119_code_mentor_v1"></script>
   <script src="/assets/design_academy.js?v=20261116_pro_v5"></script>
   <script src="/assets/design_academy_pro.js?v=20261116_pro_v5"></script>
-  <script src="/assets/excel_academy.js?v=20261118_real_work_v1"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

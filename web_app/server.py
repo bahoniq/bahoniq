@@ -68,8 +68,9 @@ app.include_router(academy_router)
 from .routers.design_academy import router as design_academy_router
 app.include_router(design_academy_router)
 
-from .routers.excel_academy import router as excel_academy_router
-app.include_router(excel_academy_router)
+# Excel Academy Studio disabled / hidden by request
+# from .routers.excel_academy import router as excel_academy_router
+# app.include_router(excel_academy_router)
 
 from .routers.instruction_generator import router as instruction_generator_router
 app.include_router(instruction_generator_router)

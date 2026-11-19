@@ -2000,6 +2000,21 @@ convertForm?.addEventListener('submit', async e => {
   const restoreProgressBtn = document.getElementById('acadRestoreProgressBtn');
   const markPassedBtn = document.getElementById('acadMarkPassedBtn');
 
+  // Элементы свободного чата с ИИ-тренером
+  const toggleChatBtn = document.getElementById('acadToggleChatBtn');
+  const chatPanel = document.getElementById('acadMentorChatPanel');
+  const chatBackdrop = document.getElementById('acadChatBackdrop');
+  const workspaceGrid = document.getElementById('acadWorkspaceGrid');
+  const closeChatBtn = document.getElementById('acadCloseChatBtn');
+  const clearChatBtn = document.getElementById('acadClearChatBtn');
+  const chatLessonHint = document.getElementById('acadChatLessonHint');
+  const chatCountBadge = document.getElementById('acadChatCountBadge');
+  const chatMessages = document.getElementById('acadChatMessages');
+  const chatInput = document.getElementById('acadChatInput');
+  const chatSendBtn = document.getElementById('acadChatSendBtn');
+  const CHAT_STORAGE_PREFIX = 'code_academy_chat_lesson_';
+  const CHAT_VISIBILITY_KEY = 'code_academy_chat_visible';
+
   // Канонические ключи LocalStorage и множество завершённых уроков (ID + stable_id)
   const ACADEMY_STORAGE_KEY = 'bahoniq_academy_progress_v2';
   const ACADEMY_LAST_LESSON_KEY = 'bahoniq_academy_last_lesson_id';
@@ -2197,11 +2212,11 @@ convertForm?.addEventListener('submit', async e => {
     try {
       localStorage.setItem(ACADEMY_LAST_LESSON_KEY, lessonId);
       if (lessonTitle) lessonTitle.textContent = 'ИИ формирует урок под тему...';
-      if (lessonSummary) lessonSummary.textContent = 'BahonIQ AI подготавливает уникальные микрошаги и задачу...';
+      if (lessonSummary) lessonSummary.textContent = 'ИИ-тренер подготавливает уникальные микрошаги и задачу...';
       if (trainerFeed) {
         trainerFeed.innerHTML = `
           <div class="acad-msg-bubble acad-msg-trainer">
-            <div class="acad-msg-author">🤖 ИИ-тренер BahonIQ AI</div>
+            <div class="acad-msg-author">🤖 ИИ-тренер</div>
             <div>Секунду! Подготавливаю эксклюзивный интерактивный материал строго по этой теме...</div>
           </div>
         `;
@@ -2310,6 +2325,7 @@ convertForm?.addEventListener('submit', async e => {
     // Определяем текущий шаг урока
     updateStepTrackerUI();
     renderTrainerDialogueFeed();
+    renderChatForLesson(currentLesson);
   }
 
   function updateStepTrackerUI() {
@@ -2354,7 +2370,7 @@ convertForm?.addEventListener('submit', async e => {
     const concept1 = currentLesson.step1_concept || currentLesson.ai_theory;
     html += `
       <div class="acad-msg-bubble acad-msg-trainer">
-        <div class="acad-msg-author">🤖 ИИ-тренер BahonIQ AI • Шаг 1: Чтение кода</div>
+        <div class="acad-msg-author">🤖 ИИ-тренер • Шаг 1: Чтение кода</div>
         <div>${formatText(concept1)}</div>
         <div class="acad-trap-card">
           <div class="acad-trap-header">🔍 «Поймай ловушку» (Внимательно прочитай 3 строчки кода)</div>
@@ -2378,7 +2394,7 @@ convertForm?.addEventListener('submit', async e => {
     if (currentLesson.step1_passed) {
       html += `
         <div class="acad-msg-bubble acad-msg-trainer">
-          <div class="acad-msg-author">🤖 ИИ-тренер BahonIQ AI • Разбор под микроскопом</div>
+          <div class="acad-msg-author">🤖 ИИ-тренер • Разбор под микроскопом</div>
           <div>Отлично подмечено! Ловушка успешно пройдена.</div>
           <div class="acad-trainer-rule">
             <span class="acad-rule-icon">📌</span>
@@ -2392,7 +2408,7 @@ convertForm?.addEventListener('submit', async e => {
       const task2 = currentLesson.step2_task_prompt || currentLesson.task_prompt;
       html += `
         <div class="acad-msg-bubble acad-msg-trainer">
-          <div class="acad-msg-author">🤖 ИИ-тренер BahonIQ AI • Шаг 2: Практика в редакторе</div>
+          <div class="acad-msg-author">🤖 ИИ-тренер • Шаг 2: Практика в редакторе</div>
           <div>${formatText(concept2)}</div>
           <div style="margin-top:10px;padding:12px;background:rgba(0,229,255,0.06);border-radius:8px;border-left:3px solid var(--cyan-neon);">
             <strong>Практическая задача:</strong> ${formatText(task2)}
@@ -2412,7 +2428,7 @@ convertForm?.addEventListener('submit', async e => {
       if (currentLesson.step2_passed) {
         html += `
           <div class="acad-msg-bubble acad-msg-trainer">
-            <div class="acad-msg-author">🤖 ИИ-тренер BahonIQ AI • Вердикт по коду</div>
+            <div class="acad-msg-author">🤖 ИИ-тренер • Вердикт по коду</div>
             <div>${formatText(currentLesson.mentor_feedback || 'Код написан чисто и выполнился без ошибок!')}</div>
             <div class="acad-trainer-rule">
               <span class="acad-rule-icon">📌</span>
@@ -2423,7 +2439,7 @@ convertForm?.addEventListener('submit', async e => {
       } else if (currentLesson.step2_code && currentLesson.mentor_feedback) {
         html += `
           <div class="acad-msg-bubble acad-msg-trainer" style="border-color: rgba(255, 82, 82, 0.45); background: rgba(255, 82, 82, 0.05);">
-            <div class="acad-msg-author" style="color: #ff5252;">🤖 ИИ-тренер BahonIQ AI • Разбор решения под микроскопом</div>
+            <div class="acad-msg-author" style="color: #ff5252;">🤖 ИИ-тренер • Разбор решения под микроскопом</div>
             <div>${formatText(currentLesson.mentor_feedback)}</div>
           </div>
         `;
@@ -2431,7 +2447,7 @@ convertForm?.addEventListener('submit', async e => {
     } else if (currentLesson.step1_answer && currentLesson.step1_feedback) {
       html += `
         <div class="acad-msg-bubble acad-msg-trainer" style="border-color: rgba(255, 171, 0, 0.45); background: rgba(255, 171, 0, 0.05);">
-          <div class="acad-msg-author" style="color: #ffab00;">🤖 ИИ-тренер BahonIQ AI • Разбор ответа под микроскопом</div>
+          <div class="acad-msg-author" style="color: #ffab00;">🤖 ИИ-тренер • Разбор ответа под микроскопом</div>
           <div>${formatText(currentLesson.step1_feedback)}</div>
         </div>
       `;
@@ -2829,9 +2845,231 @@ convertForm?.addEventListener('submit', async e => {
     });
   }
 
+  // ==========================================================================
+  // СВОБОДНЫЙ ЧАТ «ИИ-ТРЕНЕР» (ВОПРОСЫ ПО PYTHON, SQL, АРХИТЕКТУРЕ И УРОКУ)
+  // ==========================================================================
+  function formatChatMarkdown(raw) {
+    let s = escapeHtml(raw || '');
+    s = s.replace(/```([a-zA-Z]*)\r?\n([\s\S]*?)```/g, '<pre class="acad-trap-code">$2</pre>');
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    s = s.replace(/\n/g, '<br/>');
+    return s;
+  }
+
+  function getLessonChatHistory(lessonId) {
+    try {
+      const raw = localStorage.getItem(CHAT_STORAGE_PREFIX + lessonId);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  }
+
+  function saveLessonChatHistory(lessonId, messages) {
+    try {
+      localStorage.setItem(CHAT_STORAGE_PREFIX + lessonId, JSON.stringify(messages));
+    } catch (e) {}
+  }
+
+  function updateChatBadge(count) {
+    if (!chatCountBadge) return;
+    if (count > 0 && !isChatOpen()) {
+      chatCountBadge.textContent = count;
+      chatCountBadge.classList.remove('hidden');
+    } else {
+      chatCountBadge.classList.add('hidden');
+    }
+  }
+
+  function renderChatForLesson(lesson) {
+    if (!chatMessages) return;
+    if (chatLessonHint) {
+      if (lesson) {
+        const stageNum = lesson.stage_id || 1;
+        chatLessonHint.textContent = `Контекст: Этап ${stageNum} • ${lesson.title || ''}`;
+      } else {
+        chatLessonHint.textContent = 'Контекст: Текущий урок';
+      }
+    }
+
+    const history = lesson ? getLessonChatHistory(lesson.id) : [];
+    if (!history || history.length === 0) {
+      chatMessages.innerHTML = `
+        <div class="acad-msg acad-msg-ai">
+          Привет! Я твой персональный ИИ-тренер. Здесь ты можешь задать мне совершенно любой вопрос — по Python, SQL, архитектуре или текущему уроку. Разберём всё понятным языком и на простых примерах!
+        </div>
+      `;
+    } else {
+      chatMessages.innerHTML = history.map(m => {
+        const cls = m.role === 'user' ? 'acad-msg-user' : 'acad-msg-ai';
+        return `<div class="acad-msg ${cls}">${formatChatMarkdown(m.text)}</div>`;
+      }).join('');
+    }
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    updateChatBadge(history.length);
+  }
+
+  async function sendMentorQuestion(customQ) {
+    const q = (customQ ?? chatInput?.value ?? '').trim();
+    if (!q || !currentLesson) return;
+    if (!customQ && chatInput) chatInput.value = '';
+
+    const history = getLessonChatHistory(currentLesson.id);
+    history.push({ role: 'user', text: q, time: Date.now() });
+    saveLessonChatHistory(currentLesson.id, history);
+
+    // Добавляем реплику пользователя
+    const userDiv = document.createElement('div');
+    userDiv.className = 'acad-msg acad-msg-user';
+    userDiv.textContent = q;
+    chatMessages.appendChild(userDiv);
+
+    // Добавляем индикатор ответа ИИ
+    const loadDiv = document.createElement('div');
+    loadDiv.className = 'acad-msg acad-msg-ai';
+    loadDiv.innerHTML = '⏳ <em>ИИ-тренер обдумывает ответ...</em>';
+    chatMessages.appendChild(loadDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    if (chatSendBtn) {
+      chatSendBtn.disabled = true;
+      chatSendBtn.innerHTML = '<span>Думает...</span>';
+    }
+
+    try {
+      const res = await fetch('/api/academy/mentor-ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lesson_id: currentLesson.id,
+          question: q,
+          code: codeEditor?.value || '',
+          theory: currentLesson.step1_concept || currentLesson.ai_theory || '',
+          trap_code: currentLesson.step1_trap_code || '',
+          task_prompt: currentLesson.step2_task_prompt || currentLesson.task_prompt || '',
+          output: consoleOutput?.textContent || '',
+          history: history.slice(-6),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Не удалось получить ответ ИИ-тренера');
+
+      const answerText = data.answer || '';
+      loadDiv.innerHTML = formatChatMarkdown(answerText);
+      history.push({ role: 'ai', text: answerText, time: Date.now() });
+      saveLessonChatHistory(currentLesson.id, history);
+      updateChatBadge(history.length);
+    } catch (err) {
+      loadDiv.innerHTML = `<span style="color:#ff5252;">⚠️ Ошибка: ${escapeHtml(err.message)}</span>`;
+    } finally {
+      if (chatSendBtn) {
+        chatSendBtn.disabled = false;
+        chatSendBtn.innerHTML = '<span>Спросить</span>';
+      }
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+  }
+
+  function setChatOpen(isOpen) {
+    if (window.innerWidth >= 1280) {
+      if (isOpen) {
+        workspaceGrid?.classList.add('with-chat');
+        chatPanel?.classList.remove('hidden');
+      } else {
+        workspaceGrid?.classList.remove('with-chat');
+        chatPanel?.classList.add('hidden');
+      }
+    } else {
+      if (isOpen) {
+        chatPanel?.classList.add('open');
+        chatBackdrop?.classList.add('open');
+      } else {
+        chatPanel?.classList.remove('open');
+        chatBackdrop?.classList.remove('open');
+      }
+    }
+    toggleChatBtn?.classList.toggle('active', isOpen);
+    updateChatBadge(currentLesson ? getLessonChatHistory(currentLesson.id).length : 0);
+    try {
+      localStorage.setItem(CHAT_VISIBILITY_KEY, isOpen ? 'true' : 'false');
+    } catch (e) {}
+  }
+
+  function isChatOpen() {
+    if (window.innerWidth >= 1280) {
+      return Boolean(workspaceGrid?.classList.contains('with-chat') && !chatPanel?.classList.contains('hidden'));
+    }
+    return Boolean(chatPanel?.classList.contains('open'));
+  }
+
+  if (toggleChatBtn) {
+    toggleChatBtn.addEventListener('click', () => {
+      setChatOpen(!isChatOpen());
+    });
+  }
+
+  if (closeChatBtn) {
+    closeChatBtn.addEventListener('click', () => {
+      setChatOpen(false);
+    });
+  }
+
+  if (chatBackdrop) {
+    chatBackdrop.addEventListener('click', () => {
+      setChatOpen(false);
+    });
+  }
+
+  if (clearChatBtn) {
+    clearChatBtn.addEventListener('click', () => {
+      if (!currentLesson) return;
+      try {
+        localStorage.removeItem(CHAT_STORAGE_PREFIX + currentLesson.id);
+      } catch (e) {}
+      renderChatForLesson(currentLesson);
+    });
+  }
+
+  if (chatSendBtn) {
+    chatSendBtn.addEventListener('click', () => sendMentorQuestion());
+  }
+
+  if (chatInput) {
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMentorQuestion();
+      }
+    });
+  }
+
+  document.querySelectorAll('.acad-quick-q').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const q = btn.dataset.q;
+      if (q) sendMentorQuestion(q);
+    });
+  });
+
+  function initChatUI() {
+    let shouldOpen = true;
+    try {
+      const saved = localStorage.getItem(CHAT_VISIBILITY_KEY);
+      if (saved !== null) shouldOpen = (saved === 'true');
+    } catch (e) {}
+    if (window.innerWidth < 1280) {
+      shouldOpen = false;
+    }
+    setChatOpen(shouldOpen);
+  }
+
   // 12. Первичная инициализация с приоритетом ручного выбора
   async function initAcademyPlatform() {
     try {
+      initChatUI();
       migrateAndLoadAcademyProgress();
       const res = await fetch('/api/academy/roadmap');
       if (!res.ok) throw new Error('Ошибка загрузки карты курса');

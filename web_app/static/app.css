@@ -3145,6 +3145,298 @@ body.theme-day .acad-quiz-card {
   }
 }
 
+/* ==========================================================================
+   CODE ACADEMY — ЧАТ СО СВОБОДНЫМ ИИ-ТРЕНЕРОМ
+   ========================================================================== */
+.acad-btn-chat-toggle {
+  height: 38px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  border-radius: 8px;
+  background: rgba(0, 229, 255, 0.12);
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  color: var(--cyan-neon);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.acad-btn-chat-toggle:hover {
+  background: rgba(0, 229, 255, 0.22);
+  border-color: var(--cyan-neon);
+  transform: translateY(-1px);
+}
+.acad-btn-chat-toggle.active {
+  background: var(--cyan-neon);
+  color: #040914;
+  border-color: var(--cyan-neon);
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.4);
+}
+.acad-chat-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--green-neon);
+  color: #040914;
+}
+
+/* 3-колоночная сетка на широких экранах */
+@media (min-width: 1280px) {
+  .acad-workspace-grid.with-chat {
+    grid-template-columns: 260px minmax(0, 1fr) 350px !important;
+  }
+  .acad-mentor-chat {
+    display: flex;
+    flex-direction: column;
+    padding: 16px !important;
+    gap: 12px;
+    height: calc(100vh - 220px);
+    max-height: calc(100vh - 220px);
+    min-height: 520px;
+    overflow: hidden;
+  }
+  .acad-mentor-chat.hidden {
+    display: none !important;
+  }
+  .acad-chat-backdrop {
+    display: none !important;
+  }
+}
+
+/* Выдвижная панель / шторка на экранах < 1280px */
+@media (max-width: 1279px) {
+  .acad-mentor-chat {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 380px;
+    max-width: 90vw;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    z-index: 1050;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 16px !important;
+    gap: 12px;
+    border-radius: 0 !important;
+    border-left: 1px solid var(--border);
+    box-shadow: -10px 0 35px rgba(0, 0, 0, 0.65);
+    transform: translateX(105%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .acad-mentor-chat.open {
+    transform: translateX(0);
+  }
+  .acad-chat-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(4, 9, 20, 0.65);
+    backdrop-filter: blur(4px);
+    z-index: 1040;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  .acad-chat-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* Внутренности панели чата */
+.acad-chat-header {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+.acad-chat-title-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.acad-chat-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.acad-chat-avatar {
+  font-size: 20px;
+  line-height: 1;
+}
+.acad-chat-title h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+}
+.acad-chat-title small {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acad-chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.acad-chat-btn-clear {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.acad-chat-btn-clear:hover {
+  border-color: #ef4444;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.1);
+}
+.acad-chat-btn-close {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  font-size: 16px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.acad-chat-btn-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+}
+
+.acad-chat-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.acad-quick-q {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.acad-quick-q:hover {
+  border-color: var(--cyan-neon);
+  color: var(--cyan-neon);
+  background: rgba(0, 229, 255, 0.08);
+}
+
+.acad-chat-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.acad-msg {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  word-break: break-word;
+}
+.acad-msg-ai {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--cyan-neon);
+  color: var(--text-main);
+}
+.acad-msg-user {
+  background: rgba(0, 229, 255, 0.13);
+  border: 1px solid rgba(0, 229, 255, 0.32);
+  color: var(--text-main);
+  align-self: flex-end;
+  max-width: 90%;
+}
+.acad-msg pre {
+  margin: 8px 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+  font-family: Consolas, monospace;
+}
+.acad-msg code {
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(0, 229, 255, 0.1);
+  color: var(--cyan-neon);
+}
+
+.acad-chat-input-row {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.acad-chat-textarea {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 13px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-main);
+  resize: vertical;
+  min-height: 52px;
+  max-height: 140px;
+  font-family: inherit;
+  outline: none;
+}
+.acad-chat-textarea:focus {
+  border-color: var(--cyan-neon);
+}
+.acad-chat-btn-subrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.acad-chat-key-hint {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+.acad-chat-send-btn {
+  padding: 7px 16px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
 /* ============================================================ */
 /* EXCEL AI — ГОТОВЫЕ ШАБЛОНЫ ЗАДАЧ (ЧИПСЫ)                     */
 /* ============================================================ */
