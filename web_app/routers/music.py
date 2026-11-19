@@ -258,9 +258,9 @@ async def stream_track(
 @router.get("/tracks/{track_id}/download")
 async def download_track(track_id: int):
     """
-    Получение полного файла для сохранения в OPFS или IndexedDB.
-    Дожидается полной готовности проверенного серверного файла (.bin), чтобы не конкурировать
-    по трафику с онлайн-стримингом (/stream), и отдаёт готовый файл с точным Content-Length.
+    Прогрессивная выдача полного файла для OPFS/IndexedDB.
+    Не ждёт, пока Render сначала скачает весь трек: каждый чанк Telegram сразу
+    передаётся браузеру и одновременно записывается в серверный кеш.
     """
     track = get_track_by_id(track_id)
     if not track:
@@ -270,8 +270,12 @@ async def download_track(track_id: int):
         raise HTTPException(status_code=404, detail="Трек не найден")
 
     try:
-        cached_path = await ensure_track_cached(track_id)
-        file_size = cached_path.stat().st_size
+        cached_path = get_cached_track_path(track_id)
+        if cached_path is not None:
+            file_size = cached_path.stat().st_size
+        else:
+            state = await _start_or_join_progressive_download(track_id)
+            file_size = int(state.expected_size or track["file_size"] or 0)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Не удалось скачать аудиофайл: {exc}") from exc
     if file_size <= 0:
@@ -286,10 +290,11 @@ async def download_track(track_id: int):
         "Content-Length": str(file_size),
         "Cache-Control": "private, max-age=86400",
     }
-    return FileResponse(
-        cached_path,
+    return StreamingResponse(
+        download_full_track(track_id),
+        status_code=200,
         media_type=mime_type,
-        headers=headers
+        headers=headers,
     )
 
 

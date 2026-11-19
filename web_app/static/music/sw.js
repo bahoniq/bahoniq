@@ -1,5 +1,5 @@
 ﻿/* BahonIQ Музыка в авто - Изолированный Service Worker (Scope: /music/) — 100% Offline Ready */
-const CACHE_NAME = 'bahoniq-music-shell-v35';
+const CACHE_NAME = 'bahoniq-music-shell-v37';
 const SHELL_ASSETS = [
   '/music/',
   '/music/manifest.webmanifest',

@@ -821,18 +821,59 @@
               const chunks = [];
               let received = 0;
               let lastPct = 0;
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                if (value) {
-                  chunks.push(value);
-                  received += value.byteLength;
-                  const pct = Math.min(99, Math.floor((received / responseSize) * 100));
-                  if (pct >= lastPct + 5 && currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
-                    lastPct = pct;
-                    updateOfflinePill('downloading', pct);
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  if (value) {
+                    chunks.push(value);
+                    received += value.byteLength;
+                    const pct = Math.min(99, Math.floor((received / responseSize) * 100));
+                    if (pct >= lastPct + 5 && currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
+                      lastPct = pct;
+                      updateOfflinePill('downloading', pct);
+                    }
                   }
                 }
+              } catch (readErr) {
+                // Сохраняем уже полученные чанки и ниже дозагружаем только хвост.
+                console.warn(`Initial download interrupted at ${received}/${responseSize}:`, readErr);
+              }
+
+              // На мобильной сети/Render длинный ответ иногда завершается на 95–99%.
+              // Не скачиваем файл заново: добираем только отсутствующий хвост Range-запросом.
+              for (let repair = 0; responseSize > 0 && received < responseSize && repair < 3; repair++) {
+                const repairResp = await fetch(
+                  `/api/music/tracks/${tid}/stream?resume=${Date.now()}`,
+                  {
+                    signal: controller.signal,
+                    headers: { Range: `bytes=${received}-${responseSize - 1}` }
+                  }
+                );
+                if (repairResp.status !== 206) {
+                  throw new Error(`Range repair failed: HTTP ${repairResp.status}`);
+                }
+                const repairReader = repairResp.body?.getReader();
+                if (!repairReader) throw new Error('Range repair body is unavailable');
+                const beforeRepair = received;
+                try {
+                  while (received < responseSize) {
+                    const { done, value } = await repairReader.read();
+                    if (done) break;
+                    if (!value || value.byteLength === 0) continue;
+                    const remaining = responseSize - received;
+                    const piece = value.byteLength > remaining ? value.slice(0, remaining) : value;
+                    chunks.push(piece);
+                    received += piece.byteLength;
+                    const pct = Math.min(100, Math.floor((received / responseSize) * 100));
+                    if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
+                      updateOfflinePill('downloading', pct);
+                    }
+                  }
+                } catch (repairErr) {
+                  console.warn(`Range repair ${repair + 1} interrupted at ${received}/${responseSize}:`, repairErr);
+                }
+                if (received <= beforeRepair) break;
               }
               blob = new Blob(chunks, { type: resp.headers.get('Content-Type') || track.mime_type || 'audio/mpeg' });
             } else {
@@ -841,6 +882,10 @@
 
             if (!blob || blob.size < 20000 || (responseSize > 0 && Math.abs(blob.size - responseSize) > 4096)) {
               throw new Error(`Downloaded blob size mismatch (${blob?.size || 0} vs ${responseSize})`);
+            }
+
+            if (currentIndex >= 0 && Number(playlist[currentIndex]?.id) === tid) {
+              updateOfflinePill('downloading', 100);
             }
 
             const saved = await saveAudioLocally(tid, blob, { ...track, file_size: blob.size });
