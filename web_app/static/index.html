@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=20261119_code_mentor_v1">
+  <link rel="stylesheet" href="/assets/app.css?v=20261119_clean_header_v2">
   <link rel="stylesheet" href="/assets/design_academy.css?v=20261117_android_fix_v9">
   <link rel="stylesheet" href="/assets/design_academy_pro.css?v=20261117_android_fix_v9">
   <style>
@@ -687,15 +687,11 @@
           <section id="academy" class="module-page">
             <div class="acad-top-header card">
               <div class="acad-top-title-group">
-                <h1>Code Academy <span class="acad-ai-pill">ИИ-тренер</span></h1>
+                <h1>Code Academy</h1>
                 <p>Интерактивный диалог с живым ИИ-тренером: микрошаги «от А до Я», чтение кода, практика и контрольные тесты.</p>
               </div>
 
               <div class="acad-top-right" style="display:flex;align-items:center;gap:12px;">
-                <button id="acadToggleChatBtn" class="acad-btn-chat-toggle" type="button" title="Открыть или скрыть панель свободного чата с ИИ-тренером">
-                  <span>💬 ИИ-тренер</span>
-                  <span id="acadChatCountBadge" class="acad-chat-badge hidden">0</span>
-                </button>
                 <button id="acadRestoreProgressBtn" class="acad-btn-secondary" style="height: 38px; padding: 0 12px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 8px; background: rgba(0,229,255,0.1); border: 1px solid rgba(0,229,255,0.3); color: var(--cyan-neon);" type="button" title="Восстановить пройденные уроки в облаке">⚡ Восстановить прогресс</button>
                 <div class="acad-progress-widget">
                   <div class="acad-progress-labels">
@@ -842,7 +838,6 @@
                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
                         <span>Очистить</span>
                       </button>
-                      <button id="acadCloseChatBtn" class="acad-chat-btn-close" type="button" title="Скрыть панель чата" aria-label="Скрыть панель">✕</button>
                     </div>
                   </div>
                 </div>
@@ -1135,7 +1130,7 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261119_code_mentor_v1"></script>
+  <script src="/assets/app.js?v=20261119_clean_header_v2"></script>
   <script src="/assets/design_academy.js?v=20261116_pro_v5"></script>
   <script src="/assets/design_academy_pro.js?v=20261116_pro_v5"></script>
   <script>

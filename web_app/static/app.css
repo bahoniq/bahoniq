@@ -2436,10 +2436,10 @@ body.theme-day .acad-progress-bar-bg {
   line-height: 1.35;
 }
 
-/* Главная 2-колоночная сетка */
+/* Главная 3-колоночная сетка (Темы + Урок/Тест + ИИ-тренер) */
 .acad-workspace-grid {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr) 350px;
   gap: 18px;
   align-items: start;
 }
@@ -3148,49 +3148,13 @@ body.theme-day .acad-quiz-card {
 /* ==========================================================================
    CODE ACADEMY — ЧАТ СО СВОБОДНЫМ ИИ-ТРЕНЕРОМ
    ========================================================================== */
-.acad-btn-chat-toggle {
-  height: 38px;
-  padding: 0 14px;
-  font-size: 13px;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  border-radius: 8px;
-  background: rgba(0, 229, 255, 0.12);
-  border: 1px solid rgba(0, 229, 255, 0.35);
-  color: var(--cyan-neon);
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-.acad-btn-chat-toggle:hover {
-  background: rgba(0, 229, 255, 0.22);
-  border-color: var(--cyan-neon);
-  transform: translateY(-1px);
-}
-.acad-btn-chat-toggle.active {
-  background: var(--cyan-neon);
-  color: #040914;
-  border-color: var(--cyan-neon);
-  box-shadow: 0 0 14px rgba(0, 229, 255, 0.4);
-}
-.acad-chat-badge {
-  font-size: 10px;
-  font-weight: 800;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--green-neon);
-  color: #040914;
-}
-
-/* 3-колоночная сетка на широких экранах */
-@media (min-width: 1280px) {
-  .acad-workspace-grid.with-chat {
+/* 3-колоночная сетка на десктопе (Темы + Урок/Тест + ИИ-тренер всегда справа) */
+@media (min-width: 1101px) {
+  .acad-workspace-grid {
     grid-template-columns: 260px minmax(0, 1fr) 350px !important;
   }
   .acad-mentor-chat {
-    display: flex;
+    display: flex !important;
     flex-direction: column;
     padding: 16px !important;
     gap: 12px;
@@ -3199,52 +3163,27 @@ body.theme-day .acad-quiz-card {
     min-height: 520px;
     overflow: hidden;
   }
-  .acad-mentor-chat.hidden {
-    display: none !important;
-  }
   .acad-chat-backdrop {
     display: none !important;
   }
 }
 
-/* Выдвижная панель / шторка на экранах < 1280px */
-@media (max-width: 1279px) {
-  .acad-mentor-chat {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 380px;
-    max-width: 90vw;
-    height: 100vh !important;
-    max-height: 100vh !important;
-    z-index: 1050;
-    display: flex;
-    flex-direction: column;
-    padding: 20px 16px !important;
-    gap: 12px;
-    border-radius: 0 !important;
-    border-left: 1px solid var(--border);
-    box-shadow: -10px 0 35px rgba(0, 0, 0, 0.65);
-    transform: translateX(105%);
-    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+/* На экранах до 1100px — последовательное аккуратное расположение колонок */
+@media (max-width: 1100px) {
+  .acad-workspace-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
   }
-  .acad-mentor-chat.open {
-    transform: translateX(0);
+  .acad-mentor-chat {
+    display: flex !important;
+    flex-direction: column;
+    padding: 16px !important;
+    gap: 12px;
+    min-height: 420px;
+    max-height: 550px;
   }
   .acad-chat-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(4, 9, 20, 0.65);
-    backdrop-filter: blur(4px);
-    z-index: 1040;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.25s ease;
-  }
-  .acad-chat-backdrop.open {
-    opacity: 1;
-    pointer-events: auto;
+    display: none !important;
   }
 }
 

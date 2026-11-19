@@ -2000,20 +2000,12 @@ convertForm?.addEventListener('submit', async e => {
   const restoreProgressBtn = document.getElementById('acadRestoreProgressBtn');
   const markPassedBtn = document.getElementById('acadMarkPassedBtn');
 
-  // Элементы свободного чата с ИИ-тренером
-  const toggleChatBtn = document.getElementById('acadToggleChatBtn');
-  const chatPanel = document.getElementById('acadMentorChatPanel');
-  const chatBackdrop = document.getElementById('acadChatBackdrop');
-  const workspaceGrid = document.getElementById('acadWorkspaceGrid');
-  const closeChatBtn = document.getElementById('acadCloseChatBtn');
   const clearChatBtn = document.getElementById('acadClearChatBtn');
   const chatLessonHint = document.getElementById('acadChatLessonHint');
-  const chatCountBadge = document.getElementById('acadChatCountBadge');
   const chatMessages = document.getElementById('acadChatMessages');
   const chatInput = document.getElementById('acadChatInput');
   const chatSendBtn = document.getElementById('acadChatSendBtn');
   const CHAT_STORAGE_PREFIX = 'code_academy_chat_lesson_';
-  const CHAT_VISIBILITY_KEY = 'code_academy_chat_visible';
 
   // Канонические ключи LocalStorage и множество завершённых уроков (ID + stable_id)
   const ACADEMY_STORAGE_KEY = 'bahoniq_academy_progress_v2';
@@ -2962,7 +2954,6 @@ convertForm?.addEventListener('submit', async e => {
       loadDiv.innerHTML = formatChatMarkdown(answerText);
       history.push({ role: 'ai', text: answerText, time: Date.now() });
       saveLessonChatHistory(currentLesson.id, history);
-      updateChatBadge(history.length);
     } catch (err) {
       loadDiv.innerHTML = `<span style="color:#ff5252;">⚠️ Ошибка: ${escapeHtml(err.message)}</span>`;
     } finally {
@@ -2972,56 +2963,6 @@ convertForm?.addEventListener('submit', async e => {
       }
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
-  }
-
-  function setChatOpen(isOpen) {
-    if (window.innerWidth >= 1280) {
-      if (isOpen) {
-        workspaceGrid?.classList.add('with-chat');
-        chatPanel?.classList.remove('hidden');
-      } else {
-        workspaceGrid?.classList.remove('with-chat');
-        chatPanel?.classList.add('hidden');
-      }
-    } else {
-      if (isOpen) {
-        chatPanel?.classList.add('open');
-        chatBackdrop?.classList.add('open');
-      } else {
-        chatPanel?.classList.remove('open');
-        chatBackdrop?.classList.remove('open');
-      }
-    }
-    toggleChatBtn?.classList.toggle('active', isOpen);
-    updateChatBadge(currentLesson ? getLessonChatHistory(currentLesson.id).length : 0);
-    try {
-      localStorage.setItem(CHAT_VISIBILITY_KEY, isOpen ? 'true' : 'false');
-    } catch (e) {}
-  }
-
-  function isChatOpen() {
-    if (window.innerWidth >= 1280) {
-      return Boolean(workspaceGrid?.classList.contains('with-chat') && !chatPanel?.classList.contains('hidden'));
-    }
-    return Boolean(chatPanel?.classList.contains('open'));
-  }
-
-  if (toggleChatBtn) {
-    toggleChatBtn.addEventListener('click', () => {
-      setChatOpen(!isChatOpen());
-    });
-  }
-
-  if (closeChatBtn) {
-    closeChatBtn.addEventListener('click', () => {
-      setChatOpen(false);
-    });
-  }
-
-  if (chatBackdrop) {
-    chatBackdrop.addEventListener('click', () => {
-      setChatOpen(false);
-    });
   }
 
   if (clearChatBtn) {
@@ -3054,22 +2995,9 @@ convertForm?.addEventListener('submit', async e => {
     });
   });
 
-  function initChatUI() {
-    let shouldOpen = true;
-    try {
-      const saved = localStorage.getItem(CHAT_VISIBILITY_KEY);
-      if (saved !== null) shouldOpen = (saved === 'true');
-    } catch (e) {}
-    if (window.innerWidth < 1280) {
-      shouldOpen = false;
-    }
-    setChatOpen(shouldOpen);
-  }
-
   // 12. Первичная инициализация с приоритетом ручного выбора
   async function initAcademyPlatform() {
     try {
-      initChatUI();
       migrateAndLoadAcademyProgress();
       const res = await fetch('/api/academy/roadmap');
       if (!res.ok) throw new Error('Ошибка загрузки карты курса');
