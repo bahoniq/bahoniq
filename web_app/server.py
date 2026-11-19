@@ -132,10 +132,20 @@ if os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"):
 
 @app.on_event("startup")
 async def startup_sync_telegram_music():
+    # Не подключаем Telegram во время rolling deploy Render: старый инстанс
+    # может ещё несколько секунд использовать тот же MTProto auth key, из-за
+    # чего Telegram отвечает AUTH_KEY_DUPLICATED и навсегда отзывает сессию.
+    # Подключение выполняется лениво после Deploy live — при открытии админки,
+    # каталога или первого трека.
+    return None
+
+
+@app.on_event("shutdown")
+async def shutdown_telegram_music():
+    """Корректно закрывает Telegram-соединение при остановке инстанса."""
     try:
-        from modules.music_core import get_saved_telegram_session_str, sync_catalog
-        if get_saved_telegram_session_str():
-            asyncio.create_task(sync_catalog(force=False))
+        from modules.music_core import reset_telegram_client
+        await reset_telegram_client()
     except Exception:
         pass
 
