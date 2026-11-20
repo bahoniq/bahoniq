@@ -82,6 +82,7 @@ function openModule(modId, label) {
   location.hash = modId;
   if (modId === 'notes') loadNotes();
   if (modId === 'academy') loadAcademy();
+  if (modId === 'sports' && typeof window.loadSportsHub === 'function') window.loadSportsHub();
   if (modId === 'designAcademy') {
     if (typeof window.loadDesignAcademy === 'function') {
       window.loadDesignAcademy();
@@ -107,6 +108,7 @@ function openModule(modId, label) {
 }
 
 function returnToDashboard() {
+  if (typeof window.unloadSportsHub === 'function') window.unloadSportsHub();
   modHost.classList.add('hidden');
   modHost.classList.remove('panorama-in', 'panorama-out');
   $$('.module-page').forEach(p => p.classList.remove('active'));
@@ -2867,12 +2869,14 @@ convertForm?.addEventListener('submit', async e => {
   }
 
   function updateChatBadge(count) {
-    if (!chatCountBadge) return;
-    if (count > 0 && !isChatOpen()) {
-      chatCountBadge.textContent = count;
-      chatCountBadge.classList.remove('hidden');
+    const badgeEl = document.getElementById('acadChatCountBadge') || document.getElementById('chatCountBadge');
+    if (!badgeEl) return;
+    const chatClosed = typeof isChatOpen === 'function' ? !isChatOpen() : true;
+    if (count > 0 && chatClosed) {
+      badgeEl.textContent = count;
+      badgeEl.classList.remove('hidden');
     } else {
-      chatCountBadge.classList.add('hidden');
+      badgeEl.classList.add('hidden');
     }
   }
 

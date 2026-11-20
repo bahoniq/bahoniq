@@ -32,6 +32,7 @@
   </style>
   <link rel="stylesheet" href="/assets/instruction_generator.css?v=20261119_original_ratio_2">
 <link rel="stylesheet" href="/assets/theme_violet.css?v=20261118_violet3">
+  <link rel="stylesheet" href="/assets/sports.css?v=20261120_news13">
 </head>
 <body class="theme-night">
   <script>
@@ -358,6 +359,22 @@
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
               </div>
             </a>
+
+            <!-- 13. BahonIQ Sports -->
+            <div class="tool-tile" data-open="sports">
+              <div class="tool-icon icon-sports">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+                </svg>
+              </div>
+              <div class="tool-meta">
+                <div class="tool-name">BahonIQ Sports</div>
+                <div class="tool-desc">Футбол, Formula 1 и UFC: расписание, результаты, составы, спортсмены и новости.</div>
+              </div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -1062,6 +1079,48 @@
               </div>
             </div>
           </section>
+
+          <!-- BAHONIQ SPORTS -->
+          <section id="sports" class="module-page">
+            <div class="page-heading">
+              <div>
+                <h1>BahonIQ Sports</h1>
+                <p>Персональный спортивный центр: Real Madrid, Juventus, Manchester United, Formula 1 и UFC (Asia/Qyzylorda).</p>
+              </div>
+            </div>
+            <div id="sportsShell" class="sports-shell">
+              <div class="sports-topbar">
+                <div id="sportsTabs" class="sports-tabs" role="tablist" aria-label="Разделы BahonIQ Sports">
+                  <button class="sports-tab active" data-sport-tab="overview" role="tab" aria-selected="true" type="button">Обзор</button>
+                  <button class="sports-tab" data-sport-tab="football" role="tab" aria-selected="false" type="button">Футбол</button>
+                  <button class="sports-tab" data-sport-tab="f1" role="tab" aria-selected="false" type="button">Formula 1</button>
+                  <button class="sports-tab" data-sport-tab="ufc" role="tab" aria-selected="false" type="button">UFC</button>
+                  <button class="sports-tab" data-sport-tab="news" role="tab" aria-selected="false" type="button">📰 Новости</button>
+                  <button class="sports-tab" data-sport-tab="favorites" role="tab" aria-selected="false" type="button">★ Избранное <span id="sportsFavCount" class="sports-tab-count">0</span></button>
+                  <button class="sports-tab" data-sport-tab="settings" role="tab" aria-selected="false" type="button">⚙ Настройки</button>
+                </div>
+                <div class="sports-meta-bar">
+                  <span id="sportsUpdatedAt" aria-live="polite">Обновлено: —</span>
+                  <button id="sportsRefreshBtn" class="sports-refresh-btn" type="button" aria-label="Обновить спортивные данные">↻ Обновить</button>
+                </div>
+              </div>
+              <div id="sportsContent" role="tabpanel"></div>
+            </div>
+
+            <!-- Детальное модальное окно Sports Hub (матч, этап F1, профили) -->
+            <div id="sportsDetailModal" class="sports-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="sportsModalTitle">
+              <div class="sports-modal-card">
+                <div class="sports-modal-head">
+                  <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">
+                    <button id="sportsModalBackBtn" class="sports-refresh-btn hidden" type="button" aria-label="Назад">← Назад</button>
+                    <h2 id="sportsModalTitle" style="font-size:18px;font-weight:800;margin:0;">Детали</h2>
+                  </div>
+                  <button id="sportsModalClose" class="sports-modal-close" type="button" aria-label="Закрыть окно" title="Закрыть">✕</button>
+                </div>
+                <div id="sportsModalBody"></div>
+              </div>
+            </div>
+          </section>
         </div>
       </main>
 
@@ -1142,5 +1201,6 @@
   </script>
   <script src="/assets/instruction_image_processor.js?v=20261119_original_ratio"></script>
   <script src="/assets/instruction_generator.js?v=20261119_original_ratio"></script>
+  <script src="/assets/sports.js?v=20261120_news13"></script>
 </body>
 </html>

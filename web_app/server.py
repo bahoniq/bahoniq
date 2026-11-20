@@ -87,6 +87,9 @@ app.include_router(instruction_generator_router)
 from .routers.music import router as music_router
 app.include_router(music_router)
 
+from .routers.sports import router as sports_router
+app.include_router(sports_router)
+
 # Опциональная защита паролем для публичного облака (задается через BAHONIQ_PASSWORD)
 AUTH_PASSWORD = os.getenv("BAHONIQ_PASSWORD", "").strip()
 AUTH_COOKIE_NAME = "bahoniq_auth"
