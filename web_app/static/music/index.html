@@ -12,7 +12,7 @@
 
   <link rel="manifest" href="/music/manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="/music/assets/icons/icon-192.png">
-  <link rel="stylesheet" href="/music/assets/music.css?v=20261118_v33">
+  <link rel="stylesheet" href="/music/assets/music.css?v=20261120_v38_radio">
 </head>
 <body>
   <!-- Живая атмосфера трека (Ambient-подсветка из обложки, дышит в ритм музыки) -->
@@ -35,6 +35,12 @@
       </div>
 
       <div class="car-topbar-actions">
+        <!-- Кнопка онлайн-радио (прямой эфир) -->
+        <button id="carBtnRadio" class="drive-mode-btn radio-mode-btn" type="button" title="Онлайн-радио (живые станции)">
+          <span>📻</span>
+          <span id="carRadioLabel">Радио</span>
+        </button>
+
         <!-- Переключатель двух режимов: Обычный / В дороге -->
         <button id="carBtnDriveMode" class="drive-mode-btn" type="button" title="Переключить режим «В дороге»">
           <span>🚗</span>
@@ -199,6 +205,34 @@
 
       <div id="carTracksList" class="car-tracks-list">
         <!-- Динамический список треков -->
+      </div>
+    </section>
+
+    <!-- Выдвижная панель онлайн-радио -->
+    <section id="carRadioDrawer" class="car-catalog-drawer">
+      <div class="car-catalog-head">
+        <h2>📻 Онлайн-радио</h2>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button id="carBtnExitRadio" class="icon-btn" style="font-size: 13px; padding: 6px 12px; width: auto; border-radius: 999px;" type="button" title="Вернуться к трекам">🎵 К трекам</button>
+          <button id="carBtnCloseRadio" class="icon-btn" type="button" title="Закрыть радио">✕</button>
+        </div>
+      </div>
+
+      <div class="car-tabs" id="carRadioTabs">
+        <button class="car-tab active" data-radio-filter="all" type="button">Все станции</button>
+        <button class="car-tab" data-radio-filter="KZ" type="button">🇰🇿 Казахстан</button>
+        <button class="car-tab" data-radio-filter="RU" type="button">🇷🇺 Россия / СНГ</button>
+        <button class="car-tab" data-radio-filter="custom" type="button">Мои станции</button>
+      </div>
+
+      <form id="carCustomRadioForm" class="car-radio-add-form">
+        <input id="carCustomRadioName" class="car-search-input" type="text" placeholder="Название станции..." required>
+        <input id="carCustomRadioUrl" class="car-search-input" type="url" placeholder="https://... (URL потока MP3/AAC)" required>
+        <button type="submit" class="car-radio-add-btn" title="Добавить свою станцию">+</button>
+      </form>
+
+      <div id="carRadioList" class="car-tracks-list">
+        <!-- Динамический список радиостанций -->
       </div>
     </section>
 
@@ -426,6 +460,6 @@
   <!-- Всплывающее уведомление (Toast) для авто -->
   <div id="carToast" class="car-toast hidden"></div>
 
-  <script src="/music/assets/music.js?v=20261119_v37_direct_progressive"></script>
+  <script src="/music/assets/music.js?v=20261120_v38_radio"></script>
 </body>
 </html>

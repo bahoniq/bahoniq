@@ -611,6 +611,208 @@ async def music_auth_verify_code(
     }
 
 
+# ============================================================
+# ОНЛАЙН-РАДИО (ЖИВЫЕ СТАНЦИИ И ПРОКСИ ПОТОКА)
+# ============================================================
+
+RADIO_STATIONS = [
+    {
+        "id": "zhulduz",
+        "name": "Жұлдыз FM",
+        "freq": "101.4 FM",
+        "genre": "Қазақша хиттер",
+        "country": "KZ",
+        "url": "http://91.201.214.229:8000/zhulduz",
+    },
+    {
+        "id": "avtoradio_kz",
+        "name": "Авторадио Казахстан",
+        "freq": "102.0 FM",
+        "genre": "В дорогу · Хиты",
+        "country": "KZ",
+        "url": "http://178.88.167.62:8080/AVTORADIO_192",
+    },
+    {
+        "id": "zhana_fm",
+        "name": "Жаңа FM",
+        "freq": "101.2 FM",
+        "genre": "Pop · KZ",
+        "country": "KZ",
+        "url": "https://live.zhanafm.kz:8443/zhanafm_onair",
+    },
+    {
+        "id": "beu_fm",
+        "name": "BEU FM",
+        "freq": "104.2 FM",
+        "genre": "Молодёжное · KZ",
+        "country": "KZ",
+        "url": "https://stream.beufm.kz/beufm",
+    },
+    {
+        "id": "qaz_radio",
+        "name": "Qazaq Radiosy",
+        "freq": "101.0 FM",
+        "genre": "Классика · Новости",
+        "country": "KZ",
+        "url": "https://radio-streams.kaztrk.kz/qazradio/qazradio/icecast.audio",
+    },
+    {
+        "id": "europa_plus",
+        "name": "Европа Плюс",
+        "freq": "106.2 FM",
+        "genre": "Top 40 · Pop",
+        "country": "RU",
+        "url": "http://ep128server.streamr.ru:8030/ep128",
+    },
+    {
+        "id": "rusradio",
+        "name": "Русское Радио",
+        "freq": "105.7 FM",
+        "genre": "Русские хиты",
+        "country": "RU",
+        "url": "https://rusradio.hostingradio.ru/rusradio96.aacp",
+    },
+    {
+        "id": "dfm_dance",
+        "name": "DFM Dance",
+        "freq": "101.2 FM",
+        "genre": "Club · Dance",
+        "country": "RU",
+        "url": "https://dfm-dfmrusdance.hostingradio.ru/dfmrusdance96.aacp",
+    },
+    {
+        "id": "dorognoe",
+        "name": "Дорожное радио",
+        "freq": "96.0 FM",
+        "genre": "В дорогу · Ретро",
+        "country": "RU",
+        "url": "http://dorognoe.hostingradio.ru:8000/dorognoe",
+    },
+    {
+        "id": "marusya",
+        "name": "Маруся ФМ",
+        "freq": "91.4 FM",
+        "genre": "Поп · Танцевальное",
+        "country": "RU",
+        "url": "https://listen.vdfm.ru:8000/marusya",
+    },
+    {
+        "id": "mixadance",
+        "name": "Mixadance FM",
+        "freq": "Online",
+        "genre": "Deep House · Chill",
+        "country": "RU",
+        "url": "https://stream.mixadance.fm/mixadance",
+    },
+]
+
+_RADIO_BY_ID = {item["id"]: item for item in RADIO_STATIONS}
+
+
+@router.get("/radio/stations")
+def list_radio_stations():
+    """Возвращает список доступных радиостанций."""
+    return {
+        "stations": [
+            {
+                "id": item["id"],
+                "name": item["name"],
+                "freq": item["freq"],
+                "genre": item["genre"],
+                "country": item["country"],
+                "stream_url": f"/api/music/radio/stream/{item['id']}",
+            }
+            for item in RADIO_STATIONS
+        ]
+    }
+
+
+def _is_safe_public_radio_url(url: str) -> bool:
+    """Базовая защита от SSRF для пользовательских URL радиопотоков."""
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return False
+    host = parsed.hostname.strip().lower()
+    if host in {"localhost", "127.0.0.1", "0.0.0.0", "::1"} or host.endswith(".local"):
+        return False
+    try:
+        for info in socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80)):
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return False
+    except Exception:
+        return False
+    return True
+
+
+async def _proxy_audio_stream(target_url: str, request: Request):
+    """Асинхронная ретрансляция живого аудиопотока с корректным закрытием при обрыве."""
+    import aiohttp
+
+    timeout = aiohttp.ClientTimeout(total=None, connect=10, sock_read=30)
+    headers = {
+        "User-Agent": "BahonIQ-Music/1.0",
+        "Accept": "*/*",
+    }
+    session = aiohttp.ClientSession(timeout=timeout)
+    try:
+        resp = await session.get(target_url, headers=headers, allow_redirects=True)
+        if resp.status >= 400:
+            await resp.release()
+            await session.close()
+            raise HTTPException(status_code=502, detail=f"Радиостанция недоступна (HTTP {resp.status})")
+        content_type = resp.headers.get("Content-Type") or "audio/mpeg"
+    except HTTPException:
+        raise
+    except Exception as exc:
+        await session.close()
+        raise HTTPException(status_code=502, detail=f"Ошибка подключения к радио: {exc}") from exc
+
+    async def stream_gen():
+        try:
+            async for chunk in resp.content.iter_chunked(16384):
+                if await request.is_disconnected():
+                    break
+                if chunk:
+                    yield chunk
+        finally:
+            resp.close()
+            await session.close()
+
+    return StreamingResponse(
+        stream_gen(),
+        media_type=content_type.split(";")[0].strip(),
+        headers={
+            "Cache-Control": "no-cache, no-store",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/radio/stream/{station_id}")
+async def stream_radio_station(station_id: str, request: Request):
+    """Стримит предустановленную радиостанцию через бэкенд (решает HTTPS/Mixed-Content и CORS)."""
+    station = _RADIO_BY_ID.get(station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail="Радиостанция не найдена")
+    return await _proxy_audio_stream(station["url"], request)
+
+
+@router.get("/radio/proxy")
+async def proxy_custom_radio(request: Request, url: str = Query(..., min_length=8)):
+    """Проксирует пользовательский URL интернет-радио."""
+    if not _is_safe_public_radio_url(url):
+        raise HTTPException(status_code=400, detail="Недопустимый или небезопасный URL радиопотока")
+    return await _proxy_audio_stream(url, request)
+
+
 @router.post("/auth/set-session")
 async def music_auth_set_session(
     request: Request,

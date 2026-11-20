@@ -101,6 +101,24 @@
   const upNextTitleEl = $('carUpNextTitle');
   const upNextMetaEl = $('carUpNextMeta');
 
+  // --- Элементы и состояние Онлайн-Радио ---
+  const btnRadio = $('carBtnRadio');
+  const radioDrawer = $('carRadioDrawer');
+  const btnCloseRadio = $('carBtnCloseRadio');
+  const btnExitRadio = $('carBtnExitRadio');
+  const radioListEl = $('carRadioList');
+  const radioTabsEl = $('carRadioTabs');
+  const customRadioForm = $('carCustomRadioForm');
+  const customRadioName = $('carCustomRadioName');
+  const customRadioUrl = $('carCustomRadioUrl');
+
+  const CUSTOM_RADIO_KEY = 'bahoniq_custom_radio_stations';
+  let radioMode = false;
+  let radioStations = [];
+  let customRadioStations = [];
+  let currentRadioIndex = -1;
+  let radioFilter = 'all';
+
   // --- Палитры живой атмосферы и генератор обложек для треков ---
   const AMBIENT_PALETTES = [
     { bg1: '#58082c', bg2: '#1a0b2e', accent: '#ff2a85', amb: ['#ff1e6b', '#00e5ff', '#7928ca'] },
@@ -953,6 +971,13 @@
   // --- Запуск воспроизведения трека (СИНХРОННО В СТЕКЕ КЛИКА) ---
   function playTrack(index, recordHistory = true) {
     if (index < 0 || index >= playlist.length) return;
+    if (radioMode) {
+      radioMode = false;
+      currentRadioIndex = -1;
+      if (btnRadio) btnRadio.classList.remove('active');
+      if (inlineStatusEl) inlineStatusEl.classList.remove('live-air');
+      renderRadioList();
+    }
     const requestId = ++playRequestId;
 
     if (recordHistory && currentIndex >= 0 && currentIndex !== index) {
@@ -1130,6 +1155,10 @@
   }
 
   function playNextTrack() {
+    if (radioMode) {
+      playNextRadioStation();
+      return;
+    }
     if (playlist.length === 0) return;
     const queue = getActiveQueueIndices();
     if (isShuffle) {
@@ -1143,6 +1172,10 @@
   }
 
   function playPrevTrack() {
+    if (radioMode) {
+      playPrevRadioStation();
+      return;
+    }
     if (playlist.length === 0) return;
     if (audio.currentTime > 3) {
       audio.currentTime = 0;
@@ -1165,7 +1198,7 @@
   // --- События HTML5 Audio элемента ---
   let lastSavedSec = -1;
   audio.addEventListener('timeupdate', () => {
-    if (!isNaN(audio.duration) && audio.duration > 0) {
+    if (!radioMode && !isNaN(audio.duration) && isFinite(audio.duration) && audio.duration > 0) {
       const ratio = audio.currentTime / audio.duration;
       const pct = ratio * 100;
       seekBar.value = pct;
@@ -1209,7 +1242,7 @@
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
 
     // Автоматическое сохранение в память устройства после фактического старта воспроизведения (как в Telegram)
-    if (currentIndex >= 0 && playlist[currentIndex]) {
+    if (!radioMode && currentIndex >= 0 && playlist[currentIndex]) {
       const currentTrack = playlist[currentIndex];
       const tid = Number(currentTrack.id);
       if (!offlineTrackIds.has(tid) && !downloadPromises.has(tid)) {
@@ -1240,6 +1273,12 @@
   audio.addEventListener('error', (e) => {
     console.warn('Audio stream error event:', e);
     btnPlay.classList.remove('loading');
+    if (radioMode) {
+      updatePlayButton(false);
+      if (diagAudioStatus) diagAudioStatus.textContent = 'Станция недоступна';
+      showToast('Радиостанция временно недоступна');
+      return;
+    }
     const track = currentIndex >= 0 ? playlist[currentIndex] : null;
     const tid = Number(track?.id || 0);
     const retries = streamRetryByTrack.get(tid) || 0;
@@ -2155,8 +2194,235 @@
       if (soundModal && !soundModal.classList.contains('hidden')) soundModal.classList.add('hidden');
       if (diagModal && !diagModal.classList.contains('hidden')) diagModal.classList.add('hidden');
       if (catalogDrawer && catalogDrawer.classList.contains('open')) catalogDrawer.classList.remove('open');
+      if (radioDrawer && radioDrawer.classList.contains('open')) radioDrawer.classList.remove('open');
     }
   });
+
+  // ============================================================
+  // ОНЛАЙН-РАДИО: ЗАГРУЗКА, СПИСОК, ВОСПРОИЗВЕДЕНИЕ
+  // ============================================================
+  function loadCustomRadioStations() {
+    try {
+      const raw = localStorage.getItem(CUSTOM_RADIO_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      customRadioStations = Array.isArray(arr) ? arr : [];
+    } catch {
+      customRadioStations = [];
+    }
+  }
+
+  function saveCustomRadioStations() {
+    try {
+      localStorage.setItem(CUSTOM_RADIO_KEY, JSON.stringify(customRadioStations));
+    } catch {}
+  }
+
+  function getAllRadioStations() {
+    return [...radioStations, ...customRadioStations];
+  }
+
+  function getFilteredRadioStations() {
+    const all = getAllRadioStations();
+    if (radioFilter === 'all') return all;
+    if (radioFilter === 'custom') return customRadioStations;
+    return all.filter(s => s.country === radioFilter);
+  }
+
+  async function fetchRadioStations() {
+    loadCustomRadioStations();
+    try {
+      const res = await fetch('/api/music/radio/stations');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      radioStations = Array.isArray(data.stations) ? data.stations : [];
+    } catch (err) {
+      console.warn('Не удалось загрузить радиостанции:', err);
+    }
+    renderRadioList();
+  }
+
+  function renderRadioList() {
+    if (!radioListEl) return;
+    const all = getAllRadioStations();
+    const list = getFilteredRadioStations();
+    if (list.length === 0) {
+      radioListEl.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--text-muted);">Нет станций в этой категории</div>';
+      return;
+    }
+    radioListEl.innerHTML = '';
+    list.forEach(station => {
+      const globalIdx = all.findIndex(s => s.id === station.id);
+      const isPlayingThis = radioMode && globalIdx === currentRadioIndex;
+      const item = document.createElement('div');
+      item.className = 'car-radio-item' + (isPlayingThis ? ' active' : '');
+      item.innerHTML = `
+        <div style="min-width: 0; flex: 1;">
+          <div style="font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            ${isPlayingThis ? '🔊 ' : '📻 '}${station.name}
+          </div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+            ${station.freq || 'Online'} · ${station.genre || 'Радио'}
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="car-radio-badge ${isPlayingThis ? 'live' : ''}">${isPlayingThis ? 'LIVE' : (station.country || 'FM')}</span>
+          ${station.custom ? '<button class="car-radio-del-btn" type="button" title="Удалить">✕</button>' : ''}
+        </div>
+      `;
+      item.addEventListener('click', e => {
+        if (e.target.closest('.car-radio-del-btn')) {
+          e.stopPropagation();
+          customRadioStations = customRadioStations.filter(s => s.id !== station.id);
+          saveCustomRadioStations();
+          if (isPlayingThis) exitRadioMode();
+          else renderRadioList();
+          return;
+        }
+        playRadioStation(globalIdx);
+      });
+      radioListEl.appendChild(item);
+    });
+  }
+
+  function playRadioStation(index) {
+    const all = getAllRadioStations();
+    if (index < 0 || index >= all.length) return;
+    const station = all[index];
+    radioMode = true;
+    currentRadioIndex = index;
+    playRequestId++;
+
+    resumeAudioContext();
+
+    if (btnRadio) btnRadio.classList.add('active');
+    trackTitle.textContent = station.name;
+    trackArtist.textContent = `${station.freq || 'FM'} · ${station.genre || 'Радио'}`;
+    if (metaDurationEl) metaDurationEl.textContent = 'LIVE';
+    if (inlineStatusEl) {
+      inlineStatusEl.textContent = '● прямой эфир';
+      inlineStatusEl.classList.add('live-air');
+    }
+    timeCurrent.textContent = 'LIVE';
+    timeTotal.textContent = '∞';
+    seekBar.value = 0;
+
+    applyTrackAmbientAndCover({ title: station.name, artist: station.genre || 'Radio', id: station.id });
+    renderWaveformBars(0.5);
+    if (diagCurrentTrack) diagCurrentTrack.textContent = `📻 ${station.name}`;
+
+    const nextStation = all[(index + 1) % all.length];
+    if (upNextStrip && upNextTitleEl) {
+      upNextStrip.classList.remove('hidden');
+      upNextTitleEl.textContent = `📻 ${nextStation.name}`;
+      if (upNextMetaEl) upNextMetaEl.textContent = `(${nextStation.freq || 'FM'})`;
+    }
+
+    audio.src = station.stream_url;
+    audio.load();
+    audio.play().catch(err => console.warn('Radio play failed:', err));
+    btnPlay.classList.add('loading');
+
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: station.name,
+          artist: `${station.freq || 'FM'} · BahonIQ Радио`,
+          album: 'Прямой эфир',
+        });
+      } catch {}
+    }
+
+    renderRadioList();
+    if (radioDrawer) radioDrawer.classList.remove('open');
+  }
+
+  function playNextRadioStation() {
+    const all = getAllRadioStations();
+    if (all.length === 0) return;
+    const next = (currentRadioIndex + 1) % all.length;
+    playRadioStation(next);
+  }
+
+  function playPrevRadioStation() {
+    const all = getAllRadioStations();
+    if (all.length === 0) return;
+    const prev = (currentRadioIndex - 1 + all.length) % all.length;
+    playRadioStation(prev);
+  }
+
+  function exitRadioMode() {
+    radioMode = false;
+    currentRadioIndex = -1;
+    if (btnRadio) btnRadio.classList.remove('active');
+    if (inlineStatusEl) inlineStatusEl.classList.remove('live-air');
+    if (radioDrawer) radioDrawer.classList.remove('open');
+    renderRadioList();
+    if (playlist.length > 0) {
+      playTrack(currentIndex >= 0 ? currentIndex : 0, false);
+    } else {
+      audio.pause();
+      audio.removeAttribute('src');
+      updatePlayButton(false);
+    }
+  }
+
+  if (btnRadio && radioDrawer) {
+    btnRadio.addEventListener('click', async () => {
+      if (catalogDrawer) catalogDrawer.classList.remove('open');
+      radioDrawer.classList.toggle('open');
+      if (radioStations.length === 0) {
+        await fetchRadioStations();
+      } else {
+        renderRadioList();
+      }
+    });
+  }
+
+  if (btnCloseRadio && radioDrawer) {
+    btnCloseRadio.addEventListener('click', () => radioDrawer.classList.remove('open'));
+  }
+
+  if (btnExitRadio) {
+    btnExitRadio.addEventListener('click', () => exitRadioMode());
+  }
+
+  if (radioTabsEl) {
+    radioTabsEl.addEventListener('click', e => {
+      const btn = e.target.closest('.car-tab');
+      if (!btn) return;
+      radioFilter = btn.dataset.radioFilter || 'all';
+      radioTabsEl.querySelectorAll('.car-tab').forEach(b => b.classList.toggle('active', b === btn));
+      renderRadioList();
+    });
+  }
+
+  if (customRadioForm) {
+    customRadioForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const name = String(customRadioName?.value || '').trim();
+      const rawUrl = String(customRadioUrl?.value || '').trim();
+      if (!name || !rawUrl) return;
+      const station = {
+        id: 'custom_' + Date.now(),
+        name,
+        freq: 'Своя',
+        genre: 'Интернет-радио',
+        country: 'custom',
+        custom: true,
+        stream_url: `/api/music/radio/proxy?url=${encodeURIComponent(rawUrl)}`,
+      };
+      customRadioStations.push(station);
+      saveCustomRadioStations();
+      if (customRadioName) customRadioName.value = '';
+      if (customRadioUrl) customRadioUrl.value = '';
+      radioFilter = 'custom';
+      if (radioTabsEl) {
+        radioTabsEl.querySelectorAll('.car-tab').forEach(b => b.classList.toggle('active', b.dataset.radioFilter === 'custom'));
+      }
+      renderRadioList();
+      showToast(`Станция «${name}» добавлена`);
+    });
+  }
 
   // --- Старт приложения ---
   async function init() {
