@@ -14,6 +14,7 @@ ACTION = r'(?:убер\w*|убрат\w*|очист\w*|удал\w*|найд\w*|н
 
 # The model receives actual execution parameters, not a vague list of labels.
 CATALOG = {
+    'combine_columns': ['source_columns', 'target_column', 'separator', 'skip_empty', 'trim_result', 'position'],
     'remove_empty_rows': [], 'remove_duplicates': ['columns'],
     'trim_text': ['columns'], 'fill_empty': ['columns', 'value'],
     'replace_values': ['columns', 'old', 'new'], 'highlight_empty': ['columns', 'color'],
@@ -34,7 +35,7 @@ CATALOG = {
     'split_cell_values_to_rows': ['column'],
     'extract_split_values_to_sheet': ['column', 'output_sheet', 'delimiter', 'start_row', 'output_header'],
     'copy_sheet': ['output_sheet'],
-    'filter_rows': ['column', 'operator', 'value', 'output_sheet'],
+    'filter_rows': ['column', 'operator', 'value', 'conditions', 'output_sheet', 'summary_output_sheet'],
     'student_data_audit': [],
 }
 

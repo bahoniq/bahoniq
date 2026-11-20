@@ -15,6 +15,7 @@ from openpyxl import load_workbook, Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.chart import BarChart, Reference
 from openpyxl.chart.label import DataLabelList
+from openpyxl.utils import get_column_letter
 try:
     from .sheet_names import resolve_sheet_name
 except ImportError:  # direct module loading used by legacy regression tests
@@ -645,6 +646,10 @@ def _validate_ops(ops, wb):
                     f"Доступные листы: {', '.join(wb.sheetnames)}"
                 )
 
+        detected_header = (
+            _detect_header_row(wb[sheet])
+            if sheet in wb.sheetnames else 1
+        )
         if "header_rows" not in op:
             target_sheet = sheet
             if kind == "merge_sheets":
@@ -654,6 +659,17 @@ def _validate_ops(ops, wb):
                 _detect_header_row(wb[target_sheet])
                 if target_sheet in wb.sheetnames else 1
             )
+        elif (
+            op.get("header_rows") == 1
+            and detected_header != 1
+            and sum(
+                not _empty(wb[sheet].cell(1, column).value)
+                for column in range(1, wb[sheet].max_column + 1)
+            ) == 1
+        ):
+            # Legacy planners used 1 as a hard-coded default. For reports with
+            # title/note rows above the table, interpret that default as auto.
+            op["header_rows"] = detected_header
         hr = op["header_rows"]
 
         if not isinstance(hr, int) or isinstance(hr, bool) or hr < 0:
@@ -797,15 +813,45 @@ def _validate_ops(ops, wb):
                 op["output_sheet"] = output_sheet.strip()
 
             if kind == "filter_rows":
+                conditions = op.get("conditions")
+                if conditions is not None:
+                    if not isinstance(conditions, list) or not conditions:
+                        raise ValueError(
+                            f"Операция {index}: conditions должен быть непустым списком."
+                        )
+                    resolved_conditions = []
+                    for condition in conditions:
+                        if not isinstance(condition, dict):
+                            raise ValueError(
+                                f"Операция {index}: каждое условие фильтра должно быть объектом."
+                            )
+                        resolved = dict(condition)
+                        resolved["column"] = _resolve_column(
+                            ws, condition.get("column"), hr,
+                            f"Операция {index} (filter_rows)",
+                        )
+                        resolved["operator"] = str(
+                            condition.get("operator", "eq")
+                        ).strip().lower()
+                        if resolved["operator"] not in {
+                            "eq", "ne", "gt", "ge", "lt", "le",
+                            "contains", "blank", "not_blank",
+                        }:
+                            raise ValueError(
+                                f"Операция {index}: неизвестное условие фильтра "
+                                f"{resolved['operator']!r}."
+                            )
+                        resolved_conditions.append(resolved)
+                    op["conditions"] = resolved_conditions
                 operator = str(op.get("operator", "")).strip().lower()
-                if operator not in {
+                if not conditions and operator not in {
                     "eq", "ne", "gt", "ge", "lt", "le",
                     "contains", "blank", "not_blank",
                 }:
                     raise ValueError(
                         f"Операция {index}: неизвестное условие фильтра {operator!r}."
                     )
-                if operator not in {"blank", "not_blank"} and "value" not in op:
+                if not conditions and operator not in {"blank", "not_blank"} and "value" not in op:
                     raise ValueError(
                         f"Операция {index}: для фильтра {operator!r} нужно значение."
                     )
@@ -1263,6 +1309,7 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             "extracted_values": len(extracted_values),
             "validation_passed": True,
         }
+        return
 
     elif kind == "split_cell_values_to_rows":
         col = op["column"]
@@ -1325,6 +1372,7 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             "expanded_cells": expanded_cells,
             "total_rows_after": len(new_rows),
         })
+        return
 
     elif kind == "student_data_audit":
         if hr < 1:
@@ -1930,13 +1978,22 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             _safe_sheet_name(op.get("output_sheet", "Отбор"), wb.sheetnames)
         )
 
-        def matches_filter(actual):
+        def normalized_text(value):
+            return re.sub(
+                r"[^0-9a-zа-яёәіңғүұқөһ]+", "",
+                str(value or "").casefold(),
+            )
+
+        def matches_filter(actual, selected_operator=operator, selected_expected=expected):
+            operator = selected_operator
+            expected = selected_expected
             if operator == "blank":
                 return _empty(actual)
             if operator == "not_blank":
                 return not _empty(actual)
             if operator == "contains":
-                return str(expected).casefold() in str(actual or "").casefold()
+                direct = str(expected).casefold() in str(actual or "").casefold()
+                return direct or normalized_text(expected) in normalized_text(actual)
             if operator == "eq":
                 return actual == expected
             if operator == "ne":
@@ -1951,10 +2008,24 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             except (TypeError, KeyError):
                 return False
 
+        conditions = op.get("conditions") or []
+
+        def row_matches(row_num):
+            if not conditions:
+                return matches_filter(ws.cell(row_num, column).value)
+            return all(
+                matches_filter(
+                    ws.cell(row_num, condition["column"]).value,
+                    condition.get("operator", "eq"),
+                    condition.get("value"),
+                )
+                for condition in conditions
+            )
+
         selected_rows = list(range(1, hr + 1))
         selected_rows.extend(
             row_num for row_num in range(hr + 1, ws.max_row + 1)
-            if matches_filter(ws.cell(row_num, column).value)
+            if row_matches(row_num)
         )
         for target_row, source_row in enumerate(selected_rows, start=1):
             for col_num in range(1, ws.max_column + 1):
@@ -1967,16 +2038,32 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
                 target_cell.alignment = copy(source_cell.alignment)
                 target_cell.protection = copy(source_cell.protection)
         for col_num in range(1, ws.max_column + 1):
-            source_letter = ws.cell(1, col_num).column_letter
-            target_letter = target.cell(1, col_num).column_letter
+            source_letter = get_column_letter(col_num)
+            target_letter = get_column_letter(col_num)
             target.column_dimensions[target_letter].width = ws.column_dimensions[source_letter].width
         target.freeze_panes = ws.freeze_panes
         if target.max_row and target.max_column:
             target.auto_filter.ref = target.dimensions
+        summary_name = op.get("summary_output_sheet")
+        summary = None
+        if summary_name:
+            summary = wb.create_sheet(_safe_sheet_name(summary_name, wb.sheetnames))
+            summary.append(["Показатель", "Значение"])
+            summary.append(["Исходный лист", sheet])
+            summary.append(["Найдено записей", max(0, len(selected_rows) - hr)])
+            for condition in conditions:
+                summary.append([
+                    str(ws.cell(hr, condition["column"]).value),
+                    condition.get("value", ""),
+                ])
+            summary.column_dimensions["A"].width = 28
+            summary.column_dimensions["B"].width = 52
+            summary.freeze_panes = "A2"
         changes.append({
             "type": kind,
             "sheet": sheet,
             "output_sheet": target.title,
+            "summary_output_sheet": summary.title if summary else None,
             "rows_selected": max(0, len(selected_rows) - hr),
         })
 

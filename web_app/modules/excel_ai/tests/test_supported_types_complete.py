@@ -28,6 +28,7 @@ class SupportedTypesCompleteTests(unittest.TestCase):
         common = {"type": kind, "sheet": "Data"}
         params = {
             "apply_formula": {"column": "Other", "formula": "=C{row}*2"},
+            "combine_columns": {"source_columns": ["ID", "Group"], "target_column": "Combined"},
             "compare_columns": {"column": "Value", "other_column": "Other"},
             "copy_columns_to_sheet": {"columns": ["ID", "Group"], "output_sheet": "Selected"},
             "copy_sheet": {"output_sheet": "Data copy"},

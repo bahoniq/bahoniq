@@ -2403,7 +2403,15 @@ def _compact_analysis(analysis: Any) -> str:
                 compact["sheets"].append({
                     "name": sheet.get("name"),
                     "data_rows": max(0, sheet.get("nonempty_rows", 0) - 1),
+                    "header_row": sheet.get("header_row", 1),
                     "headers": sheet.get("headers", []),
+                    "value_examples": [
+                        {
+                            "column": item.get("header"),
+                            "examples": [example.get("value") for example in item.get("examples", [])[:8]],
+                        }
+                        for item in sheet.get("duplicate_columns", [])[:30]
+                    ],
                     "semantic_profile": sheet.get("semantic_profile", {}),
                     "preview": sheet.get("preview", []),
                     "formulas": sheet.get("formula_examples", []),
@@ -2822,6 +2830,10 @@ def _normalize_operation(original: dict, index: int) -> dict:
     elif operation_type == "filter_rows":
         if not operation.get("column") and isinstance(operation.get("columns"), list) and operation["columns"]:
             operation["column"] = operation["columns"][0]
+        if not operation.get("column") and isinstance(operation.get("conditions"), list) and operation["conditions"]:
+            first_condition = operation["conditions"][0]
+            if isinstance(first_condition, dict):
+                operation["column"] = first_condition.get("column")
         if not operation.get("operator"):
             for alias in ("op", "condition", "comparison", "условие", "оператор"):
                 if operation.get(alias) is not None:
@@ -2841,6 +2853,16 @@ def _normalize_operation(original: dict, index: int) -> dict:
             "не пусто": "not_blank", "заполнено": "not_blank", "not_empty": "not_blank",
         }
         operation["operator"] = op_aliases.get(raw_op, raw_op)
+        if isinstance(operation.get("conditions"), list):
+            normalized_conditions = []
+            for condition in operation["conditions"]:
+                if not isinstance(condition, dict):
+                    continue
+                item = dict(condition)
+                item_operator = str(item.get("operator") or "eq").strip().lower()
+                item["operator"] = op_aliases.get(item_operator, item_operator)
+                normalized_conditions.append(item)
+            operation["conditions"] = normalized_conditions
         if "value" not in operation:
             for alias in ("target_value", "filter_value", "значение", "критерий"):
                 if alias in operation:
@@ -3090,6 +3112,9 @@ def _build_prompt(
 17а. Для фильтрации (отбора) строк на новый лист используй filter_rows.
      Поля: sheet, column, operator (eq, ne, gt, ge, lt, le, contains, blank, not_blank),
      value, output_sheet (например «Отбор»).
+     Если условий несколько, добавь conditions — список объектов с column, operator и value.
+     Все conditions применяются одновременно (логика И). Для сводки по отобранным
+     строкам можно указать summary_output_sheet. Не теряй ни одно условие пользователя.
 
 17б. Для построения перекрёстной матрицы (сводной таблицы 2 признаков) используй
      pivot_count. Поля: sheet, row_column (строки), column_column (столбцы),
@@ -3408,6 +3433,195 @@ def _interpret_task(task: str, analysis: Any, selected_sheet: Any = None, **kwar
     return None
 
 
+def _route_unassigned_teacher_period(task: str, analysis: Any, selected_sheet=None):
+    """Deterministic route for a common report extraction request."""
+    text = _normalize_task_text(task)
+    if not (
+        re.search(r"преподавател\w*\s+не\s+назнач", text)
+        and re.search(r"(?:спис|отбер|фильтр|отдельн\w*\s+лист)", text)
+    ):
+        return None
+
+    sheets = _extract_sheets(analysis)
+    if selected_sheet:
+        sheets = [
+            sheet for sheet in sheets
+            if _get_sheet_name(sheet).casefold() == str(selected_sheet).casefold()
+        ]
+    if len(sheets) != 1:
+        return None
+
+    sheet_info = sheets[0]
+    headers = _extract_headers(sheet_info)
+
+    def header_named(*needles):
+        for header in headers:
+            normalized = _normalize_header_text(header)
+            if all(needle in normalized for needle in needles):
+                return header
+        return None
+
+    teacher_header = next(
+        (
+            header for header in headers
+            if _normalize_header_text(header) in {"преподаватель", "преподаватель фио"}
+        ),
+        None,
+    )
+    period_header = header_named("академическ", "период")
+    if not teacher_header or not period_header:
+        return None
+
+    dates = re.findall(r"\b\d{2}[.\-/]\d{2}[.\-/]\d{4}\b", text)
+    if len(dates) < 2 and "осень 2026" not in text:
+        return None
+    period_value = " - ".join(dates[:2]) if len(dates) >= 2 else "осень 2026"
+    if "осень 2026" in text and len(dates) >= 2:
+        period_value = "осень 2026 " + period_value
+
+    operation = {
+        "type": "filter_rows",
+        "sheet": _get_sheet_name(sheet_info),
+        "column": teacher_header,
+        "operator": "contains",
+        "value": "преподаватель не назначен",
+        "conditions": [
+            {
+                "column": teacher_header,
+                "operator": "contains",
+                "value": "преподаватель не назначен",
+            },
+            {
+                "column": period_header,
+                "operator": "contains",
+                "value": period_value,
+            },
+        ],
+        "output_sheet": "Преподаватель не назначен",
+        "header_rows": int(sheet_info.get("header_row") or 1),
+    }
+    if re.search(r"\bсводк\w*\b", text):
+        operation["summary_output_sheet"] = "Общая сводка"
+
+    return {
+        "questions": [],
+        "operations": [operation],
+        "explanation": (
+            "Будут отобраны записи без назначенного преподавателя за указанный "
+            "академический период. Исходный лист останется без изменений."
+        ),
+        "mode": "operations",
+        "deterministic_route": True,
+    }
+
+
+def _requires_model_reasoning(task: str) -> bool:
+    """Use the model before narrow routers when a request combines intent and conditions."""
+    text = _normalize_task_text(task)
+    action_groups = (
+        r"сводк\w*|отч[её]т\w*|анал\w*",
+        r"фильтр\w*|отбер\w*|выбер\w*|остав\w*|спис\w*",
+        r"сортир\w*|упорядоч\w*",
+        r"раздел\w*|разбей\w*|отдельн\w*\s+лист",
+        r"очист\w*|замен\w*|заполн\w*|удал\w*",
+        r"сравн\w*|свер\w*|объедин\w*",
+        r"посчита\w*|сумм\w*|средн\w*|группир\w*",
+    )
+    actions = sum(bool(re.search(pattern, text)) for pattern in action_groups)
+    conditional = bool(re.search(
+        r"\b(?:где|котор\w*|тех\W+у\s+кого|у\s+кого|если|именно|"
+        r"равн\w*|содерж\w*|больше|меньше|между|за\s+период)\b",
+        text,
+    ))
+    explicit_sequence = bool(re.search(
+        r"\b(?:затем|потом|после\s+этого|а\s+также|одновременно)\b|;|\n",
+        text,
+    ))
+    return actions >= 2 or explicit_sequence or (actions >= 1 and conditional)
+
+
+def _model_first_plan(task, analysis, selected_sheet, normalized_task):
+    """Ask the configured AI to reason over the workbook before keyword routing."""
+    semantic_intent = compile_intent(task, analysis, selected_sheet=selected_sheet)
+    prompt = _build_prompt(
+        task=normalized_task,
+        analysis=analysis,
+        selected_sheet=selected_sheet,
+        original_task=task,
+        semantic_intent=semantic_intent,
+    )
+    try:
+        raw = _post_to_ollama(prompt)
+        questions = _normalize_questions(raw.get("questions", []))
+        if questions:
+            return {
+                "questions": questions,
+                "operations": [],
+                "explanation": str(raw.get("explanation", "")).strip(),
+                "mode": "questions",
+                "model_reasoning": True,
+            }
+        operations = _validate_operations(raw.get("operations", []))
+        if not operations:
+            return None
+
+        text = _normalize_task_text(task)
+        types = {operation.get("type") for operation in operations}
+        conditional = bool(re.search(
+            r"\b(?:где|котор\w*|тех\W+у\s+кого|у\s+кого|если|именно|за\s+период)\b",
+            text,
+        ))
+        if conditional and re.search(r"спис\w*|фильтр\w*|отбер\w*|выбер\w*", text):
+            if "filter_rows" not in types:
+                return None
+        if re.search(r"\bсводк\w*\b", text):
+            has_summary = "smart_summary" in types or any(
+                operation.get("summary_output_sheet")
+                for operation in operations if operation.get("type") == "filter_rows"
+            )
+            if not has_summary:
+                return None
+
+        return {
+            "questions": [],
+            "operations": operations,
+            "explanation": str(raw.get("explanation", "")).strip(),
+            "mode": "operations",
+            "model_reasoning": True,
+            "confidence": raw.get("confidence"),
+            "semantic_intent": semantic_intent,
+        }
+    except (RuntimeError, ValueError, TimeoutError):
+        return None
+
+
+def _plan_covers_request(task: str, result: dict | None) -> bool:
+    """Reject locally plausible plans that silently drop requested actions."""
+    if not result or not result.get("operations") or result.get("questions"):
+        return False
+    text = _normalize_task_text(task)
+    types = {operation.get("type") for operation in result["operations"]}
+    requirements = []
+    if re.search(r"\b(?:копи\w*|скопир\w*)\b", text):
+        requirements.append(bool(types & {"copy_sheet", "copy_columns_to_sheet"}))
+    if re.search(r"\b(?:убер\w*|удал\w*|очист\w*)\s+пробел", text):
+        requirements.append("trim_text" in types)
+    if re.search(r"\b(?:сортир\w*|упорядоч\w*)\b", text):
+        requirements.append("sort_rows" in types)
+    if re.search(r"\b(?:фильтр\w*|отбер\w*|выбер\w*|тех\W+у\s+кого|где)\b", text):
+        requirements.append("filter_rows" in types)
+    if re.search(r"\bсводк\w*\b", text):
+        requirements.append(
+            "smart_summary" in types
+            or any(operation.get("summary_output_sheet") for operation in result["operations"])
+        )
+    if re.search(r"\b(?:сумм\w*|средн\w*|агрегир\w*|группир\w*)\b", text):
+        requirements.append(bool(types & {"group_by_aggregate", "smart_summary"}))
+    if re.search(r"\b(?:извлек\w*|разверн\w*)\b", text):
+        requirements.append(bool(types & {"extract_split_values_to_sheet", "split_cell_values_to_rows"}))
+    return all(requirements) if requirements else True
+
+
 def interpret_task(
     task: str,
     analysis: Any,
@@ -3456,6 +3670,35 @@ def interpret_task(
 
     original_task = task.strip()
     normalized_task = _normalize_task_text(original_task)
+
+    if _requires_model_reasoning(original_task):
+        from .pro_planner import plan_request as _local_reasoning_plan
+        local_reasoning = _local_reasoning_plan(
+            original_task, analysis, selected_sheet=selected_sheet, use_ai=False
+        )
+        explicit_sequence = bool(re.search(
+            r"\b(?:затем|потом|после\s+этого|а\s+также|кроме\s+того)\b|;|\n",
+            normalized_task,
+        ))
+        if explicit_sequence and _plan_covers_request(original_task, local_reasoning):
+            local_reasoning.setdefault("original_task", original_task)
+            local_reasoning.setdefault("normalized_task", normalized_task)
+            return local_reasoning
+        reasoned = _model_first_plan(
+            original_task, analysis, selected_sheet, normalized_task
+        )
+        if reasoned is not None:
+            reasoned["original_task"] = original_task
+            reasoned["normalized_task"] = normalized_task
+            return reasoned
+
+    unassigned_period = _route_unassigned_teacher_period(
+        original_task, analysis, selected_sheet
+    )
+    if unassigned_period is not None:
+        unassigned_period["original_task"] = original_task
+        unassigned_period["normalized_task"] = normalized_task
+        return unassigned_period
 
     # Preserve the full order of explicit multi-step instructions before a
     # narrow one-action router can consume only the first part.
