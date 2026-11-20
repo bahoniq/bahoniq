@@ -85,9 +85,14 @@ def get_db_connection() -> sqlite3.Connection:
                 date TEXT NOT NULL,
                 caption TEXT NOT NULL DEFAULT '',
                 has_cover INTEGER NOT NULL DEFAULT 0,
+                cover_version INTEGER NOT NULL DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        try:
+            conn.execute("ALTER TABLE tracks ADD COLUMN cover_version INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
         conn.execute("""
             CREATE TABLE IF NOT EXISTS sync_meta (
                 key TEXT PRIMARY KEY,
@@ -517,6 +522,9 @@ async def sync_catalog(force: bool = False) -> Dict[str, Any]:
                     continue
 
                 total_found += 1
+                sync_ts = int(time.time())
+                if getattr(message, "photo", None) or getattr(getattr(message, "media", None), "photo", None):
+                    meta["has_cover"] = 1
                 with conn:
                     cur = conn.execute(
                         "SELECT id FROM tracks WHERE telegram_msg_id = ?",
@@ -524,33 +532,61 @@ async def sync_catalog(force: bool = False) -> Dict[str, Any]:
                     )
                     existing = cur.fetchone()
                     if not existing:
-                        conn.execute("""
+                        cur_ins = conn.execute("""
                             INSERT INTO tracks (
                                 telegram_msg_id, document_id, access_hash, file_reference,
                                 title, artist, album, duration, file_size, mime_type,
-                                file_name, date, caption, has_cover
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                file_name, date, caption, has_cover, cover_version
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (
                             meta["telegram_msg_id"], meta["document_id"], meta["access_hash"],
                             meta["file_reference"], meta["title"], meta["artist"], meta["album"],
                             meta["duration"], meta["file_size"], meta["mime_type"], meta["file_name"],
-                            meta["date"], meta["caption"], meta["has_cover"]
+                            meta["date"], meta["caption"], meta["has_cover"], sync_ts
                         ))
+                        track_row_id = cur_ins.lastrowid
                         new_tracks_count += 1
                     else:
+                        track_row_id = existing["id"]
                         conn.execute("""
                             UPDATE tracks SET
                                 document_id=?, access_hash=?, file_reference=?, title=?, artist=?,
                                 album=?, duration=?, file_size=?, mime_type=?, file_name=?, date=?,
-                                caption=?, has_cover=?
+                                caption=?, has_cover=?, cover_version=?
                             WHERE telegram_msg_id=?
                         """, (
                             meta["document_id"], meta["access_hash"], meta["file_reference"],
                             meta["title"], meta["artist"], meta["album"], meta["duration"],
                             meta["file_size"], meta["mime_type"], meta["file_name"], meta["date"],
-                            meta["caption"], meta["has_cover"], meta["telegram_msg_id"]
+                            meta["caption"], meta["has_cover"], sync_ts, meta["telegram_msg_id"]
                         ))
                         updated_tracks_count += 1
+                        # Сбрасываем старый кэш обложки при повторной синхронизации
+                        for ext in ("img", "mime"):
+                            old_cover = MUSIC_CACHE_DIR / f"cover_{track_row_id}.{ext}"
+                            if old_cover.exists():
+                                try:
+                                    old_cover.unlink()
+                                except OSError:
+                                    pass
+                # Если у сообщения есть миниатюра документа или фото — сразу сохраняем обложку
+                if track_row_id and meta["has_cover"]:
+                    try:
+                        cover_img_path = MUSIC_CACHE_DIR / f"cover_{track_row_id}.img"
+                        cover_mime_path = MUSIC_CACHE_DIR / f"cover_{track_row_id}.mime"
+                        raw_cov = None
+                        doc_obj = getattr(getattr(message, "media", None), "document", None)
+                        if doc_obj and getattr(doc_obj, "thumbs", None):
+                            raw_cov = await client.download_media(doc_obj, file=bytes, thumb=-1)
+                        elif getattr(message, "photo", None):
+                            raw_cov = await client.download_media(message.photo, file=bytes)
+                        if isinstance(raw_cov, (bytes, bytearray)) and len(raw_cov) > 512:
+                            MUSIC_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                            mime = "image/png" if raw_cov[:4] == b"\x89PNG" else "image/jpeg"
+                            cover_img_path.write_bytes(bytes(raw_cov))
+                            cover_mime_path.write_text(mime, encoding="utf-8")
+                    except Exception:
+                        pass
 
         now_str = datetime.now(timezone.utc).isoformat()
         with conn:
@@ -649,7 +685,7 @@ def query_tracks(
         total = conn.execute(count_sql, params).fetchone()[0]
 
         select_sql = f"""
-            SELECT id, telegram_msg_id, title, artist, album, duration, file_size, mime_type, file_name, date, has_cover
+            SELECT id, telegram_msg_id, title, artist, album, duration, file_size, mime_type, file_name, date, has_cover, cover_version
             FROM tracks
             {where_sql}
             ORDER BY {col} {sort_dir}
@@ -671,6 +707,7 @@ def query_tracks(
                 "file_name": r["file_name"],
                 "date": r["date"],
                 "has_cover": bool(r["has_cover"]),
+                "cover_version": int(r["cover_version"] or 0),
             })
         return tracks, total
     finally:
@@ -786,6 +823,53 @@ async def get_telegram_document_for_track(track_id: int):
             pass
 
     return track, document
+
+
+async def get_telegram_cover_bytes(track_id: int) -> Optional[Tuple[bytes, str]]:
+    """Извлекает миниатюру аудиофайла или фото сообщения Telegram (включая альбом) для обложки трека."""
+    track = get_track_by_id(track_id)
+    if not track:
+        return None
+    client = await get_telegram_client()
+    if not client:
+        return None
+    msg_id = track["telegram_msg_id"]
+    entities = []
+    try:
+        ch = await get_channel_entity(client)
+        if ch:
+            entities.append(ch)
+    except Exception:
+        pass
+    for target in entities + [None]:
+        try:
+            msg = await client.get_messages(target, ids=msg_id)
+            if not msg:
+                continue
+            doc = getattr(getattr(msg, "media", None), "document", None)
+            if doc and getattr(doc, "thumbs", None):
+                raw = await client.download_media(doc, file=bytes, thumb=-1)
+                if isinstance(raw, (bytes, bytearray)) and len(raw) > 512:
+                    mime = "image/png" if raw[:4] == b"\x89PNG" else "image/jpeg"
+                    return bytes(raw), mime
+            photo_obj = getattr(msg, "photo", None) or getattr(getattr(msg, "media", None), "photo", None)
+            if photo_obj:
+                raw = await client.download_media(photo_obj, file=bytes)
+                if isinstance(raw, (bytes, bytearray)) and len(raw) > 512:
+                    mime = "image/png" if raw[:4] == b"\x89PNG" else "image/jpeg"
+                    return bytes(raw), mime
+            # Если трек отправлен в альбоме вместе с картинкой-обложкой
+            gid = getattr(msg, "grouped_id", None)
+            if gid and target is not None:
+                async for sib in client.iter_messages(target, min_id=max(0, msg_id - 6), max_id=msg_id + 6):
+                    if getattr(sib, "grouped_id", None) == gid and getattr(sib, "photo", None):
+                        raw = await client.download_media(sib.photo, file=bytes)
+                        if isinstance(raw, (bytes, bytearray)) and len(raw) > 512:
+                            mime = "image/png" if raw[:4] == b"\x89PNG" else "image/jpeg"
+                            return bytes(raw), mime
+        except Exception:
+            continue
+    return None
 
 
 def _cache_limit_bytes() -> int:

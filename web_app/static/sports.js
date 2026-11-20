@@ -4,6 +4,7 @@
 
   const FAVORITES_KEY = 'bahoniq_sports_favorites_v1';
   const SETTINGS_KEY = 'bahoniq_sports_settings_v1';
+  const ANTHEM_ENABLED_KEY = 'bahoniq_sports_anthems_enabled_v1';
   const CLIENT_CACHE_TTL_MS = 120000;
 
   const DEFAULT_SETTINGS = {
@@ -23,7 +24,7 @@
 
   let settings = loadSettings();
   let favorites = loadFavorites();
-  let activeTab = 'overview';
+  let activeTab = 'real_madrid';
   let activeClub = settings.favoriteClub || 'real_madrid';
   let loadedOnce = false;
   let countdownTimer = null;
@@ -33,6 +34,49 @@
   let lastTriggerEl = null;
   let savedScrollY = 0;
   const memCache = new Map();
+
+  const CLUB_ANTHEMS = {
+    real_madrid: { title: 'Hala Madrid y nada más', src: '/assets/audio/real_madrid.mp3' },
+    juventus: { title: 'Juve (storia di un grande amore)', src: '/assets/audio/juventus.mp3' },
+    man_utd: { title: 'Glory Glory Man United', src: '/assets/audio/man_utd.mp3' },
+  };
+
+  function anthemEnabled() {
+    return localStorage.getItem(ANTHEM_ENABLED_KEY) !== '0';
+  }
+
+  function stopClubAnthem(hide = true) {
+    const audio = document.getElementById('sportsAnthemAudio');
+    const bar = document.getElementById('sportsAnthemBar');
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    if (hide) bar?.classList.add('hidden');
+  }
+
+  function playClubAnthem(clubId) {
+    const anthem = CLUB_ANTHEMS[clubId];
+    const audio = document.getElementById('sportsAnthemAudio');
+    const bar = document.getElementById('sportsAnthemBar');
+    const title = document.getElementById('sportsAnthemTitle');
+    const toggle = document.getElementById('sportsAnthemToggle');
+    if (!anthem || !audio || !bar || !anthemEnabled()) {
+      stopClubAnthem(true);
+      return;
+    }
+    if (!audio.src.endsWith(anthem.src)) {
+      audio.src = anthem.src;
+      audio.currentTime = 0;
+    }
+    if (title) title.textContent = anthem.title;
+    bar.classList.remove('hidden');
+    const attempt = audio.play();
+    if (attempt && typeof attempt.catch === 'function') {
+      attempt.then(() => { if (toggle) toggle.textContent = '⏸ Пауза'; })
+        .catch(() => { if (toggle) toggle.textContent = '▶ Включить гимн'; });
+    }
+  }
 
   function cloneDefaults() {
     return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
@@ -558,24 +602,24 @@
         </div>
       ` : '';
 
-      const pitchHtml = rosters.length ? `
-        ${pitchTopHdr}
-        <div class="sports-pitch">
-          <div class="sports-pitch-box-left"></div>
-          <div class="sports-pitch-box-right"></div>
-          ${rosters.slice(0, 2).map((r, idx) => {
-            const isRightSide = idx === 1;
-            const cols = buildFormationLines(r.starters || [], r.formation, isRightSide);
-            const linkCid = isOurClubName(r.team) ? clubId : '';
-            const side = isRightSide ? 'away' : 'home';
-            return `
-              <div class="sports-pitch-half">
-                ${cols.map(col => `<div class="sports-pitch-col">${col.map(p => renderPitchPlayerNode(p, linkCid, side)).join('')}</div>`).join('')}
-              </div>
-            `;
-          }).join('')}
-        </div>
-      ` : '<div class="sports-sub">Стартовые составы появятся ближе к матчу</div>';
+      const lineupsHtml = rosters.length ? `
+        <div class="sports-match-section">
+          <h3>Стартовые составы</h3>
+          <div class="sports-lineups-grid">
+            ${rosters.slice(0, 2).map(r => {
+              const linkCid = isOurClubName(r.team) ? clubId : '';
+              return `<div class="sports-lineup-card">
+                <div class="sports-lineup-head">${teamLogoHtml(r.logo, r.team)}<b>${esc(r.team)}</b><span class="sports-badge gold">${esc(r.formation || '—')}</span></div>
+                <div class="sports-lineup-list">${(r.starters || []).map(p => `
+                  <div class="sports-lineup-player" ${linkCid && p.id ? `data-player-club="${esc(linkCid)}" data-player-id="${esc(p.id)}"` : ''}>
+                    ${p.photo && settings.showImages ? `<img src="${esc(p.photo)}" alt="${esc(p.name)}" loading="lazy">` : `<span class="sports-lineup-number">${esc(p.jersey)}</span>`}
+                    <span><b>${esc(p.short_name || p.name)}</b><small>${esc(p.position || '')}</small></span>
+                    <em>#${esc(p.jersey)}</em>
+                  </div>`).join('') || '<div class="sports-sub">Состав появится ближе к матчу</div>'}</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>` : '<div class="sports-sub">Стартовые составы появятся ближе к матчу</div>';
 
       const allSubsEvents = m.substitutions || [];
       const subsEventsHtml = rosters.length ? `
@@ -627,7 +671,7 @@
             </div>
           ` : ''}
         </div>
-        ${pitchHtml}
+        ${lineupsHtml}
         ${subsEventsHtml}
       `);
     } catch (err) {
@@ -831,8 +875,13 @@
       btn.addEventListener('click', e => {
         e.stopPropagation();
         closeModal();
-        activeTab = btn.dataset.jumpTab;
-        if (btn.dataset.jumpClub) activeClub = btn.dataset.jumpClub;
+        if (btn.dataset.jumpTab === 'football' && btn.dataset.jumpClub) {
+          activeClub = btn.dataset.jumpClub;
+          activeTab = activeClub;
+        } else {
+          activeTab = btn.dataset.jumpTab;
+          if (btn.dataset.jumpClub) activeClub = btn.dataset.jumpClub;
+        }
         renderCurrentTab(false);
       });
     });
@@ -1020,14 +1069,6 @@
       const data = await apiGet(`/api/sports/football/${encodeURIComponent(activeClub)}`, force, signal);
       setStatus(data.meta);
 
-      const clubsBar = `
-        <div class="sports-club-pills">
-          <button class="sports-club-pill ${activeClub === 'real_madrid' ? 'active' : ''}" data-club="real_madrid" type="button">Real Madrid</button>
-          <button class="sports-club-pill ${activeClub === 'juventus' ? 'active' : ''}" data-club="juventus" type="button">Juventus</button>
-          <button class="sports-club-pill ${activeClub === 'man_utd' ? 'active' : ''}" data-club="man_utd" type="button">Manchester United</button>
-        </div>
-      `;
-
       const clubRow = (data.standings || []).find(r =>
         String(r.team_id) === String(data.club?.espn_id) ||
         String(r.team || '').toLowerCase().includes(String(data.club?.name || '').toLowerCase())
@@ -1086,8 +1127,6 @@
 
       body.innerHTML = `
         <div class="sports-stack">
-          ${clubsBar}
-
           <!-- 1. Широкая клубная шапка -->
           <div class="sports-club-banner accent-${esc(activeClub)}">
             <div class="sports-club-banner-main">
@@ -1099,6 +1138,7 @@
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
               ${clubRow ? `<span class="sports-badge gold">Место #${esc(clubRow.pos)} · ${esc(clubRow.points)} очк.</span>` : ''}
+              ${!anthemEnabled() ? '<button id="sportsAnthemEnable" class="sports-refresh-btn" type="button">♫ Включить гимн клуба</button>' : ''}
               ${favBtnHtml('club', activeClub, data.club?.name, data.club?.league_name, activeClub)}
             </div>
           </div>
@@ -1169,37 +1209,19 @@
               </div>
             `;
 
-            const kitsGallery = (cp.kits_gallery && cp.kits_gallery.length)
-              ? cp.kits_gallery
-              : (cp.kit_image ? [{ type: 'home', label: 'Домашняя', url: cp.kit_image }] : []);
+            const verifiedKits = cp.kits || [];
 
             const kitsBlock = `
               <div class="sports-card">
                 <h3>
-                  <span>👕 Актуальная форма и атрибутика</span>
-                  <span class="sports-badge">Основан: ${esc(cp.formed || '—')}</span>
+                  <span>👕 Форма сезона 2026/27</span>
+                  <span class="sports-badge">Проверено по официальному магазину клуба</span>
                 </h3>
-                ${kitsGallery.length > 1 ? `
-                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-                    ${kitsGallery.map((k, idx) => `<button type="button" class="sports-kit-pill sports-tab ${idx === 0 ? 'active' : ''}" data-kit-idx="${idx}" style="padding:4px 12px;font-size:12px;">${esc(k.label)}</button>`).join('')}
-                  </div>
-                ` : ''}
-                <div class="sports-kit-showcase">
-                  ${(kitsGallery.length && settings.showImages) ? `
-                    <div class="sports-stadium-carousel" id="sportsKitCarousel" style="width:190px;min-width:190px;height:190px;padding:8px;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.55);border-radius:12px;">
-                      <img id="sportsKitImg" class="sports-kit-real-img" src="${esc(kitsGallery[0].url)}" alt="Официальная форма ${esc(data.club?.name)}" style="max-width:164px;max-height:164px;object-fit:contain;">
-                      ${kitsGallery.length > 1 ? `
-                        <button id="sportsKitPrev" class="sports-carousel-btn prev" type="button" aria-label="Предыдущая форма" style="width:28px;height:28px;font-size:12px;">◀</button>
-                        <button id="sportsKitNext" class="sports-carousel-btn next" type="button" aria-label="Следующая форма" style="width:28px;height:28px;font-size:12px;">▶</button>
-                        <div id="sportsKitLabel" class="sports-carousel-counter" style="font-size:11px;padding:2px 8px;">${esc(kitsGallery[0].label)} (1/${kitsGallery.length})</div>
-                      ` : ''}
-                    </div>
-                  ` : ''}
-                  <div class="sports-kv-grid" style="flex:1;min-width:260px;">
-                    <div class="sports-kv-item"><small>Клубные цвета</small><b>${esc(cp.colors || 'Нет данных')}</b></div>
-                    <div class="sports-kv-item"><small>Официальный гимн</small><b>🎵 ${esc(cp.anthem || 'Нет данных')}</b>${cp.anthem_audio_url ? `<audio controls preload="metadata" src="${esc(cp.anthem_audio_url)}" style="width:100%;max-width:280px;height:32px;margin-top:6px;display:block;"></audio>` : ''}</div>
-                    <div class="sports-kv-item"><small>Главный тренер</small><b>${esc(cp.manager || coachText)}</b></div>
-                  </div>
+                <div class="sports-verified-kits">
+                  ${verifiedKits.map(k => `<div class="sports-verified-kit">
+                    <div class="sports-shirt-shape ${esc(k.pattern || 'solid')}" style="--kit-primary:${esc(k.primary)};--kit-secondary:${esc(k.secondary)};"><span>${esc((data.club?.name || '').slice(0, 2))}</span></div>
+                    <div><b>${esc(k.label)}</b><small>${esc(k.desc)}</small></div>
+                  </div>`).join('') || '<div class="sports-sub">Описание формы временно недоступно</div>'}
                 </div>
               </div>
             `;
@@ -1305,18 +1327,6 @@
             </div>
           </div>
 
-          <!-- 6. Состав по позициям (без узкого скролла) -->
-          <div class="sports-card">
-            <h3><span>👥 Состав команды</span><span class="sports-badge">${playersAll.length} игроков · Тренер: ${esc(coachText)}</span></h3>
-            <div class="sports-stack">
-              ${renderPosGroup('🧤 Вратари', gkList)}
-              ${renderPosGroup('🛡 Защитники', defList)}
-              ${renderPosGroup('⚙ Полузащитники', midList)}
-              ${renderPosGroup('⚡ Нападающие', fwdList)}
-              ${renderPosGroup('Игроки', otherList)}
-            </div>
-          </div>
-
           <!-- 7. Травмы и дисквалификации -->
           <div class="sports-card">
             <h3><span>🩺 Травмы и дисквалификации</span></h3>
@@ -1330,6 +1340,11 @@
           activeClub = btn.dataset.club;
           renderFootball(false);
         });
+      });
+      body.querySelector('#sportsAnthemEnable')?.addEventListener('click', () => {
+        localStorage.setItem(ANTHEM_ENABLED_KEY, '1');
+        playClubAnthem(activeClub);
+        renderFootball(false);
       });
 
       const stGallery = (data.club_profile?.stadium_gallery || []).length
@@ -1346,25 +1361,6 @@
         };
         body.querySelector('#sportsStadiumPrev')?.addEventListener('click', () => showSlide(-1));
         body.querySelector('#sportsStadiumNext')?.addEventListener('click', () => showSlide(1));
-      }
-
-      const ktGallery = (data.club_profile?.kits_gallery || []).length
-        ? data.club_profile.kits_gallery
-        : (data.club_profile?.kit_image ? [{ label: 'Домашняя', url: data.club_profile.kit_image }] : []);
-      if (ktGallery.length > 1) {
-        let ktIdx = 0;
-        const ktImg = body.querySelector('#sportsKitImg');
-        const ktLbl = body.querySelector('#sportsKitLabel');
-        const ktPills = body.querySelectorAll('.sports-kit-pill');
-        const setKit = idx => {
-          ktIdx = (idx + ktGallery.length) % ktGallery.length;
-          if (ktImg) ktImg.src = ktGallery[ktIdx].url;
-          if (ktLbl) ktLbl.textContent = `${ktGallery[ktIdx].label} (${ktIdx + 1}/${ktGallery.length})`;
-          ktPills.forEach(p => p.classList.toggle('active', Number(p.dataset.kitIdx) === ktIdx));
-        };
-        body.querySelector('#sportsKitPrev')?.addEventListener('click', () => setKit(ktIdx - 1));
-        body.querySelector('#sportsKitNext')?.addEventListener('click', () => setKit(ktIdx + 1));
-        ktPills.forEach(p => p.addEventListener('click', () => setKit(Number(p.dataset.kitIdx))));
       }
 
       bindActionHandlers(body);
@@ -1915,8 +1911,12 @@
       btn.classList.toggle('active', active);
       btn.setAttribute('aria-selected', active ? 'true' : 'false');
     });
-    if (activeTab === 'overview') return renderOverview(force);
-    if (activeTab === 'football') return renderFootball(force);
+    if (['real_madrid', 'juventus', 'man_utd'].includes(activeTab)) {
+      activeClub = activeTab;
+      playClubAnthem(activeClub);
+      return renderFootball(force);
+    }
+    stopClubAnthem(true);
     if (activeTab === 'f1') return renderF1(force);
     if (activeTab === 'ufc') return renderUfc(force);
     if (activeTab === 'news') return renderNewsCenter(force);
@@ -1936,7 +1936,7 @@
       const tabBtns = tabsEl ? [...tabsEl.querySelectorAll('.sports-tab')] : [];
       tabBtns.forEach((btn, idx) => {
         btn.addEventListener('click', () => {
-          activeTab = btn.dataset.sportTab || 'overview';
+          activeTab = btn.dataset.sportTab || 'real_madrid';
           renderCurrentTab(false);
         });
         btn.addEventListener('keydown', e => {
@@ -1950,6 +1950,21 @@
       });
 
       document.getElementById('sportsRefreshBtn')?.addEventListener('click', () => renderCurrentTab(true));
+      document.getElementById('sportsAnthemToggle')?.addEventListener('click', () => {
+        const audio = document.getElementById('sportsAnthemAudio');
+        const btn = document.getElementById('sportsAnthemToggle');
+        if (!audio) return;
+        if (audio.paused) {
+          audio.play().then(() => { if (btn) btn.textContent = '⏸ Пауза'; }).catch(() => {});
+        } else {
+          audio.pause();
+          if (btn) btn.textContent = '▶ Продолжить';
+        }
+      });
+      document.getElementById('sportsAnthemDisable')?.addEventListener('click', () => {
+        localStorage.setItem(ANTHEM_ENABLED_KEY, '0');
+        stopClubAnthem(true);
+      });
       document.getElementById('sportsModalBackBtn')?.addEventListener('click', goModalBack);
       document.getElementById('sportsModalClose')?.addEventListener('click', closeModal);
       document.getElementById('sportsDetailModal')?.addEventListener('click', e => {
@@ -1971,6 +1986,7 @@
       try { activeAbortCtrl.abort(); } catch {}
       activeAbortCtrl = null;
     }
+    stopClubAnthem(true);
     closeModal();
   };
 

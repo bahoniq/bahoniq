@@ -22,6 +22,7 @@ from modules.music_core import (
     get_catalog_status,
     get_saved_telegram_session_str,
     get_telegram_client,
+    get_telegram_cover_bytes,
     get_telegram_document_for_track,
     get_track_by_id,
     query_tracks,
@@ -30,6 +31,12 @@ from modules.music_core import (
     stream_track_chunks,
     sync_catalog,
 )
+try:
+    from ..modules.radio_service import RADIO_BY_ID as _RADIO_BY_ID
+    from ..modules.radio_service import RADIO_STATIONS, get_station_metadata, public_station
+except ImportError:
+    from modules.radio_service import RADIO_BY_ID as _RADIO_BY_ID
+    from modules.radio_service import RADIO_STATIONS, get_station_metadata, public_station
 
 router = APIRouter(prefix="/api/music", tags=["music"])
 
@@ -175,6 +182,7 @@ async def get_track(track_id: int):
         "file_name": track["file_name"],
         "date": track["date"],
         "has_cover": bool(track["has_cover"]),
+        "cover_version": int(track.get("cover_version") or 0),
     }
 
 
@@ -331,7 +339,7 @@ async def track_cover(track_id: int, fallback: Optional[str] = Query(None)):
 
     if cover_cache_path.exists() and cover_cache_path.stat().st_size > 512:
         mime = cover_mime_path.read_text(encoding="utf-8").strip() if cover_mime_path.exists() else "image/jpeg"
-        return FileResponse(cover_cache_path, media_type=mime, headers={"Cache-Control": "public, max-age=604800"})
+        return FileResponse(cover_cache_path, media_type=mime, headers={"Cache-Control": "public, max-age=3600, must-revalidate"})
 
     # 1. Пробуем достать встроенную обложку из уже скачанного на сервер аудиофайла
     cached_audio = get_cached_track_path(track_id)
@@ -344,27 +352,21 @@ async def track_cover(track_id: int, fallback: Optional[str] = Query(None)):
                 cover_mime_path.write_text(mime, encoding="utf-8")
             except OSError:
                 pass
-            return Response(content=img_bytes, media_type=mime, headers={"Cache-Control": "public, max-age=604800"})
+            return Response(content=img_bytes, media_type=mime, headers={"Cache-Control": "public, max-age=3600, must-revalidate"})
 
-    # 2. Если у трека отмечено наличие миниатюры в Telegram (has_cover), скачиваем thumb
-    track = get_track_by_id(track_id)
-    if track and track.get("has_cover"):
-        try:
-            client = await get_telegram_client()
-            if client:
-                _, doc = await get_telegram_document_for_track(track_id)
-                if doc and getattr(doc, "thumbs", None):
-                    raw_thumb = await client.download_media(doc, file=bytes, thumb=-1)
-                    if isinstance(raw_thumb, (bytes, bytearray)) and len(raw_thumb) > 512:
-                        mime = "image/png" if raw_thumb[:4] == b"\x89PNG" else "image/jpeg"
-                        try:
-                            cover_cache_path.write_bytes(bytes(raw_thumb))
-                            cover_mime_path.write_text(mime, encoding="utf-8")
-                        except OSError:
-                            pass
-                        return Response(content=bytes(raw_thumb), media_type=mime, headers={"Cache-Control": "public, max-age=604800"})
-        except Exception:
-            await reset_telegram_client()
+    # 2. Пробуем скачать миниатюру документа или фото/альбомную обложку сообщения Telegram
+    try:
+        tg_cov = await get_telegram_cover_bytes(track_id)
+        if tg_cov:
+            img_bytes, mime = tg_cov
+            try:
+                cover_cache_path.write_bytes(img_bytes)
+                cover_mime_path.write_text(mime, encoding="utf-8")
+            except OSError:
+                pass
+            return Response(content=img_bytes, media_type=mime, headers={"Cache-Control": "public, max-age=3600, must-revalidate"})
+    except Exception:
+        await reset_telegram_client()
 
     if fallback == "404":
         raise HTTPException(status_code=404, detail="No embedded cover")
@@ -615,116 +617,19 @@ async def music_auth_verify_code(
 # ОНЛАЙН-РАДИО (ЖИВЫЕ СТАНЦИИ И ПРОКСИ ПОТОКА)
 # ============================================================
 
-RADIO_STATIONS = [
-    {
-        "id": "zhulduz",
-        "name": "Жұлдыз FM",
-        "freq": "101.4 FM",
-        "genre": "Қазақша хиттер",
-        "country": "KZ",
-        "url": "http://91.201.214.229:8000/zhulduz",
-    },
-    {
-        "id": "avtoradio_kz",
-        "name": "Авторадио Казахстан",
-        "freq": "102.0 FM",
-        "genre": "В дорогу · Хиты",
-        "country": "KZ",
-        "url": "http://178.88.167.62:8080/AVTORADIO_192",
-    },
-    {
-        "id": "zhana_fm",
-        "name": "Жаңа FM",
-        "freq": "101.2 FM",
-        "genre": "Pop · KZ",
-        "country": "KZ",
-        "url": "https://live.zhanafm.kz:8443/zhanafm_onair",
-    },
-    {
-        "id": "beu_fm",
-        "name": "BEU FM",
-        "freq": "104.2 FM",
-        "genre": "Молодёжное · KZ",
-        "country": "KZ",
-        "url": "https://stream.beufm.kz/beufm",
-    },
-    {
-        "id": "qaz_radio",
-        "name": "Qazaq Radiosy",
-        "freq": "101.0 FM",
-        "genre": "Классика · Новости",
-        "country": "KZ",
-        "url": "https://radio-streams.kaztrk.kz/qazradio/qazradio/icecast.audio",
-    },
-    {
-        "id": "europa_plus",
-        "name": "Европа Плюс",
-        "freq": "106.2 FM",
-        "genre": "Top 40 · Pop",
-        "country": "RU",
-        "url": "http://ep128server.streamr.ru:8030/ep128",
-    },
-    {
-        "id": "rusradio",
-        "name": "Русское Радио",
-        "freq": "105.7 FM",
-        "genre": "Русские хиты",
-        "country": "RU",
-        "url": "https://rusradio.hostingradio.ru/rusradio96.aacp",
-    },
-    {
-        "id": "dfm_dance",
-        "name": "DFM Dance",
-        "freq": "101.2 FM",
-        "genre": "Club · Dance",
-        "country": "RU",
-        "url": "https://dfm-dfmrusdance.hostingradio.ru/dfmrusdance96.aacp",
-    },
-    {
-        "id": "dorognoe",
-        "name": "Дорожное радио",
-        "freq": "96.0 FM",
-        "genre": "В дорогу · Ретро",
-        "country": "RU",
-        "url": "http://dorognoe.hostingradio.ru:8000/dorognoe",
-    },
-    {
-        "id": "marusya",
-        "name": "Маруся ФМ",
-        "freq": "91.4 FM",
-        "genre": "Поп · Танцевальное",
-        "country": "RU",
-        "url": "https://listen.vdfm.ru:8000/marusya",
-    },
-    {
-        "id": "mixadance",
-        "name": "Mixadance FM",
-        "freq": "Online",
-        "genre": "Deep House · Chill",
-        "country": "RU",
-        "url": "https://stream.mixadance.fm/mixadance",
-    },
-]
-
-_RADIO_BY_ID = {item["id"]: item for item in RADIO_STATIONS}
-
-
 @router.get("/radio/stations")
 def list_radio_stations():
-    """Возвращает список доступных радиостанций."""
-    return {
-        "stations": [
-            {
-                "id": item["id"],
-                "name": item["name"],
-                "freq": item["freq"],
-                "genre": item["genre"],
-                "country": item["country"],
-                "stream_url": f"/api/music/radio/stream/{item['id']}",
-            }
-            for item in RADIO_STATIONS
-        ]
-    }
+    """Возвращает список подтверждённых и готовых к воспроизведению радиостанций."""
+    return {"stations": [public_station(item) for item in RADIO_STATIONS if item.get("url")]}
+
+
+@router.get("/radio/metadata/{station_id}")
+async def radio_metadata(station_id: str):
+    """Возвращает ICY StreamTitle текущей станции, если вещатель его передаёт."""
+    try:
+        return await get_station_metadata(station_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Радиостанция не найдена")
 
 
 def _is_safe_public_radio_url(url: str) -> bool:
@@ -802,6 +707,8 @@ async def stream_radio_station(station_id: str, request: Request):
     station = _RADIO_BY_ID.get(station_id)
     if not station:
         raise HTTPException(status_code=404, detail="Радиостанция не найдена")
+    if not station.get("url"):
+        raise HTTPException(status_code=503, detail=station.get("unavailableReason") or "Поток временно недоступен")
     return await _proxy_audio_stream(station["url"], request)
 
 

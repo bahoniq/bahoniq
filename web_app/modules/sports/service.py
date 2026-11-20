@@ -71,8 +71,8 @@ class SportsService:
             "formed": "1902",
             "fallback_manager": "José Mourinho",
             "fallback_kit": "https://r2.thesportsdb.com/images/media/team/equipment/gntr911750591256.png",
-            "away_kit": "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjXIOaHg67tIMa6sBzj9Ty0IfFnofKIJEleYi3pccvthgaPxWe4lM6wWmKkMrshOVHPfO8A4EI11XiSnhGygCDlDhHIp9d-Xgo5RQH4rF_m90Zbk0t49HL8HbP72IuXfBibDLStLqWBfNGnzWpZS1lm609iCIiMSIstwyPIKqQjpd8m-HXpeX5NnrYLBKg8/s1600/rm-25-26-away-kit%20%2811%29.jpg",
-            "third_kit": "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhcODCbxFih5azdwnO8g_Vxo-1-N4J7y0LfvON1A1VK3WDEELOjkRu34NVlu-pdKmMcbQchw1E2bxTEvUXzsegZzup2OL-Th_WlvC_Uv7OJPHTnZKIuSets2YWb4OPg58P8P9h9d_jvQipAqorj4ZQsecv2dK3ZpkxKd0eWwQ-ZNOLtJ0u-phTYPurZQ28/s1000/rm-26-27-third-kit%20%2813%29.jpg",
+            "away_kit": "",
+            "third_kit": "",
             "stadium_wiki": "Santiago Bernabéu Stadium",
             "stadium_name": "Сантьяго Бернабеу",
             "stadium_city": "Мадрид, Испания",
@@ -80,7 +80,7 @@ class SportsService:
             "stadium_opened": "1947",
             "stadium_surface": "Гибридный газон (выдвижное поле)",
             "stadium_gallery": [
-                {"url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/13/Estadio_Santiago_Bernab%C3%A9u_01.jpg/960px-Estadio_Santiago_Bernab%C3%A9u_01.jpg", "caption": "Обновлённый Сантьяго Бернабеу — внешний вид"},
+                {"url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/M-estadio-santiago-bernabeu-diciembre-2024-a.jpg/960px-M-estadio-santiago-bernabeu-diciembre-2024-a.jpg", "caption": "Обновлённый Сантьяго Бернабеу — современный фасад"},
                 {"url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/31/Estadio_Santiago_Bernab%C3%A9u_02.jpg/960px-Estadio_Santiago_Bernab%C3%A9u_02.jpg", "caption": "Фасад стадиона"},
                 {"url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fd/Estadio_Santiago_Bernab%C3%A9u_07.jpg/960px-Estadio_Santiago_Bernab%C3%A9u_07.jpg", "caption": "Трибуны и панорама"},
                 {"url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c5/Estadio_Santiago_Bernab%C3%A9u_09.jpg/960px-Estadio_Santiago_Bernab%C3%A9u_09.jpg", "caption": "Чаша стадиона сверху"},
@@ -89,16 +89,16 @@ class SportsService:
             "anthem_query": "Hala Madrid y nada mas",
             "colors": "Белый / Золотой",
             "kits": [
-                {"type": "home", "label": "Домашняя", "primary": "#f8fafc", "secondary": "#fbbf24", "text": "#0f172a", "pattern": "solid", "desc": "Классический белый с золотой отделкой"},
-                {"type": "away", "label": "Гостевая", "primary": "#1e293b", "secondary": "#38bdf8", "text": "#f8fafc", "pattern": "solid", "desc": "Тёмно-графитовый / ночной"},
-                {"type": "third", "label": "Третья", "primary": "#1d4ed8", "secondary": "#f8fafc", "text": "#ffffff", "pattern": "solid", "desc": "Королевский синий"},
+                {"type": "home", "label": "Домашняя 2026/27", "primary": "#f8fafc", "secondary": "#ec4899", "text": "#0f172a", "pattern": "solid", "desc": "Белая форма, тёмно-зелёная отделка и розовые полосы adidas"},
+                {"type": "away", "label": "Гостевая 2026/27", "primary": "#17443b", "secondary": "#f5f0df", "text": "#ffffff", "pattern": "solid", "desc": "Тёмно-зелёная с молочно-белой отделкой"},
+                {"type": "third", "label": "Третья 2026/27", "primary": "#ec4899", "secondary": "#f5f0df", "text": "#ffffff", "pattern": "solid", "desc": "Ярко-розовая с молочно-белыми деталями"},
             ],
             "records": {
                 "appearances": "Рауль Гонсалес — 741 матч",
                 "goals": "Криштиану Роналду — 450 голов",
             },
             "trophies": [
-                {"icon": "🏆", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c5/Trofeo_UEFA_Champions_League.jpg/330px-Trofeo_UEFA_Champions_League.jpg", "title": "Лига чемпионов УЕФА", "count": 15, "last": "2024"},
+                {"icon": "🏆", "img": "https://upload.wikimedia.org/wikipedia/commons/d/d1/UEFA_Champions_League_logo_no_text.svg", "title": "Лига чемпионов УЕФА", "count": 15, "last": "2024"},
                 {"icon": "👑", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/LaLiga_EA_Sports_2023_Vertical_Logo.svg/330px-LaLiga_EA_Sports_2023_Vertical_Logo.svg.png", "title": "Ла Лига (Чемпионат Испании)", "count": 36, "last": "2024"},
                 {"icon": "🏅", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7b/Copa_del_Rey_logo_%282021%29.svg/330px-Copa_del_Rey_logo_%282021%29.svg.png", "title": "Кубок Испании (Copa del Rey)", "count": 20, "last": "2023"},
                 {"icon": "⚡", "img": "https://thumb.wikimedia.org/wikipedia/en/thumb/f/fa/Supercopa-de-Espa%C3%B1a-RFEF.svg/330px-Supercopa-de-Espa%C3%B1a-RFEF.svg.png", "title": "Суперкубок Испании", "count": 13, "last": "2024"},
@@ -111,8 +111,8 @@ class SportsService:
             "formed": "1897",
             "fallback_manager": "Luciano Spalletti",
             "fallback_kit": "https://r2.thesportsdb.com/images/media/team/equipment/fph30e1749928492.png",
-            "away_kit": "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiTgGddumIZM1SFt2SrUDyvUMPfJZKXMkqi2ZXricpWpKOLCYoCeCk2gu-NsPLDPIICgqmVl8hvPaOt2ql08i_uJwP5o64G3wWIfv0-SL8JeS5bu2eenLwGaRh8zKGldEUOnMfKiKWG68eMmSBfb8kPKzXeiuT2z7QHnodX8qmGGTZWoWjY4sQkEeLeHwQ/s1000/juventus-26-27-third-kit%20%284%29.jpg",
-            "third_kit": "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhmHto5hHl0vdTrPGWtW-tUAESomdNEAEnkNxnBawVDFz6NREyoJu6XEGPSVJiHt59AwY74QqSSu8TN-iatLh2le9HGRyvwEGBO6UZmFOzUxWiEgFJPyb7BUXMZNfpLwDI-Po7sR7rAeobSdXSob9HXMAt49PDajyzpbRG6Eaz7dcgA9K5ka6DiS-DTC7-m/s1000/juventus-25-26-third-kit%20%2815%29.jpg",
+            "away_kit": "",
+            "third_kit": "",
             "stadium_wiki": "Juventus Stadium",
             "stadium_name": "Альянц Стэдиум",
             "stadium_city": "Турин, Италия",
@@ -120,7 +120,7 @@ class SportsService:
             "stadium_opened": "2011",
             "stadium_surface": "Натуральный / гибридный газон",
             "stadium_gallery": [
-                {"url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/84/Allianz_Stadium_dal_Colle_della_Maddalena.jpg/960px-Allianz_Stadium_dal_Colle_della_Maddalena.jpg", "caption": "Альянц Стэдиум — панорама сверху"},
+                {"url": "https://upload.wikimedia.org/wikipedia/commons/a/a8/Turin_Juventus_Stadium_2.jpg", "caption": "Альянц Стэдиум — панорама трибун и поля"},
                 {"url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/04/Inside_Juventus_Stadium_%283%29.jpg/960px-Inside_Juventus_Stadium_%283%29.jpg", "caption": "Внутри чаши стадиона"},
                 {"url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/07/Juventus_Stadium_%28Est%29.jpg/960px-Juventus_Stadium_%28Est%29.jpg", "caption": "Внешний вид стадиона"},
                 {"url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f2/2021%E2%80%9322_UEFA_Women%27s_Champions_League_Final_in_Turin%2C_Italy_1.jpg/960px-2021%E2%80%9322_UEFA_Women%27s_Champions_League_Final_in_Turin%2C_Italy_1.jpg", "caption": "Трибуны во время матча"},
@@ -129,7 +129,7 @@ class SportsService:
             "anthem_query": "Juve storia di un grande amore",
             "colors": "Чёрный / Белый (бьянконери)",
             "kits": [
-                {"type": "home", "label": "Домашняя", "primary": "#f8fafc", "secondary": "#0f172a", "text": "#0f172a", "pattern": "stripes", "desc": "Знаковые чёрно-белые полосы"},
+                {"type": "home", "label": "Домашняя 2026/27", "primary": "#f8fafc", "secondary": "#0f172a", "text": "#0f172a", "pattern": "stripes", "desc": "Официальная чёрно-белая домашняя форма сезона 2026/27"},
                 {"type": "away", "label": "Гостевая", "primary": "#bae6fd", "secondary": "#0f172a", "text": "#0f172a", "pattern": "solid", "desc": "Светло-голубой / небесный"},
                 {"type": "third", "label": "Третья", "primary": "#0f172a", "secondary": "#a855f7", "text": "#f8fafc", "pattern": "solid", "desc": "Тёмный антрацит"},
             ],
@@ -138,7 +138,7 @@ class SportsService:
                 "goals": "Алессандро Дель Пьеро — 290 голов",
             },
             "trophies": [
-                {"icon": "🏆", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c5/Trofeo_UEFA_Champions_League.jpg/330px-Trofeo_UEFA_Champions_League.jpg", "title": "Лига чемпионов УЕФА", "count": 2, "last": "1996"},
+                {"icon": "🏆", "img": "https://upload.wikimedia.org/wikipedia/commons/d/d1/UEFA_Champions_League_logo_no_text.svg", "title": "Лига чемпионов УЕФА", "count": 2, "last": "1996"},
                 {"icon": "👑", "img": "https://thumb.wikimedia.org/wikipedia/en/thumb/a/ab/Serie_A_ENILIVE_logo.svg/330px-Serie_A_ENILIVE_logo.svg.png", "title": "Серия А (Чемпионат Италии)", "count": 36, "last": "2020"},
                 {"icon": "🏅", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d2/Logo_of_Coppa_Italia_Frecciarossa_%282024-2025%29.svg/330px-Logo_of_Coppa_Italia_Frecciarossa_%282024-2025%29.svg.png", "title": "Кубок Италии (Coppa Italia)", "count": 15, "last": "2024"},
                 {"icon": "⚡", "img": "https://thumb.wikimedia.org/wikipedia/en/thumb/8/87/Supercoppa_Italiana_logo.svg/330px-Supercoppa_Italiana_logo.svg.png", "title": "Суперкубок Италии", "count": 9, "last": "2020"},
@@ -152,8 +152,8 @@ class SportsService:
             "fallback_manager": "Mauricio Pochettino",
             "fallback_kit": "/assets/kits/man_utd_home.jpg",
             "home_kit_override": "/assets/kits/man_utd_home.jpg",
-            "away_kit": "/assets/kits/man_utd_away.jpg",
-            "third_kit": "/assets/kits/man_utd_third.jpg",
+            "away_kit": "",
+            "third_kit": "",
             "stadium_wiki": "Old Trafford",
             "stadium_name": "Олд Траффорд",
             "stadium_city": "Манчестер, Англия",
@@ -161,7 +161,7 @@ class SportsService:
             "stadium_opened": "1910",
             "stadium_surface": "Гибридный газон (Desso GrassMaster)",
             "stadium_gallery": [
-                {"url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/2023_07_31_arne_mueseler_00060-Verbessert-RR_%2853106651455%29.jpg/960px-2023_07_31_arne_mueseler_00060-Verbessert-RR_%2853106651455%29.jpg", "caption": "Олд Траффорд — внешний фасад"},
+                {"url": "https://upload.wikimedia.org/wikipedia/commons/a/a8/View_of_Old_Trafford_from_East_Stand.jpg", "caption": "Олд Траффорд — панорама поля и трибун"},
                 {"url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ea/Manchester_%2C_Trafford_-_Old_Trafford_Football_Stadium_-_geograph.org.uk_-_3725263.jpg/960px-Manchester_%2C_Trafford_-_Old_Trafford_Football_Stadium_-_geograph.org.uk_-_3725263.jpg", "caption": "Общий вид стадиона"},
                 {"url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a3/Manchester_%2C_Trafford_-_Old_Trafford_Football_Stadium_-_geograph.org.uk_-_3725289.jpg/960px-Manchester_%2C_Trafford_-_Old_Trafford_Football_Stadium_-_geograph.org.uk_-_3725289.jpg", "caption": "Трибуны и поле сверху"},
                 {"url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/de/Manchester_%2C_Trafford_-_Old_Trafford_Football_Stadium_-_geograph.org.uk_-_3725302.jpg/960px-Manchester_%2C_Trafford_-_Old_Trafford_Football_Stadium_-_geograph.org.uk_-_3725302.jpg", "caption": "Трибуны Stretford End"},
@@ -170,7 +170,7 @@ class SportsService:
             "anthem_query": "Glory Glory Man United",
             "colors": "Красный / Белый / Чёрный",
             "kits": [
-                {"type": "home", "label": "Домашняя", "primary": "#dc2626", "secondary": "#f8fafc", "text": "#ffffff", "pattern": "solid", "desc": "Традиционный красный"},
+                {"type": "home", "label": "Домашняя 2026/27", "primary": "#dc2626", "secondary": "#f8fafc", "text": "#ffffff", "pattern": "solid", "desc": "Красная форма с бело-чёрной отделкой в стиле 1970-х"},
                 {"type": "away", "label": "Гостевая", "primary": "#f8fafc", "secondary": "#7c3aed", "text": "#0f172a", "pattern": "solid", "desc": "Белый с контрастной отделкой"},
                 {"type": "third", "label": "Третья", "primary": "#111827", "secondary": "#facc15", "text": "#f8fafc", "pattern": "solid", "desc": "Чёрный с золотыми акцентами"},
             ],
@@ -179,7 +179,7 @@ class SportsService:
                 "goals": "Уэйн Руни — 253 гола",
             },
             "trophies": [
-                {"icon": "🏆", "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c5/Trofeo_UEFA_Champions_League.jpg/330px-Trofeo_UEFA_Champions_League.jpg", "title": "Лига чемпионов УЕФА", "count": 3, "last": "2008"},
+                {"icon": "🏆", "img": "https://upload.wikimedia.org/wikipedia/commons/d/d1/UEFA_Champions_League_logo_no_text.svg", "title": "Лига чемпионов УЕФА", "count": 3, "last": "2008"},
                 {"icon": "👑", "img": "https://thumb.wikimedia.org/wikipedia/en/thumb/f/f2/Premier_League_Logo.svg/330px-Premier_League_Logo.svg.png", "title": "Чемпионат Англии", "count": 20, "last": "2013"},
                 {"icon": "🏅", "img": "https://thumb.wikimedia.org/wikipedia/en/thumb/d/d5/FA_Cup_logo_%282020%29.svg/330px-FA_Cup_logo_%282020%29.svg.png", "title": "Кубок Англии (FA Cup)", "count": 13, "last": "2024"},
                 {"icon": "⚡", "img": "https://thumb.wikimedia.org/wikipedia/en/thumb/0/0c/EFL_%28Carabao%29_Cup_Logo.svg/330px-EFL_%28Carabao%29_Cup_Logo.svg.png", "title": "Кубок английской лиги", "count": 6, "last": "2023"},
@@ -238,12 +238,13 @@ class SportsService:
 
         home_kit_url = extras.get("home_kit_override") or kit_image or extras.get("fallback_kit", "")
         kits_gallery = []
+        kit_labels = {str(k.get("type")): str(k.get("label")) for k in extras.get("kits", []) if isinstance(k, dict)}
         if home_kit_url:
-            kits_gallery.append({"type": "home", "label": "Домашняя", "url": home_kit_url})
+            kits_gallery.append({"type": "home", "label": kit_labels.get("home", "Домашняя 2026/27"), "url": home_kit_url})
         if extras.get("away_kit"):
-            kits_gallery.append({"type": "away", "label": "Гостевая", "url": extras["away_kit"]})
+            kits_gallery.append({"type": "away", "label": kit_labels.get("away", "Гостевая 2026/27"), "url": extras["away_kit"]})
         if extras.get("third_kit"):
-            kits_gallery.append({"type": "third", "label": "Третья", "url": extras["third_kit"]})
+            kits_gallery.append({"type": "third", "label": kit_labels.get("third", "Третья 2026/27"), "url": extras["third_kit"]})
 
         curated_gallery = extras.get("stadium_gallery") or []
         stadium_gallery = curated_gallery if curated_gallery else media_wiki.fetch_stadium_gallery(
@@ -377,7 +378,7 @@ class SportsService:
         transfers_confirmed = transfers_confirmed_in + transfers_confirmed_out
 
         profile_env = self._with_cache(
-            f"football_club_profile_{club_id}_v1",
+            f"football_club_profile_{club_id}_v2",
             TTL_PROFILES,
             lambda: self._fetch_club_profile_data(club_id, cfg),
             "Wikipedia + TheSportsDB",

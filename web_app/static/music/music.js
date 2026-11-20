@@ -13,6 +13,8 @@
   const timeCurrent = $('carTimeCurrent');
   const timeTotal = $('carTimeTotal');
   const seekBar = $('carSeekBar');
+  const progressWrap = $('carProgressWrap');
+  const controlsSub = $('carControlsSub');
   const offlineStatus = $('carOfflineStatus');
   const offlineText = $('carOfflineText');
 
@@ -108,16 +110,33 @@
   const btnExitRadio = $('carBtnExitRadio');
   const radioListEl = $('carRadioList');
   const radioTabsEl = $('carRadioTabs');
+  const radioSubgroupsEl = $('carRadioSubgroups');
+  const radioSearch = $('carRadioSearch');
+  const radioSearchClear = $('carRadioSearchClear');
+  const btnAddRadio = $('carBtnAddRadio');
+  const radioModal = $('carRadioModal');
+  const btnCloseRadioModal = $('carBtnCloseRadioModal');
   const customRadioForm = $('carCustomRadioForm');
+  const customRadioEditId = $('carCustomRadioEditId');
   const customRadioName = $('carCustomRadioName');
   const customRadioUrl = $('carCustomRadioUrl');
+  const customRadioFreq = $('carCustomRadioFreq');
+  const customRadioGenre = $('carCustomRadioGenre');
+  const customRadioCountry = $('carCustomRadioCountry');
+  const radioFormError = $('carRadioFormError');
 
   const CUSTOM_RADIO_KEY = 'bahoniq_custom_radio_stations';
+  const RADIO_FAVORITES_KEY = 'bahoniq_favorite_radio_ids';
+  const LAST_RADIO_KEY = 'bahoniq_last_radio_id';
   let radioMode = false;
   let radioStations = [];
   let customRadioStations = [];
+  const favoriteRadioIds = new Set();
   let currentRadioIndex = -1;
   let radioFilter = 'all';
+  let radioSubgroup = 'all';
+  let radioMetadataTimer = null;
+  let radioPlayTimeout = null;
 
   // --- Палитры живой атмосферы и генератор обложек для треков ---
   const AMBIENT_PALETTES = [
@@ -188,7 +207,12 @@
       coverImg.src = generatedCover;
     };
     // Если на сервере есть реальная обложка в MP3/Telegram — загрузится она, иначе сработает fallback=404 -> стильная обложка трека
-    coverImg.src = `/api/music/tracks/${tid}/cover?fallback=404`;
+    if (!Number.isFinite(tid) || track.isRadio) {
+      coverImg.onerror = null;
+      coverImg.src = generatedCover;
+      return;
+    }
+    coverImg.src = `/api/music/tracks/${tid}/cover?fallback=404&v=${encodeURIComponent(track.cover_version || 0)}`;
   }
 
   // --- Анимированная звуковая волна (Waveform) ---
@@ -228,13 +252,21 @@
     for (let i = 0; i < WAVEFORM_BARS_COUNT; i++) {
       const bar = children[i];
       const h = currentWaveformHeights[i] || 40;
+      if (radioMode) {
+        bar.className = 'wf-bar radio-live';
+        bar.style.height = `${Math.max(12, Math.round((h / 100) * 40))}px`;
+        bar.style.setProperty('--radio-wave-delay', `${(i % 12) * -0.075}s`);
+        continue;
+      }
       bar.className = 'wf-bar' + (i < headIdx ? ' played' : '') + (i === headIdx && currentProgressRatio > 0 ? ' head' : '');
       bar.style.height = `${Math.max(10, Math.round((h / 100) * 40))}px`;
+      bar.style.removeProperty('--radio-wave-delay');
     }
   }
 
   if (waveformBarsEl) {
     const seekFromPointer = (clientX) => {
+      if (radioMode) return;
       const rect = waveformBarsEl.getBoundingClientRect();
       if (!rect.width) return;
       const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
@@ -404,7 +436,7 @@
   }
 
   function updateTabCounters() {
-    document.querySelectorAll('.car-tab').forEach(btn => {
+    document.querySelectorAll('.car-tab[data-tab]').forEach(btn => {
       const tab = btn.dataset.tab;
       let count = 0;
       if (tab === 'all') count = playlist.length;
@@ -978,6 +1010,7 @@
       if (inlineStatusEl) inlineStatusEl.classList.remove('live-air');
       renderRadioList();
     }
+    setRadioUiMode(false);
     const requestId = ++playRequestId;
 
     if (recordHistory && currentIndex >= 0 && currentIndex !== index) {
@@ -1240,6 +1273,12 @@
       streamRetryByTrack.delete(Number(playlist[currentIndex].id));
     }
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+    if (radioMode) {
+      clearTimeout(radioPlayTimeout);
+      const station = getAllRadioStations()[currentRadioIndex];
+      if (station) startRadioMetadataPolling(station);
+      renderRadioList();
+    }
 
     // Автоматическое сохранение в память устройства после фактического старта воспроизведения (как в Telegram)
     if (!radioMode && currentIndex >= 0 && playlist[currentIndex]) {
@@ -1268,15 +1307,21 @@
     btnPlay.classList.remove('loading');
     updatePlayButton(false);
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+    if (radioMode) {
+      stopRadioMetadataPolling();
+      renderRadioList();
+    }
   });
 
   audio.addEventListener('error', (e) => {
     console.warn('Audio stream error event:', e);
     btnPlay.classList.remove('loading');
     if (radioMode) {
+      stopRadioMetadataPolling();
       updatePlayButton(false);
       if (diagAudioStatus) diagAudioStatus.textContent = 'Станция недоступна';
       showToast('Радиостанция временно недоступна');
+      renderRadioList();
       return;
     }
     const track = currentIndex >= 0 ? playlist[currentIndex] : null;
@@ -1409,6 +1454,23 @@
   });
 
   function toggleCurrentTrackFavorite() {
+    if (radioMode) {
+      const station = getAllRadioStations()[currentRadioIndex];
+      if (!station) return;
+      const stationId = String(station.id);
+      const nowFav = !favoriteRadioIds.has(stationId);
+      if (nowFav) favoriteRadioIds.add(stationId); else favoriteRadioIds.delete(stationId);
+      saveRadioFavorites();
+      btnFav.classList.toggle('active', nowFav);
+      btnFav.classList.toggle('fav-active', nowFav);
+      if (btnFavDrive) {
+        btnFavDrive.classList.toggle('active', nowFav);
+        btnFavDrive.classList.toggle('fav-active', nowFav);
+      }
+      renderRadioList();
+      showCarToast(nowFav ? '❤️ Радиостанция добавлена в Избранное' : 'Радиостанция убрана из Избранного');
+      return;
+    }
     if (currentIndex < 0 || !playlist[currentIndex]) return;
     const track = playlist[currentIndex];
     const tid = Number(track.id);
@@ -1465,7 +1527,7 @@
       artist: track.artist || 'Музыка ДИТ',
       album: track.album || 'BahonIQ Music',
       artwork: [
-        { src: `/api/music/tracks/${tid}/cover`, sizes: '512x512', type: 'image/png' }
+        { src: `/api/music/tracks/${tid}/cover?v=${encodeURIComponent(track.cover_version || 0)}`, sizes: '512x512', type: 'image/png' }
       ]
     });
     navigator.mediaSession.playbackState = 'playing';
@@ -1701,7 +1763,7 @@
         `;
         const goAll = document.getElementById('carBtnGoAllTab');
         if (goAll) goAll.onclick = () => {
-          document.querySelectorAll('.car-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'all'));
+          document.querySelectorAll('.car-tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === 'all'));
           activeTab = 'all';
           renderCatalog();
         };
@@ -1715,7 +1777,7 @@
         `;
         const goAllRec = document.getElementById('carBtnRecentGoAll');
         if (goAllRec) goAllRec.onclick = () => {
-          document.querySelectorAll('.car-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'all'));
+          document.querySelectorAll('.car-tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === 'all'));
           activeTab = 'all';
           renderCatalog();
         };
@@ -1729,7 +1791,7 @@
         `;
         const goAllFav = document.getElementById('carBtnFavGoAll');
         if (goAllFav) goAllFav.onclick = () => {
-          document.querySelectorAll('.car-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'all'));
+          document.querySelectorAll('.car-tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === 'all'));
           activeTab = 'all';
           renderCatalog();
         };
@@ -1770,7 +1832,7 @@
 
       item.innerHTML = `
         <div class="car-track-thumb">
-          <img src="/api/music/tracks/${tid}/cover" alt="Обложка">
+          <img src="/api/music/tracks/${tid}/cover?v=${encodeURIComponent(track.cover_version || 0)}" alt="Обложка">
         </div>
         <div class="car-track-info">
           <div class="car-track-name">${escapeHtml(track.title)}</div>
@@ -1843,9 +1905,9 @@
   }
 
   // --- Переключение вкладок каталога ---
-  document.querySelectorAll('.car-tab').forEach(btn => {
+  document.querySelectorAll('.car-tab[data-tab]').forEach(btn => {
     btn.onclick = () => {
-      document.querySelectorAll('.car-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.car-tab[data-tab]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       activeTab = btn.dataset.tab;
       renderCatalog();
@@ -2211,6 +2273,18 @@
     }
   }
 
+  function loadRadioFavorites() {
+    favoriteRadioIds.clear();
+    try {
+      const values = JSON.parse(localStorage.getItem(RADIO_FAVORITES_KEY) || '[]');
+      if (Array.isArray(values)) values.forEach(id => favoriteRadioIds.add(String(id)));
+    } catch {}
+  }
+
+  function saveRadioFavorites() {
+    try { localStorage.setItem(RADIO_FAVORITES_KEY, JSON.stringify([...favoriteRadioIds])); } catch {}
+  }
+
   function saveCustomRadioStations() {
     try {
       localStorage.setItem(CUSTOM_RADIO_KEY, JSON.stringify(customRadioStations));
@@ -2223,13 +2297,38 @@
 
   function getFilteredRadioStations() {
     const all = getAllRadioStations();
-    if (radioFilter === 'all') return all;
-    if (radioFilter === 'custom') return customRadioStations;
-    return all.filter(s => s.country === radioFilter);
+    let list = all;
+    if (radioFilter === 'KZ') list = list.filter(s => s.country === 'KZ' && !s.custom);
+    else if (radioFilter === 'RU') list = list.filter(s => s.country === 'RU' && !s.custom);
+    else if (radioFilter === 'favorites') list = list.filter(s => favoriteRadioIds.has(String(s.id)));
+    else if (radioFilter === 'custom') list = list.filter(s => s.custom);
+    if (radioFilter === 'KZ' && radioSubgroup !== 'all') list = list.filter(s => s.subgroup === radioSubgroup);
+    const query = String(radioSearch?.value || '').trim().toLocaleLowerCase('ru');
+    if (query) {
+      list = list.filter(station => [station.name, station.freq, station.genre, station.country, station.description, ...(station.aliases || [])]
+        .filter(Boolean).join(' ').toLocaleLowerCase('ru').includes(query));
+    }
+    return list;
+  }
+
+  function updateRadioCounts() {
+    const all = getAllRadioStations();
+    const counts = {
+      all: all.length,
+      KZ: radioStations.filter(s => s.country === 'KZ').length,
+      RU: radioStations.filter(s => s.country === 'RU').length,
+      favorites: all.filter(s => favoriteRadioIds.has(String(s.id))).length,
+      custom: customRadioStations.length,
+    };
+    radioTabsEl?.querySelectorAll('[data-radio-count]').forEach(el => {
+      el.textContent = String(counts[el.dataset.radioCount] || 0);
+    });
+    if (radioSubgroupsEl) radioSubgroupsEl.classList.toggle('hidden', radioFilter !== 'KZ');
   }
 
   async function fetchRadioStations() {
     loadCustomRadioStations();
+    loadRadioFavorites();
     try {
       const res = await fetch('/api/music/radio/stations');
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -2245,37 +2344,69 @@
     if (!radioListEl) return;
     const all = getAllRadioStations();
     const list = getFilteredRadioStations();
+    updateRadioCounts();
     if (list.length === 0) {
-      radioListEl.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--text-muted);">Нет станций в этой категории</div>';
+      const message = radioFilter === 'favorites' ? 'Здесь появятся ваши любимые станции' : 'Станции не найдены';
+      radioListEl.innerHTML = `<div class="car-radio-empty">${message}</div>`;
       return;
     }
     radioListEl.innerHTML = '';
     list.forEach(station => {
       const globalIdx = all.findIndex(s => s.id === station.id);
       const isPlayingThis = radioMode && globalIdx === currentRadioIndex;
-      const item = document.createElement('div');
+      const isFavorite = favoriteRadioIds.has(String(station.id));
+      const playable = station.available !== false && !!station.stream_url;
+      const initials = String(station.name || 'FM').split(/\s+/).map(v => v[0]).join('').slice(0, 2).toUpperCase();
+      const item = document.createElement('article');
       item.className = 'car-radio-item' + (isPlayingThis ? ' active' : '');
+      item.dataset.stationId = station.id;
       item.innerHTML = `
-        <div style="min-width: 0; flex: 1;">
-          <div style="font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-            ${isPlayingThis ? '🔊 ' : '📻 '}${station.name}
+        <div class="car-radio-monogram" aria-hidden="true">${escapeHtml(initials)}</div>
+        <div class="car-radio-copy">
+          <div class="car-radio-name">
+            ${isPlayingThis ? '<span class="car-radio-live-wave"><i></i><i></i><i></i></span>' : ''}${escapeHtml(station.name)}
           </div>
-          <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-            ${station.freq || 'Online'} · ${station.genre || 'Радио'}
+          <div class="car-radio-meta">
+            ${escapeHtml(station.freq || 'Online')} · ${escapeHtml(station.genre || 'Радио')}
           </div>
+          ${!playable ? `<div class="car-radio-unavailable">${escapeHtml(station.unavailableReason || 'Поток временно недоступен')}</div>` : ''}
         </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
+        <div class="car-radio-actions">
           <span class="car-radio-badge ${isPlayingThis ? 'live' : ''}">${isPlayingThis ? 'LIVE' : (station.country || 'FM')}</span>
-          ${station.custom ? '<button class="car-radio-del-btn" type="button" title="Удалить">✕</button>' : ''}
+          <button class="car-radio-fav-btn ${isFavorite ? 'active' : ''}" type="button" title="${isFavorite ? 'Убрать из избранного' : 'В избранное'}" aria-label="Избранное">${isFavorite ? '♥' : '♡'}</button>
+          <button class="car-radio-play-btn" type="button" ${playable ? '' : 'disabled'} title="${playable ? (isPlayingThis && !audio.paused ? 'Пауза' : 'Слушать') : 'Поток недоступен'}">${isPlayingThis && !audio.paused ? 'Ⅱ' : '▶'}</button>
+          ${station.custom ? '<button class="car-radio-edit-btn" type="button" title="Редактировать">✎</button><button class="car-radio-del-btn" type="button" title="Удалить">✕</button>' : ''}
         </div>
       `;
       item.addEventListener('click', e => {
+        const favBtn = e.target.closest('.car-radio-fav-btn');
+        if (favBtn) {
+          e.stopPropagation();
+          if (isFavorite) favoriteRadioIds.delete(String(station.id)); else favoriteRadioIds.add(String(station.id));
+          saveRadioFavorites();
+          renderRadioList();
+          return;
+        }
+        if (e.target.closest('.car-radio-edit-btn')) {
+          e.stopPropagation();
+          openRadioModal(station);
+          return;
+        }
         if (e.target.closest('.car-radio-del-btn')) {
           e.stopPropagation();
+          if (!window.confirm(`Удалить станцию «${station.name}»?`)) return;
           customRadioStations = customRadioStations.filter(s => s.id !== station.id);
+          favoriteRadioIds.delete(String(station.id));
           saveCustomRadioStations();
+          saveRadioFavorites();
           if (isPlayingThis) exitRadioMode();
           else renderRadioList();
+          return;
+        }
+        if (!playable) return;
+        if (isPlayingThis) {
+          if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+          renderRadioList();
           return;
         }
         playRadioStation(globalIdx);
@@ -2284,12 +2415,54 @@
     });
   }
 
+  function stopRadioMetadataPolling() {
+    if (radioMetadataTimer) clearInterval(radioMetadataTimer);
+    radioMetadataTimer = null;
+  }
+
+  async function refreshRadioMetadata(station) {
+    if (!radioMode || !station || station.custom) return;
+    try {
+      const res = await fetch(`/api/music/radio/metadata/${encodeURIComponent(station.id)}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const meta = await res.json();
+      if (!radioMode || getAllRadioStations()[currentRadioIndex]?.id !== station.id) return;
+      const label = [meta.artist, meta.title].filter(Boolean).join(' — ');
+      trackArtist.textContent = label || `${station.freq || 'FM'} · ${station.genre || 'Радио'}`;
+      if (label && 'mediaSession' in navigator && navigator.mediaSession.metadata) {
+        navigator.mediaSession.metadata = new MediaMetadata({ title: meta.title || station.name, artist: meta.artist || station.name, album: station.name });
+      }
+    } catch {}
+  }
+
+  function startRadioMetadataPolling(station) {
+    stopRadioMetadataPolling();
+    refreshRadioMetadata(station);
+    radioMetadataTimer = setInterval(() => refreshRadioMetadata(station), 15000);
+  }
+
+  function setRadioUiMode(enabled) {
+    progressWrap?.classList.toggle('radio-live-mode', enabled);
+    controlsSub?.classList.toggle('radio-live-mode', enabled);
+    waveformBarsEl?.classList.toggle('radio-live-mode', enabled);
+    if (waveformBarsEl) waveformBarsEl.title = enabled ? 'Живой сигнал радиостанции' : 'Нажмите или проведите для перемотки';
+    if (btnRepeat) btnRepeat.hidden = enabled;
+    if (btnDownloadActive) btnDownloadActive.hidden = enabled;
+    if (!enabled) renderWaveformBars(currentProgressRatio);
+  }
+
   function playRadioStation(index) {
     const all = getAllRadioStations();
     if (index < 0 || index >= all.length) return;
     const station = all[index];
+    if (station.available === false || !station.stream_url) {
+      showToast('Поток этой станции пока недоступен');
+      return;
+    }
     radioMode = true;
+    setRadioUiMode(true);
     currentRadioIndex = index;
+    try { localStorage.setItem(LAST_RADIO_KEY, String(station.id)); } catch {}
     playRequestId++;
 
     resumeAudioContext();
@@ -2303,24 +2476,44 @@
       inlineStatusEl.classList.add('live-air');
     }
     timeCurrent.textContent = 'LIVE';
-    timeTotal.textContent = '∞';
+    timeTotal.textContent = '● ЭФИР';
     seekBar.value = 0;
 
     applyTrackAmbientAndCover({ title: station.name, artist: station.genre || 'Radio', id: station.id });
-    renderWaveformBars(0.5);
+    renderWaveformBars(0);
+    const stationFavorite = favoriteRadioIds.has(String(station.id));
+    btnFav?.classList.toggle('active', stationFavorite);
+    btnFav?.classList.toggle('fav-active', stationFavorite);
     if (diagCurrentTrack) diagCurrentTrack.textContent = `📻 ${station.name}`;
 
-    const nextStation = all[(index + 1) % all.length];
+    let nextStation = station;
+    for (let step = 1; step <= all.length; step++) {
+      const candidate = all[(index + step) % all.length];
+      if (candidate.available !== false && candidate.stream_url) { nextStation = candidate; break; }
+    }
     if (upNextStrip && upNextTitleEl) {
       upNextStrip.classList.remove('hidden');
       upNextTitleEl.textContent = `📻 ${nextStation.name}`;
       if (upNextMetaEl) upNextMetaEl.textContent = `(${nextStation.freq || 'FM'})`;
     }
 
+    clearTimeout(radioPlayTimeout);
+    audio.pause();
     audio.src = station.stream_url;
     audio.load();
-    audio.play().catch(err => console.warn('Radio play failed:', err));
+    audio.play().catch(err => {
+      console.warn('Radio play failed:', err);
+      showToast('Станция временно недоступна');
+      btnPlay.classList.remove('loading');
+    });
     btnPlay.classList.add('loading');
+    radioPlayTimeout = setTimeout(() => {
+      if (radioMode && audio.readyState < 2) {
+        btnPlay.classList.remove('loading');
+        showToast('Слишком долгое подключение к станции');
+      }
+    }, 12000);
+    startRadioMetadataPolling(station);
 
     if ('mediaSession' in navigator) {
       try {
@@ -2339,19 +2532,30 @@
   function playNextRadioStation() {
     const all = getAllRadioStations();
     if (all.length === 0) return;
-    const next = (currentRadioIndex + 1) % all.length;
-    playRadioStation(next);
+    if (isShuffle) {
+      const playable = all.map((station, idx) => ({ station, idx })).filter(v => v.idx !== currentRadioIndex && v.station.available !== false && v.station.stream_url);
+      if (playable.length) return playRadioStation(playable[Math.floor(Math.random() * playable.length)].idx);
+    }
+    for (let step = 1; step <= all.length; step++) {
+      const next = (currentRadioIndex + step) % all.length;
+      if (all[next].available !== false && all[next].stream_url) return playRadioStation(next);
+    }
   }
 
   function playPrevRadioStation() {
     const all = getAllRadioStations();
     if (all.length === 0) return;
-    const prev = (currentRadioIndex - 1 + all.length) % all.length;
-    playRadioStation(prev);
+    for (let step = 1; step <= all.length; step++) {
+      const prev = (currentRadioIndex - step + all.length) % all.length;
+      if (all[prev].available !== false && all[prev].stream_url) return playRadioStation(prev);
+    }
   }
 
   function exitRadioMode() {
+    stopRadioMetadataPolling();
+    clearTimeout(radioPlayTimeout);
     radioMode = false;
+    setRadioUiMode(false);
     currentRadioIndex = -1;
     if (btnRadio) btnRadio.classList.remove('active');
     if (inlineStatusEl) inlineStatusEl.classList.remove('live-air');
@@ -2391,10 +2595,46 @@
       const btn = e.target.closest('.car-tab');
       if (!btn) return;
       radioFilter = btn.dataset.radioFilter || 'all';
+      if (radioFilter !== 'KZ') radioSubgroup = 'all';
       radioTabsEl.querySelectorAll('.car-tab').forEach(b => b.classList.toggle('active', b === btn));
       renderRadioList();
     });
   }
+
+  radioSubgroupsEl?.addEventListener('click', e => {
+    const btn = e.target.closest('[data-radio-subgroup]');
+    if (!btn) return;
+    radioSubgroup = btn.dataset.radioSubgroup || 'all';
+    radioSubgroupsEl.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+    renderRadioList();
+  });
+
+  radioSearch?.addEventListener('input', () => {
+    radioSearchClear?.classList.toggle('hidden', !radioSearch.value);
+    renderRadioList();
+  });
+  radioSearchClear?.addEventListener('click', () => {
+    radioSearch.value = '';
+    radioSearchClear.classList.add('hidden');
+    radioSearch.focus();
+    renderRadioList();
+  });
+
+  function openRadioModal(station = null) {
+    customRadioEditId.value = station?.id || '';
+    customRadioName.value = station?.name || '';
+    customRadioUrl.value = station?.raw_url || '';
+    customRadioFreq.value = station?.freq === 'Своя' ? '' : (station?.freq || '');
+    customRadioGenre.value = station?.genre === 'Интернет-радио' ? '' : (station?.genre || '');
+    customRadioCountry.value = station?.country === 'custom' ? '' : (station?.country || '');
+    radioFormError.textContent = '';
+    radioModal?.classList.remove('hidden');
+    setTimeout(() => customRadioName?.focus(), 0);
+  }
+  function closeRadioModal() { radioModal?.classList.add('hidden'); }
+  btnAddRadio?.addEventListener('click', () => openRadioModal());
+  btnCloseRadioModal?.addEventListener('click', closeRadioModal);
+  radioModal?.addEventListener('click', e => { if (e.target === radioModal) closeRadioModal(); });
 
   if (customRadioForm) {
     customRadioForm.addEventListener('submit', e => {
@@ -2402,25 +2642,42 @@
       const name = String(customRadioName?.value || '').trim();
       const rawUrl = String(customRadioUrl?.value || '').trim();
       if (!name || !rawUrl) return;
+      let parsed;
+      try { parsed = new URL(rawUrl); } catch { radioFormError.textContent = 'Введите корректный URL потока'; return; }
+      if (!['http:', 'https:'].includes(parsed.protocol)) { radioFormError.textContent = 'Поддерживаются только HTTP и HTTPS'; return; }
+      const lowerUrl = (parsed.pathname + parsed.search + (parsed.port ? ':' + parsed.port : '')).toLowerCase();
+      const isDirectStream = /\.(mp3|aac|aacp|ogg|opus|flac|m3u8|pls)(\?|$)/.test(parsed.pathname.toLowerCase())
+        || /:(8000|8008|8030|8080|8443|9000|9036)/.test(rawUrl)
+        || /(\/stream|\/live|\/icecast|\/icecast\.audio|\/radio|\/listen|\/bc\/live)/.test(lowerUrl);
+      if (!isDirectStream) {
+        radioFormError.textContent = 'Нужен прямой аудиопоток (.mp3, .aac, .m3u8 или Icecast), а не адрес сайта';
+        return;
+      }
+      const editId = String(customRadioEditId?.value || '');
+      const duplicate = getAllRadioStations().find(s => s.id !== editId && (String(s.name).toLocaleLowerCase('ru') === name.toLocaleLowerCase('ru') || s.raw_url === rawUrl));
+      if (duplicate) { radioFormError.textContent = 'Такая станция или URL уже существуют'; return; }
       const station = {
-        id: 'custom_' + Date.now(),
+        id: editId || ('custom_' + Date.now()),
         name,
-        freq: 'Своя',
-        genre: 'Интернет-радио',
-        country: 'custom',
+        freq: String(customRadioFreq?.value || '').trim() || 'Online',
+        genre: String(customRadioGenre?.value || '').trim() || 'Интернет-радио',
+        country: String(customRadioCountry?.value || '').trim() || 'Моя',
         custom: true,
+        available: true,
+        raw_url: rawUrl,
         stream_url: `/api/music/radio/proxy?url=${encodeURIComponent(rawUrl)}`,
       };
-      customRadioStations.push(station);
+      if (editId) customRadioStations = customRadioStations.map(s => s.id === editId ? station : s);
+      else customRadioStations.push(station);
       saveCustomRadioStations();
-      if (customRadioName) customRadioName.value = '';
-      if (customRadioUrl) customRadioUrl.value = '';
+      customRadioForm.reset();
+      closeRadioModal();
       radioFilter = 'custom';
       if (radioTabsEl) {
         radioTabsEl.querySelectorAll('.car-tab').forEach(b => b.classList.toggle('active', b.dataset.radioFilter === 'custom'));
       }
       renderRadioList();
-      showToast(`Станция «${name}» добавлена`);
+      showToast(`Станция «${name}» сохранена`);
     });
   }
 

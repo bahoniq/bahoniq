@@ -32,7 +32,7 @@
   </style>
   <link rel="stylesheet" href="/assets/instruction_generator.css?v=20261119_original_ratio_2">
 <link rel="stylesheet" href="/assets/theme_violet.css?v=20261118_violet3">
-  <link rel="stylesheet" href="/assets/sports.css?v=20261120_news13">
+  <link rel="stylesheet" href="/assets/sports.css?v=20261120_clubfix1">
 </head>
 <body class="theme-night">
   <script>
@@ -1091,18 +1091,27 @@
             <div id="sportsShell" class="sports-shell">
               <div class="sports-topbar">
                 <div id="sportsTabs" class="sports-tabs" role="tablist" aria-label="Разделы BahonIQ Sports">
-                  <button class="sports-tab active" data-sport-tab="overview" role="tab" aria-selected="true" type="button">Обзор</button>
-                  <button class="sports-tab" data-sport-tab="football" role="tab" aria-selected="false" type="button">Футбол</button>
+                  <button class="sports-tab active" data-sport-tab="real_madrid" data-club="real_madrid" role="tab" aria-selected="true" type="button">Real Madrid</button>
+                  <button class="sports-tab" data-sport-tab="juventus" data-club="juventus" role="tab" aria-selected="false" type="button">Juventus</button>
+                  <button class="sports-tab" data-sport-tab="man_utd" data-club="man_utd" role="tab" aria-selected="false" type="button">Manchester United</button>
                   <button class="sports-tab" data-sport-tab="f1" role="tab" aria-selected="false" type="button">Formula 1</button>
                   <button class="sports-tab" data-sport-tab="ufc" role="tab" aria-selected="false" type="button">UFC</button>
-                  <button class="sports-tab" data-sport-tab="news" role="tab" aria-selected="false" type="button">📰 Новости</button>
-                  <button class="sports-tab" data-sport-tab="favorites" role="tab" aria-selected="false" type="button">★ Избранное <span id="sportsFavCount" class="sports-tab-count">0</span></button>
-                  <button class="sports-tab" data-sport-tab="settings" role="tab" aria-selected="false" type="button">⚙ Настройки</button>
                 </div>
                 <div class="sports-meta-bar">
                   <span id="sportsUpdatedAt" aria-live="polite">Обновлено: —</span>
                   <button id="sportsRefreshBtn" class="sports-refresh-btn" type="button" aria-label="Обновить спортивные данные">↻ Обновить</button>
                 </div>
+              </div>
+              <div id="sportsAnthemBar" class="sports-anthem-bar hidden" role="status" aria-live="polite">
+                <div class="sports-anthem-info">
+                  <span class="sports-anthem-pulse">♫</span>
+                  <span>Играет гимн: <b id="sportsAnthemTitle">—</b></span>
+                </div>
+                <div class="sports-anthem-actions">
+                  <button id="sportsAnthemToggle" class="sports-refresh-btn" type="button">⏸ Пауза</button>
+                  <button id="sportsAnthemDisable" class="sports-refresh-btn danger" type="button">🔇 Отключить гимны</button>
+                </div>
+                <audio id="sportsAnthemAudio" preload="metadata"></audio>
               </div>
               <div id="sportsContent" role="tabpanel"></div>
             </div>
@@ -1201,6 +1210,6 @@
   </script>
   <script src="/assets/instruction_image_processor.js?v=20261119_original_ratio"></script>
   <script src="/assets/instruction_generator.js?v=20261119_original_ratio"></script>
-  <script src="/assets/sports.js?v=20261120_news13"></script>
+  <script src="/assets/sports.js?v=20261120_clubfix1"></script>
 </body>
 </html>
