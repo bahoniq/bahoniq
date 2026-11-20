@@ -353,32 +353,16 @@ JSON-вход:
     except ValueError:
         total_timeout, idle_timeout = 900, 300
     try:
-        model = _discover_ollama_model(os.getenv("BAHONIQ_OLLAMA_MODEL", "qwen2.5:3b"), 3)
-        payload = {"model": model, "prompt": prompt, "format": "json", "stream": True, "keep_alive": "30m",
-                   "options": {"temperature": 0, "num_ctx": 4096, "num_predict": 750}}
-        request = urllib.request.Request(OLLAMA_URL, json.dumps(payload).encode(), {"Content-Type": "application/json"})
-        started = time.monotonic()
-        chunks, done_reason = [], None
-        with urllib.request.urlopen(request, timeout=idle_timeout) as response:
-            for raw_line in response:
-                if time.monotonic() - started > total_timeout:
-                    raise TimeoutError(
-                        f"разбор превысил общий предел {total_timeout} секунд"
-                    )
-                if not raw_line.strip():
-                    continue
-                event = json.loads(raw_line)
-                if event.get("error"):
-                    raise RuntimeError(str(event["error"]))
-                chunks.append(event.get("response", ""))
-                if event.get("done"):
-                    done_reason = event.get("done_reason")
-                    break
-        if done_reason == "length":
-            raise ValueError("Ответ модели оборвался. Сократите задание или задайте поля явно.")
-        raw_response = "".join(chunks).strip()
+        import ai_service
+        raw_response = ai_service.generate_text(
+            prompt=prompt,
+            temperature=0,
+            timeout=min(idle_timeout, 45),
+        )
+        if isinstance(raw_response, tuple):
+            raw_response = raw_response[0]
         if not raw_response:
-            raise ValueError("Ollama завершила запрос без текста ответа.")
+            raise ValueError("Облачный ИИ завершил запрос без текста ответа.")
         result = _parse_response(raw_response)
         required = {"metrics", "dimensions", "date_column", "grain", "start", "end", "filters", "comparisons", "questions"}
         if not required <= result.keys():
@@ -417,25 +401,24 @@ JSON-вход:
 - не проси пользователя выбирать столбцы, графики или методы;
 - верни только полный JSON установленной схемы.
 """
-            recovery_raw = _call_ollama(
-                recovery_prompt,
-                model=model,
-                timeout=total_timeout,
+            recovery_raw = ai_service.generate_text(
+                prompt=recovery_prompt,
+                temperature=0,
+                timeout=min(idle_timeout, 45),
             )
+            if isinstance(recovery_raw, tuple):
+                recovery_raw = recovery_raw[0]
             result = _parse_response(recovery_raw)
             if not required <= result.keys():
                 raise ValueError(
-                    "Qwen после автономного уточнения вернула неполный план."
+                    "ИИ после автономного уточнения вернул неполный план."
                 )
             if result.get("questions"):
                 raise ValueError(
-                    "Qwen не смогла самостоятельно выбрать поддерживаемый план: "
+                    "ИИ не смог самостоятельно выбрать поддерживаемый план: "
                     + "; ".join(str(item) for item in result["questions"][:5])
                 )
         result = _sanitize_ai_plan(result, schema, description)
-        # Qwen может вернуть больше полей, чем нужно компактному отчёту. Это
-        # не повод перекладывать техническое ограничение на пользователя:
-        # сохраняем первые, то есть наиболее приоритетные элементы её плана.
         original_sizes = {
             "metrics": len(result.get("metrics", [])),
             "dimensions": len(result.get("dimensions", [])),
@@ -449,9 +432,9 @@ JSON-вход:
                 original_sizes["comparisons"] > 6)):
             result.setdefault("notes", []).append(
                 "Для компактного отчёта автоматически оставлены наиболее "
-                "приоритетные направления из плана Qwen."
+                "приоритетные направления из плана ИИ."
             )
-        result["source"], result["model"] = "ollama", model
+        result["source"], result["model"] = "cloud_ai", "gemini"
         return result
     except Exception as exc:
         # Нельзя молча подменять запрошенный ИИ-анализ локальным отчётом.

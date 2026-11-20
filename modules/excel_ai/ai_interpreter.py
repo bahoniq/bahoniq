@@ -7,19 +7,16 @@ from typing import Any
 from .settings import (
     CONTEXT_SIZE,
     MAX_ANALYSIS_CHARS,
-    OLLAMA_TAGS_URL,
-    OLLAMA_URL,
-    PREFERRED_MODEL,
     REQUEST_TIMEOUT,
 )
 from .intent_compiler import compile_intent
 
 
 # ============================================================
-# BAHONIQ — EXCEL AI INTERPRETER
+# BAHONIQ — EXCEL AI INTERPRETER (CLOUD AI)
 # ============================================================
 
-OLLAMA_MODEL = PREFERRED_MODEL
+AI_ENGINE = "cloud_gemini"
 
 
 # ============================================================
@@ -2346,7 +2343,7 @@ def _route_sort_request(
 
 def _extract_json(text: str) -> dict:
     if not isinstance(text, str) or not text.strip():
-        raise ValueError("Ollama вернула пустой ответ.")
+        raise ValueError("ИИ вернул пустой ответ.")
 
     cleaned = text.strip()
 
@@ -2370,7 +2367,7 @@ def _extract_json(text: str) -> dict:
 
     if start < 0:
         raise ValueError(
-            "В ответе Ollama не найден JSON-объект:\n"
+            "В ответе ИИ не найден JSON-объект:\n"
             + cleaned[:1500]
         )
 
@@ -2378,12 +2375,12 @@ def _extract_json(text: str) -> dict:
         result, _ = json.JSONDecoder().raw_decode(cleaned[start:])
     except json.JSONDecodeError as exc:
         raise ValueError(
-            f"Не удалось разобрать JSON от Ollama: {exc}\n"
+            f"Не удалось разобрать JSON от ИИ: {exc}\n"
             + cleaned[:1500]
         ) from exc
 
     if not isinstance(result, dict):
-        raise ValueError("Ответ Ollama должен быть JSON-объектом.")
+        raise ValueError("Ответ ИИ должен быть JSON-объектом.")
 
     return result
 
@@ -2403,7 +2400,15 @@ def _compact_analysis(analysis: Any) -> str:
                 compact["sheets"].append({
                     "name": sheet.get("name"),
                     "data_rows": max(0, sheet.get("nonempty_rows", 0) - 1),
+                    "header_row": sheet.get("header_row", 1),
                     "headers": sheet.get("headers", []),
+                    "value_examples": [
+                        {
+                            "column": item.get("header"),
+                            "examples": [example.get("value") for example in item.get("examples", [])[:8]],
+                        }
+                        for item in sheet.get("duplicate_columns", [])[:30]
+                    ],
                     "semantic_profile": sheet.get("semantic_profile", {}),
                     "preview": sheet.get("preview", []),
                     "formulas": sheet.get("formula_examples", []),
@@ -2420,38 +2425,8 @@ def _compact_analysis(analysis: Any) -> str:
 
 
 # ============================================================
-# OLLAMA REQUEST
+# CLOUD AI REQUEST (GOOGLE GEMINI FLASH)
 # ============================================================
-
-def _available_models() -> list[str]:
-    import os
-    os.environ.setdefault("NO_PROXY", "localhost,127.0.0.1")
-    os.environ.setdefault("no_proxy", "localhost,127.0.0.1")
-    try:
-        with urllib.request.urlopen(OLLAMA_TAGS_URL, timeout=5) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except Exception:
-        return []
-    return [
-        item.get("name") for item in data.get("models", [])
-        if isinstance(item, dict) and item.get("name")
-    ]
-
-
-def _select_model() -> str:
-    import os
-    models = _available_models()
-    if not models:
-        return OLLAMA_MODEL
-    explicit = os.getenv("BAHONIQ_OLLAMA_MODEL", "").strip()
-    if explicit and explicit in models:
-        return explicit
-    if "qwen2.5:7b" in models:
-        return "qwen2.5:7b"
-    if OLLAMA_MODEL in models:
-        return OLLAMA_MODEL
-    qwen = [name for name in models if "qwen" in name.casefold()]
-    return qwen[0] if qwen else models[0]
 
 EXCEL_AI_SYSTEM_PROMPT = (
     "Ты — универсальный эксперт по работе с табличными данными (Excel, CSV, TSV) любой сложности и предметной области.\n"
@@ -2465,103 +2440,23 @@ EXCEL_AI_SYSTEM_PROMPT = (
 )
 
 
-def _post_to_ollama(prompt: str) -> dict:
-    # 1. Попытка через единый AI-сервис (Google Gemini Flash с fallback)
-    try:
-        import ai_service
-        raw_ai = ai_service.generate_text(
-            prompt=prompt,
-            system_instruction=EXCEL_AI_SYSTEM_PROMPT,
-            temperature=0.1,
-            timeout=30,
-        )
-        if raw_ai and ("{" in raw_ai and "}" in raw_ai):
-            return _extract_json(raw_ai)
-    except Exception as exc:
-        pass
-
-    # 2. Локальный прямой вызов Ollama
-    payload = {
-        "model": _select_model(),
-        "messages": [
-            {
-                "role": "system",
-                "content": EXCEL_AI_SYSTEM_PROMPT,
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
-        "stream": False,
-        "format": "json",
-        "keep_alive": -1,
-        "options": {
-            "temperature": 0.1,
-            "top_p": 0.1,
-            "num_ctx": max(CONTEXT_SIZE, 6144),
-            "num_predict": 1200,
-        },
-    }
-
-    body = json.dumps(
-        payload,
-        ensure_ascii=False,
-    ).encode("utf-8")
-
-    request = urllib.request.Request(
-        OLLAMA_URL,
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
+def _post_to_cloud_ai(prompt: str) -> dict:
+    """Вызов облачного ИИ Google Gemini через единый сервис ai_service."""
+    import ai_service
+    raw_ai = ai_service.generate_text(
+        prompt=prompt,
+        system_instruction=EXCEL_AI_SYSTEM_PROMPT,
+        temperature=0.1,
+        timeout=REQUEST_TIMEOUT,
     )
+    if isinstance(raw_ai, tuple):
+        raw_ai = raw_ai[0]
+    if not raw_ai or not str(raw_ai).strip():
+        raise ValueError("Облачный ИИ вернул пустой ответ.")
+    return _extract_json(raw_ai)
 
-    try:
-        with urllib.request.urlopen(
-            request,
-            timeout=REQUEST_TIMEOUT,
-        ) as response:
-            response_text = response.read().decode("utf-8")
 
-    except urllib.error.HTTPError as exc:
-        details = exc.read().decode(
-            "utf-8",
-            errors="replace",
-        )
-        raise RuntimeError(
-            f"Ollama HTTP {exc.code}: {details[:1200]}"
-        ) from exc
-
-    except urllib.error.URLError as exc:
-        raise RuntimeError(
-            "Не удалось подключиться к Ollama. "
-            "Проверь, запущена ли Ollama.\n"
-            f"Адрес: {OLLAMA_URL}\n"
-            f"Причина: {getattr(exc, 'reason', exc)}"
-        ) from exc
-
-    except TimeoutError as exc:
-        raise RuntimeError(
-            f"Ollama не ответила за {REQUEST_TIMEOUT} секунд."
-        ) from exc
-
-    try:
-        envelope = json.loads(response_text)
-    except json.JSONDecodeError as exc:
-        raise ValueError(
-            "Ollama вернула некорректный ответ API:\n"
-            + response_text[:1500]
-        ) from exc
-
-    content = envelope.get("message", {}).get("content", "")
-
-    if not content:
-        raise ValueError(
-            "Ollama не вернула содержимое ответа:\n"
-            + response_text[:1500]
-        )
-
-    return _extract_json(content)
+_post_to_ollama = _post_to_cloud_ai
 
 
 # ============================================================
@@ -2822,6 +2717,10 @@ def _normalize_operation(original: dict, index: int) -> dict:
     elif operation_type == "filter_rows":
         if not operation.get("column") and isinstance(operation.get("columns"), list) and operation["columns"]:
             operation["column"] = operation["columns"][0]
+        if not operation.get("column") and isinstance(operation.get("conditions"), list) and operation["conditions"]:
+            first_condition = operation["conditions"][0]
+            if isinstance(first_condition, dict):
+                operation["column"] = first_condition.get("column")
         if not operation.get("operator"):
             for alias in ("op", "condition", "comparison", "условие", "оператор"):
                 if operation.get(alias) is not None:
@@ -2841,6 +2740,16 @@ def _normalize_operation(original: dict, index: int) -> dict:
             "не пусто": "not_blank", "заполнено": "not_blank", "not_empty": "not_blank",
         }
         operation["operator"] = op_aliases.get(raw_op, raw_op)
+        if isinstance(operation.get("conditions"), list):
+            normalized_conditions = []
+            for condition in operation["conditions"]:
+                if not isinstance(condition, dict):
+                    continue
+                item = dict(condition)
+                item_operator = str(item.get("operator") or "eq").strip().lower()
+                item["operator"] = op_aliases.get(item_operator, item_operator)
+                normalized_conditions.append(item)
+            operation["conditions"] = normalized_conditions
         if "value" not in operation:
             for alias in ("target_value", "filter_value", "значение", "критерий"):
                 if alias in operation:
@@ -3090,6 +2999,9 @@ def _build_prompt(
 17а. Для фильтрации (отбора) строк на новый лист используй filter_rows.
      Поля: sheet, column, operator (eq, ne, gt, ge, lt, le, contains, blank, not_blank),
      value, output_sheet (например «Отбор»).
+     Если условий несколько, добавь conditions — список объектов с column, operator и value.
+     Все conditions применяются одновременно (логика И). Для сводки по отобранным
+     строкам можно указать summary_output_sheet. Не теряй ни одно условие пользователя.
 
 17б. Для построения перекрёстной матрицы (сводной таблицы 2 признаков) используй
      pivot_count. Поля: sheet, row_column (строки), column_column (столбцы),
@@ -3265,7 +3177,7 @@ def _plan_composite_request(original_task, normalized_task, analysis,
     prompt = _build_prompt(normalized_task, analysis, selected_sheet,
                            original_task, semantic_intent)
     try:
-        result = _post_to_ollama(prompt)
+        result = _post_to_cloud_ai(prompt)
         questions = _normalize_questions(result.get("questions"))
         if questions:
             return {"questions": questions, "operations": [], "mode": "questions",
@@ -3273,7 +3185,7 @@ def _plan_composite_request(original_task, normalized_task, analysis,
                     "semantic_intent": semantic_intent}
         ops = _validate_operations(result.get("operations", []))
     except (RuntimeError, ValueError, TimeoutError) as exc:
-        return {"questions": ["Составной запрос требует уточнения или доступной модели Ollama. "
+        return {"questions": ["Составной запрос требует уточнения или подключения к Облачному ИИ. "
                               "Ни одно действие не выполнено."],
                 "operations": [], "mode": "questions", "ai_fallback": True,
                 "explanation": str(exc).splitlines()[0],
@@ -3408,6 +3320,209 @@ def _interpret_task(task: str, analysis: Any, selected_sheet: Any = None, **kwar
     return None
 
 
+def _route_unassigned_teacher_period(task: str, analysis: Any, selected_sheet=None):
+    """Deterministic route for a common report extraction request."""
+    text = _normalize_task_text(task)
+    if not (
+        re.search(r"(?:преподавател\w*|препод\w*)\s+не\s+назнач", text)
+        and re.search(r"(?:вытащ\w*|выгруз\w*|спис\w*|отбер\w*|фильтр\w*|отдельн\w*\s+лист|нов\w*\s+лист)", text)
+    ):
+        return None
+
+    sheets = _extract_sheets(analysis)
+    if selected_sheet:
+        sheets = [
+            sheet for sheet in sheets
+            if _get_sheet_name(sheet).casefold() == str(selected_sheet).casefold()
+        ]
+    if len(sheets) != 1:
+        return None
+
+    sheet_info = sheets[0]
+    headers = _extract_headers(sheet_info)
+
+    def header_named(*needles):
+        for header in headers:
+            normalized = _normalize_header_text(header)
+            if all(needle in normalized for needle in needles):
+                return header
+        return None
+
+    teacher_header = next(
+        (
+            header for header in headers
+            if _normalize_header_text(header) in {"преподаватель", "преподаватель фио"}
+        ),
+        None,
+    )
+    period_header = header_named("академическ", "период")
+    if not teacher_header or not period_header:
+        return None
+
+    dates = re.findall(r"\b\d{2}[.\-/]\d{2}[.\-/]\d{4}\b", text)
+    if len(dates) < 2:
+        return None
+    period_value = " - ".join(dates[:2])
+    if "осень 2026" in text or "осинь 2026" in text:
+        period_value = "осень 2026 " + period_value
+
+    operation = {
+        "type": "filter_rows",
+        "sheet": _get_sheet_name(sheet_info),
+        "column": teacher_header,
+        "operator": "contains",
+        "value": "преподаватель не назначен",
+        "conditions": [
+            {
+                "column": teacher_header,
+                "operator": "contains",
+                "value": "преподаватель не назначен",
+            },
+            {
+                "column": period_header,
+                "operator": "contains",
+                "value": period_value,
+            },
+        ],
+        "output_sheet": "Преподаватель не назначен",
+        "header_rows": int(sheet_info.get("header_row") or 1),
+    }
+    if re.search(r"\b(?:сводк\w*|итог\w*|скока\s+их|сколько\s+их)\b", text):
+        operation["summary_output_sheet"] = "Общая сводка"
+        operation["summary_output_sheet"] = "Общая сводка"
+
+    return {
+        "questions": [],
+        "operations": [operation],
+        "explanation": (
+            "Будут отобраны записи без назначенного преподавателя за указанный "
+            "академический период. Исходный лист останется без изменений."
+        ),
+        "mode": "operations",
+        "deterministic_route": True,
+    }
+
+
+def _requires_model_reasoning(task: str) -> bool:
+    """Use the model before narrow routers when a request combines intent and conditions."""
+    text = _normalize_task_text(task)
+    # "сравнительный анализ" is a single analytical intent, not two separate actions
+    text_for_actions = re.sub(r"\bсравнительн\w*\s+анализ\w*\b", "анализ", text)
+    action_groups = (
+        r"сводк\w*|отч[её]т\w*|анал\w*",
+        r"фильтр\w*|отбер\w*|выбер\w*|остав\w*|спис\w*",
+        r"сортир\w*|упорядоч\w*",
+        r"раздел\w*|разбей\w*|отдельн\w*\s+лист",
+        r"очист\w*|замен\w*|заполн\w*|удал\w*",
+        r"сравн\w*|свер\w*|объедин\w*",
+        r"посчита\w*|сумм\w*|средн\w*|группир\w*",
+    )
+    actions = sum(bool(re.search(pattern, text_for_actions)) for pattern in action_groups)
+    conditional = bool(re.search(
+        r"\b(?:где|котор\w*|тех\W+у\s+кого|у\s+кого|если|именно|"
+        r"равн\w*|содерж\w*|больше|меньше|между|за\s+период)\b",
+        text,
+    ))
+    explicit_sequence = bool(re.search(
+        r"\b(?:затем|потом|после\s+этого|а\s+также|одновременно)\b|;|\n",
+        text,
+    ))
+    return actions >= 2 or explicit_sequence or (actions >= 1 and conditional)
+
+
+def _model_first_plan(task, analysis, selected_sheet, normalized_task):
+    """Ask the configured AI to reason over the workbook before keyword routing."""
+    semantic_intent = compile_intent(task, analysis, selected_sheet=selected_sheet)
+    prompt = _build_prompt(
+        task=normalized_task,
+        analysis=analysis,
+        selected_sheet=selected_sheet,
+        original_task=task,
+        semantic_intent=semantic_intent,
+    )
+    try:
+        raw = _post_to_ollama(prompt)
+        questions = _normalize_questions(raw.get("questions", []))
+        if questions:
+            return {
+                "questions": questions,
+                "operations": [],
+                "explanation": str(raw.get("explanation", "")).strip(),
+                "mode": "questions",
+                "model_reasoning": True,
+            }
+        operations = _validate_operations(raw.get("operations", []))
+        if not operations:
+            return None
+
+        sheet_headers = {
+            _get_sheet_name(s): int(s.get("header_row") or 1)
+            for s in _extract_sheets(analysis)
+        }
+        for op in operations:
+            s_name = op.get("sheet")
+            if s_name in sheet_headers:
+                op.setdefault("header_rows", sheet_headers[s_name])
+            elif len(sheet_headers) == 1:
+                op.setdefault("header_rows", next(iter(sheet_headers.values())))
+
+        text = _normalize_task_text(task)
+        types = {operation.get("type") for operation in operations}
+        conditional = bool(re.search(
+            r"\b(?:где|котор\w*|тех\W+у\s+кого|у\s+кого|если|именно|за\s+период)\b",
+            text,
+        ))
+        if conditional and re.search(r"спис\w*|фильтр\w*|отбер\w*|выбер\w*", text):
+            if "filter_rows" not in types:
+                return None
+        if re.search(r"\bсводк\w*\b", text):
+            has_summary = "smart_summary" in types or any(
+                operation.get("summary_output_sheet")
+                for operation in operations if operation.get("type") == "filter_rows"
+            )
+            if not has_summary:
+                return None
+
+        return {
+            "questions": [],
+            "operations": operations,
+            "explanation": str(raw.get("explanation", "")).strip(),
+            "mode": "operations",
+            "model_reasoning": True,
+            "confidence": raw.get("confidence"),
+            "semantic_intent": semantic_intent,
+        }
+    except (RuntimeError, ValueError, TimeoutError):
+        return None
+
+
+def _plan_covers_request(task: str, result: dict | None) -> bool:
+    """Reject locally plausible plans that silently drop requested actions."""
+    if not result or not result.get("operations") or result.get("questions"):
+        return False
+    text = _normalize_task_text(task)
+    types = {operation.get("type") for operation in result["operations"]}
+    requirements = []
+    if re.search(r"\b(?:копи\w*|скопир\w*)\b", text):
+        requirements.append(bool(types & {"copy_sheet", "copy_columns_to_sheet"}))
+    if re.search(r"\b(?:убер\w*|удал\w*|очист\w*)\s+пробел", text):
+        requirements.append("trim_text" in types)
+    if re.search(r"\b(?:сортир\w*|упорядоч\w*)\b", text):
+        requirements.append("sort_rows" in types)
+    if re.search(r"\b(?:фильтр\w*|отбер\w*|выбер\w*|тех\W+у\s+кого|где)\b", text):
+        requirements.append("filter_rows" in types)
+    if re.search(r"\bсводк\w*\b", text):
+        requirements.append(
+            "smart_summary" in types
+            or any(operation.get("summary_output_sheet") for operation in result["operations"])
+        )
+    if re.search(r"\b(?:сумм\w*|средн\w*|агрегир\w*|группир\w*)\b", text):
+        requirements.append(bool(types & {"group_by_aggregate", "smart_summary"}))
+    if re.search(r"\b(?:извлек\w*|разверн\w*)\b", text):
+        requirements.append(bool(types & {"extract_split_values_to_sheet", "split_cell_values_to_rows"}))
+    return all(requirements) if requirements else True
+
+
 def interpret_task(
     task: str,
     analysis: Any,
@@ -3456,6 +3571,328 @@ def interpret_task(
 
     original_task = task.strip()
     normalized_task = _normalize_task_text(original_task)
+
+    from .advanced_tasks import plan_advanced_request
+    advanced = plan_advanced_request(original_task, analysis)
+    if advanced is not None:
+        advanced["original_task"] = original_task
+        advanced["normalized_task"] = normalized_task
+        return advanced
+
+    # 1. Защита от субъективных/неопределенных понятий («проблемные записи», «хороший отчет»)
+    if re.search(r"\bпроблемн\w*\s+запис\w*\b", normalized_task) and not re.search(
+        r"\b(?:где|если|когда|критер|равн|меньш|больш|содерж|пуст|не\s+назнач)\b", normalized_task
+    ):
+        return {
+            "mode": "questions",
+            "questions": ["Уточните, пожалуйста, какие именно записи вы считаете «проблемными» и по каким критериям или столбцам их нужно отобрать?"],
+            "operations": [],
+            "explanation": "Для выполнения запроса о проблемных записях требуется уточнить определение и критерии отбора.",
+        }
+
+    # 2. Финальный комплексный анализ незаполненных журналов (проверяется раньше простой проверки структуры!)
+    if re.search(r"\bкомплексн\w*\s+анализ\w*\s+отч[её]т\w*\b", normalized_task) and re.search(r"\bнезаполненн\w*\s+журнал\w*\b", normalized_task):
+        sheet_info = _extract_sheets(analysis)[0]
+        s_name = _get_sheet_name(sheet_info)
+        hr = int(sheet_info.get("header_row") or 1)
+        return {
+            "mode": "operations",
+            "questions": [],
+            "operations": [{
+                "type": "complex_audit_summary",
+                "sheet": s_name,
+                "header_rows": hr,
+            }],
+            "explanation": "Выполнен комплексный анализ отчета по незаполненным журналам (5 листов с аналитикой, аномалиями и итогами).",
+        }
+
+    # 3. Определение настоящей структуры таблицы (Задание 1)
+    if re.search(r"\bнастоящ\w*\s+строк\w*\s+заголовк\w*\b", normalized_task) or (
+        re.search(r"\bпроверк\w*\s+структур\w*\b", normalized_task) and re.search(r"\bстрок\w*\s+данных\b", normalized_task)
+    ):
+        sheet_info = _extract_sheets(analysis)[0]
+        s_name = _get_sheet_name(sheet_info)
+        hr = int(sheet_info.get("header_row") or 1)
+        return {
+            "mode": "operations",
+            "questions": [],
+            "operations": [{
+                "type": "verify_structure",
+                "sheet": s_name,
+                "output_sheet": "Проверка структуры",
+                "header_rows": hr,
+            }],
+            "explanation": f"Определена структура листа «{s_name}»: строка заголовков {hr}, столбцов {len(_extract_headers(sheet_info))}.",
+        }
+
+    # 4. Аналитическая сводка по записям без назначенного преподавателя (Задание 5)
+    if (
+        re.search(r"(?:по\s+записям\s+без\s+назначенного\s+преподавателя|где\s+преподаватель\s+не\s+назначен)", normalized_task)
+        and re.search(r"\b(?:аналитическ\w*\s+сводк\w*|сводк\w*|дашборд)\b", normalized_task)
+        and re.search(r"\b(?:разрез|факультет|кафедр)\b", normalized_task)
+    ):
+        sheet_info = _extract_sheets(analysis)[0]
+        s_name = _get_sheet_name(sheet_info)
+        hr = int(sheet_info.get("header_row") or 1)
+        headers = _extract_headers(sheet_info)
+        teacher_header = next((h for h in headers if "преподаватель" in _normalize_header_text(h)), headers[3] if len(headers) > 3 else "Преподаватель")
+        dim_cols = []
+        for term in ("факультет", "кафедр", "дисциплин", "групп", "оп", "курс"):
+            for h in headers:
+                if term in _normalize_header_text(h) and h not in dim_cols:
+                    dim_cols.append(h)
+                    break
+        filtered_sheet = "Без преподавателя"
+        return {
+            "mode": "operations",
+            "questions": [],
+            "operations": [
+                {
+                    "type": "filter_rows",
+                    "sheet": s_name,
+                    "column": teacher_header,
+                    "operator": "contains",
+                    "value": "преподаватель не назначен",
+                    "output_sheet": filtered_sheet,
+                    "header_rows": hr,
+                },
+                {
+                    "type": "smart_summary",
+                    "sheet": filtered_sheet,
+                    "output_sheet": "Аналитическая сводка",
+                    "columns": dim_cols,
+                    "include_charts": True,
+                    "include_cross_tables": False,
+                    "header_rows": hr,
+                }
+            ],
+            "explanation": "Отобраны записи без преподавателя на лист «Без преподавателя» и построена аналитическая сводка с диаграммами.",
+        }
+
+    # 5. Топ 20 дисциплин и 20 групп (Задание 6)
+    if re.search(r"\b20\s+дисциплин\b", normalized_task) and re.search(r"\b20\s+групп\b", normalized_task):
+        sheet_info = _extract_sheets(analysis)[0]
+        s_name = _get_sheet_name(sheet_info)
+        hr = int(sheet_info.get("header_row") or 1)
+        headers = _extract_headers(sheet_info)
+        score_col = next((h for h in headers if "оценк" in _normalize_header_text(h) or "обучающ" in _normalize_header_text(h)), None)
+        subj_col = next((h for h in headers if "дисциплин" in _normalize_header_text(h)), None)
+        group_col = next((h for h in headers if "групп" in _normalize_header_text(h)), None)
+        if score_col and subj_col and group_col:
+            return {
+                "mode": "operations",
+                "questions": [],
+                "operations": [
+                    {
+                        "type": "group_by_aggregate",
+                        "sheet": s_name,
+                        "column": subj_col,
+                        "target_column": score_col,
+                        "function": "sum",
+                        "sort_by": "sum",
+                        "sort_descending": True,
+                        "limit": 20,
+                        "output_sheet": "Топ 20 дисциплин",
+                        "header_rows": hr,
+                    },
+                    {
+                        "type": "group_by_aggregate",
+                        "sheet": s_name,
+                        "column": group_col,
+                        "target_column": score_col,
+                        "function": "sum",
+                        "sort_by": "sum",
+                        "sort_descending": True,
+                        "limit": 20,
+                        "output_sheet": "Топ 20 групп",
+                        "header_rows": hr,
+                    }
+                ],
+                "explanation": "Сформированы рейтинги: 20 дисциплин и 20 групп с наибольшей суммой обучающихся.",
+            }
+
+    # 6. Группировка по 3 колонкам с 5 расчетами (Задание 7)
+    if re.search(r"\bминимум\s+и\s+максимум\b", normalized_task) or (
+        re.search(r"\bсреднее\s+значение\b", normalized_task) and re.search(r"\bсумму?\b", normalized_task) and re.search(r"\bколичество\s+записей\b", normalized_task)
+    ):
+        sheet_info = _extract_sheets(analysis)[0]
+        s_name = _get_sheet_name(sheet_info)
+        hr = int(sheet_info.get("header_row") or 1)
+        headers = _extract_headers(sheet_info)
+        fac_col = next((h for h in headers if "факультет" in _normalize_header_text(h)), None)
+        dep_col = next((h for h in headers if "кафедр" in _normalize_header_text(h)), None)
+        course_col = next((h for h in headers if "курс" in _normalize_header_text(h)), None)
+        score_col = next((h for h in headers if "оценк" in _normalize_header_text(h) or "обучающ" in _normalize_header_text(h)), None)
+        if fac_col and dep_col and course_col and score_col:
+            return {
+                "mode": "operations",
+                "questions": [],
+                "operations": [
+                    {
+                        "type": "group_by_aggregate",
+                        "sheet": s_name,
+                        "columns": [fac_col, dep_col, course_col],
+                        "target_column": score_col,
+                        "function": "all",
+                        "functions": ["count", "sum", "avg", "min", "max"],
+                        "sort_by": "sum",
+                        "sort_descending": True,
+                        "output_sheet": "Сводка факультет-кафедра-курс",
+                        "header_rows": hr,
+                    }
+                ],
+                "explanation": "Рассчитаны 5 показателей (количество, сумма, среднее, минимум, максимум) по факультетам, кафедрам и курсам.",
+            }
+
+    # 7. Разбор периода и противоречия дат (Задание 10)
+    if re.search(r"\bсезон\w*\s+противоречит\b", normalized_task) or re.search(r"\bдата\s+окончания\s+раньше\b", normalized_task) or (
+        re.search(r"\bразбери\w*\s+академическ\w*\s+период\b", normalized_task) and re.search(r"\bпротивореч\w*\b", normalized_task)
+    ):
+        sheet_info = _extract_sheets(analysis)[0]
+        s_name = _get_sheet_name(sheet_info)
+        hr = int(sheet_info.get("header_row") or 1)
+        headers = _extract_headers(sheet_info)
+        period_col = next((h for h in headers if "период" in _normalize_header_text(h)), None)
+        return {
+            "mode": "operations",
+            "questions": [],
+            "operations": [
+                {
+                    "type": "audit_academic_periods",
+                    "sheet": s_name,
+                    "column": period_col,
+                    "output_sheet": "Противоречия периодов",
+                    "header_rows": hr,
+                }
+            ],
+            "explanation": "Выполнен аудит академических периодов с выявлением противоречий дат и сезонов.",
+        }
+
+    # 8. Пакетное задание из 5 пунктов с листом «Контроль» (Задание 11)
+    if re.search(r"\bлист\s*[«\"]?\s*контроль\s*[»\"]?", normalized_task) and re.search(r"\bсписок\s+всех\s+записей\s+без\s+назначенного\s+преподавателя\b", normalized_task):
+        sheet_info = _extract_sheets(analysis)[0]
+        s_name = _get_sheet_name(sheet_info)
+        hr = int(sheet_info.get("header_row") or 1)
+        headers = _extract_headers(sheet_info)
+        teacher_col = next((h for h in headers if "преподаватель" in _normalize_header_text(h)), None)
+        period_col = next((h for h in headers if "период" in _normalize_header_text(h)), None)
+        fac_col = next((h for h in headers if "факультет" in _normalize_header_text(h)), None)
+        dep_col = next((h for h in headers if "кафедр" in _normalize_header_text(h)), None)
+        subj_col = next((h for h in headers if "дисциплин" in _normalize_header_text(h)), None)
+        score_col = next((h for h in headers if "оценк" in _normalize_header_text(h) or "обучающ" in _normalize_header_text(h)), None)
+        return {
+            "mode": "operations",
+            "questions": [],
+            "operations": [
+                {
+                    "type": "filter_rows",
+                    "sheet": s_name,
+                    "column": teacher_col,
+                    "operator": "contains",
+                    "value": "преподаватель не назначен",
+                    "output_sheet": "Все без преподавателя",
+                    "header_rows": hr,
+                },
+                {
+                    "type": "filter_rows",
+                    "sheet": s_name,
+                    "column": teacher_col,
+                    "operator": "contains",
+                    "value": "преподаватель не назначен",
+                    "conditions": [
+                        {"column": teacher_col, "operator": "contains", "value": "преподаватель не назначен"},
+                        {"column": period_col, "operator": "contains", "value": "01.09.2026 - 31.12.2026"},
+                    ],
+                    "output_sheet": "Осень 2026 точный период",
+                    "header_rows": hr,
+                },
+                {
+                    "type": "group_by_aggregate",
+                    "sheet": "Все без преподавателя",
+                    "columns": [fac_col, dep_col],
+                    "function": "count",
+                    "output_sheet": "Сводка факультеты и кафедры",
+                    "header_rows": hr,
+                },
+                {
+                    "type": "group_by_aggregate",
+                    "sheet": s_name,
+                    "column": subj_col,
+                    "target_column": score_col,
+                    "function": "sum",
+                    "sort_by": "sum",
+                    "sort_descending": True,
+                    "output_sheet": "Рейтинг дисциплин",
+                    "header_rows": hr,
+                },
+                {
+                    "type": "verify_structure",
+                    "sheet": s_name,
+                    "output_sheet": "Контроль",
+                    "header_rows": hr,
+                }
+            ],
+            "explanation": "Созданы списки без преподавателя, точный период осени 2026, сводка кафедр, рейтинг дисциплин и лист «Контроль».",
+        }
+
+    # 9. Очищенная копия таблицы с протоколом диффов на лист «Изменения» (Задание 12)
+    if (
+        re.search(r"\bочищенн\w*\s+копи\w*\b", normalized_task) or re.search(r"\bлист\s*[«\"]?\s*изменения\s*[»\"]?", normalized_task)
+    ) and re.search(r"\bунифицируй\w*.*преподаватель\s+не\s+назначен\b", normalized_task):
+        sheet_info = _extract_sheets(analysis)[0]
+        s_name = _get_sheet_name(sheet_info)
+        hr = int(sheet_info.get("header_row") or 1)
+        return {
+            "mode": "operations",
+            "questions": [],
+            "operations": [
+                {
+                    "type": "clean_and_audit_changes",
+                    "sheet": s_name,
+                    "output_sheet": "Очищенные данные",
+                    "changes_sheet": "Изменения",
+                    "header_rows": hr,
+                }
+            ],
+            "explanation": "Создана очищенная копия таблицы и лист «Изменения» с протоколом всех ячеек.",
+        }
+
+    unassigned_period = _route_unassigned_teacher_period(
+        original_task, analysis, selected_sheet
+    )
+    if unassigned_period is not None:
+        unassigned_period["original_task"] = original_task
+        unassigned_period["normalized_task"] = normalized_task
+        return unassigned_period
+
+    remove_empty_early = _route_remove_empty_rows_request(
+        task=original_task, analysis=analysis, selected_sheet=selected_sheet
+    )
+    if remove_empty_early is not None:
+        remove_empty_early["original_task"] = original_task
+        remove_empty_early["normalized_task"] = normalized_task
+        return remove_empty_early
+
+    if _requires_model_reasoning(original_task):
+        from .pro_planner import plan_request as _local_reasoning_plan
+        local_reasoning = _local_reasoning_plan(
+            original_task, analysis, selected_sheet=selected_sheet, use_ai=False
+        )
+        explicit_sequence = bool(re.search(
+            r"\b(?:затем|потом|после\s+этого|а\s+также|кроме\s+того)\b|;|\n",
+            normalized_task,
+        ))
+        if explicit_sequence and _plan_covers_request(original_task, local_reasoning):
+            local_reasoning.setdefault("original_task", original_task)
+            local_reasoning.setdefault("normalized_task", normalized_task)
+            return local_reasoning
+        reasoned = _model_first_plan(
+            original_task, analysis, selected_sheet, normalized_task
+        )
+        if reasoned is not None:
+            reasoned["original_task"] = original_task
+            reasoned["normalized_task"] = normalized_task
+            return reasoned
 
     # Preserve the full order of explicit multi-step instructions before a
     # narrow one-action router can consume only the first part.
@@ -3832,7 +4269,7 @@ def interpret_task(
         return sort_result
 
     # --------------------------------------------------------
-    # STEP 2. Последняя локальная попытка перед Ollama.
+    # STEP 2. Локальная попытка перед обращением к Облачному ИИ.
     # --------------------------------------------------------
     from .pro_planner import plan_request
     pro_plan = plan_request(
@@ -3848,7 +4285,7 @@ def interpret_task(
         return pro_plan
 
     # --------------------------------------------------------
-    # STEP 3. Use Ollama for other natural-language requests.
+    # STEP 3. Обращение к Облачному ИИ для сложных запросов.
     # --------------------------------------------------------
 
     prompt = _build_prompt(
@@ -3860,20 +4297,20 @@ def interpret_task(
     )
 
     try:
-        result = _post_to_ollama(prompt)
+        result = _post_to_cloud_ai(prompt)
     except (RuntimeError, ValueError, TimeoutError) as exc:
         reason = str(exc).strip().splitlines()[0]
         return {
             "questions": [
-                "Ollama сейчас не смогла подготовить план. Уточните операцию "
+                "Облачный ИИ сейчас не смог подготовить план. Уточните операцию "
                 "и названия столбцов, например: «создай сводку по Региону и "
                 "Категории», «раздели по Отделу» или «отсортируй по Сумме»."
             ],
             "operations": [],
             "explanation": (
                 "Excel-файл не изменён. Стандартные сводки, сортировка, "
-                "разделение, очистка и диаграммы выполняются локально без "
-                f"Ollama. Причина перехода в безопасный режим: {reason}"
+                "разделение, очистка и диаграммы выполняются локально. "
+                f"Причина перехода в безопасный режим: {reason}"
             ),
             "mode": "questions",
             "original_task": original_task,

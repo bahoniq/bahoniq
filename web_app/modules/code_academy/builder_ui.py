@@ -45,7 +45,7 @@ class BuilderWindow:
         tk.Label(right,text='ПОСТРОЧНОЕ ОБЪЯСНЕНИЕ',bg='white',fg=DARK,font=('Segoe UI',10,'bold')).pack(anchor='w',padx=12,pady=(12,4))
         self.explain=tk.Text(right,height=7,wrap='word',bg='#F0F7F3',fg=DARK,relief='flat',font=('Segoe UI',10),padx=8,pady=8)
         self.explain.pack(fill='x',padx=12)
-        tk.Label(right,text='ИИ-ТРЕНЕР · OLLAMA',bg='white',fg=DARK,font=('Segoe UI',10,'bold')).pack(anchor='w',padx=12,pady=(12,4))
+        tk.Label(right,text='ИИ-ТРЕНЕР · BAHONIQ AI',bg='white',fg=DARK,font=('Segoe UI',10,'bold')).pack(anchor='w',padx=12,pady=(12,4))
         self.mode=tk.StringVar(value='hint')
         modes=tk.Frame(right,bg='white'); modes.pack(fill='x',padx=12)
         tk.Radiobutton(modes,text='Подскажи',variable=self.mode,value='hint',bg='white').pack(side='left')
@@ -105,10 +105,10 @@ class BuilderWindow:
         mode='Дай пошаговую подсказку без полного решения.' if self.mode.get()=='hint' else 'Покажи учебное решение и объясни строки.'
         code=self.code.get('1.0','end-1c')
         self.busy=True;self.ask_button.config(state='disabled',text='Тренер отвечает...')
-        self.answer.delete('1.0','end');self.answer.insert('1.0','Запрос к локальной Ollama...')
+        self.answer.delete('1.0','end');self.answer.insert('1.0','Запрос к Облачному ИИ...')
         def worker():
-            try: result=ask_tutor(mode+' '+question,self.current,code,timeout=180)
-            except Exception as exc:result=f'Тренер недоступен: {exc}\n\nВстроенные построчные объяснения работают без Ollama.'
+            try: result=ask_tutor(mode+' '+question,self.current,code,timeout=45)
+            except Exception as exc:result=f'Тренер недоступен: {exc}\n\nВстроенные построчные объяснения работают автономно.'
             self.responses.put(result)
         threading.Thread(target=worker,daemon=True).start()
 

@@ -3,11 +3,11 @@ import json
 
 
 def improve_task_text(task, analysis):
-    """Использует BahonIQ AI через ai_service с тихим fallback на Ollama."""
+    """Использует BahonIQ Облачный ИИ через ai_service."""
     if not isinstance(task, str) or not task.strip():
         raise ValueError('Сначала напиши задачу своими словами.')
     from .ai_interpreter import (
-        _post_to_ollama, _extract_sheets, _extract_headers, _get_sheet_name,
+        _post_to_cloud_ai, _extract_sheets, _extract_headers, _get_sheet_name,
     )
     schema = [
         {'sheet': _get_sheet_name(item), 'headers': _extract_headers(item)}
@@ -26,24 +26,7 @@ def improve_task_text(task, analysis):
         'Текст пользователя: ' + task.strip()
     )
 
-    reply = None
-    # 1. Попытка через единый облачный сервис BahonIQ AI
-    try:
-        import ai_service
-        raw_res = ai_service.generate_text(
-            prompt=prompt,
-            temperature=0.2,
-            timeout=25,
-        )
-        if raw_res and "{" in raw_res:
-            from .ai_interpreter import _clean_json_response
-            reply = _clean_json_response(raw_res)
-    except Exception:
-        pass
-
-    # 2. Локальный резервный Ollama
-    if not reply or not isinstance(reply, dict):
-        reply = _post_to_ollama(prompt)
+    reply = _post_to_cloud_ai(prompt)
 
     if not isinstance(reply, dict):
         raise ValueError('Не удалось разобрать ответ модели.')

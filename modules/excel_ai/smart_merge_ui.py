@@ -239,7 +239,7 @@ class SmartMergeWindow(tk.Toplevel):
         files = {item["file_index"]: item for item in result["schemas"]["files"]}
         lines = [
             "ПЛАН MULTI-FILE AI", "=" * 65,
-            f"Режим планирования: {'Ollama' if result.get('mode') == 'ai' else 'локальная проверяемая логика'}",
+            f"Режим планирования: {'Облачный ИИ' if result.get('mode') == 'ai' else 'локальная проверяемая логика'}",
             f"Операция: {'объединить строки' if plan['mode'] == 'append' else 'сопоставить таблицы по ключу'}",
         ]
         if plan["mode"] == "join":

@@ -21,7 +21,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-from .settings import CONTEXT_SIZE, OLLAMA_URL, PREFERRED_MODEL, REQUEST_TIMEOUT
+from .settings import CONTEXT_SIZE, REQUEST_TIMEOUT
 
 
 SUPPORTED_EXTENSIONS = {".xlsx", ".xlsm"}
@@ -187,7 +187,7 @@ def _mentioned_headers(instruction, schemas):
 
 
 def _deterministic_plan(instruction: str, schemas: dict):
-    """Plan only requests that are structurally unambiguous without Ollama."""
+    """Plan only requests that are structurally unambiguous."""
     task = _norm(instruction)
     primary = [(file_schema, _primary_sheet(file_schema)) for file_schema in schemas["files"]]
     mentioned = _mentioned_headers(instruction, schemas)
@@ -248,7 +248,7 @@ def _deterministic_plan(instruction: str, schemas: dict):
     return None
 
 
-def _ollama_plan(instruction: str, schemas: dict) -> dict:
+def _cloud_ai_plan(instruction: str, schemas: dict) -> dict:
     compact = {"files": []}
     for file_schema in schemas["files"]:
         compact["files"].append({
@@ -293,49 +293,19 @@ def _ollama_plan(instruction: str, schemas: dict) -> dict:
 Не добавляй дедупликацию, сортировку или удаление данных без прямой просьбы.
 """
 
-    # 1. Попытка через единый облачный сервис BahonIQ AI
-    try:
-        import ai_service
-        raw_res = ai_service.generate_text(
-            prompt=prompt,
-            system_instruction="Ты планировщик BahonIQ Multi-File AI. Возвращай только корректный JSON без Markdown.",
-            temperature=0.1,
-            timeout=30,
-        )
-        if raw_res and "{" in raw_res:
-            from .ai_interpreter import _clean_json_response
-            parsed = _clean_json_response(raw_res)
-            if isinstance(parsed, dict) and ("plan" in parsed or "questions" in parsed):
-                return parsed
-    except Exception:
-        pass
-
-    # 2. Локальный фоллбэк на Ollama
-    payload = {
-        "model": PREFERRED_MODEL,
-        "messages": [
-            {"role": "system", "content": "Ты планировщик BahonIQ Multi-File AI. Возвращай только корректный JSON и никогда не выдумывай схему."},
-            {"role": "user", "content": prompt},
-        ],
-        "stream": False,
-        "format": "json",
-        "keep_alive": -1,
-        "options": {"temperature": 0, "top_p": 0.1, "num_ctx": CONTEXT_SIZE, "num_predict": 1200},
-    }
-    request = urllib.request.Request(
-        OLLAMA_URL, data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json"}, method="POST",
+    import ai_service
+    raw_res = ai_service.generate_text(
+        prompt=prompt,
+        system_instruction="Ты планировщик BahonIQ Multi-File AI. Возвращай только корректный JSON без Markdown.",
+        temperature=0.1,
+        timeout=REQUEST_TIMEOUT,
     )
-    try:
-        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
-            envelope = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"Ollama недоступна или вернула ошибку: {exc}") from exc
-    content = envelope.get("message", {}).get("content", "")
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError as exc:
-        raise ValueError("Ollama вернула некорректный JSON-план.") from exc
+    if isinstance(raw_res, tuple):
+        raw_res = raw_res[0]
+    if not raw_res:
+        raise ValueError("Облачный ИИ вернул пустой ответ.")
+    from .ai_interpreter import _extract_json
+    return _extract_json(raw_res)
 
 
 def _schema_lookup(schemas):
@@ -428,11 +398,11 @@ def plan_multi_file_task(instruction: str, paths: Iterable[str | Path]) -> dict:
         plan = validate_multi_file_plan(local, schemas)
         return {"questions": [], "plan": plan, "schemas": schemas, "mode": "local", "explanation": "План однозначно определён по структуре файлов."}
     try:
-        response = _ollama_plan(instruction, schemas)
+        response = _cloud_ai_plan(instruction, schemas)
     except (RuntimeError, ValueError) as exc:
         return {
             "questions": [
-                "Не удалось однозначно построить план локально. Укажи точные листы, ключевые столбцы для сопоставления и столбцы результата либо запусти Ollama."
+                "Не удалось однозначно построить план. Укажи точные листы, ключевые столбцы для сопоставления и столбцы результата."
             ],
             "plan": None, "schemas": schemas, "mode": "questions", "explanation": str(exc),
         }

@@ -1,15 +1,15 @@
-"""Educational AI mentor: Gemini first, local Ollama as fallback (no code execution or file mutation)."""
+"""Educational AI mentor: BahonIQ Cloud AI (no code execution or file mutation)."""
 import logging
 
 from .mentor_core import build_messages
 
 LOGGER = logging.getLogger("bahoniq.ai_tutor")
-PROVIDER_LABELS = {"gemini": "BahonIQ AI", "ollama": "BahonIQ AI (резерв)"}
+PROVIDER_LABELS = {"gemini": "BahonIQ AI", "cloud_ai": "BahonIQ AI"}
 
 
-def ask_tutor_detailed(question, filename='', code='', model='', timeout=180,
+def ask_tutor_detailed(question, filename='', code='', model='', timeout=60,
                        mode='hint', context=None, history=()):
-    """Return (answer, provider). provider is 'gemini' or 'ollama'."""
+    """Return (answer, provider). provider is 'gemini' or 'cloud_ai'."""
     if not 10 <= int(timeout) <= 900:
         raise ValueError('Ожидание должно быть от 10 до 900 секунд')
     if len(question) > 4000:
@@ -29,11 +29,11 @@ def ask_tutor_detailed(question, filename='', code='', model='', timeout=180,
     try:
         answer, provider = generate_text(prompt=prompt, system_instruction=system_inst,
                                          temperature=0.3, timeout=int(timeout),
-                                         return_provider=True, ollama_model=(model or '').strip())
+                                         return_provider=True)
     except Exception as exc:
         LOGGER.error('AI mentor failed: %s', exc)
-        raise RuntimeError('ИИ недоступен: Gemini не ответил, а локальная Ollama вернула ошибку. '
-                           'Проверьте GEMINI_API_KEY, интернет и запуск Ollama. Детали: %s' % exc) from exc
+        raise RuntimeError('ИИ недоступен: Облачный ИИ не ответил. '
+                           'Проверьте подключение к интернету и GEMINI_API_KEY. Детали: %s' % exc) from exc
     answer = str(answer or '').strip()
     if not answer:
         raise RuntimeError('ИИ вернул пустой ответ.')
@@ -75,7 +75,6 @@ def ask_tutor_stream(question, filename='', code='', model='', timeout=180,
             system_instruction=system_inst,
             temperature=0.3,
             timeout=int(timeout),
-            ollama_model=(model or '').strip(),
         )
         for chunk in stream:
             if chunk:
@@ -83,7 +82,7 @@ def ask_tutor_stream(question, filename='', code='', model='', timeout=180,
                 yield f"data: {json.dumps({'type': 'chunk', 'text': chunk}, ensure_ascii=False)}\n\n"
 
         full_answer = "".join(chunks).strip()
-        yield f"data: {json.dumps({'type': 'done', 'answer': full_answer, 'provider': 'gemini', 'provider_label': 'BahonIQ AI'}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'type': 'done', 'answer': full_answer, 'provider': 'gemini', 'provider_label': 'Gemini · облако (стриминг)'}, ensure_ascii=False)}\n\n"
     except Exception as exc:
         LOGGER.error('AI mentor stream failed: %s', exc)
         yield f"data: {json.dumps({'type': 'error', 'error': f'ИИ временно недоступен: {exc}'}, ensure_ascii=False)}\n\n"

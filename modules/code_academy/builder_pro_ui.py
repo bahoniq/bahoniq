@@ -131,7 +131,7 @@ def build_builder(host):
         q=question.get('1.0','end-1c').strip()
         if not q:return
         busy['value']=True;ask_button.config(state='disabled',text='ИИ отвечает...')
-        display_answer('Ожидаем ответ Ollama. Интерфейс остаётся доступным.')
+        display_answer('Ожидаем ответ Облачного ИИ. Интерфейс остаётся доступным.')
         source=editor.get('1.0','end-1c')
         context='\n'.join(sorted(host.workspace.project.files))
         timeout=int(wait.get())

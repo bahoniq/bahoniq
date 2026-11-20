@@ -434,13 +434,12 @@ class ReportStudio:
             style="BIQ.Surface.TLabel",
         ).pack(anchor="w")
 
-        self.ai_model_var = tk.StringVar(value="BahonIQ AI (~2-3 сек)")
+        self.ai_model_var = tk.StringVar(value="BahonIQ Cloud AI (Gemini Flash)")
         self.ai_model_combo = ttk.Combobox(
             parent,
             textvariable=self.ai_model_var,
             values=[
-                "BahonIQ AI (~2-3 сек)",
-                "Локальная Ollama / Qwen 2.5 (~1-2 мин)",
+                "BahonIQ Cloud AI (Gemini Flash)",
             ],
             state="readonly",
             style="BIQ.TCombobox",
@@ -479,8 +478,7 @@ class ReportStudio:
         ttk.Label(
             parent,
             text="Результат: executive summary, аналитические графики, решения.\n"
-                 "Анализ выполняет BahonIQ AI с интеллектуальным\n"
-                 "фоллбэком на локальную Ollama / Qwen 2.5 при оффлайне.",
+                 "Анализ выполняет облачный искусственный интеллект BahonIQ AI.",
             style="BIQ.Surface.TLabel",
         ).pack(anchor="w", pady=(0, 8))
 
@@ -1112,7 +1110,7 @@ class ReportStudio:
                     result = event[1]
                     warnings = result.get("warnings", [])
                     ai_result = result.get("ai_analysis", {})
-                    ai_completed = ai_result.get("source") == "ollama"
+                    ai_completed = ai_result.get("source") in {"cloud_ai", "gemini", "ollama"}
                     self.status_var.set("Аналитический отчёт сформирован и проверен")
 
                     created = []

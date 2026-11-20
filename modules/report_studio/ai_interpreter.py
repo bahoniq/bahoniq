@@ -1003,27 +1003,8 @@ def _select_model_name(requested: str, available: list[str]) -> str:
     return max(candidates, key=size_key)
 
 
-def _discover_ollama_model(requested: str, timeout: int) -> str:
-    parsed = urllib.parse.urlsplit(OLLAMA_URL)
-    tags_url = urllib.parse.urlunsplit((
-        parsed.scheme or "http",
-        parsed.netloc or "localhost:11434",
-        "/api/tags", "", "",
-    ))
-    request = urllib.request.Request(tags_url, method="GET")
-    try:
-        with urllib.request.urlopen(request, timeout=min(timeout, 60)) as response:
-            payload = json.loads(response.read().decode("utf-8", errors="replace"))
-    except Exception as exc:
-        raise RuntimeError(
-            f"Ollama не отвечает по адресу {tags_url}. "
-            "Запустите Ollama и проверьте, что порт 11434 доступен. "
-            f"Техническая причина: {type(exc).__name__}: {exc}"
-        ) from exc
-    available = [str(item.get("name") or item.get("model") or "").strip()
-                 for item in payload.get("models", []) if isinstance(item, dict)]
-    available = [name for name in available if name]
-    return _select_model_name(requested, available)
+def _discover_ollama_model(requested: str = "", timeout: int = 5) -> str:
+    return "BahonIQ Cloud AI"
 
 
 ANALYTICS_AI_SYSTEM_PROMPT = (
@@ -1041,139 +1022,20 @@ ANALYTICS_AI_SYSTEM_PROMPT = (
 
 def _call_ollama(
     prompt: str,
-    model: str,
-    timeout: int,
+    model: str = "",
+    timeout: int = 35,
 ) -> str:
-    """Отправляет запрос к ИИ (сначала Google Gemini Flash, затем тихий fallback на Ollama)."""
-
-    # 1. Попытка через облачный Gemini Flash
-    try:
-        import ai_service
-        gemini_res = ai_service.generate_text(
-            prompt=prompt,
-            system_instruction=ANALYTICS_AI_SYSTEM_PROMPT,
-            temperature=0.4,
-            timeout=35,
-        )
-        if gemini_res and ("{" in gemini_res and "}" in gemini_res):
-            try:
-                _parse_response(gemini_res)
-                return gemini_res
-            except Exception:
-                pass
-    except Exception as exc:
-        LOGGER.info("Gemini Flash пропущен (%s), переход на локальную модель...", exc)
-
-    if not OLLAMA_URL:
-        raise RuntimeError("Не задан адрес Ollama.")
-
-    payload = {
-        "model": model,
-        "system": ANALYTICS_AI_SYSTEM_PROMPT,
-        "prompt": prompt,
-        "stream": False,
-        "format": "json",
-        "keep_alive": "30m",
-        "options": {
-            "temperature": 0.2,
-            "num_ctx": 4096,
-            "num_predict": 850,
-            "repeat_penalty": 1.12,
-            "repeat_last_n": 128,
-        },
-    }
-
-    last_diagnostic = ""
-    for attempt in range(2):
-        current = dict(payload)
-        current["options"] = dict(payload["options"])
-        if attempt:
-            # Повторная попытка остаётся в строгом JSON-режиме. Снятие
-            # format=json приводило к многоязычному тексту и фрагментам кода.
-            current["options"]["temperature"] = 0.18
-            current["options"]["num_predict"] = 950
-            current["options"]["repeat_penalty"] = 1.16
-            current["options"]["repeat_last_n"] = 128
-            current["prompt"] = prompt + (
-                "\n\nПОВТОРНАЯ ПОПЫТКА: верни строго валидный JSON-объект. "
-                "Сформируй 4 содержательных findings и 3 аналитических stories. "
-                "Сохрани evidence, interpretation и limitation раздельно. "
-                "Не повторяй фразы и обязательно закрой все скобки JSON."
-            )
-
-        request = urllib.request.Request(
-            OLLAMA_URL,
-            data=json.dumps(current, ensure_ascii=False).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-
-        try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                body = response.read().decode("utf-8", errors="replace")
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            if attempt == 0 and "token repeat limit reached" in detail.casefold():
-                last_diagnostic = "Qwen зациклилась на длинном ответе; выполняется краткая повторная попытка"
-                continue
-            if "token repeat limit reached" in detail.casefold():
-                raise RuntimeError(
-                    "Qwen дважды зациклилась при формировании JSON. "
-                    "Перезапустите Ollama и повторите отчёт; данные Excel не повреждены."
-                ) from exc
-            raise RuntimeError(
-                f"Ollama вернула HTTP {exc.code}: {_text(detail, 500)}"
-            ) from exc
-        except urllib.error.URLError as exc:
-            if isinstance(exc.reason, (TimeoutError, OSError)) and "timed out" in str(exc.reason).casefold():
-                raise TimeoutError(
-                    f"Qwen не завершила ответ за {timeout} секунд."
-                ) from exc
-            if attempt == 0:
-                last_diagnostic = f"URLError: {exc.reason}"
-                continue
-            raise RuntimeError(
-                f"Не удалось подключиться к Ollama: {exc.reason}."
-            ) from exc
-        except (TimeoutError, OSError) as exc:
-            # Не запускаем второй тяжёлый запрос после тайм-аута. Первый
-            # процесс Ollama может ещё завершаться в фоне, поэтому повтор
-            # лишь создаёт очередь и удваивает ожидание пользователя.
-            raise RuntimeError(
-                f"Модель не ответила за {timeout} секунд. "
-                "Отчёт без ИИ не создавался."
-            ) from exc
-        try:
-            response_data = json.loads(body)
-        except json.JSONDecodeError as exc:
-            if attempt == 0:
-                last_diagnostic = "Некорректный JSON-конверт Ollama"
-                continue
-            raise RuntimeError("Ollama вернула некорректный ответ.") from exc
-
-        if response_data.get("error"):
-            raise RuntimeError(_text(response_data["error"], 500))
-
-        response_text = str(response_data.get("response", "")).strip()
-        if not response_text and isinstance(response_data.get("message"), dict):
-            response_text = str(response_data["message"].get("content", "")).strip()
-        if response_text:
-            try:
-                _parse_response(response_text)
-                return response_text
-            except ValueError:
-                last_diagnostic = "модель вернула текст вместо JSON"
-                continue
-
-        last_diagnostic = (
-            f"done_reason={response_data.get('done_reason') or 'не указан'}, "
-            f"eval_count={response_data.get('eval_count', 0)}"
-        )
-
-    raise RuntimeError(
-        "Ollama дважды не вернула корректный JSON. "
-        f"Диагностика: {last_diagnostic or 'нет данных'}."
+    """Отправляет запрос к Облачному ИИ Google Gemini."""
+    import ai_service
+    res = ai_service.generate_text(
+        prompt=prompt,
+        system_instruction=ANALYTICS_AI_SYSTEM_PROMPT,
+        temperature=0.3,
+        timeout=timeout,
     )
+    if isinstance(res, tuple):
+        res = res[0]
+    return res
 
 
 def _normalize_model_result(
@@ -1466,15 +1328,10 @@ def generate_ai_analysis(
                 timeout=timeout_value,
                 return_provider=True,
             )
-            model_name = f"BahonIQ AI ({provider})" if provider == "gemini" else "Ollama (qwen2.5)"
+            model_name = "BahonIQ Cloud AI"
         except Exception as ai_err:
-            LOGGER.warning("ai_service вызов не удался, пробуем прямой Ollama: %s", ai_err)
-            model_name = _discover_ollama_model(requested_model, timeout_value)
-            raw_response = _call_ollama(
-                prompt,
-                model=model_name,
-                timeout=timeout_value,
-            )
+            LOGGER.error("Облачный ИИ вызов не удался: %s", ai_err)
+            raise
 
         parsed = _parse_response(raw_response)
 

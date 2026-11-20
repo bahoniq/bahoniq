@@ -686,11 +686,7 @@ def generate_ticket(problem: str) -> dict[str, str]:
     except Exception:
         pass
 
-    # 2. Локальный движок при отсутствии сети / ошибке API
-    try:
-        return _generate_with_ollama(clean)
-    except Exception:
-        return _fallback_ticket(clean)
+    return _fallback_ticket(clean)
 
 
 def generate_ticket_stream(problem: str) -> Iterator[str]:

@@ -1291,7 +1291,7 @@ class ExcelAIWindow(tk.Toplevel):
             else:
                 self.status_var.set(
                     "Использованы локальные правила. Для сложных команд "
-                    "запусти Ollama и установи рекомендуемую модель qwen2.5:7b."
+                    "используется Облачный ИИ BahonIQ."
                 )
 
             return True

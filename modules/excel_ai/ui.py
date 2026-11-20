@@ -413,40 +413,15 @@ class ExcelAIWindow(tk.Toplevel):
             widget.insert("insert", text)
             return "break"
 
-        def select_all(event=None):
-            widget.tag_add("sel", "1.0", "end-1c")
-            widget.mark_set("insert", "end-1c")
-            widget.focus_set()
-            return "break"
-
         widget.bind("<Control-a>", lambda event: (select_all(), "break")[1])
         widget.bind("<Control-A>", lambda event: (select_all(), "break")[1])
         widget.bind("<Control-c>", copy_text)
         widget.bind("<Control-C>", copy_text)
-        widget.bind("<Control-Insert>", copy_text)
         if not readonly:
             widget.bind("<Control-x>", cut_text)
             widget.bind("<Control-X>", cut_text)
             widget.bind("<Control-v>", paste_text)
             widget.bind("<Control-V>", paste_text)
-            widget.bind("<Shift-Insert>", paste_text)
-
-        def physical_shortcut(event):
-            key = str(getattr(event, "keysym", "")).casefold()
-            if key in {"a", "c", "v", "x"}:
-                return None
-            code = getattr(event, "keycode", None)
-            if code == 65 or key in {"cyrillic_ef", "cyrillic_a"}:
-                return select_all(event)
-            if code == 67 or key in {"cyrillic_es", "cyrillic_c"}:
-                return copy_text(event)
-            if not readonly and (code == 86 or key in {"cyrillic_em", "cyrillic_v"}):
-                return paste_text(event)
-            if not readonly and (code == 88 or key in {"cyrillic_che", "cyrillic_x"}):
-                return cut_text(event)
-            return None
-
-        widget.bind("<Control-KeyPress>", physical_shortcut, add="+")
 
         menu = tk.Menu(widget, tearoff=0)
         if not readonly:
@@ -455,6 +430,12 @@ class ExcelAIWindow(tk.Toplevel):
         if not readonly:
             menu.add_command(label="Вставить", command=paste_text)
         menu.add_separator()
+
+        def select_all():
+            widget.tag_add("sel", "1.0", "end-1c")
+            widget.mark_set("insert", "end-1c")
+            widget.focus_set()
+
         menu.add_command(
             label="Выделить всё",
             command=select_all,
@@ -536,75 +517,8 @@ class ExcelAIWindow(tk.Toplevel):
         ttk.Label(examples_row, text="Быстрые примеры:",
                   style="Muted.Card.TLabel").pack(side="left", padx=(0, 8))
         self.example_buttons_frame = ttk.Frame(examples_row, style="Card.TFrame")
-        self.example_buttons_frame.pack(side="left")
+        self.example_buttons_frame.pack(side="left", fill="x", expand=True)
         self._refresh_command_examples()
-
-        # Готовые шаблоны задач (аккуратный выпадающий список в одну строку)
-        self.excel_templates = {
-            "🧹 Удалить дубликаты по ИИН": (
-                "Проверь таблицу на дубликаты по столбцу «ИИН» (или «ФИО»).\n"
-                "Оставь только первое уникальное вхождение каждой записи.\n"
-                "Все удалённые дубликаты выгрузи на отдельный лист «Дубликаты», "
-                "а уникальный очищенный список сохрани на лист «Очищенные данные»."
-            ),
-            "🔤 Очистить ФИО и регистр": (
-                "Выполни нормализацию текстовых данных в столбце «ФИО»:\n"
-                "1. Удали лишние двойные пробелы в начале, середине и конце строк.\n"
-                "2. Приведи регистр к правильному формату: первая буква заглавная, остальные строчные.\n"
-                "3. Сохрани результат в новую колонку «ФИО_Норм»."
-            ),
-            "✓ Валидация длины ИИН": (
-                "Проверь столбец «ИИН» на корректность:\n"
-                "1. Длина должна составлять строго 12 символов.\n"
-                "2. Значение должно состоять только из цифр.\n"
-                "3. Все строки с ошибочным или пустым ИИН выгрузи на отдельный лист «Ошибки_ИИН»."
-            ),
-            "📑 Разделить по листам (Факультеты)": (
-                "Раздели общую таблицу на отдельные самостоятельные листы по каждому "
-                "уникальному значению в столбце «Факультет» с сохранением оригинальной шапки."
-            ),
-            "🧩 Слить столбцы в ФИО": (
-                "Объедини отдельные столбцы «Фамилия», «Имя» и «Отчество» в единый столбец «ФИО» через пробел."
-            ),
-            "🎓 Выборка: Очники на Гранте": (
-                "Выполни фильтрацию общего контингента по двум условиям:\n"
-                "1. «Форма обучения» = 'Очная'\n"
-                "2. «Основа обучения» = 'Грант'\n"
-                "Отфильтрованных студентов выгрузи на новый лист «Грант_Очное» с нумерацией строк."
-            ),
-            "📈 Сводка по курсам с % и итогами": (
-                "Построй аналитическую сводную таблицу:\n"
-                "- По строкам: «Специальность»\n"
-                "- По столбцам: «Курс»\n"
-                "- В значениях: Количество студентов с итоговыми суммами и процентами."
-            ),
-            "🔍 Поиск пропусков контактов": (
-                "Найди все строки, где не заполнено хотя бы одно из контактных полей: "
-                "«Телефон» или «Email», и выгрузи их на отдельный лист «Требуют_заполнения»."
-            ),
-            "🥧 Круговая диаграмма контингента": (
-                "Посчитай процентное распределение студентов по факультетам и "
-                "построй круговую диаграмму на отдельном листе «Инфографика»."
-            ),
-        }
-
-        ttk.Label(examples_row, text="⚡ Шаблоны:", style="Muted.Card.TLabel").pack(side="left", padx=(14, 6))
-        self.template_combobox = ttk.Combobox(
-            examples_row,
-            values=["-- Выбрать готовый шаблон --"] + list(self.excel_templates.keys()),
-            state="readonly",
-            width=32,
-            font=("Segoe UI", 9),
-        )
-        self.template_combobox.set("-- Выбрать готовый шаблон --")
-        self.template_combobox.pack(side="left", padx=(0, 6))
-
-        def _on_tpl_selected(event=None):
-            val = self.template_combobox.get()
-            if val in self.excel_templates:
-                self._insert_example(self.excel_templates[val])
-
-        self.template_combobox.bind("<<ComboboxSelected>>", _on_tpl_selected)
 
         buttons = ttk.Frame(task_card, style="Card.TFrame")
         buttons.grid(row=4, column=0, sticky="ew")
@@ -1377,7 +1291,7 @@ class ExcelAIWindow(tk.Toplevel):
             else:
                 self.status_var.set(
                     "Использованы локальные правила. Для сложных команд "
-                    "запусти Ollama и установи рекомендуемую модель qwen2.5:7b."
+                    "используется Облачный ИИ BahonIQ."
                 )
 
             return True

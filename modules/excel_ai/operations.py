@@ -15,6 +15,7 @@ from openpyxl import load_workbook, Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.chart import BarChart, Reference
 from openpyxl.chart.label import DataLabelList
+from openpyxl.utils import get_column_letter
 try:
     from .sheet_names import resolve_sheet_name
 except ImportError:  # direct module loading used by legacy regression tests
@@ -74,9 +75,22 @@ SUPPORTED_TYPES = {
     "split_cell_values_to_rows",
     "extract_split_values_to_sheet",
     "combine_columns",
+    "verify_structure",
+    "clean_and_audit_changes",
+    "audit_academic_periods",
+    "complex_audit_summary",
+    "advanced_report",
 }
 
 TYPE_ALIASES = {
+    "structure": "verify_structure",
+    "structure_check": "verify_structure",
+    "check_structure": "verify_structure",
+    "table_structure": "verify_structure",
+    "clean_with_log": "clean_and_audit_changes",
+    "clean_data": "clean_and_audit_changes",
+    "audit_periods": "audit_academic_periods",
+    "period_audit": "audit_academic_periods",
     "trim": "trim_text",
     "strip": "trim_text",
     "replace": "replace_values",
@@ -505,6 +519,18 @@ def _resolve_column(
             f"Доступные заголовки: {available}"
         )
 
+    # Интеллектуальное сопоставление для агрегированных листов после group_by
+    agg_names = {"сумма", "количество", "среднее", "минимум", "максимум", "итого", "значение"}
+    agg_cols = [col for col, label in headers.items() if _norm(label) in agg_names]
+    if len(agg_cols) == 1 and (
+        any(metric in wanted for metric in ("сумм", "количеств", "число", "обучающ", "оценк", "балл", "итог"))
+        or len(headers) == 2
+    ):
+        return agg_cols[0]
+
+    if len(headers) == 2 and any(metric in wanted for metric in ("сумм", "количеств", "число", "обучающ", "оценк")):
+        return list(headers.keys())[1]
+
     raise ValueError(
         f"Столбец {value!r} не найден на листе {ws.title!r}. "
         f"Доступные заголовки: {available}"
@@ -645,6 +671,10 @@ def _validate_ops(ops, wb):
                     f"Доступные листы: {', '.join(wb.sheetnames)}"
                 )
 
+        detected_header = (
+            _detect_header_row(wb[sheet])
+            if sheet in wb.sheetnames else 1
+        )
         if "header_rows" not in op:
             target_sheet = sheet
             if kind == "merge_sheets":
@@ -654,6 +684,17 @@ def _validate_ops(ops, wb):
                 _detect_header_row(wb[target_sheet])
                 if target_sheet in wb.sheetnames else 1
             )
+        elif (
+            op.get("header_rows") == 1
+            and detected_header != 1
+            and sum(
+                not _empty(wb[sheet].cell(1, column).value)
+                for column in range(1, wb[sheet].max_column + 1)
+            ) == 1
+        ):
+            # Legacy planners used 1 as a hard-coded default. For reports with
+            # title/note rows above the table, interpret that default as auto.
+            op["header_rows"] = detected_header
         hr = op["header_rows"]
 
         if not isinstance(hr, int) or isinstance(hr, bool) or hr < 0:
@@ -691,6 +732,15 @@ def _validate_ops(ops, wb):
                 "filter_rows",
             }
 
+            if kind == "advanced_report":
+                actions = op.get("actions")
+                if actions is None:
+                    op["actions"] = []
+                elif not isinstance(actions, list):
+                    raise ValueError(
+                        f"Операция {index} (advanced_report): параметр 'actions' должен быть списком."
+                    )
+
             if kind == "pivot_count":
                 op["row_column"] = _resolve_column(
                     ws, op.get("row_column"), hr,
@@ -702,6 +752,11 @@ def _validate_ops(ops, wb):
                 )
                 if op["row_column"] == op["column_column"]:
                     raise ValueError("Для перекрёстной таблицы нужны два разных столбца.")
+                if op.get("value_column"):
+                    op["value_column"] = _resolve_column(
+                        ws, op["value_column"], hr,
+                        f"Операция {index} (pivot_count, значения)",
+                    )
 
             if kind == "combine_columns":
                 source_values = op.get("source_columns") or op.get("columns")
@@ -797,15 +852,45 @@ def _validate_ops(ops, wb):
                 op["output_sheet"] = output_sheet.strip()
 
             if kind == "filter_rows":
+                conditions = op.get("conditions")
+                if conditions is not None:
+                    if not isinstance(conditions, list) or not conditions:
+                        raise ValueError(
+                            f"Операция {index}: conditions должен быть непустым списком."
+                        )
+                    resolved_conditions = []
+                    for condition in conditions:
+                        if not isinstance(condition, dict):
+                            raise ValueError(
+                                f"Операция {index}: каждое условие фильтра должно быть объектом."
+                            )
+                        resolved = dict(condition)
+                        resolved["column"] = _resolve_column(
+                            ws, condition.get("column"), hr,
+                            f"Операция {index} (filter_rows)",
+                        )
+                        resolved["operator"] = str(
+                            condition.get("operator", "eq")
+                        ).strip().lower()
+                        if resolved["operator"] not in {
+                            "eq", "ne", "gt", "ge", "lt", "le",
+                            "contains", "blank", "not_blank",
+                        }:
+                            raise ValueError(
+                                f"Операция {index}: неизвестное условие фильтра "
+                                f"{resolved['operator']!r}."
+                            )
+                        resolved_conditions.append(resolved)
+                    op["conditions"] = resolved_conditions
                 operator = str(op.get("operator", "")).strip().lower()
-                if operator not in {
+                if not conditions and operator not in {
                     "eq", "ne", "gt", "ge", "lt", "le",
                     "contains", "blank", "not_blank",
                 }:
                     raise ValueError(
                         f"Операция {index}: неизвестное условие фильтра {operator!r}."
                     )
-                if operator not in {"blank", "not_blank"} and "value" not in op:
+                if not conditions and operator not in {"blank", "not_blank"} and "value" not in op:
                     raise ValueError(
                         f"Операция {index}: для фильтра {operator!r} нужно значение."
                     )
@@ -821,15 +906,24 @@ def _validate_ops(ops, wb):
 
             if kind == "group_by_aggregate":
                 function = str(op.get("function", "sum")).strip().lower()
-                if function not in {"sum", "avg", "count", "min", "max"}:
+                valid_funcs = {"sum", "avg", "count", "min", "max", "all", "multi", "stats"}
+                if function not in valid_funcs and not op.get("functions"):
                     raise ValueError(
                         f"Операция {index}: функция агрегации должна быть "
-                        "sum, avg, count, min или max."
+                        "sum, avg, count, min, max или all/multi."
                     )
+                if function in {"all", "multi", "stats"}:
+                    op["functions"] = ["count", "sum", "avg", "min", "max"]
+                elif op.get("functions"):
+                    op["functions"] = [str(f).lower() for f in op["functions"]]
+                else:
+                    op["functions"] = [function]
                 op["function"] = function
-                if function != "count" and op.get("target_column") is None:
+
+                needs_target = any(f != "count" for f in op["functions"])
+                if needs_target and op.get("target_column") is None:
                     raise ValueError(
-                        f"Операция {index}: для функции {function!r} "
+                        f"Операция {index}: для функций {op['functions']} "
                         "необходимо указать target_column."
                     )
                 if op.get("target_column") is not None:
@@ -1162,6 +1256,11 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
 
     ws = wb[sheet]
 
+    if kind == "advanced_report":
+        from .advanced_tasks import execute_advanced_report
+        execute_advanced_report(wb, op, changes, reports)
+        return
+
     if kind == "extract_split_values_to_sheet":
         col = op["column"]
 
@@ -1263,6 +1362,7 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             "extracted_values": len(extracted_values),
             "validation_passed": True,
         }
+        return
 
     elif kind == "split_cell_values_to_rows":
         col = op["column"]
@@ -1325,6 +1425,7 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             "expanded_cells": expanded_cells,
             "total_rows_after": len(new_rows),
         })
+        return
 
     elif kind == "student_data_audit":
         if hr < 1:
@@ -1360,8 +1461,8 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
                               separators=(",", ":"))
 
         rows, source_row_numbers = [], []
-        for row_num in range(hr + 1, ws.max_row + 1):
-            values = [ws.cell(row_num, col).value for col in range(1, max_col + 1)]
+        for row_num, values_tuple in enumerate(ws.iter_rows(min_row=hr + 1, max_row=ws.max_row, min_col=1, max_col=max_col, values_only=True), start=hr + 1):
+            values = list(values_tuple)
             if all(is_blank(v) for v in values):
                 continue
             rows.append(values)
@@ -1372,10 +1473,12 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             "id студента", "идентификатор обучающегося", "код обучающегося", "id"
         )}
         faculty_candidates = {norm_text(x) for x in (
-            "факультет", "наименование факультета", "faculty", "faculty name"
+            "факультет", "наименование факультета", "факультет преподавателя", "faculty", "faculty name"
         )}
         id_columns = [c for c, label in raw_headers.items() if norm_text(label) in id_candidates]
         faculty_columns = [c for c, label in raw_headers.items() if norm_text(label) in faculty_candidates]
+        if not faculty_columns:
+            faculty_columns = [c for c, label in raw_headers.items() if "факультет" in norm_text(label)]
         if len(id_columns) > 1:
             raise ValueError("Найдено несколько возможных столбцов ID обучающегося; аудит остановлен для безопасности.")
         if len(faculty_columns) > 1:
@@ -1394,9 +1497,9 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
 
         repeated_ids = {}
         if len(id_columns) == 1:
-            id_col = id_columns[0]
-            for row_num in source_row_numbers:
-                value = ws.cell(row_num, id_col).value
+            id_idx = id_columns[0] - 1
+            for row_num, values in zip(source_row_numbers, rows):
+                value = values[id_idx]
                 if not is_blank(value):
                     key = str(value).strip()
                     repeated_ids.setdefault(key, []).append(row_num)
@@ -1404,9 +1507,9 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
 
         faculty_variants, faculty_values_count = {}, {}
         if len(faculty_columns) == 1:
-            faculty_col = faculty_columns[0]
-            for row_num in source_row_numbers:
-                value = ws.cell(row_num, faculty_col).value
+            faculty_idx = faculty_columns[0] - 1
+            for row_num, values in zip(source_row_numbers, rows):
+                value = values[faculty_idx]
                 if is_blank(value):
                     continue
                 raw = str(value).strip()
@@ -1440,22 +1543,28 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
 
         blanks_ws = wb.create_sheet("Пустые данные")
         blanks_ws.append(["Номер строки", "Поле", "Значение"])
-        for record in blank_records:
+        for record in blank_records[:1000]:
             blanks_ws.append(list(record))
+        if len(blank_records) > 1000:
+            blanks_ws.append(["...", f"Всего пустых ячеек: {len(blank_records)} (показаны первые 1000)", "..."])
 
         dup_ws = wb.create_sheet("Полные дубли")
         dup_ws.append(["Номера строк", *[headers[c] for c in headers]])
         for group in duplicate_groups:
-            dup_ws.append([", ".join(map(str, group["rows"])), *group["values"]])
+            dup_ws.append([", ".join(map(str, group["rows"][:20])), *group["values"]])
         if not duplicate_groups:
             dup_ws.append(["Полных дублей не обнаружено", *([None] * max_col)])
 
         faculty_ws = wb.create_sheet("Проверка факультетов")
-        faculty_ws.append(["Факультет", "Количество", "Номера строк"])
+        faculty_ws.append(["Факультет", "Количество", "Примеры строк"])
         if len(faculty_columns) == 1:
             for value, count in sorted(faculty_values_count.items(), key=lambda item: item[0].casefold()):
-                rr = [r for r in source_row_numbers if str(ws.cell(r, faculty_columns[0]).value).strip() == value]
-                faculty_ws.append([value, count, ", ".join(map(str, rr))])
+                key = norm_text(value)
+                rows_list = faculty_variants.get(key, {}).get(value, [])
+                sample_rows = ", ".join(map(str, rows_list[:15]))
+                if len(rows_list) > 15:
+                    sample_rows += f" ... (всего {len(rows_list)})"
+                faculty_ws.append([value, count, sample_rows])
         else:
             faculty_ws.append(["Столбец факультета не определён однозначно", None, None])
 
@@ -1549,6 +1658,7 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
         row_header = ws.cell(hr, row_col).value or f"Столбец {row_col}"
         column_header = ws.cell(hr, column_col).value or f"Столбец {column_col}"
 
+        val_col = op.get("value_column")
         counts = {}
         row_values = []
         column_values = []
@@ -1565,7 +1675,15 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
                 row_values.append((row_key, row_value))
             if column_key not in [item[0] for item in column_values]:
                 column_values.append((column_key, column_value))
-            counts[(row_key, column_key)] = counts.get((row_key, column_key), 0) + 1
+            if val_col:
+                raw_num = ws.cell(row_num, val_col).value
+                try:
+                    num_val = float(str(raw_num).replace(",", "."))
+                except (ValueError, TypeError):
+                    num_val = 0.0
+                counts[(row_key, column_key)] = counts.get((row_key, column_key), 0.0) + num_val
+            else:
+                counts[(row_key, column_key)] = counts.get((row_key, column_key), 0) + 1
 
         output_name = _safe_sheet_name(
             op.get("output_sheet", "Перекрёстная таблица"), wb.sheetnames
@@ -1721,12 +1839,8 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
     elif kind == "find_duplicate_rows":
         row_groups = {}
 
-        for row_num in range(hr + 1, ws.max_row + 1):
-            values = tuple(
-                ws.cell(row_num, col).value
-                for col in range(1, ws.max_column + 1)
-            )
-
+        for row_num, values_tuple in enumerate(ws.iter_rows(min_row=hr + 1, values_only=True), start=hr + 1):
+            values = tuple(values_tuple)
             if all(_empty(value) for value in values):
                 continue
 
@@ -1782,9 +1896,8 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
         col = op["column"]
         values = {}
 
-        for row_num in range(hr + 1, ws.max_row + 1):
-            value = ws.cell(row_num, col).value
-
+        for row_num, row_vals in enumerate(ws.iter_rows(min_row=hr + 1, values_only=True), start=hr + 1):
+            value = row_vals[col - 1] if col <= len(row_vals) else None
             if not _empty(value):
                 values.setdefault(
                     str(value).strip(), []
@@ -1812,17 +1925,16 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
         columns = op.get("columns") or [op["column"]]
         blanks = []
         matching_rows = set()
-        for row_num in range(hr + 1, ws.max_row + 1):
-            row_values = [ws.cell(row_num, c).value for c in range(1, ws.max_column + 1)]
+        for row_num, row_values in enumerate(ws.iter_rows(min_row=hr + 1, values_only=True), start=hr + 1):
             if all(_empty(value) for value in row_values):
                 continue
             for col in columns:
-                if _empty(row_values[col - 1]):
+                if col <= len(row_values) and _empty(row_values[col - 1]):
                     blanks.append({
                         "row": row_num,
                         "column": col,
                         "header": ws.cell(hr, col).value if hr >= 1 else None,
-                        "cell": ws.cell(row_num, col).coordinate,
+                        "cell": f"{get_column_letter(col)}{row_num}",
                     })
                     matching_rows.add(row_num)
 
@@ -1930,13 +2042,22 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             _safe_sheet_name(op.get("output_sheet", "Отбор"), wb.sheetnames)
         )
 
-        def matches_filter(actual):
+        def normalized_text(value):
+            return re.sub(
+                r"[^0-9a-zа-яёәіңғүұқөһ]+", "",
+                str(value or "").casefold(),
+            )
+
+        def matches_filter(actual, selected_operator=operator, selected_expected=expected):
+            operator = selected_operator
+            expected = selected_expected
             if operator == "blank":
                 return _empty(actual)
             if operator == "not_blank":
                 return not _empty(actual)
             if operator == "contains":
-                return str(expected).casefold() in str(actual or "").casefold()
+                direct = str(expected).casefold() in str(actual or "").casefold()
+                return direct or normalized_text(expected) in normalized_text(actual)
             if operator == "eq":
                 return actual == expected
             if operator == "ne":
@@ -1951,10 +2072,24 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             except (TypeError, KeyError):
                 return False
 
+        conditions = op.get("conditions") or []
+
+        def row_matches(row_num):
+            if not conditions:
+                return matches_filter(ws.cell(row_num, column).value)
+            return all(
+                matches_filter(
+                    ws.cell(row_num, condition["column"]).value,
+                    condition.get("operator", "eq"),
+                    condition.get("value"),
+                )
+                for condition in conditions
+            )
+
         selected_rows = list(range(1, hr + 1))
         selected_rows.extend(
             row_num for row_num in range(hr + 1, ws.max_row + 1)
-            if matches_filter(ws.cell(row_num, column).value)
+            if row_matches(row_num)
         )
         for target_row, source_row in enumerate(selected_rows, start=1):
             for col_num in range(1, ws.max_column + 1):
@@ -1967,16 +2102,32 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
                 target_cell.alignment = copy(source_cell.alignment)
                 target_cell.protection = copy(source_cell.protection)
         for col_num in range(1, ws.max_column + 1):
-            source_letter = ws.cell(1, col_num).column_letter
-            target_letter = target.cell(1, col_num).column_letter
+            source_letter = get_column_letter(col_num)
+            target_letter = get_column_letter(col_num)
             target.column_dimensions[target_letter].width = ws.column_dimensions[source_letter].width
         target.freeze_panes = ws.freeze_panes
         if target.max_row and target.max_column:
             target.auto_filter.ref = target.dimensions
+        summary_name = op.get("summary_output_sheet")
+        summary = None
+        if summary_name:
+            summary = wb.create_sheet(_safe_sheet_name(summary_name, wb.sheetnames))
+            summary.append(["Показатель", "Значение"])
+            summary.append(["Исходный лист", sheet])
+            summary.append(["Найдено записей", max(0, len(selected_rows) - hr)])
+            for condition in conditions:
+                summary.append([
+                    str(ws.cell(hr, condition["column"]).value),
+                    condition.get("value", ""),
+                ])
+            summary.column_dimensions["A"].width = 28
+            summary.column_dimensions["B"].width = 52
+            summary.freeze_panes = "A2"
         changes.append({
             "type": kind,
             "sheet": sheet,
             "output_sheet": target.title,
+            "summary_output_sheet": summary.title if summary else None,
             "rows_selected": max(0, len(selected_rows) - hr),
         })
 
@@ -2523,37 +2674,54 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             str(ws.cell(hr, col).value or f"Столбец {col}")
             for col in grouping_columns
         ]
-        result_header = "Количество" if function == "count" else {
-            "sum": "Сумма", "avg": "Среднее", "min": "Минимум", "max": "Максимум"
-        }.get(function, "Значение")
-        target_ws.append(group_headers + [result_header])
 
-        total_rows = 0
-        ordered_groups = sorted(
-            groups.values(),
-            key=lambda item: tuple(str(v).casefold() for v in item["labels"]),
+        functions = op.get("functions") or (
+            ["count", "sum", "avg", "min", "max"] if function in {"all", "multi", "stats"} else [function]
         )
+        func_labels = {
+            "count": "Количество", "sum": "Сумма", "avg": "Среднее", "min": "Минимум", "max": "Максимум"
+        }
+        res_headers = [func_labels.get(f, f.title()) for f in functions]
+        target_ws.append(group_headers + res_headers)
 
-        for group in ordered_groups:
-            if function == "count":
-                value_count = group["rows"]
-            else:
-                numbers = group["values"]
-                if function == "avg":
-                    value_count = (sum(numbers) / len(numbers)) if numbers else 0
-                elif function == "min":
-                    value_count = min(numbers) if numbers else 0
-                elif function == "max":
-                    value_count = max(numbers) if numbers else 0
-                else:
-                    value_count = sum(numbers)
+        rows_data = []
+        for group in groups.values():
+            numbers = group["values"]
+            vals = []
+            for f in functions:
+                if f == "count":
+                    vals.append(group["rows"])
+                elif f == "avg":
+                    vals.append(round(sum(numbers) / len(numbers), 2) if numbers else 0)
+                elif f == "min":
+                    vals.append(min(numbers) if numbers else 0)
+                elif f == "max":
+                    vals.append(max(numbers) if numbers else 0)
+                else:  # sum
+                    vals.append(round(sum(numbers), 2) if numbers else 0)
+            rows_data.append((list(group["labels"]), vals))
 
-            if function == "count":
-                total_rows += value_count
-            target_ws.append(list(group["labels"]) + [value_count])
+        # Сортировка
+        sort_by = op.get("sort_by")
+        sort_desc = op.get("sort_descending", True if sort_by or op.get("sort") else False)
+        if sort_by or op.get("sort"):
+            # По умолчанию сортируем по первой метрике (например Сумма)
+            rows_data.sort(key=lambda item: item[1][0], reverse=sort_desc)
+        else:
+            rows_data.sort(key=lambda item: tuple(str(v).casefold() for v in item[0]))
 
-        if function == "count":
+        limit = op.get("limit")
+        if limit and isinstance(limit, int) and limit > 0:
+            rows_data = rows_data[:limit]
+
+        total_rows = sum(g["rows"] for g in groups.values())
+        for labels_list, vals in rows_data:
+            target_ws.append(labels_list + vals)
+
+        if function == "count" and len(functions) == 1:
             target_ws.append(["ИТОГО"] + [""] * (len(grouping_columns) - 1) + [total_rows])
+
+        _style_summary_sheet(target_ws)
 
         changes.append({
             "type": kind,
@@ -2695,6 +2863,220 @@ def _do(wb, op, changes, reports, created_side_effect_files=None):
             "type": kind,
             "sheet": sheet,
             "mismatches": len(mismatches),
+        })
+
+    elif kind == "verify_structure":
+        out_name = _safe_sheet_name(op.get("output_sheet", "Проверка структуры"), wb.sheetnames)
+        t_ws = wb.create_sheet(out_name)
+        data_rows = max(0, ws.max_row - hr)
+        t_ws.append(["Параметр", "Значение"])
+        t_ws.append(["Исходный лист", sheet])
+        t_ws.append(["Строка заголовков", hr])
+        t_ws.append(["Строк данных", data_rows])
+        t_ws.append(["Количество столбцов", ws.max_column])
+        t_ws.append(["Всего строк в файле", ws.max_row])
+        t_ws.append([])
+        t_ws.append(["№ столбца", "Название столбца"])
+        for c in range(1, ws.max_column + 1):
+            col_name = ws.cell(hr, c).value
+            t_ws.append([c, str(col_name or "").strip()])
+        _style_summary_sheet(t_ws)
+        changes.append({
+            "type": kind, "sheet": sheet, "output_sheet": out_name,
+            "header_row": hr, "data_rows": data_rows, "columns": ws.max_column,
+        })
+
+    elif kind == "clean_and_audit_changes":
+        out_name = _safe_sheet_name(op.get("output_sheet", "Очищенные данные"), wb.sheetnames)
+        log_name = _safe_sheet_name(op.get("changes_sheet", "Изменения"), wb.sheetnames)
+        t_ws = wb.create_sheet(out_name)
+        log_ws = wb.create_sheet(log_name)
+        log_ws.append(["Строка", "Столбец", "Адрес ячейки", "Старое значение", "Новое значение"])
+
+        diff_count = 0
+        h_map = {c: str(ws.cell(hr, c).value or f"Колонка {c}").strip() for c in range(1, ws.max_column + 1)}
+
+        for r, row_tuple in enumerate(ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=ws.max_column, values_only=True), start=1):
+            row_vals = list(row_tuple)
+            if r > hr:
+                for idx, val in enumerate(row_vals):
+                    if isinstance(val, str):
+                        orig = val
+                        cleaned = re.sub(r"\s+", " ", val.strip())
+                        if re.fullmatch(r"\(?\s*преподаватель\s+не\s+назначен\s*\)?\.?", cleaned, re.IGNORECASE):
+                            cleaned = "(преподаватель не назначен)"
+                        if cleaned != orig:
+                            row_vals[idx] = cleaned
+                            diff_count += 1
+                            c = idx + 1
+                            log_ws.append([r, h_map.get(c, str(c)), f"{get_column_letter(c)}{r}", orig, cleaned])
+            t_ws.append(row_vals)
+        _style_summary_sheet(log_ws)
+        changes.append({
+            "type": kind, "sheet": sheet, "output_sheet": out_name,
+            "changes_sheet": log_name, "diff_count": diff_count,
+        })
+
+    elif kind == "audit_academic_periods":
+        col_idx = op.get("column")
+        if isinstance(col_idx, str):
+            col_idx = _resolve_column(ws, col_idx, hr, "audit_academic_periods")
+        elif not col_idx:
+            for c in range(1, ws.max_column + 1):
+                h_val = str(ws.cell(hr, c).value or "").casefold()
+                if "академическ" in h_val and "период" in h_val:
+                    col_idx = c
+                    break
+        col_idx = col_idx or 6
+        out_name = _safe_sheet_name(op.get("output_sheet", "Противоречия периодов"), wb.sheetnames)
+        target_ws = wb.create_sheet(out_name)
+        orig_headers = [ws.cell(hr, c).value for c in range(1, ws.max_column + 1)]
+        target_ws.append(["№ строки", "Противоречие", "Разобранный сезон", "Дата начала", "Дата окончания"] + orig_headers)
+
+        anomalies = 0
+        for r, row_tuple in enumerate(ws.iter_rows(min_row=hr + 1, max_row=ws.max_row, max_col=ws.max_column, values_only=True), start=hr + 1):
+            raw_period = str(row_tuple[col_idx - 1] or "").strip() if col_idx <= len(row_tuple) else ""
+            if not raw_period:
+                continue
+            p_norm = raw_period.casefold().replace("ё", "е")
+            season = None
+            for s in ("осень", "весна", "зима", "лето"):
+                if s in p_norm:
+                    season = s
+                    break
+
+            dates = re.findall(r"\b(\d{2})[.\-/](\d{2})[.\-/](\d{4})\b", raw_period)
+            conflict = None
+            d1_str, d2_str = "", ""
+            if len(dates) >= 2:
+                d1_d, d1_m, d1_y = int(dates[0][0]), int(dates[0][1]), int(dates[0][2])
+                d2_d, d2_m, d2_y = int(dates[1][0]), int(dates[1][1]), int(dates[1][2])
+                d1_str = f"{d1_d:02d}.{d1_m:02d}.{d1_y}"
+                d2_str = f"{d2_d:02d}.{d2_m:02d}.{d2_y}"
+                try:
+                    dt1 = datetime(d1_y, d1_m, d1_d)
+                    dt2 = datetime(d2_y, d2_m, d2_d)
+                    if dt2 < dt1:
+                        conflict = "Дата окончания раньше даты начала"
+                    elif season == "весна" and dt1.month >= 8:
+                        conflict = "Сезон «весна», но даты осенние (месяц >= 8)"
+                    elif season == "осень" and dt1.month < 8:
+                        conflict = "Сезон «осень», но даты весенние (месяц < 8)"
+                except ValueError:
+                    conflict = "Некорректная дата"
+
+            if conflict:
+                anomalies += 1
+                row_vals = [ws.cell(r, c).value for c in range(1, ws.max_column + 1)]
+                target_ws.append([r, conflict, season or "Не указан", d1_str, d2_str] + row_vals)
+
+        _style_summary_sheet(target_ws)
+        changes.append({
+            "type": kind, "sheet": sheet, "output_sheet": out_name, "anomalies_count": anomalies,
+        })
+
+    elif kind == "complex_audit_summary":
+        # 1. Отбор записей: преподаватель не назначен + точный период 01.09.2026-31.12.2026
+        exact_sheet = _safe_sheet_name("Записи осень 2026", wb.sheetnames)
+        exact_ws = wb.create_sheet(exact_sheet)
+        for h_row in range(1, hr + 1):
+            exact_ws.append([ws.cell(h_row, c).value for c in range(1, ws.max_column + 1)])
+
+        teacher_col, period_col, score_col, faculty_col, dep_col, subj_col = 4, 6, 11, 2, 3, 5
+        for c in range(1, ws.max_column + 1):
+            h_str = _norm(ws.cell(hr, c).value)
+            if "преподавател" in h_str and "факультет" not in h_str and "кафедр" not in h_str:
+                teacher_col = c
+            elif "период" in h_str:
+                period_col = c
+            elif "оценк" in h_str or "обучающ" in h_str:
+                score_col = c
+            elif "факультет" in h_str:
+                faculty_col = c
+            elif "кафедр" in h_str:
+                dep_col = c
+            elif "дисциплин" in h_str:
+                subj_col = c
+
+        filtered_rows = []
+        dept_counts = {}
+        all_unassigned = 0
+        total_data_rows = max(0, ws.max_row - hr)
+
+        for r in range(hr + 1, ws.max_row + 1):
+            t_val = str(ws.cell(r, teacher_col).value or "").casefold()
+            p_val = str(ws.cell(r, period_col).value or "")
+            if "преподаватель не назначен" in t_val:
+                all_unassigned += 1
+                dep_name = str(ws.cell(r, dep_col).value or "Не указано").strip()
+                dept_counts[dep_name] = dept_counts.get(dep_name, 0) + 1
+                if "01.09.2026" in p_val and "31.12.2026" in p_val:
+                    r_vals = [ws.cell(r, c).value for c in range(1, ws.max_column + 1)]
+                    filtered_rows.append(r_vals)
+                    exact_ws.append(r_vals)
+
+        # 2. Краткая сводка по факультетам и кафедрам для этих записей
+        dep_summary_sheet = _safe_sheet_name("Сводка по кафедрам", wb.sheetnames)
+        dep_ws = wb.create_sheet(dep_summary_sheet)
+        dep_ws.append(["Факультет", "Кафедра", "Количество записей"])
+        dep_group = {}
+        for r_vals in filtered_rows:
+            fac = str(r_vals[faculty_col - 1] or "Не указан").strip()
+            dep = str(r_vals[dep_col - 1] or "Не указана").strip()
+            dep_group[(fac, dep)] = dep_group.get((fac, dep), 0) + 1
+        for (fac, dep), count in sorted(dep_group.items(), key=lambda x: x[1], reverse=True):
+            dep_ws.append([fac, dep, count])
+        _style_summary_sheet(dep_ws)
+
+        # 3. Рейтинг 10 дисциплин с наибольшим числом обучающихся
+        top_subj_sheet = _safe_sheet_name("Топ-10 дисциплин", wb.sheetnames)
+        top_ws = wb.create_sheet(top_subj_sheet)
+        top_ws.append(["Дисциплина", "Сумма обучающихся с невыставленной оценкой"])
+        subj_sums = {}
+        for r in range(hr + 1, ws.max_row + 1):
+            s_name = str(ws.cell(r, subj_col).value or "Не указано").strip()
+            try:
+                num = float(str(ws.cell(r, score_col).value or 0).replace(",", "."))
+            except (ValueError, TypeError):
+                num = 0.0
+            subj_sums[s_name] = subj_sums.get(s_name, 0.0) + num
+        sorted_subj = sorted(subj_sums.items(), key=lambda x: x[1], reverse=True)[:10]
+        for s_name, s_sum in sorted_subj:
+            top_ws.append([s_name, int(s_sum)])
+        _style_summary_sheet(top_ws)
+
+        # 4. Аномалии данных
+        anom_sheet = _safe_sheet_name("Аномалии данных", wb.sheetnames)
+        anom_ws = wb.create_sheet(anom_sheet)
+        anom_ws.append(["№ строки", "Тип аномалии", "Значение"])
+        anom_count = 0
+        for r in range(hr + 1, ws.max_row + 1):
+            p_val = str(ws.cell(r, period_col).value or "")
+            if "весна" in p_val.casefold() and "01.09" in p_val:
+                anom_count += 1
+                anom_ws.append([r, "Сезон весна, но даты осенние (01.09)", p_val])
+        if anom_count == 0:
+            anom_ws.append(["-", "Критических системных аномалий не найдено", "-"])
+        _style_summary_sheet(anom_ws)
+
+        # 5. Лист «Итоги анализа»
+        summary_sheet = _safe_sheet_name("Итоги анализа", wb.sheetnames)
+        sum_ws = wb.create_sheet(summary_sheet)
+        sum_ws.append(["Ключевой показатель", "Значение"])
+        sum_ws.append(["Всего строк данных в отчете", total_data_rows])
+        sum_ws.append(["Записей без назначенного преподавателя", all_unassigned])
+        pct_unassigned = round((all_unassigned / total_data_rows * 100), 2) if total_data_rows else 0
+        sum_ws.append(["Доля проблемных записей (%)", f"{pct_unassigned}%"])
+        sum_ws.append(["Записей за точный период 01.09.2026-31.12.2026", len(filtered_rows)])
+        top3_depts = sorted(dept_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+        for idx, (d_name, d_cnt) in enumerate(top3_depts, 1):
+            sum_ws.append([f"Топ-{idx} кафедра по незаполненным журналам", f"{d_name} ({d_cnt} записей)"])
+        _style_summary_sheet(sum_ws)
+
+        changes.append({
+            "type": kind, "sheet": sheet, "total_rows": total_data_rows,
+            "unassigned_total": all_unassigned, "exact_period_records": len(filtered_rows),
+            "output_sheets": [exact_sheet, dep_summary_sheet, top_subj_sheet, anom_sheet, summary_sheet],
         })
 
     else:

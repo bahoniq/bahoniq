@@ -155,12 +155,10 @@ class SplashScreen:
             time.sleep(1.3)
 
             # 3. Быстрый пинг ИИ
-            self._set_status("Инициализация аналитического ядра BahonIQ AI & Local Node...")
+            self._set_status("Инициализация аналитического ядра BahonIQ Cloud AI...")
             st = ai_service.check_ai_status()
-            if st.get("gemini"):
-                self.ai_status_text = "BahonIQ AI: Online"
-            elif st.get("ollama"):
-                self.ai_status_text = "Ollama Local: Online"
+            if st.get("gemini") or st.get("cloud_ai"):
+                self.ai_status_text = "BahonIQ Cloud AI: Online"
             else:
                 self.ai_status_text = "Автономный режим"
             time.sleep(1.3)

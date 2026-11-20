@@ -98,8 +98,8 @@ def _normalize_ai_result(result: Any) -> dict[str, Any]:
 
     source = str(normalized.get("source") or "").strip().lower()
 
-    if source not in {"ollama", "fallback"}:
-        source = "ollama" if normalized["available"] else "fallback"
+    if source not in {"cloud_ai", "gemini", "fallback"}:
+        source = "cloud_ai" if normalized["available"] else "fallback"
 
     normalized["source"] = source
 
@@ -107,16 +107,16 @@ def _normalize_ai_result(result: Any) -> dict[str, Any]:
 
 
 def _require_real_ai(result: dict[str, Any]) -> None:
-    """Запрещает выдавать резервный текст за результат Qwen."""
-    if result.get("source") != "ollama" or not result.get("available"):
+    """Запрещает выдавать резервный текст за результат ИИ."""
+    if result.get("source") not in {"cloud_ai", "gemini"} or not result.get("available"):
         diagnostic = str(
             result.get("diagnostic") or result.get("warning") or
-            "Ollama/Qwen не вернула подтверждённый результат."
+            "Облачный ИИ не вернул подтверждённый результат."
         )
         raise ReportGenerationError(f"ИИ-анализ не выполнен: {diagnostic}")
     if not result.get("summary") or not result.get("findings"):
         raise ReportGenerationError(
-            "ИИ-анализ не выполнен: Qwen вернула неполный ответ без выводов."
+            "ИИ-анализ не выполнен: ИИ вернул неполный ответ без выводов."
         )
     stories = result.get("stories")
     if not isinstance(stories, list) or len(stories) < 2:
@@ -352,12 +352,11 @@ def generate_report(
     report_profile: str = "Автоматически",
     audience: str = "Руководство",
     ai_model: str | None = None,
-    report_depth: str = "Полный аудит (Все категории, 8+ стр)",
 ) -> dict[str, Any]:
     """
     Формирует аналитический PDF для выбранного листа.
 
-    Исходный Excel не изменяется. Свободное задание разбирается через Ollama,
+    Исходный Excel не изменяется. Свободное задание разбирается через Облачный ИИ,
     точный план и общий обзор работают локально. Все числа считает Python.
     """
 
@@ -428,7 +427,7 @@ def generate_report(
 
         analysis = analyze_matrix(matrix)
 
-        report_progress(48, "Подготовка аналитики и выводов BahonIQ AI")
+        report_progress(48, "Подготовка аналитики и выводов Qwen")
         try:
             ai_result = generate_ai_analysis(
                 matrix=matrix,
@@ -446,7 +445,7 @@ def generate_report(
         except Exception as exc:
             LOGGER.exception("Не удалось выполнить ИИ-интерпретацию отчёта.")
             raise ReportGenerationError(
-                f"ИИ-анализ не выполнен. Отчёт не создан. Причина: {exc}"
+                f"ИИ-анализ Qwen не выполнен. Отчёт не создан. Причина: {exc}"
             ) from exc
 
         report_model = {}
@@ -470,7 +469,6 @@ def generate_report(
                     ai_analysis=ai_analysis,
                     report_profile=report_profile,
                     audience=audience,
-                    report_depth=report_depth,
                 ))
             if "pptx" in formats:
                 report_progress(82, "Сборка редактируемой PowerPoint-презентации")

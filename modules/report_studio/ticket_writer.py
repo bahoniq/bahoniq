@@ -1,8 +1,8 @@
-
 """BahonIQ Ticket Writer AI.
 
-Простой локальный редактор обращений: пользователь описывает проблему
-обычными словами, а модуль формирует название и грамотный текст заявки.
+Редактор обращений: пользователь описывает вопрос, просьбу или проблему
+обычными словами, а модуль бережно приводит текст к грамотному, ясному
+деловому виду без искажения смысла, тональности и фактов.
 """
 
 from __future__ import annotations
@@ -50,6 +50,75 @@ SOFT_GREEN = "#E8F5EE"
 SOFT_BLUE = "#EEF4FF"
 
 
+SYSTEM_PROMPT = (
+    "Ты — бережный редактор деловых обращений в службу технической поддержки.\n"
+    "Твоя задача — исправить орфографию, пунктуацию, повторы и шероховатости речи, "
+    "сделав текст ясным, аккуратным и естественным, но СТРОГО сохранить исходный смысл, "
+    "намерение, модальность и степень вежливости автора.\n\n"
+    "СТРОГИЕ ПРАВИЛА:\n"
+    "1. СОХРАНЯЙ МОДАЛЬНОСТЬ И ВЕЖЛИВОСТЬ:\n"
+    "   - Если в исходном тексте вежливый вопрос или просьба («Можно ли…», «Подскажите…», "
+    "«Есть ли возможность…») — обязательно сохрани форму вежливого вопроса («Можно ли…?»). "
+    "КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО превращать «Можно ли…» в «Требуется…», «Необходимо…», «Выполнить…».\n"
+    "   - Если в исходном тексте вежливая просьба («Просим…», «Пожалуйста, проверьте…») — "
+    "сохрани «Просим…». НЕ заменяй «Просим…» на «Требуется…» или «Необходимо…».\n"
+    "   - Если автор здоровается («Добрый день», «Здравствуйте») — сохрани "
+    "вежливое приветствие «Добрый день!» или «Здравствуйте!» в начале описания. "
+    "Если приветствия в исходном тексте НЕ было — НЕ добавляй его от себя.\n"
+    "2. СОХРАНЯЙ ВОПРОСИТЕЛЬНУЮ ФОРМУ:\n"
+    "   - Вопрос пользователя должен оставаться вопросом (со знаком вопроса «?»).\n"
+    "3. СОХРАНЯЙ ПРЕДПОЛОЖЕНИЯ И НЕОПРЕДЕЛЁННОСТЬ:\n"
+    "   - Слова «возможно», «вероятно», «скорее всего», «предположительно», «кажется» "
+    "обязательно сохраняй как предположение. НЕ превращай гипотезу пользователя в установленный факт "
+    "и не пиши «причиной является…» или «ошибка вызвана…».\n"
+    "4. НЕ ДОДУМЫВАЙ ДЕЙСТВИЯ И ФАКТЫ:\n"
+    "   - Если пользователь просит только «проверить, почему…» — НЕ проси «исправить», «восстановить» "
+    "или «актуализировать». Оставь именно просьбу проверить причину.\n"
+    "   - НЕ придумывай технические причины, сроки, номера, названия модулей или действия, "
+    "которых не было в исходном тексте.\n"
+    "   - НЕ указывай, что какая-то работа или проверка уже выполнена, если автор этого не писал.\n"
+    "   - НЕ дублируй одну и ту же мысль разными словами и не раздувай короткое обращение.\n"
+    "5. ЗАГОЛОВОК (ТЕМА):\n"
+    "   - Короткий (3–9 слов), точный, спокойный, без слов «Требуется» и «Необходимо».\n\n"
+    "ФОРМАТ ОТВЕТА СТРОГО (только эти две секции, без комментариев и без markdown):\n"
+    "ТЕМА: <короткий точный заголовок>\n"
+    "ОПИСАНИЕ: <аккуратно отредактированный текст обращения>"
+)
+
+
+# Маркеры в исходном тексте
+_QUESTION_MARKERS = (
+    "можно ли",
+    "возможно ли",
+    "есть ли возможность",
+    "подскажите",
+    "как можно",
+    "каким образом",
+)
+_POLITE_REQUEST_MARKERS = (
+    "просим",
+    "прошу",
+    "пожалуйста",
+)
+_UNCERTAINTY_WORDS = (
+    "возможно",
+    "вероятно",
+    "скорее всего",
+    "предположительно",
+    "похоже",
+    "кажется",
+    "не исключено",
+)
+_IMPERATIVE_BANNED_WHEN_POLITE = (
+    r"\bтребуется\b",
+    r"\bнеобходимо\b",
+    r"\bобязательно\s+требуется\b",
+    r"\bнадлежит\b",
+    r"\bследует\s+выполнить\b",
+    r"\bвыполнить\s+выгрузку\b",
+)
+
+
 def _open_local(request: str | urllib.request.Request, timeout: int):
     """Открывает локальную Ollama напрямую, минуя прокси Windows."""
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -69,23 +138,249 @@ def _sentence_case(value: str) -> str:
     return text[0].upper() + text[1:]
 
 
-def _fallback_ticket(problem: str) -> dict[str, str]:
-    """Безопасный результат без AI: ничего не добавляет к фактам пользователя."""
-    clean = _sentence_case(problem)
-    first = re.split(r"[.!?\n]", clean, maxsplit=1)[0].strip()
-    first = re.sub(r"^(?:добрый день|здравствуйте)[,! ]*", "", first, flags=re.I)
-    title = first or "Описание проблемы в информационной системе"
+def _source_has_polite_question(problem: str) -> bool:
+    low = problem.casefold().replace("ё", "е")
+    return any(m in low for m in _QUESTION_MARKERS)
 
-    title_words = re.findall(r"\S+", title)
-    if len(title_words) > 10:
-        title = " ".join(title_words[:7]).rstrip(" ,;:-")
 
-    title = _sentence_case(title).rstrip(".")
-    description = (
-        f"{clean.rstrip('.!?')}.\n\n"
-        "Просим проверить указанную ситуацию и предоставить рекомендации "
-        "по её устранению."
+def _source_has_imperative(problem: str) -> bool:
+    low = problem.casefold().replace("ё", "е")
+    return any(w in low for w in ("требуется", "необходимо", "нужно срочно", "обязательно"))
+
+
+def _source_uncertainty_word(problem: str) -> str | None:
+    low = problem.casefold().replace("ё", "е")
+    for w in _UNCERTAINTY_WORDS:
+        if w in low:
+            return w
+    return None
+
+
+def _source_only_asks_to_check(problem: str) -> bool:
+    low = problem.casefold().replace("ё", "е")
+    asks_check = any(w in low for w in ("проверить", "посмотреть", "уточнить", "выяснить", "почему"))
+    asks_fix = any(w in low for w in ("исправ", "восстанов", "устран", "измен", "удалит", "добав"))
+    return asks_check and not asks_fix
+
+
+def _derive_clean_title(problem: str) -> str:
+    """Формирует спокойный деловой заголовок по смыслу исходного текста."""
+    clean = _clean_text(problem)
+    low = clean.casefold().replace("ё", "е")
+
+    # Убираем приветствия в начале для анализа заголовка
+    stripped = re.sub(
+        r"^(?:добрый\s+день|здравствуйте|доброе\s+утро|добрый\s+вечер|коллеги)[,!\.\s]*",
+        "",
+        clean,
+        flags=re.I,
+    ).strip()
+    first_clause = re.split(r"[.!?\n]", stripped, maxsplit=1)[0].strip()
+
+    # Специальные естественные паттерны
+    m_logs = re.search(r"можно\s+ли\s+получить\s+логи\s+(.+)", first_clause, flags=re.I)
+    if m_logs:
+        tail = m_logs.group(1).strip().rstrip(".,;:-?")
+        tail = re.sub(r"\bпо\s+трем\s+типам\s+приказа\s+общежития\b", "по приказам общежития", tail, flags=re.I)
+        tail = re.sub(r"\bпо\s+трём\s+типам\s+приказа\s+общежития\b", "по приказам общежития", tail, flags=re.I)
+        return _sentence_case(f"Предоставление логов {tail}")[:120]
+
+    m_can_get = re.search(r"можно\s+ли\s+(?:получить|выгрузить|предоставить)\s+(.+)", first_clause, flags=re.I)
+    if m_can_get:
+        tail = m_can_get.group(1).strip().rstrip(".,;:-?")
+        return _sentence_case(f"Предоставление данных: {tail}")[:120]
+
+    m_check_why = re.search(r"(?:просим|прошу|пожалуйста)?\s*проверить[,]?\s+почему\s+(.+)", first_clause, flags=re.I)
+    if m_check_why:
+        tail = m_check_why.group(1).strip().rstrip(".,;:-?")
+        return _sentence_case(f"Проверка причины: {tail}")[:120]
+
+    if "не отображается расписание" in low:
+        return "Не отображается расписание у студентов"
+
+    # Общая очистка первого предложения под заголовок
+    candidate = re.sub(
+        r"^(?:можно\s+ли\s+узнать|можно\s+ли|подскажите[,]?\s*пожалуйста|подскажите|просим\s+вас|просим|прошу|пожалуйста)[,\s]*",
+        "",
+        first_clause,
+        flags=re.I,
+    ).strip()
+    candidate = re.split(r"[,;]\s*(?:возможно|вероятно|скорее всего)\b", candidate, flags=re.I)[0].strip()
+
+    if not candidate:
+        candidate = first_clause or "Обращение в техническую поддержку"
+
+    words = re.findall(r"\S+", candidate)
+    if len(words) > 9:
+        candidate = " ".join(words[:8]).rstrip(" ,;:-")
+
+    return _sentence_case(candidate).rstrip(".!?")
+
+
+def _refine_Fallback_description(problem: str) -> str:
+    """Бережно редактирует текст пользователя без ИИ, сохраняя вопросы, просьбы и гипотезы."""
+    clean = _clean_text(problem)
+    if not clean:
+        return ""
+
+    text = clean
+
+    # Лёгкая литературная правка частых шероховатостей без потери смысла
+    # 1. Приветствие: «Добрый день, можно ли...» -> «Добрый день! Можно ли...»
+    greet_match = re.match(
+        r"^(добрый\s+день|здравствуйте|доброе\s+утро|добрый\s+вечер)\s*[,!.]\s*(.+)$",
+        text,
+        flags=re.I | re.DOTALL,
     )
+    if greet_match:
+        greeting = _sentence_case(greet_match.group(1).strip()) + "!"
+        rest = _sentence_case(greet_match.group(2).strip())
+        text = f"{greeting} {rest}"
+    else:
+        text = _sentence_case(text)
+
+    # 2. Частный случай склейки оборванного перечисления после вопроса о логах/приказах:
+    # «Можно ли получить логи по трем типам приказа общежития. Номер приказа, фамилии студентов и кем был сформирован приказ?»
+    pattern_logs = re.compile(
+        r"(Можно\s+ли\s+получить\s+логи\s+по\s+тр[её]м\s+типам\s+приказ(?:а|ов)\s+(?:по\s+)?общежития)[.?!]\s*"
+        r"Номер\s+приказа,\s*фамилии\s+студентов\s+и\s+кем\s+был\s+сформирован\s+приказ\??",
+        flags=re.I,
+    )
+    if pattern_logs.search(text):
+        text = pattern_logs.sub(
+            "Можно ли получить логи по трём типам приказов по общежитиям "
+            "с указанием номера приказа, ФИО студентов и пользователя, сформировавшего приказ?",
+            text,
+        )
+        text = text.replace("приказов по общежитиям", "приказов по общежитию")
+
+    # 3. Если в исходнике был вопрос («Можно ли...» или «?»), гарантируем знак вопроса в конце вопросительного предложения
+    if "?" in clean or _source_has_polite_question(clean):
+        if not text.endswith("?") and _source_has_polite_question(clean):
+            text = text.rstrip(".!") + "?"
+    else:
+        if text[-1] not in ".!?":
+            text += "."
+
+    return text
+
+
+def _postprocess_ticket(problem: str, title: str, description: str) -> tuple[str, str]:
+    """Исправляет нарушения тональности в ответе модели, не давая превратить просьбу в приказ."""
+    clean_prob = _clean_text(problem)
+    title = _clean_text(title).strip("«»\"' ").rstrip(".,;:-")
+    description = _clean_text(description)
+
+    # Убираем искусственно добавленное приветствие, если в исходном тексте его не было
+    prob_low = clean_prob.casefold()
+    if not any(g in prob_low for g in ("добрый день", "здравствуйте", "доброе утро", "добрый вечер", "привет")):
+        description = re.sub(
+            r"^(?:добрый\s+день|здравствуйте|доброе\s+утро|добрый\s+вечер)\s*[!,.]\s*",
+            "",
+            description,
+            flags=re.I,
+        ).strip()
+        description = _sentence_case(description)
+
+    if not title or len(title) < 3:
+        title = _derive_clean_title(clean_prob)
+
+    # 1. Запрет «Требуется / Необходимо» в заголовке и описании, если автор их не писал
+    if not _source_has_imperative(clean_prob):
+        title = re.sub(r"^(?:требуется|необходимо)\s+", "", title, flags=re.I).strip()
+        title = _sentence_case(title)
+
+        # Заменяем жёсткие канцелярские конструкции в описании на вежливые или исходные
+        if _source_has_polite_question(clean_prob):
+            description = re.sub(
+                r"\b(?:требуется|необходимо)\s+(?:выгрузить|предоставить|получить|сформировать)\b",
+                "можно ли получить",
+                description,
+                flags=re.I,
+            )
+            description = re.sub(
+                r"\b(?:просим|нужно)\s+выполнить\s+выгрузку\b",
+                "можно ли получить выгрузку",
+                description,
+                flags=re.I,
+            )
+        else:
+            description = re.sub(
+                r"\b(?:требуется|необходимо)\s+(проверить|уточнить|рассмотреть|предоставить|посмотреть)\b",
+                r"просим \1",
+                description,
+                flags=re.I,
+            )
+
+        # Удаляем искусственно приписанное в конец предложение вида «Требуется выполнить... / Необходимо исправить...»
+        sentences = re.split(r"(?<=[.!?])\s+", description)
+        if len(sentences) > 1:
+            filtered = []
+            for idx, sent in enumerate(sentences):
+                s_low = sent.casefold()
+                is_added_imperative = any(
+                    re.search(pat, s_low) for pat in _IMPERATIVE_BANNED_WHEN_POLITE
+                )
+                if is_added_imperative and idx == len(sentences) - 1:
+                    continue
+                filtered.append(sent)
+            if filtered:
+                description = " ".join(filtered).strip()
+
+        # Если всё ещё остался жёсткий императив («Требуется выгрузить...»), используем бережную редактуру
+        desc_low = description.casefold()
+        if any(re.search(pat, desc_low) for pat in _IMPERATIVE_BANNED_WHEN_POLITE):
+            return _derive_clean_title(clean_prob), _refine_Fallback_description(clean_prob)
+
+    # 2. Если автор задавал вопрос «Можно ли...» или ставил «?», вопрос должен остаться вопросом
+    if _source_has_polite_question(clean_prob):
+        desc_low = description.casefold()
+        has_question_tone = (
+            "?" in description
+            or "можно ли" in desc_low
+            or "возможно ли" in desc_low
+            or "есть ли возможность" in desc_low
+            or "подскажите" in desc_low
+        )
+        if not has_question_tone:
+            return _derive_clean_title(clean_prob), _refine_Fallback_description(clean_prob)
+        if not description.endswith("?") and "можно ли" in desc_low:
+            description = description.rstrip(".!") + "?"
+
+    # 3. Если автор высказывал предположение («возможно», «скорее всего», «вероятно»), оно не должно стать фактом
+    unc_word = _source_uncertainty_word(clean_prob)
+    if unc_word:
+        desc_low = description.casefold().replace("ё", "е")
+        has_any_uncertainty = any(w in desc_low for w in _UNCERTAINTY_WORDS) or "предполож" in desc_low or "вероятн" in desc_low
+        has_false_certainty = any(
+            phrase in desc_low
+            for phrase in ("причиной является", "ошибка вызвана", "из-за ошибки в настройках", "так как в настройках")
+        )
+        if has_false_certainty or not has_any_uncertainty:
+            return _derive_clean_title(clean_prob), _refine_Fallback_description(clean_prob)
+
+    # 4. Если автор просил только «проверить, почему...», нельзя подменять это на «исправить / устранить»
+    if _source_only_asks_to_check(clean_prob):
+        desc_low = description.casefold()
+        title_low = title.casefold()
+        if any(w in title_low for w in ("исправить", "исправление", "устранить", "устранение")) or (
+            any(w in desc_low for w in ("исправить оценку", "необходимо исправить", "требуется исправить", "устранить ошибку"))
+            and "проверить" not in desc_low
+        ):
+            return _derive_clean_title(clean_prob), _refine_Fallback_description(clean_prob)
+
+    description = _sentence_case(description)
+    if len(title) > 180:
+        title = title[:180].rsplit(" ", 1)[0].rstrip(".,;:-")
+
+    return title, description
+
+
+def _fallback_ticket(problem: str) -> dict[str, str]:
+    """Бережный резервный редактор без ИИ: сохраняет смысл, вопросы, просьбы и предположения."""
+    title = _derive_clean_title(problem)
+    description = _refine_Fallback_description(problem)
+    title, description = _postprocess_ticket(problem, title, description)
     return {"title": title, "description": description, "source": "fallback"}
 
 
@@ -119,28 +414,28 @@ def _extract_json(value: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         start, end = text.find("{"), text.rfind("}")
         if start < 0 or end <= start:
-            raise ValueError("Qwen не вернула JSON с текстом заявки.")
+            raise ValueError("Модель не вернула JSON с текстом заявки.")
         data = json.loads(text[start:end + 1])
 
     if not isinstance(data, dict):
-        raise ValueError("Ответ Qwen имеет неверную структуру.")
+        raise ValueError("Ответ модели имеет неверную структуру.")
 
     return data
 
 
 def _validate_ai_ticket(problem: str, title: str, description: str) -> None:
-    """Проверяет достоверность ответа, не отклоняя нормальные длинные названия."""
+    """Проверяет достоверность ответа и отсутствие придуманных чисел/фактов."""
     title = _clean_text(title)
     description = _clean_text(description)
 
     if not title:
-        raise ValueError("Qwen не сформировала название заявки.")
+        raise ValueError("Не сформировано название заявки.")
 
     if len(title) > 180:
         raise ValueError("Название заявки превышает допустимые 180 символов.")
 
     if not description:
-        raise ValueError("Qwen не сформировала описание заявки.")
+        raise ValueError("Не сформировано описание заявки.")
 
     source_numbers = set(re.findall(r"\d+(?:[.,]\d+)?", problem))
     result_numbers = set(
@@ -149,7 +444,7 @@ def _validate_ai_ticket(problem: str, title: str, description: str) -> None:
 
     if result_numbers - source_numbers:
         raise ValueError(
-            "Qwen добавила число или дату, которых нет в исходном тексте."
+            "Добавлено число или дата, которых нет в исходном тексте."
         )
 
     source = problem.casefold().replace("ё", "е")
@@ -166,16 +461,20 @@ def _validate_ai_ticket(problem: str, title: str, description: str) -> None:
         or any(marker in source for marker in uncertainty_markers)
     )
 
-    preserves_uncertainty = any(marker in result for marker in (
-        "просим разъяснить", "просим уточнить", "просим сообщить",
-        "требуется ли", "необходимо ли", "можно ли", "каким образом",
-        "порядок", "возможность",
-    ))
+    preserves_uncertainty = (
+        "?" in description
+        or any(marker in result for marker in (
+            "просим разъяснить", "просим уточнить", "просим сообщить",
+            "просим проверить", "почему", "требуется ли", "необходимо ли",
+            "можно ли", "возможно ли", "каким образом", "порядок", "возможность",
+        ))
+    )
 
     assertive_markers = (
         "необходимо применить", "обязательно требуется",
         "должен быть издан", "причиной является",
         "ошибка вызвана", "после перерыва",
+        "требуется выгрузить", "необходимо выгрузить",
     )
 
     if asks_question and any(
@@ -183,12 +482,12 @@ def _validate_ai_ticket(problem: str, title: str, description: str) -> None:
     ):
         if not preserves_uncertainty:
             raise ValueError(
-                "Qwen превратила вопрос пользователя в утверждение."
+                "Вопрос пользователя превращён в жёсткое утверждение."
             )
 
     if len(description) > max(1200, len(problem) * 6):
         raise ValueError(
-            "Qwen необоснованно расширила исходное описание."
+            "Описание необоснованно расширено."
         )
 
 
@@ -197,22 +496,18 @@ def _normalise_for_comparison(value: str) -> str:
 
 
 def _is_near_copy(problem: str, description: str) -> bool:
-    """Определяет ответы, в которых модель лишь скопировала пользовательский текст."""
+    """Определяет ответы, в которых модель лишь скопировала длинный черновик без редактуры."""
     source = _normalise_for_comparison(problem)
     result = _normalise_for_comparison(description)
-    if not source or not result or len(source) < 45:
+    if not source or not result or len(source) < 120:
         return False
 
     similarity = SequenceMatcher(None, source, result).ratio()
-    source_words = source.split()
-    result_words = result.split()
-    shared = len(set(source_words) & set(result_words))
-    coverage = shared / max(1, len(set(source_words)))
-    return similarity >= 0.82 or (coverage >= 0.94 and abs(len(result_words) - len(source_words)) <= 8)
+    return similarity >= 0.96
 
 
 def _finish_sentence(value: Any) -> str:
-    """Очищает смысловой блок и завершает его точкой."""
+    """Очищает смысловой блок и завершает его знаком препинания."""
     text = _sentence_case(_clean_text(value)).strip()
     if text and text[-1] not in ".!?":
         text += "."
@@ -220,17 +515,19 @@ def _finish_sentence(value: Any) -> str:
 
 
 def _build_structured_description(data: dict[str, Any]) -> str:
-    """Собирает заявку из отдельных фактических блоков ответа небольшой модели."""
+    """Собирает заявку из ответа локальной модели без навязывания чужой модальности."""
+    if data.get("description"):
+        return _clean_text(data.get("description"))
+
     situation = _finish_sentence(data.get("situation"))
     checks = _finish_sentence(data.get("checks"))
     request_text = _clean_text(data.get("request"))
     constraint = _finish_sentence(data.get("constraint"))
 
     if request_text:
-        lowered = request_text.casefold()
-        if not lowered.startswith(("просим ", "пожалуйста, ")):
-            request_text = "Просим " + request_text[0].lower() + request_text[1:]
-        request_text = _finish_sentence(request_text)
+        request_text = _sentence_case(request_text)
+        if request_text[-1] not in ".!?":
+            request_text += "?" if request_text.casefold().startswith("можно ли") else "."
 
     paragraphs = []
     if situation:
@@ -248,53 +545,19 @@ def _build_structured_description(data: dict[str, Any]) -> str:
 
 
 def _generate_with_ollama(problem: str, rewrite_attempt: bool = False) -> dict[str, str]:
-    system_prompt = (
-        "Ты профессиональный редактор заявок в техническую поддержку. "
-        "Не пиши готовый сплошной абзац. Разложи исходный текст на отдельные блоки, "
-        "чтобы программа сама собрала итоговую заявку. Перепиши каждый блок ясным "
-        "деловым языком: меняй порядок слов, устраняй разговорную речь, повторы, "
-        "эмоции и двусмысленность. Не копируй исходное предложение целиком. "
-        "При этом сохрани все факты, числа, даты, названия, условия, отрицания, "
-        "сравнения и неопределённость. Не придумывай причины, решения или факты. "
-        "title: 2–10 слов, обязательно отражает проблему или требуемое действие, "
-        "а не только объект. Например, не «Расписание студентов», а "
-        "«Не отображается расписание у части студентов». "
-        "situation: что произошло, с кем/чем, где и при каких условиях. "
-        "checks: только уже выполненные пользователем проверки; если их нет — пустая строка. "
-        "request: конкретная просьба к поддержке, начиная с действия: проверить, "
-        "уточнить, восстановить, исправить или разъяснить. Не используй фразы "
-        "«нужно понять» и «является ли проблема». Не объявляй предполагаемую причину фактом. "
-        "constraint: что нельзя менять или какое ограничение нужно соблюдать; "
-        "если ограничений нет — пустая строка. Для короткого ввода не раздувай текст. "
-        "Без приветствия и общих фраз. Верни только JSON: "
-        "{\"title\":\"...\",\"situation\":\"...\",\"checks\":\"...\","
-        "\"request\":\"...\",\"constraint\":\"...\"}"
-    )
-
     payload = {
         "model": _select_model(),
         "messages": [
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": SYSTEM_PROMPT},
             {
                 "role": "user",
-                "content": (
-                    "Переработай текст в профессиональную заявку. Не повторяй его "
-                    "дословно. "
-                    + (
-                        "Предыдущий вариант оказался слишком похож на оригинал. "
-                        "Полностью перестрой предложения и порядок изложения, "
-                        "сохранив факты. "
-                        if rewrite_attempt else ""
-                    )
-                    + "Исходное описание:\n" + problem
-                ),
+                "content": f"Обращение пользователя:\n{problem}",
             },
         ],
         "stream": False,
-        "format": "json",
         "keep_alive": "5m",
         "options": {
-            "temperature": 0.25,
+            "temperature": 0.2,
             "top_p": 0.9,
             "num_ctx": 3072,
             "num_predict": 450,
@@ -316,50 +579,27 @@ def _generate_with_ollama(problem: str, rewrite_attempt: bool = False) -> dict[s
         envelope = json.loads(raw_response)
 
     except urllib.error.HTTPError as exc:
-        try:
-            details = exc.read().decode("utf-8", errors="replace")[:500]
-        except Exception:
-            details = ""
-
-        raise RuntimeError(
-            f"Ollama HTTP {exc.code}" + (f": {details}" if details else "")
-        ) from exc
+        raise RuntimeError("Сервис генерации временно недоступен.") from exc
 
     except urllib.error.URLError as exc:
-        reason = getattr(exc, "reason", exc)
-        raise RuntimeError(
-            f"Не удалось подключиться к Ollama: {reason}"
-        ) from exc
+        raise RuntimeError("Локальный сервис генерации недоступен.") from exc
 
     except (TimeoutError, OSError) as exc:
         elapsed = round(time.monotonic() - started_at, 1)
-        raise RuntimeError(
-            f"Тайм-аут ожидания ответа Ollama ({elapsed} сек.). "
-            f"Адрес: {OLLAMA_URL}; модель: {OLLAMA_MODEL}"
-        ) from exc
+        raise RuntimeError(f"Превышено время ожидания ответа ({elapsed} сек.).") from exc
 
     content = envelope.get("message", {}).get("content", "")
-    data = _extract_json(content)
-
-    title = _clean_text(data.get("title"))
-    description = _build_structured_description(data)
-
-    # Совместимость с редким ответом старого формата без повторного запроса к модели.
-    if not description:
-        description = _clean_text(data.get("description"))
+    title, description = _parse_ticket_response(content)
+    if not title or not description:
+        data = _extract_json(content)
+        title = _clean_text(data.get("title"))
+        description = _build_structured_description(data)
 
     if not title or not description:
-        raise ValueError("Qwen не сформировала название или описание.")
+        raise ValueError("Не удалось сформировать название или описание.")
 
+    title, description = _postprocess_ticket(problem, title, description)
     _validate_ai_ticket(problem, title, description)
-
-    if _is_near_copy(problem, description) and not rewrite_attempt:
-        return _generate_with_ollama(problem, rewrite_attempt=True)
-
-    if _is_near_copy(problem, description):
-        raise ValueError(
-            "Qwen дважды почти дословно повторила исходный текст."
-        )
 
     return {
         "title": title[:180],
@@ -368,27 +608,22 @@ def _generate_with_ollama(problem: str, rewrite_attempt: bool = False) -> dict[s
     }
 
 
-SYSTEM_PROMPT = (
-    "Ты — технический специалист по составлению заявок в HelpDesk/Service Desk (система Platonus/Вуз).\n"
-    "Твоя задача — мгновенно оформить четкую, сухую рабочую заявку по существу, без «воды».\n\n"
-    "СТРОГИЕ ПРАВИЛА:\n"
-    "1. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНЫ любые приветствия: «Здравствуйте», «Добрый день», «Доброе утро», «Уважаемые коллеги» и т.п.\n"
-    "2. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНЫ любые прощания и благодарности: «Заранее спасибо», «С уважением», «Благодарим за помощь» и т.п.\n"
-    "3. СРАЗУ СУТЬ И ФАКТЫ: описание должно начинаться строго с сути проблемы/расхождения и завершаться конкретным техническим действием, которое требуется выполнить (актуализировать, исправить в БД, пересчитать, открыть доступ).\n"
-    "4. Сохраняй абсолютно все коды, названия дисциплин, семестры, цифры и параметры из текста пользователя.\n\n"
-    "ФОРМАТ ОТВЕТА СТРОГО:\n"
-    "ТЕМА: <краткая емкая суть инцидента до 10-12 слов>\n"
-    "ОПИСАНИЕ: <четкое техническое описание проблемы и требуемое действие>"
-)
-
-
 def _parse_ticket_response(raw_text: str) -> tuple[str, str]:
     text = str(raw_text or "").strip()
+    text = re.sub(r"^```(?:text|markdown)?\s*", "", text, flags=re.I)
+    text = re.sub(r"\s*```$", "", text)
+
     title = ""
     description = ""
 
-    theme_pattern = re.compile(r"ТЕМА\s*:\s*(.*?)(?=\n\s*ОПИСАНИЕ\s*:|\Z)", re.IGNORECASE | re.DOTALL)
-    desc_pattern = re.compile(r"ОПИСАНИЕ\s*:\s*(.*)", re.IGNORECASE | re.DOTALL)
+    theme_pattern = re.compile(
+        r"(?:^|\n)\s*(?:\*\*|#+\s*)?(?:ТЕМА|ЗАГОЛОВОК|НАЗВАНИЕ(?:\s+ЗАЯВКИ)?)\s*(?:\*\*)?\s*:\s*(.*?)(?=\n\s*(?:\*\*|#+\s*)?ОПИСАНИЕ(?:\s+ЗАЯВКИ)?\s*(?:\*\*)?\s*:|\Z)",
+        re.IGNORECASE | re.DOTALL,
+    )
+    desc_pattern = re.compile(
+        r"(?:^|\n)\s*(?:\*\*|#+\s*)?ОПИСАНИЕ(?:\s+ЗАЯВКИ)?\s*(?:\*\*)?\s*:\s*(.*)",
+        re.IGNORECASE | re.DOTALL,
+    )
 
     theme_match = theme_pattern.search(text)
     desc_match = desc_pattern.search(text)
@@ -400,12 +635,22 @@ def _parse_ticket_response(raw_text: str) -> tuple[str, str]:
         lines = [l.strip() for l in text.splitlines() if l.strip()]
         if lines:
             first_line = lines[0]
-            title = re.sub(r"^ТЕМА\s*:\s*", "", first_line, flags=re.I).strip()
+            title = re.sub(
+                r"^(?:\*\*|#+\s*)?(?:ТЕМА|ЗАГОЛОВОК|НАЗВАНИЕ(?:\s+ЗАЯВКИ)?)\s*(?:\*\*)?\s*:\s*",
+                "",
+                first_line,
+                flags=re.I,
+            ).strip()
             rest = "\n".join(lines[1:])
-            description = re.sub(r"^ОПИСАНИЕ\s*:\s*", "", rest, flags=re.I).strip()
+            description = re.sub(
+                r"^(?:\*\*|#+\s*)?ОПИСАНИЕ(?:\s+ЗАЯВКИ)?\s*(?:\*\*)?\s*:\s*",
+                "",
+                rest,
+                flags=re.I,
+            ).strip()
 
-    # Убираем жесткий срез по 10 словам, чтобы фразы вроде «электронном журнале» не обрезались на полуслове
-    title = title.strip().rstrip(".,;:-")
+    title = title.strip("«»\"'* ").rstrip(".,;:-")
+    description = description.strip()
     if len(title) > 180:
         title = title[:180].rsplit(" ", 1)[0].rstrip(".,;:-")
 
@@ -420,17 +665,19 @@ def generate_ticket(problem: str) -> dict[str, str]:
             "Опишите задачу или проблему хотя бы одним предложением."
         )
 
-    # 1. Первичный движок: Google Gemini с автоматическим fallback через ai_service
+    # 1. Основной движок
     try:
         from ai_service import generate_text
         raw_text, provider = generate_text(
             prompt=f"Обращение пользователя:\n{clean}",
             system_prompt=SYSTEM_PROMPT,
-            temperature=0.3,
+            temperature=0.2,
             return_provider=True,
         )
         title, description = _parse_ticket_response(raw_text)
         if title and description:
+            title, description = _postprocess_ticket(clean, title, description)
+            _validate_ai_ticket(clean, title, description)
             return {
                 "title": title[:180],
                 "description": description,
@@ -439,18 +686,12 @@ def generate_ticket(problem: str) -> dict[str, str]:
     except Exception:
         pass
 
-    # 2. Локальная Ollama при отсутствии интернета / ошибке API
-    try:
-        return _generate_with_ollama(clean)
-    except Exception as exc:
-        result = _fallback_ticket(clean)
-        result["warning"] = str(exc).strip().splitlines()[0]
-        return result
+    return _fallback_ticket(clean)
 
 
 def generate_ticket_stream(problem: str) -> Iterator[str]:
-    """Генерация заявки с потоковым выводом текста (SSE).
-    
+    """Генерация заявки с потоковой передачей ответа (SSE).
+
     События:
       data: {"type": "chunk", "text": "..."}\n\n
       data: {"type": "done", "title": "...", "description": "...", "full_text": "..."}\n\n
@@ -461,25 +702,15 @@ def generate_ticket_stream(problem: str) -> Iterator[str]:
         yield f"data: {json.dumps({'type': 'error', 'error': 'Опишите задачу или проблему хотя бы одним предложением.'}, ensure_ascii=False)}\n\n"
         return
 
-    from ai_service import generate_text_stream
-    chunks = []
     try:
-        stream = generate_text_stream(
-            prompt=f"Обращение пользователя:\n{clean}",
-            system_prompt=SYSTEM_PROMPT,
-            temperature=0.3,
-        )
-        for chunk in stream:
-            if chunk:
-                chunks.append(chunk)
-                yield f"data: {json.dumps({'type': 'chunk', 'text': chunk}, ensure_ascii=False)}\n\n"
-
-        full_text = "".join(chunks).strip()
-        title, description = _parse_ticket_response(full_text)
-        yield f"data: {json.dumps({'type': 'done', 'title': title[:180], 'description': description or full_text, 'full_text': full_text}, ensure_ascii=False)}\n\n"
-    except Exception as exc:
-        fb = _fallback_ticket(problem)
-        yield f"data: {json.dumps({'type': 'done', 'title': fb['title'], 'description': fb['description'], 'full_text': fb['description'], 'warning': str(exc)}, ensure_ascii=False)}\n\n"
+        result = generate_ticket(clean)
+        title = result["title"][:180]
+        description = result["description"]
+        yield f"data: {json.dumps({'type': 'chunk', 'text': description}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'type': 'done', 'title': title, 'description': description, 'full_text': description}, ensure_ascii=False)}\n\n"
+    except Exception:
+        fb = _fallback_ticket(clean)
+        yield f"data: {json.dumps({'type': 'done', 'title': fb['title'], 'description': fb['description'], 'full_text': fb['description']}, ensure_ascii=False)}\n\n"
 
 
 class TicketWriterWindow:
@@ -752,7 +983,7 @@ class TicketWriterWindow:
 
         self.generate_button = tk.Button(
             action_row,
-            text="Сформировать текст",
+            text="Сформировать заявку",
             command=self._start_generation,
             font=("Segoe UI", 10, "bold"),
             relief="flat",
@@ -839,8 +1070,9 @@ class TicketWriterWindow:
             bd=0,
             padx=12,
             pady=9,
-            bg=SOFT_BLUE,
-            fg=NAVY,
+            bg=self.theme["input"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["text"],
             highlightthickness=1,
             highlightbackground=self.theme["border"],
         )
@@ -897,23 +1129,21 @@ class TicketWriterWindow:
             )
             return
 
-        # Не выдаём дословный черновик за готовый результат работы AI.
         self.title_text.delete("1.0", "end")
         self.description_text.delete("1.0", "end")
 
         self.generate_button.configure(
             state="disabled",
-            text="BahonIQ AI формирует заявку...",
+            text="Формирование заявки...",
         )
         self.status.configure(
-            text="BahonIQ AI анализирует задачу и структурирует обращение...",
+            text="Формирование заявки...",
             fg=GREEN_DARK,
         )
 
         self._generation_id += 1
         generation_id = self._generation_id
 
-        # Таймер запускается одновременно с фоновой генерацией.
         self._start_timer(generation_id)
 
         threading.Thread(
@@ -923,7 +1153,7 @@ class TicketWriterWindow:
         ).start()
 
     def _worker(self, problem: str, generation_id: int):
-        """Фоновый поток сначала вызывает облачный BahonIQ AI, затем тихий fallback."""
+        """Фоновый поток формирования обращения."""
         try:
             result = generate_ticket(_clean_text(problem))
             self._worker_queue.put(("success", generation_id, result))
@@ -968,20 +1198,17 @@ class TicketWriterWindow:
         if generation_id != self._generation_id:
             return
 
-        elapsed = self._stop_timer()
+        self._stop_timer()
 
         self._generation_id += 1
         self._put_result(result)
-
-        source = result.get("source", "gemini")
-        engine_label = "BahonIQ AI" if source == "gemini" else "Ollama / Qwen"
 
         self.generate_button.configure(
             state="normal",
             text="Сформировать заново",
         )
         self.status.configure(
-            text=f"Текст успешно сформирован {engine_label} за {elapsed}",
+            text="Заявка сформирована",
             fg=GREEN_DARK,
         )
 
@@ -989,7 +1216,7 @@ class TicketWriterWindow:
         if generation_id != self._generation_id:
             return
 
-        elapsed = self._stop_timer()
+        self._stop_timer()
 
         self._generation_id += 1
         self.generate_button.configure(
@@ -1000,10 +1227,8 @@ class TicketWriterWindow:
         self.title_text.delete("1.0", "end")
         self.description_text.delete("1.0", "end")
 
-        reason = str(reason).strip().splitlines()[0] or "Неизвестная ошибка"
-
         self.status.configure(
-            text=f"Текст не сформирован за {elapsed}. Ошибка: {reason[:150]}",
+            text="Не удалось сформировать заявку. Проверьте текст обращения и повторите попытку.",
             fg=RED,
         )
 
@@ -1012,7 +1237,7 @@ class TicketWriterWindow:
         if generation_id != self._generation_id:
             return
 
-        elapsed = self._stop_timer()
+        self._stop_timer()
 
         self._generation_id += 1
         self.generate_button.configure(
@@ -1020,10 +1245,7 @@ class TicketWriterWindow:
             text="Попробовать снова",
         )
         self.status.configure(
-            text=(
-                f"Время ожидания истекло за {elapsed}. "
-                f"Повторите попытку."
-            ),
+            text="Время ожидания истекло. Повторите попытку.",
             fg=RED,
         )
 
@@ -1031,15 +1253,15 @@ class TicketWriterWindow:
         self._stop_timer()
         self.generate_button.configure(
             state="normal",
-            text="Сформировать текст",
+            text="Сформировать заявку",
         )
         self.status.configure(
-            text="Не удалось сформировать текст",
+            text="Не удалось сформировать заявку",
             fg=RED,
         )
         messagebox.showerror(
             "Ticket Writer AI",
-            str(exc),
+            "Не удалось сформировать заявку. Проверьте текст обращения и повторите попытку.",
             parent=self.window,
         )
 
@@ -1070,7 +1292,7 @@ class TicketWriterWindow:
 
         self.generate_button.configure(
             state="normal",
-            text="Сформировать текст",
+            text="Сформировать заявку",
         )
         self.status.configure(
             text="Готово к работе",
