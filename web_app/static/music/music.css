@@ -372,6 +372,39 @@ body.playing .car-cover img {
   box-shadow: 0 0 14px #00e5ff;
 }
 
+.waveform-bars.radio-live-mode {
+  cursor: default;
+}
+
+.wf-bar.radio-live {
+  background: linear-gradient(180deg, #67f3ff, #00c8e8);
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.38);
+  transform-origin: center;
+  animation: radioLiveSignal 0.9s ease-in-out infinite alternate;
+  animation-delay: var(--radio-wave-delay, 0s);
+}
+
+@keyframes radioLiveSignal {
+  0% { transform: scaleY(.3); opacity: .55; }
+  45% { transform: scaleY(.75); opacity: .85; }
+  100% { transform: scaleY(1); opacity: 1; }
+}
+
+.car-progress-wrap.radio-live-mode {
+  margin-top: 8px;
+}
+
+.car-progress-wrap.radio-live-mode .car-time-row span:last-child {
+  color: #f87171;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+.car-controls-sub.radio-live-mode {
+  justify-content: center;
+  gap: clamp(80px, 13vw, 150px);
+}
+
 .car-time-row {
   display: flex;
   justify-content: space-between;
@@ -1357,44 +1390,105 @@ body.drive-mode .drive-only-fav {
   box-shadow: 0 0 18px rgba(239, 68, 68, 0.25);
 }
 
-.car-radio-add-form {
+.car-radio-tools {
   display: flex;
   gap: 8px;
   margin-bottom: 12px;
   flex-shrink: 0;
 }
 
-.car-radio-add-form .car-search-input {
-  margin-bottom: 0;
+.car-radio-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
   flex: 1;
   min-width: 0;
-  padding: 10px 14px;
+}
+
+.car-radio-search-wrap > span {
+  position: absolute;
+  left: 14px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.car-radio-search-wrap .car-search-input {
+  margin-bottom: 0;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 38px;
   font-size: 14px;
 }
 
-.car-radio-add-btn {
-  width: 44px;
+.car-radio-clear {
+  position: absolute;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.car-radio-add-open {
+  min-width: 166px;
   height: 44px;
   flex-shrink: 0;
   border-radius: 12px;
   border: 1px solid rgba(0, 229, 255, 0.4);
   background: rgba(0, 229, 255, 0.14);
   color: var(--accent-cyan);
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   transition: transform 0.15s ease, background 0.15s ease;
 }
 
-.car-radio-add-btn:hover {
+.car-radio-add-open:hover {
   background: rgba(0, 229, 255, 0.25);
 }
 
-.car-radio-add-btn:active {
+.car-radio-add-open:active {
   transform: scale(0.95);
+}
+
+.car-tabs [data-radio-count],
+.car-radio-subgroups span {
+  display: inline-flex;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  align-items: center;
+  justify-content: center;
+  margin-left: 5px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.09);
+  font-size: 11px;
+}
+
+.car-radio-subgroups {
+  display: flex;
+  gap: 7px;
+  margin: -2px 0 12px;
+  overflow-x: auto;
+}
+
+.car-radio-subgroups button {
+  border: 1px solid rgba(255,255,255,.09);
+  background: rgba(255,255,255,.035);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 6px 10px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.car-radio-subgroups button.active {
+  color: var(--accent-cyan);
+  border-color: rgba(0,229,255,.42);
+  background: rgba(0,229,255,.1);
 }
 
 .car-radio-item {
@@ -1402,13 +1496,34 @@ body.drive-mode .drive-only-fav {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   cursor: pointer;
   transition: background 0.16s ease, border-color 0.16s ease, transform 0.12s ease;
 }
+
+.car-radio-monogram {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  border: 1px solid rgba(0,229,255,.22);
+  background: linear-gradient(145deg, rgba(0,229,255,.17), rgba(99,102,241,.12));
+  color: #d8fbff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.car-radio-copy { min-width: 0; flex: 1; }
+.car-radio-name { display: flex; align-items: center; gap: 7px; font-weight: 800; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.car-radio-meta { margin-top: 2px; color: var(--text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.car-radio-unavailable { margin-top: 3px; color: #fca5a5; font-size: 11px; }
+.car-radio-actions { display: flex; align-items: center; gap: 6px; }
+.car-radio-empty { padding: 32px 20px; text-align: center; color: var(--text-muted); }
 
 .car-radio-item:hover {
   background: rgba(255, 255, 255, 0.08);
@@ -1418,6 +1533,12 @@ body.drive-mode .drive-only-fav {
   background: rgba(0, 229, 255, 0.12);
   border-color: rgba(0, 229, 255, 0.5);
 }
+
+.car-radio-live-wave { display: inline-flex; align-items: center; gap: 2px; height: 14px; }
+.car-radio-live-wave i { width: 2px; height: 7px; border-radius: 2px; background: var(--accent-cyan); animation: radioWave .7s ease-in-out infinite alternate; }
+.car-radio-live-wave i:nth-child(2) { animation-delay: .15s; height: 12px; }
+.car-radio-live-wave i:nth-child(3) { animation-delay: .3s; height: 9px; }
+@keyframes radioWave { to { transform: scaleY(.35); opacity: .55; } }
 
 .car-radio-badge {
   font-size: 11px;
@@ -1446,17 +1567,41 @@ body.drive-mode .drive-only-fav {
   font-size: 14px;
 }
 
+.car-radio-fav-btn, .car-radio-play-btn, .car-radio-edit-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.055);
+  color: #fff;
+  cursor: pointer;
+}
+.car-radio-fav-btn.active { color: #fb7185; }
+.car-radio-play-btn { color: var(--accent-cyan); }
+.car-radio-play-btn:disabled { opacity: .28; cursor: not-allowed; }
+
+.car-radio-modal { width: min(520px, calc(100vw - 24px)); }
+.car-radio-form { display: grid; gap: 12px; }
+.car-radio-form label { display: grid; gap: 6px; color: var(--text-muted); font-size: 12px; font-weight: 700; }
+.car-radio-form .car-search-input { margin: 0; width: 100%; }
+.car-radio-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.car-radio-form-error { min-height: 18px; color: #fca5a5; font-size: 12px; }
+.car-radio-save { height: 44px; border: 1px solid rgba(0,229,255,.45); border-radius: 12px; background: rgba(0,229,255,.16); color: var(--accent-cyan); font-weight: 800; cursor: pointer; }
+
 .car-inline-status.live-air {
   color: #f87171;
   font-weight: 700;
 }
 
 @media (max-width: 640px) {
-  .car-radio-add-form {
+  .car-radio-tools {
     flex-direction: column;
   }
-  .car-radio-add-btn {
+  .car-radio-add-open {
     width: 100%;
     height: 38px;
   }
+  .car-radio-item { align-items: flex-start; flex-wrap: wrap; }
+  .car-radio-actions { width: 100%; justify-content: flex-end; }
+  .car-radio-form-row { grid-template-columns: 1fr; }
 }

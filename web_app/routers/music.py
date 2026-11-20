@@ -30,6 +30,12 @@ from modules.music_core import (
     stream_track_chunks,
     sync_catalog,
 )
+try:
+    from ..modules.radio_service import RADIO_BY_ID as _RADIO_BY_ID
+    from ..modules.radio_service import RADIO_STATIONS, get_station_metadata, public_station
+except ImportError:
+    from modules.radio_service import RADIO_BY_ID as _RADIO_BY_ID
+    from modules.radio_service import RADIO_STATIONS, get_station_metadata, public_station
 
 router = APIRouter(prefix="/api/music", tags=["music"])
 
@@ -615,116 +621,19 @@ async def music_auth_verify_code(
 # ОНЛАЙН-РАДИО (ЖИВЫЕ СТАНЦИИ И ПРОКСИ ПОТОКА)
 # ============================================================
 
-RADIO_STATIONS = [
-    {
-        "id": "zhulduz",
-        "name": "Жұлдыз FM",
-        "freq": "101.4 FM",
-        "genre": "Қазақша хиттер",
-        "country": "KZ",
-        "url": "http://91.201.214.229:8000/zhulduz",
-    },
-    {
-        "id": "avtoradio_kz",
-        "name": "Авторадио Казахстан",
-        "freq": "102.0 FM",
-        "genre": "В дорогу · Хиты",
-        "country": "KZ",
-        "url": "http://178.88.167.62:8080/AVTORADIO_192",
-    },
-    {
-        "id": "zhana_fm",
-        "name": "Жаңа FM",
-        "freq": "101.2 FM",
-        "genre": "Pop · KZ",
-        "country": "KZ",
-        "url": "https://live.zhanafm.kz:8443/zhanafm_onair",
-    },
-    {
-        "id": "beu_fm",
-        "name": "BEU FM",
-        "freq": "104.2 FM",
-        "genre": "Молодёжное · KZ",
-        "country": "KZ",
-        "url": "https://stream.beufm.kz/beufm",
-    },
-    {
-        "id": "qaz_radio",
-        "name": "Qazaq Radiosy",
-        "freq": "101.0 FM",
-        "genre": "Классика · Новости",
-        "country": "KZ",
-        "url": "https://radio-streams.kaztrk.kz/qazradio/qazradio/icecast.audio",
-    },
-    {
-        "id": "europa_plus",
-        "name": "Европа Плюс",
-        "freq": "106.2 FM",
-        "genre": "Top 40 · Pop",
-        "country": "RU",
-        "url": "http://ep128server.streamr.ru:8030/ep128",
-    },
-    {
-        "id": "rusradio",
-        "name": "Русское Радио",
-        "freq": "105.7 FM",
-        "genre": "Русские хиты",
-        "country": "RU",
-        "url": "https://rusradio.hostingradio.ru/rusradio96.aacp",
-    },
-    {
-        "id": "dfm_dance",
-        "name": "DFM Dance",
-        "freq": "101.2 FM",
-        "genre": "Club · Dance",
-        "country": "RU",
-        "url": "https://dfm-dfmrusdance.hostingradio.ru/dfmrusdance96.aacp",
-    },
-    {
-        "id": "dorognoe",
-        "name": "Дорожное радио",
-        "freq": "96.0 FM",
-        "genre": "В дорогу · Ретро",
-        "country": "RU",
-        "url": "http://dorognoe.hostingradio.ru:8000/dorognoe",
-    },
-    {
-        "id": "marusya",
-        "name": "Маруся ФМ",
-        "freq": "91.4 FM",
-        "genre": "Поп · Танцевальное",
-        "country": "RU",
-        "url": "https://listen.vdfm.ru:8000/marusya",
-    },
-    {
-        "id": "mixadance",
-        "name": "Mixadance FM",
-        "freq": "Online",
-        "genre": "Deep House · Chill",
-        "country": "RU",
-        "url": "https://stream.mixadance.fm/mixadance",
-    },
-]
-
-_RADIO_BY_ID = {item["id"]: item for item in RADIO_STATIONS}
-
-
 @router.get("/radio/stations")
 def list_radio_stations():
-    """Возвращает список доступных радиостанций."""
-    return {
-        "stations": [
-            {
-                "id": item["id"],
-                "name": item["name"],
-                "freq": item["freq"],
-                "genre": item["genre"],
-                "country": item["country"],
-                "stream_url": f"/api/music/radio/stream/{item['id']}",
-            }
-            for item in RADIO_STATIONS
-        ]
-    }
+    """Возвращает список подтверждённых и готовых к воспроизведению радиостанций."""
+    return {"stations": [public_station(item) for item in RADIO_STATIONS if item.get("url")]}
+
+
+@router.get("/radio/metadata/{station_id}")
+async def radio_metadata(station_id: str):
+    """Возвращает ICY StreamTitle текущей станции, если вещатель его передаёт."""
+    try:
+        return await get_station_metadata(station_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Радиостанция не найдена")
 
 
 def _is_safe_public_radio_url(url: str) -> bool:
@@ -802,6 +711,8 @@ async def stream_radio_station(station_id: str, request: Request):
     station = _RADIO_BY_ID.get(station_id)
     if not station:
         raise HTTPException(status_code=404, detail="Радиостанция не найдена")
+    if not station.get("url"):
+        raise HTTPException(status_code=503, detail=station.get("unavailableReason") or "Поток временно недоступен")
     return await _proxy_audio_stream(station["url"], request)
 
 

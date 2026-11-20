@@ -12,7 +12,7 @@
 
   <link rel="manifest" href="/music/manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="/music/assets/icons/icon-192.png">
-  <link rel="stylesheet" href="/music/assets/music.css?v=20261120_v38_radio">
+  <link rel="stylesheet" href="/music/assets/music.css?v=20261120_v42_covers_fix">
 </head>
 <body>
   <!-- Живая атмосфера трека (Ambient-подсветка из обложки, дышит в ритм музыки) -->
@@ -100,7 +100,7 @@
         </div>
 
         <!-- Тонкая анимированная звуковая волна вместо обычной полосы прогресса -->
-        <div class="car-progress-wrap">
+        <div id="carProgressWrap" class="car-progress-wrap">
           <div id="carWaveformBars" class="waveform-bars" title="Нажмите или проведите для перемотки"></div>
           <input id="carSeekBar" class="car-seek-bar hidden" type="range" min="0" max="100" value="0">
           <div class="car-time-row">
@@ -133,7 +133,7 @@
         </div>
 
         <!-- Вспомогательный ряд управления -->
-        <div class="car-controls-sub">
+        <div id="carControlsSub" class="car-controls-sub">
           <button id="carBtnShuffle" class="icon-btn" type="button" title="Случайный порядок">
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="16 3 21 3 21 8"/>
@@ -219,22 +219,54 @@
       </div>
 
       <div class="car-tabs" id="carRadioTabs">
-        <button class="car-tab active" data-radio-filter="all" type="button">Все станции</button>
-        <button class="car-tab" data-radio-filter="KZ" type="button">🇰🇿 Казахстан</button>
-        <button class="car-tab" data-radio-filter="RU" type="button">🇷🇺 Россия / СНГ</button>
-        <button class="car-tab" data-radio-filter="custom" type="button">Мои станции</button>
+        <button class="car-tab active" data-radio-filter="all" type="button">Все <span data-radio-count="all">0</span></button>
+        <button class="car-tab" data-radio-filter="KZ" type="button">Казахстан <span data-radio-count="KZ">0</span></button>
+        <button class="car-tab" data-radio-filter="RU" type="button">Россия / СНГ <span data-radio-count="RU">0</span></button>
+        <button class="car-tab" data-radio-filter="favorites" type="button">Избранное <span data-radio-count="favorites">0</span></button>
+        <button class="car-tab" data-radio-filter="custom" type="button">Мои <span data-radio-count="custom">0</span></button>
       </div>
 
-      <form id="carCustomRadioForm" class="car-radio-add-form">
-        <input id="carCustomRadioName" class="car-search-input" type="text" placeholder="Название станции..." required>
-        <input id="carCustomRadioUrl" class="car-search-input" type="url" placeholder="https://... (URL потока MP3/AAC)" required>
-        <button type="submit" class="car-radio-add-btn" title="Добавить свою станцию">+</button>
-      </form>
+      <div class="car-radio-tools">
+        <label class="car-radio-search-wrap">
+          <span aria-hidden="true">⌕</span>
+          <input id="carRadioSearch" class="car-search-input" type="search" placeholder="Поиск по названию, жанру или стране…" autocomplete="off">
+          <button id="carRadioSearchClear" class="car-radio-clear hidden" type="button" aria-label="Очистить поиск">×</button>
+        </label>
+        <button id="carBtnAddRadio" type="button" class="car-radio-add-open">+ Добавить станцию</button>
+      </div>
+
+      <div id="carRadioSubgroups" class="car-radio-subgroups">
+        <button class="active" data-radio-subgroup="all" type="button">Все <span>20</span></button>
+        <button data-radio-subgroup="pop" type="button">Поп и хиты <span>10</span></button>
+        <button data-radio-subgroup="niche" type="button">Ретро и нишевые <span>6</span></button>
+        <button data-radio-subgroup="talk" type="button">Новости <span>4</span></button>
+      </div>
 
       <div id="carRadioList" class="car-tracks-list">
         <!-- Динамический список радиостанций -->
       </div>
     </section>
+
+    <div id="carRadioModal" class="car-modal-overlay hidden">
+      <div class="car-modal car-radio-modal" role="dialog" aria-modal="true" aria-labelledby="carRadioModalTitle">
+        <div class="car-catalog-head">
+          <h2 id="carRadioModalTitle">Добавить станцию</h2>
+          <button id="carBtnCloseRadioModal" class="icon-btn" type="button" aria-label="Закрыть">✕</button>
+        </div>
+        <form id="carCustomRadioForm" class="car-radio-form">
+          <input id="carCustomRadioEditId" type="hidden">
+          <label>Название *<input id="carCustomRadioName" class="car-search-input" type="text" maxlength="80" required></label>
+          <label>URL потока MP3/AAC *<input id="carCustomRadioUrl" class="car-search-input" type="url" placeholder="https://…" required></label>
+          <div class="car-radio-form-row">
+            <label>Частота<input id="carCustomRadioFreq" class="car-search-input" type="text" maxlength="30" placeholder="Online"></label>
+            <label>Жанр<input id="carCustomRadioGenre" class="car-search-input" type="text" maxlength="60" placeholder="Интернет-радио"></label>
+          </div>
+          <label>Страна<input id="carCustomRadioCountry" class="car-search-input" type="text" maxlength="30" placeholder="Моя"></label>
+          <div id="carRadioFormError" class="car-radio-form-error" aria-live="polite"></div>
+          <button class="car-radio-save" type="submit">Сохранить станцию</button>
+        </form>
+      </div>
+    </div>
 
         <!-- Модальное окно настроек звука и эквалайзера -->
     <div id="carSoundModal" class="car-modal-overlay hidden">
@@ -460,6 +492,6 @@
   <!-- Всплывающее уведомление (Toast) для авто -->
   <div id="carToast" class="car-toast hidden"></div>
 
-  <script src="/music/assets/music.js?v=20261120_v38_radio"></script>
+  <script src="/music/assets/music.js?v=20261120_v42_covers_fix"></script>
 </body>
 </html>
