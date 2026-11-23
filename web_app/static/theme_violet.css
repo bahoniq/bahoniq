@@ -214,3 +214,26 @@ body.theme-day .ea-work-flow > div { background: var(--vl-surface) !important; b
 body.theme-day .ea-work-check { background: var(--vl-surface) !important; }
 body.theme-day .ea-work-score.ok { background: rgba(34, 197, 94, 0.16) !important; color: #86efac !important; }
 body.theme-day .ea-work-score.fail { background: rgba(239, 68, 68, 0.16) !important; color: #fca5a5 !important; }
+
+/* Premium Motion: Violet сохраняет характер темы на новой крупной сетке. */
+body.theme-day #dashboardView .tool-tile {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.035), transparent 45%),
+    linear-gradient(145deg, rgba(31,25,49,.97), rgba(20,16,35,.96));
+  border-color: rgba(196,165,255,.18);
+  box-shadow: 0 12px 32px rgba(5,3,12,.30), inset 0 1px 0 rgba(255,255,255,.06);
+}
+body.theme-day #dashboardView .tool-tile::before {
+  background: radial-gradient(360px circle at var(--mouse-x,50%) var(--mouse-y,50%), rgba(54,227,224,.18), transparent 46%);
+}
+body.theme-day #dashboardView .tool-tile:hover {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.055), transparent 45%),
+    linear-gradient(145deg, rgba(43,35,67,.99), rgba(27,22,46,.98));
+  border-color: rgba(54,227,224,.52);
+  box-shadow: 0 22px 58px rgba(5,3,12,.45), 0 0 34px rgba(54,227,224,.08), inset 0 1px 0 rgba(255,255,255,.09);
+}
+body.theme-day #dashboardView .tool-number { color: rgba(200,190,221,.56); }
+body.theme-day #dashboardView .tool-category { color: #36E3E0; }
+body.theme-day #dashboardView .tool-arrow { color:#36E3E0;border-color:rgba(54,227,224,.30); }
+body.theme-day #dashboardView .tool-tile:hover .tool-arrow:not(.tool-lock) { background:#36E3E0;border-color:#36E3E0;color:#100D1A; }

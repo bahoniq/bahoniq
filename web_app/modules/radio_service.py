@@ -74,9 +74,19 @@ _metadata_locks: dict[str, asyncio.Lock] = {}
 
 
 def public_station(station: dict[str, Any]) -> dict[str, Any]:
-    """Безопасное представление станции без раскрытия исходного URL."""
+    """Представление станции для клиента: HTTPS-потоки отдаются напрямую в телефон (0 МБ трафика Render)
+    с резервным fallback на серверный прокси."""
     result = {key: value for key, value in station.items() if key not in {"url", "source"}}
-    result["stream_url"] = f"/api/music/radio/stream/{station['id']}" if station.get("url") else None
+    raw_url = str(station.get("url") or "").strip()
+    if not raw_url:
+        result["stream_url"] = None
+        result["fallback_stream_url"] = None
+    elif raw_url.lower().startswith("https://"):
+        result["stream_url"] = raw_url
+        result["fallback_stream_url"] = f"/api/music/radio/stream/{station['id']}"
+    else:
+        result["stream_url"] = f"/api/music/radio/stream/{station['id']}"
+        result["fallback_stream_url"] = None
     return result
 
 

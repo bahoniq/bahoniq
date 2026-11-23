@@ -7,6 +7,10 @@
     startCommand: uvicorn web_app.server:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
+      - key: APP_MODE
+        value: work
+      - key: MUSIC_EXTERNAL_URL
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
       - key: BAHONIQ_PASSWORD

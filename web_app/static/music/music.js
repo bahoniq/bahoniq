@@ -956,10 +956,6 @@
                 btnDownloadActive.classList.remove('loading');
                 btnDownloadActive.classList.add('active');
               }
-              // После сохранения текущего трека тихо предзагружаем следующий трек в очереди
-              setTimeout(() => {
-                if (!audio.paused) prefetchNextTrackInQueue();
-              }, 1500);
             }
             return true;
           } catch (attemptErr) {
@@ -1280,7 +1276,8 @@
       renderRadioList();
     }
 
-    // Автоматическое сохранение в память устройства после фактического старта воспроизведения (как в Telegram)
+    // Автоматическое сохранение в память устройства только если трек реально слушают (>25 сек),
+    // чтобы не расходовать трафик сервера при быстром перелистывании треков
     if (!radioMode && currentIndex >= 0 && playlist[currentIndex]) {
       const currentTrack = playlist[currentIndex];
       const tid = Number(currentTrack.id);
@@ -1297,7 +1294,7 @@
           ) {
             downloadTrackInBackground(currentTrack);
           }
-        }, 1200);
+        }, 25000);
       }
     }
   });
@@ -1317,6 +1314,15 @@
     console.warn('Audio stream error event:', e);
     btnPlay.classList.remove('loading');
     if (radioMode) {
+      const station = getAllRadioStations()[currentRadioIndex];
+      if (station && station.fallback_stream_url && !station._usingFallback) {
+        station._usingFallback = true;
+        console.info('Direct radio stream failed, falling back to server proxy:', station.id);
+        audio.src = station.fallback_stream_url;
+        audio.load();
+        audio.play().catch(() => {});
+        return;
+      }
       stopRadioMetadataPolling();
       updatePlayButton(false);
       if (diagAudioStatus) diagAudioStatus.textContent = 'Станция недоступна';
@@ -2498,10 +2504,21 @@
     }
 
     clearTimeout(radioPlayTimeout);
+    station._usingFallback = false;
     audio.pause();
     audio.src = station.stream_url;
     audio.load();
     audio.play().catch(err => {
+      if (station.fallback_stream_url && !station._usingFallback) {
+        station._usingFallback = true;
+        audio.src = station.fallback_stream_url;
+        audio.load();
+        audio.play().catch(() => {
+          showToast('Станция временно недоступна');
+          btnPlay.classList.remove('loading');
+        });
+        return;
+      }
       console.warn('Radio play failed:', err);
       showToast('Станция временно недоступна');
       btnPlay.classList.remove('loading');
@@ -2665,7 +2682,12 @@
         custom: true,
         available: true,
         raw_url: rawUrl,
-        stream_url: `/api/music/radio/proxy?url=${encodeURIComponent(rawUrl)}`,
+        stream_url: rawUrl.toLowerCase().startsWith('https://')
+          ? rawUrl
+          : `/api/music/radio/proxy?url=${encodeURIComponent(rawUrl)}`,
+        fallback_stream_url: rawUrl.toLowerCase().startsWith('https://')
+          ? `/api/music/radio/proxy?url=${encodeURIComponent(rawUrl)}`
+          : null,
       };
       if (editId) customRadioStations = customRadioStations.map(s => s.id === editId ? station : s);
       else customRadioStations.push(station);

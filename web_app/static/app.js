@@ -139,15 +139,75 @@ desktopModal?.addEventListener('click', (e) => {
   }
 });
 
-// Делегирование делает переходы устойчивыми даже после динамического обновления DOM.
-document.addEventListener('mousemove', (e) => {
-  const tile = e.target.closest('.tool-tile');
-  if (tile) {
-    const rect = tile.getBoundingClientRect();
-    tile.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
-    tile.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
-  }
-});
+// Premium Motion для карточек главного экрана.
+// Разметка модулей и data-open остаются прежними: визуальный слой не влияет на навигацию.
+const TOOL_CATEGORIES = {
+  tickets: 'КОММУНИКАЦИЯ',
+  instructionGenerator: 'ДОКУМЕНТЫ И РЕГЛАМЕНТЫ',
+  notes: 'РАБОЧЕЕ ПРОСТРАНСТВО',
+  excel: 'ТАБЛИЦЫ И АВТОМАТИЗАЦИЯ',
+  platonus: 'БАЗА ЗНАНИЙ',
+  pdf: 'ДОКУМЕНТЫ',
+  analytics: 'ДАННЫЕ И ВЫВОДЫ',
+  phonebook: 'КОНТАКТЫ',
+  academy: 'ОБУЧЕНИЕ',
+  designAcademy: 'ДИЗАЙН И ПРАКТИКА'
+};
+
+function initializePremiumMotion() {
+  const tiles = $$('#dashboardView .tool-tile');
+  tiles.forEach((tile, index) => {
+    if (tile.dataset.motionReady === 'true') return;
+    tile.dataset.motionReady = 'true';
+    tile.style.setProperty('--tile-index', index);
+
+    const number = document.createElement('span');
+    number.className = 'tool-number';
+    number.textContent = String(index + 1).padStart(2, '0');
+    tile.prepend(number);
+
+    const meta = tile.querySelector('.tool-meta');
+    if (meta) {
+      const category = document.createElement('div');
+      category.className = 'tool-category';
+      const modId = tile.dataset.open || '';
+      category.textContent = TOOL_CATEGORIES[modId] ||
+        (tile.matches('a[href*="music"]') ? 'МЕДИА' : 'РАБОЧИЙ ИНСТРУМЕНТ');
+      meta.prepend(category);
+    }
+
+    const arrow = tile.querySelector('.tool-arrow');
+    if (arrow && !tile.querySelector('.tool-action-label')) {
+      const action = document.createElement('span');
+      action.className = 'tool-action-label';
+      action.textContent = 'Открыть модуль';
+      arrow.before(action);
+    }
+
+    tile.addEventListener('pointermove', (event) => {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+          window.matchMedia('(hover: none)').matches) return;
+      const rect = tile.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const rotateX = ((y / rect.height) - 0.5) * -5;
+      const rotateY = ((x / rect.width) - 0.5) * 7;
+      tile.style.setProperty('--mouse-x', `${x}px`);
+      tile.style.setProperty('--mouse-y', `${y}px`);
+      tile.style.transform = `translateY(-6px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+    });
+
+    tile.addEventListener('pointerleave', () => {
+      tile.style.transform = '';
+    });
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializePremiumMotion, { once: true });
+} else {
+  initializePremiumMotion();
+}
 
 document.addEventListener('click', (e) => {
   const tile = e.target.closest('.tool-tile');

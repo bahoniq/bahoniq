@@ -596,7 +596,7 @@ class MainWindow:
     # ========================================================
 
     def create_main_area(self):
-        """Компактная главная панель с информативными карточками модулей."""
+        """Премиальная главная панель с крупной трёхколоночной сеткой модулей."""
         theme = get_theme()
 
         self.main = tk.Frame(self.root, bd=0, bg=theme["bg"])
@@ -792,15 +792,15 @@ class MainWindow:
 
         self.tool_cards = []
         for index, (icon, name, description, accent) in enumerate(tools):
-            row, column = divmod(index, 2)
+            row, column = divmod(index, 3)
             self.create_tool_card(
                 self.tools_grid, row, column, icon, name, description, accent,
                 command=lambda n=name: self.open_tool(n),
             )
 
-        for column in range(2):
+        for column in range(3):
             self.tools_grid.grid_columnconfigure(column, weight=1, uniform="tool")
-        for row in range((len(tools) + 1) // 2):
+        for row in range((len(tools) + 2) // 3):
             self.tools_grid.grid_rowconfigure(row, weight=1, uniform="toolrow")
 
     def create_tool_card(self, parent, row, column, icon, name, description, accent, command):
@@ -821,22 +821,22 @@ class MainWindow:
         icon_box = tk.Label(
             frame,
             text=icon,
-            font=("Segoe UI Symbol", 24, "bold"),
+            font=("Segoe UI Symbol", 20, "bold"),
             width=3,
             bg=theme["card"],
             fg=accent,
             bd=0,
             cursor="hand2",
         )
-        icon_box.pack(side="left", fill="y", padx=(14, 8))
+        icon_box.pack(side="left", fill="y", padx=(10, 5))
 
         text_box = tk.Frame(frame, bd=0, bg=theme["card"], cursor="hand2")
-        text_box.pack(side="left", fill="both", expand=True, pady=15)
+        text_box.pack(side="left", fill="both", expand=True, pady=10)
 
         title = tk.Label(
             text_box,
             text=name,
-            font=("Segoe UI", 12, "bold"),
+            font=("Segoe UI", 11, "bold"),
             anchor="w",
             bg=theme["card"],
             fg=theme["text"],
@@ -896,7 +896,8 @@ class MainWindow:
             except tk.TclError:
                 pass
         card["frame"].configure(
-            highlightbackground=card["accent_color"] if active else theme["border"]
+            highlightbackground=card["accent_color"] if active else theme["border"],
+            highlightthickness=2 if active else 1,
         )
         card["arrow"].configure(fg=card["accent_color"] if active else theme["gray"])
 

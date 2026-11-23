@@ -24,7 +24,7 @@ if _ENV_FILE.exists():
         pass
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
@@ -84,8 +84,16 @@ app.include_router(design_academy_router)
 from .routers.instruction_generator import router as instruction_generator_router
 app.include_router(instruction_generator_router)
 
-from .routers.music import router as music_router
-app.include_router(music_router)
+# Режим запуска сервера:
+# - "all"   (по умолчанию локально): Work Center + Музыка в авто вместе
+# - "work"  (для Render): только Work Center без стриминга музыки (чтобы не тратить лимит 5 ГБ)
+# - "music" (для отдельного бесплатного сервера музыки, например Hugging Face Spaces): только Музыка
+APP_MODE = os.getenv("APP_MODE", "all").strip().lower() or "all"
+MUSIC_EXTERNAL_URL = os.getenv("MUSIC_EXTERNAL_URL", "").strip()
+
+if APP_MODE != "work":
+    from .routers.music import router as music_router
+    app.include_router(music_router)
 
 # Опциональная защита паролем для публичного облака (задается через BAHONIQ_PASSWORD)
 AUTH_PASSWORD = os.getenv("BAHONIQ_PASSWORD", "").strip()
@@ -100,7 +108,7 @@ AUTH_TOKEN = (
 @app.get("/health")
 def health():
     """Лёгкий эндпоинт для пингера (UptimeRobot) и Render health check. Без авторизации."""
-    return {"status": "ok", "app": "BahonIQ Work Center"}
+    return {"status": "ok", "app": "BahonIQ Work Center", "mode": APP_MODE}
 
 
 # ============================================================
@@ -213,9 +221,33 @@ app.mount("/music/assets", StaticFiles(directory=MUSIC_STATIC), name="music_asse
 @app.get("/music", include_in_schema=False)
 @app.get("/music/", include_in_schema=False)
 def car_music_app():
+    if APP_MODE == "work":
+        if MUSIC_EXTERNAL_URL:
+            return RedirectResponse(MUSIC_EXTERNAL_URL, status_code=302)
+        return HTMLResponse(
+            "<!doctype html><html lang='ru'><head><meta charset='utf-8'><title>BahonIQ Music</title>"
+            "<style>body{background:#07111f;color:#e2e8f0;font-family:sans-serif;display:flex;align-items:center;"
+            "justify-content:center;height:100vh;margin:0;text-align:center;padding:20px}"
+            ".card{max-width:460px;background:#0f1d33;border:1px solid #1e3352;border-radius:16px;padding:28px}</style></head>"
+            "<body><div class='card'><h2>🎵 Музыка в авто вынесена на отдельный сервер</h2>"
+            "<p>Чтобы не расходовать лимит трафика Render (5 ГБ), стриминг музыки отключён на основном сервере Work Center (`APP_MODE=work`).</p>"
+            "<p>Укажите адрес музыкального сервера в переменной <code>MUSIC_EXTERNAL_URL</code> в настройках Render для автоматического перехода.</p></div></body></html>",
+            status_code=200,
+        )
     return FileResponse(
         MUSIC_STATIC / "index.html",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+    )
+
+@app.api_route("/api/music/{rest_of_path:path}", methods=["GET", "POST", "HEAD"], include_in_schema=False)
+def disabled_music_api_fallback(rest_of_path: str):
+    """Заглушка на случай APP_MODE=work, если старый кэш плеера обращается к Render."""
+    if MUSIC_EXTERNAL_URL:
+        target = f"{MUSIC_EXTERNAL_URL.rstrip('/')}/api/music/{rest_of_path}"
+        return RedirectResponse(target, status_code=307)
+    return JSONResponse(
+        {"detail": "Модуль музыки отключён на этом сервере (APP_MODE=work) для экономии трафика Render."},
+        status_code=503,
     )
 
 @app.get("/music/manifest.webmanifest", include_in_schema=False)
@@ -360,6 +392,8 @@ def _new_session(kind: str) -> tuple[str, Path]:
 
 @app.get("/")
 def home():
+    if APP_MODE == "music":
+        return RedirectResponse("/music/", status_code=302)
     return FileResponse(
         STATIC / "index.html",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
