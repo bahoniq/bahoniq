@@ -15,15 +15,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=20261123_premium_motion_v5">
+  <link rel="stylesheet" href="/assets/app.css?v=20261123_internal_ui_final_v1">
   <link rel="stylesheet" href="/assets/design_academy.css?v=20261117_android_fix_v9">
   <link rel="stylesheet" href="/assets/design_academy_pro.css?v=20261117_android_fix_v9">
   <style>
     /* Critical Inline CSS - гарантирует мгновенную защиту верстки от кэша браузера */
+    html, body, body.theme-night, body.theme-day { color-scheme: dark; }
+    *, html, body, .content-body, .main-area, .app-layout { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+    *::-webkit-scrollbar, html::-webkit-scrollbar, body::-webkit-scrollbar, .content-body::-webkit-scrollbar { width: 0px !important; height: 0px !important; display: none !important; background: transparent !important; }
     img { max-width: 100%; height: auto; }
-    @media (min-width: 769px) {
-      .sidebar { width: 248px; overflow: hidden; display: flex; flex-direction: column; }
-    }
     .sidebar-footer { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 18px; padding-top: 16px; width: 100%; }
     .sidebar-logo-bottom { display: flex; align-items: center; justify-content: center; width: 100%; }
     .sidebar-logo-img { width: 112px !important; height: 112px !important; max-width: 112px !important; max-height: 112px !important; object-fit: contain !important; display: block; margin: 0 auto; filter: drop-shadow(0 6px 20px rgba(0, 229, 255, 0.28)); transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1); cursor: pointer; }
@@ -31,7 +31,7 @@
     .web-splash-logo { width: 200px !important; height: 200px !important; max-width: 200px !important; max-height: 200px !important; object-fit: contain !important; filter: drop-shadow(0 10px 30px rgba(0, 229, 255, 0.35)); }
   </style>
   <link rel="stylesheet" href="/assets/instruction_generator.css?v=20261119_original_ratio_2">
-<link rel="stylesheet" href="/assets/theme_violet.css?v=20261123_premium_motion_v5">
+<link rel="stylesheet" href="/assets/theme_violet.css?v=20261123_internal_ui_final_v1">
 </head>
 <body class="theme-night">
   <script>
@@ -209,10 +209,9 @@
             <h2>Рабочие инструменты</h2>
           </div>
 
-          <!-- Сетка 3 колонки со всеми инструментами -->
           <div class="tools-grid">
-            <!-- 1. Ticket Writer AI (Бирюзовый) -->
-            <div class="tool-tile" data-open="tickets">
+            <!-- 1. Ticket Writer AI -->
+            <div class="tool-tile" data-open="tickets" tabindex="0" role="button">
               <div class="tool-icon icon-teal">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="12" y1="7" x2="12" y2="13"/><line x1="9" y1="10" x2="15" y2="10"/></svg>
               </div>
@@ -225,14 +224,22 @@
               </div>
             </div>
 
-<div class="tool-tile" data-open="instructionGenerator">
-  <div class="tool-icon icon-teal"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/><path d="M15 3v3M9 3v3"/></svg></div>
-  <div class="tool-meta"><div class="tool-name">Instruction Generator AI</div><div class="tool-desc">Создание университетских инструкций из черновиков и скриншотов.</div></div>
-  <div class="tool-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></div>
-</div>
+            <!-- 2. Instruction Generator AI -->
+            <div class="tool-tile" data-open="instructionGenerator" tabindex="0" role="button">
+              <div class="tool-icon icon-teal">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><path d="M8 9h8"/><path d="M8 13h8"/><path d="M8 17h5"/><path d="M15 3v3"/><path d="M9 3v3"/></svg>
+              </div>
+              <div class="tool-meta">
+                <div class="tool-name">Instruction Generator AI</div>
+                <div class="tool-desc">Создание университетских инструкций из черновиков и скриншотов.</div>
+              </div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
+            </div>
 
-            <!-- 2. Заметки (Бирюзовый) -->
-            <div class="tool-tile" data-open="notes">
+            <!-- 3. Заметки -->
+            <div class="tool-tile" data-open="notes" tabindex="0" role="button">
               <div class="tool-icon icon-teal">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-5.5"/><polyline points="14 2 14 8 20 8"/><path d="M10.4 12.6a2 2 0 1 1 3 3L6 23l-4 1 1-4Z"/></svg>
               </div>
@@ -245,64 +252,8 @@
               </div>
             </div>
 
-            <!-- 3. Excel AI (Синий - данные) -->
-            <div class="tool-tile" data-open="excel">
-              <div class="tool-icon icon-blue">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/></svg>
-              </div>
-              <div class="tool-meta">
-                <div class="tool-name">Excel AI</div>
-                <div class="tool-desc">Умная обработка, очистка, слияние таблиц и интеллектуальная сверка списков студентов по ИИН и ФИО.</div>
-              </div>
-              <div class="tool-arrow" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-              </div>
-            </div>
-
-            <!-- 4. Platonus Wiki AI (Бирюзовый - база знаний и инструкции) -->
-            <div class="tool-tile" data-open="platonus">
-              <div class="tool-icon icon-teal">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>
-              </div>
-              <div class="tool-meta">
-                <div class="tool-name">Platonus Wiki AI</div>
-                <div class="tool-desc">Умная база инструкций Platonus: пакетная загрузка регламентов и пошаговые ответы ИИ строго по базе.</div>
-              </div>
-              <div class="tool-arrow" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-              </div>
-            </div>
-
-            <!-- 7. PDF Center (Бирюзовый) -->
-            <div class="tool-tile" data-open="pdf">
-              <div class="tool-icon icon-teal">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 2v5h5"/><path d="M21 6v6.5c0 .8-.7 1.5-1.5 1.5h-7c-.8 0-1.5-.7-1.5-1.5v-9c0-.8.7-1.5 1.5-1.5H17l4 4z"/><path d="M7 8v8.8c0 .3.2.6.4.8.2.2.5.4.8.4H15"/><path d="M3 12v8.8c0 .3.2.6.4.8.2.2.5.4.8.4H11"/></svg>
-              </div>
-              <div class="tool-meta">
-                <div class="tool-name">PDF Center</div>
-                <div class="tool-desc">Конвертация документов, объединение файлов, разделение страниц и сжатие PDF.</div>
-              </div>
-              <div class="tool-arrow" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-              </div>
-            </div>
-
-            <!-- 8. ANALYTICS AI (Синий - аналитика) -->
-            <div class="tool-tile" data-open="analytics">
-              <div class="tool-icon icon-blue">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
-              </div>
-              <div class="tool-meta">
-                <div class="tool-name">ANALYTICS AI</div>
-                <div class="tool-desc">Управленческий анализ табличных данных с формированием отчётов PDF и PowerPoint.</div>
-              </div>
-              <div class="tool-arrow" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-              </div>
-            </div>
-
-            <!-- 9. Телефонный справочник (Янтарный - системная функция) -->
-            <div class="tool-tile" data-open="phonebook">
+            <!-- 4. Телефонный справочник -->
+            <div class="tool-tile" data-open="phonebook" tabindex="0" role="button">
               <div class="tool-icon icon-amber">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/><path d="M14.05 2a9 9 0 0 1 8 7.94"/><path d="M14.05 6A5 5 0 0 1 18 10"/></svg>
               </div>
@@ -315,8 +266,64 @@
               </div>
             </div>
 
-            <!-- 10. Code Academy (Фиолетовый - обучение) -->
-            <div class="tool-tile" data-open="academy">
+            <!-- 5. Excel AI -->
+            <div class="tool-tile" data-open="excel" tabindex="0" role="button">
+              <div class="tool-icon icon-blue">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/></svg>
+              </div>
+              <div class="tool-meta">
+                <div class="tool-name">Excel AI</div>
+                <div class="tool-desc">Умная обработка, очистка, слияние таблиц и интеллектуальная сверка списков студентов по ИИН и ФИО.</div>
+              </div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
+            </div>
+
+            <!-- 6. Platonus Wiki AI -->
+            <div class="tool-tile" data-open="platonus" tabindex="0" role="button">
+              <div class="tool-icon icon-teal">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>
+              </div>
+              <div class="tool-meta">
+                <div class="tool-name">Platonus Wiki AI</div>
+                <div class="tool-desc">Умная база инструкций Platonus: пакетная загрузка регламентов и пошаговые ответы ИИ строго по базе.</div>
+              </div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
+            </div>
+
+            <!-- 7. PDF Center -->
+            <div class="tool-tile" data-open="pdf" tabindex="0" role="button">
+              <div class="tool-icon icon-teal">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 2v5h5"/><path d="M21 6v6.5c0 .8-.7 1.5-1.5 1.5h-7c-.8 0-1.5-.7-1.5-1.5v-9c0-.8.7-1.5 1.5-1.5H17l4 4z"/><path d="M7 8v8.8c0 .3.2.6.4.8.2.2.5.4.8.4H15"/><path d="M3 12v8.8c0 .3.2.6.4.8.2.2.5.4.8.4H11"/></svg>
+              </div>
+              <div class="tool-meta">
+                <div class="tool-name">PDF Center</div>
+                <div class="tool-desc">Конвертация документов, объединение файлов, разделение страниц и сжатие PDF.</div>
+              </div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
+            </div>
+
+            <!-- 8. ANALYTICS AI -->
+            <div class="tool-tile" data-open="analytics" tabindex="0" role="button">
+              <div class="tool-icon icon-blue">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+              </div>
+              <div class="tool-meta">
+                <div class="tool-name">ANALYTICS AI</div>
+                <div class="tool-desc">Управленческий анализ табличных данных с формированием отчётов PDF и PowerPoint.</div>
+              </div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
+            </div>
+
+            <!-- 9. Code Academy -->
+            <div class="tool-tile" data-open="academy" tabindex="0" role="button">
               <div class="tool-icon icon-purple">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
               </div>
@@ -329,8 +336,8 @@
               </div>
             </div>
 
-            <!-- 11. Design Academy Studio -->
-            <div class="tool-tile" data-open="designAcademy">
+            <!-- 10. Design Academy Studio -->
+            <div class="tool-tile" data-open="designAcademy" tabindex="0" role="button">
               <div class="tool-icon icon-design">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19 7-7 3 3-7 7-3-3Z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
               </div>
@@ -343,21 +350,37 @@
               </div>
             </div>
 
-            <!-- 12. Музыка в авто (PWA) -->
+            <!-- 11. Музыка -->
             <a href="/music/" target="_blank" class="tool-tile" style="text-decoration: none; color: inherit;">
-              <div class="tool-icon" style="background: rgba(0, 229, 255, 0.15); color: #00e5ff;">
+              <div class="tool-icon icon-teal">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
                 </svg>
               </div>
               <div class="tool-meta">
-                <div class="tool-name">Музыка в авто</div>
+                <div class="tool-name">Музыка</div>
                 <div class="tool-desc">Автономный автомобильный PWA-плеер для Telegram-канала «Музыка ДИТ» с поддержкой мультируля.</div>
               </div>
               <div class="tool-arrow" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
               </div>
             </a>
+
+            <!-- 12. Рабочие системы (Platonus, Поддержка, Почта, Мессенджеры) -->
+            <div class="tool-tile" data-open="systemsDrawer" tabindex="0" role="button">
+              <div class="tool-icon icon-red">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+              </div>
+              <div class="tool-meta">
+                <div class="tool-name">Рабочие системы</div>
+                <div class="tool-desc">Platonus, Поддержка, Telegram, WhatsApp, Gmail, Salem Office и запуск всех систем в один клик.</div>
+              </div>
+              <div class="tool-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -609,12 +632,19 @@
               </div>
             </div>
             <div class="pdf-layout">
-              <div id="pdfTools" class="tool-list"></div>
+              <div id="pdfTools" class="tool-list tabs"></div>
               <form id="pdfForm" class="card pdf-workspace">
-                <div><h2 id="pdfTitle">PDF → Word</h2><p id="pdfHint">Преобразование PDF в редактируемый DOCX.</p></div>
-                <label class="file-drop large"><input id="pdfFiles" type="file" multiple accept=".pdf"><span class="file-title">Добавьте исходные файлы</span><small id="pdfFileNames">Формат зависит от выбранной операции</small></label>
+                <div class="pdf-op-header"><h2 id="pdfTitle">PDF → Word</h2><p id="pdfHint">Преобразование PDF в редактируемый DOCX.</p></div>
+                <label class="file-drop large">
+                  <input id="pdfFiles" type="file" multiple accept=".pdf">
+                  <span class="file-drop-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  </span>
+                  <span class="file-title">Перетащите файлы сюда</span>
+                  <small id="pdfFileNames">Нажмите для выбора файла · поддерживаемый формат зависит от операции</small>
+                </label>
                 <div id="pdfQueue" class="file-queue"><span>Файлы не выбраны</span></div>
-                <button class="button primary" type="submit">Выполнить операцию</button>
+                <button id="pdfSubmitBtn" class="button primary" type="submit" disabled>Выполнить операцию</button>
                 <div id="pdfResult" class="result-panel hidden"></div>
               </form>
             </div>
@@ -1001,6 +1031,15 @@
                     </div>
                   </div>
 
+                  <!-- Пустое состояние до первого запроса -->
+                  <div id="wikiEmptyState" class="wiki-empty-state">
+                    <div class="wiki-empty-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>
+                    </div>
+                    <div class="wiki-empty-title">Задайте вопрос по инструкциям Platonus</div>
+                    <div class="wiki-empty-sub">Введите вопрос в поле выше, нажмите на один из быстрых запросов или выберите раздел в списке слева — ИИ сформирует пошаговый ответ строго по базе регламентов.</div>
+                  </div>
+
                   <!-- Блок ответа ИИ -->
                   <div id="wikiAnswerBox" class="wiki-answer-box hidden">
                     <div class="wiki-answer-bar">
@@ -1130,7 +1169,7 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261123_premium_motion_v5"></script>
+  <script src="/assets/app.js?v=20261123_internal_ui_final_v1"></script>
   <script src="/assets/design_academy.js?v=20261116_pro_v5"></script>
   <script src="/assets/design_academy_pro.js?v=20261116_pro_v5"></script>
   <script>

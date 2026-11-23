@@ -123,11 +123,11 @@ SYSTEMS = [
 # COLORS
 # ============================================================
 
-GREEN = "#009246"
+GREEN = "#00B8D4"
 
-GREEN_DARK = "#007A3A"
+GREEN_DARK = "#0097B2"
 
-GREEN_LIGHT = "#E8F7EF"
+GREEN_LIGHT = "#E6FAFD"
 
 
 WHITE = "#FFFFFF"

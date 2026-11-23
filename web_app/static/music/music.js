@@ -189,6 +189,17 @@
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
   }
 
+  function getTrackCoverVersion(track) {
+    return track?.cover_hash || track?.cover_version || 0;
+  }
+
+  function getTrackCoverUrl(track, withFallback404 = true) {
+    const tid = Number(track?.id);
+    const ver = encodeURIComponent(getTrackCoverVersion(track));
+    const fb = withFallback404 ? 'fallback=404&' : '';
+    return `/api/music/cover/${tid}?${fb}v=${ver}`;
+  }
+
   function applyTrackAmbientAndCover(track) {
     if (!track) return;
     const tid = Number(track.id);
@@ -199,20 +210,40 @@
     document.documentElement.style.setProperty('--amb-3', pal.amb[2]);
 
     const generatedCover = makeTrackArtworkSvgDataUri(track);
-    coverImg.onerror = () => {
-      coverImg.onerror = () => {
-        coverImg.onerror = null;
-        coverImg.src = '/music/assets/logo.png';
-      };
-      coverImg.src = generatedCover;
-    };
-    // Если на сервере есть реальная обложка в MP3/Telegram — загрузится она, иначе сработает fallback=404 -> стильная обложка трека
-    if (!Number.isFinite(tid) || track.isRadio) {
-      coverImg.onerror = null;
+    delete coverImg.dataset.fallbackApplied;
+    coverImg.onload = null;
+    coverImg.onerror = null;
+
+    // Если это радио или сервер уже подтвердил отсутствие обложки (cover_source === 'none'),
+    // сразу показываем фирменную векторную обложку без лишних сетевых 404-запросов.
+    if (!Number.isFinite(tid) || track.isRadio || track.cover_source === 'none') {
+      coverImg.dataset.fallbackApplied = 'true';
       coverImg.src = generatedCover;
       return;
     }
-    coverImg.src = `/api/music/tracks/${tid}/cover?fallback=404&v=${encodeURIComponent(track.cover_version || 0)}`;
+
+    const realCoverUrl = getTrackCoverUrl(track, true);
+    coverImg.onload = () => {
+      if (coverImg.dataset.fallbackApplied === 'true') return;
+      track.has_cover = true;
+      const thumbImg = tracksListEl
+        ? tracksListEl.querySelector(`.car-track-thumb img[data-track-id="${tid}"]`)
+        : null;
+      if (thumbImg && thumbImg.dataset.fallbackApplied === 'true') {
+        delete thumbImg.dataset.fallbackApplied;
+        thumbImg.src = realCoverUrl;
+      }
+    };
+    coverImg.onerror = () => {
+      if (coverImg.dataset.fallbackApplied === 'true') {
+        coverImg.onerror = null;
+        coverImg.src = '/music/assets/logo.png';
+        return;
+      }
+      coverImg.dataset.fallbackApplied = 'true';
+      coverImg.src = generatedCover;
+    };
+    coverImg.src = realCoverUrl;
   }
 
   // --- Анимированная звуковая волна (Waveform) ---
@@ -1527,13 +1558,15 @@
 
   function updateMediaSession(track) {
     if (!('mediaSession' in navigator)) return;
-    const tid = Number(track.id);
+    const coverSrc = track.cover_source === 'none'
+      ? '/music/assets/logo.png'
+      : getTrackCoverUrl(track, false);
     navigator.mediaSession.metadata = new MediaMetadata({
       title: track.title || 'Музыка',
       artist: track.artist || 'Музыка ДИТ',
       album: track.album || 'BahonIQ Music',
       artwork: [
-        { src: `/api/music/tracks/${tid}/cover?v=${encodeURIComponent(track.cover_version || 0)}`, sizes: '512x512', type: 'image/png' }
+        { src: coverSrc, sizes: '512x512', type: 'image/png' }
       ]
     });
     navigator.mediaSession.playbackState = 'playing';
@@ -1836,9 +1869,13 @@
       if (isOff) badgeHtml = `<span class="car-track-badge">✓ Офлайн</span>`;
       else if (isDown) badgeHtml = `<span class="car-track-badge" style="color:var(--accent-gold);background:rgba(250,204,21,0.15);">⏳ Загрузка</span>`;
 
+      const noCoverKnown = track.cover_source === 'none';
+      const thumbSrc = noCoverKnown ? '/music/assets/logo.png' : getTrackCoverUrl(track, true);
+      const fbAttr = noCoverKnown ? 'data-fallback-applied="true"' : '';
+
       item.innerHTML = `
         <div class="car-track-thumb">
-          <img src="/api/music/tracks/${tid}/cover?v=${encodeURIComponent(track.cover_version || 0)}" alt="Обложка">
+          <img src="${thumbSrc}" data-track-id="${tid}" ${fbAttr} loading="lazy" alt="Обложка">
         </div>
         <div class="car-track-info">
           <div class="car-track-name">${escapeHtml(track.title)}</div>
@@ -1846,6 +1883,18 @@
         </div>
         ${badgeHtml}
       `;
+
+      const thumbImgEl = item.querySelector('.car-track-thumb img');
+      if (thumbImgEl && !noCoverKnown) {
+        thumbImgEl.onerror = () => {
+          if (thumbImgEl.dataset.fallbackApplied === 'true') {
+            thumbImgEl.onerror = null;
+            return;
+          }
+          thumbImgEl.dataset.fallbackApplied = 'true';
+          thumbImgEl.src = '/music/assets/logo.png';
+        };
+      }
 
       item.onclick = () => {
         const targetIdx = playlist.findIndex(t => Number(t.id) === tid);

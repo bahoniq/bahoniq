@@ -26,10 +26,12 @@ from modules.music_core import (
     get_track_by_id,
     query_tracks,
     reset_telegram_client,
+    resolve_track_cover,
     save_telegram_session_str,
     stream_track_chunks,
     sync_catalog,
 )
+from modules.music_covers import extract_embedded_cover_from_bytes
 try:
     from ..modules.radio_service import RADIO_BY_ID as _RADIO_BY_ID
     from ..modules.radio_service import RADIO_STATIONS, get_station_metadata, public_station
@@ -152,6 +154,10 @@ async def list_tracks(
             offset=offset
         )
 
+    for t in tracks:
+        ver = t.get("cover_hash") or t.get("cover_version") or 0
+        t["cover_url"] = f"/api/music/cover/{t['id']}?v={ver}"
+
     return {
         "status": "ok",
         "tracks": tracks,
@@ -170,8 +176,10 @@ async def get_track(track_id: int):
         track = get_track_by_id(track_id)
     if not track:
         raise HTTPException(status_code=404, detail="Трек не найден")
+    ver = track.get("cover_hash") or track.get("cover_version") or 0
     return {
         "id": track["id"],
+        "file_unique_id": track.get("file_unique_id", f"track_{track['id']}"),
         "title": track["title"],
         "artist": track["artist"],
         "album": track["album"],
@@ -181,6 +189,10 @@ async def get_track(track_id: int):
         "file_name": track["file_name"],
         "date": track["date"],
         "has_cover": bool(track["has_cover"]),
+        "cover_hash": track.get("cover_hash", ""),
+        "cover_source": track.get("cover_source", ""),
+        "cover_version": ver,
+        "cover_url": f"/api/music/cover/{track['id']}?v={ver}",
     }
 
 
@@ -305,82 +317,74 @@ async def download_track(track_id: int):
 
 
 def _extract_embedded_cover_bytes(audio_path: Path) -> Optional[tuple[bytes, str]]:
-    """Извлекает встроенную обложку APIC из MP3-файла, если она есть."""
+    """Извлекает встроенную обложку (MP3 ID3v2.2 PIC, ID3v2.3/2.4 APIC, MP4/M4A covr, FLAC, OGG) с валидацией изображения."""
     try:
-        data = audio_path.read_bytes()
+        with audio_path.open("rb") as f:
+            head = f.read(524288)
     except OSError:
         return None
-    if len(data) < 128 or data[:3] != b"ID3":
-        return None
-    # Ищем JPEG или PNG внутри ID3v2 заголовка (первые 512 КБ)
-    head = data[:524288]
-    jpeg_start = head.find(b"\xff\xd8\xff")
-    if jpeg_start != -1:
-        jpeg_end = head.find(b"\xff\xd9", jpeg_start)
-        if jpeg_end != -1 and (jpeg_end + 2 - jpeg_start) > 1024:
-            return head[jpeg_start:jpeg_end + 2], "image/jpeg"
-    png_start = head.find(b"\x89PNG\r\n\x1a\n")
-    if png_start != -1:
-        png_end = head.find(b"IEND\xaeB`\x82", png_start)
-        if png_end != -1 and (png_end + 8 - png_start) > 1024:
-            return head[png_start:png_end + 8], "image/png"
-    return None
+    return extract_embedded_cover_from_bytes(head)
 
 
+@router.get("/cover/{track_id}")
 @router.get("/tracks/{track_id}/cover")
-async def track_cover(track_id: int, fallback: Optional[str] = Query(None)):
-    """Возвращает реальную обложку трека (из кэша MP3 или миниатюры Telegram), либо 404 при fallback=404, либо логотип BQ."""
-    from modules.music_core import MUSIC_CACHE_DIR
-    MUSIC_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    cover_cache_path = MUSIC_CACHE_DIR / f"cover_{track_id}.img"
-    cover_mime_path = MUSIC_CACHE_DIR / f"cover_{track_id}.mime"
+async def track_cover(
+    track_id: int,
+    request: Request,
+    fallback: Optional[str] = Query(None),
+    v: Optional[str] = Query(None),
+):
+    """
+    Возвращает обложку трека со строгим приоритетом:
+    1. Встроенная обложка из метаданных аудиофайла (embedded).
+    2. Миниатюра Telegram-документа (thumb), если встроенной обложки нет.
+    3. Ранее сохранённая реальная обложка трека.
+    4. HTTP 404 (при fallback=404) либо фирменная заглушка BahonIQ (с Cache-Control: no-store, чтобы заглушка никогда не кешировалась как финальная обложка).
+    """
+    resolved = await resolve_track_cover(track_id, allow_network=True)
+    if resolved and resolved.get("bytes"):
+        img_bytes: bytes = resolved["bytes"]
+        mime: str = resolved.get("mime") or "image/jpeg"
+        cover_hash: str = resolved.get("cover_hash") or ""
+        source: str = resolved.get("source") or "embedded"
+        etag = f'"{cover_hash}"' if cover_hash else ""
+        cache_ctrl = (
+            "public, max-age=31536000, immutable"
+            if (v and cover_hash and str(v) == str(cover_hash))
+            else "public, max-age=86400"
+        )
+        headers = {
+            "Cache-Control": cache_ctrl,
+            "X-Cover-Source": source,
+            "X-Cover-Placeholder": "false",
+        }
+        if etag:
+            headers["ETag"] = etag
+            inm = (request.headers.get("if-none-match") or "").strip()
+            if inm and (inm == etag or inm.strip('"') == cover_hash):
+                return Response(status_code=304, headers=headers)
 
-    if cover_cache_path.exists() and cover_cache_path.stat().st_size > 512:
-        mime = cover_mime_path.read_text(encoding="utf-8").strip() if cover_mime_path.exists() else "image/jpeg"
-        return FileResponse(cover_cache_path, media_type=mime, headers={"Cache-Control": "public, max-age=604800"})
-
-    # 1. Пробуем достать встроенную обложку из уже скачанного на сервер аудиофайла
-    cached_audio = get_cached_track_path(track_id)
-    if cached_audio is not None:
-        extracted = _extract_embedded_cover_bytes(cached_audio)
-        if extracted:
-            img_bytes, mime = extracted
-            try:
-                cover_cache_path.write_bytes(img_bytes)
-                cover_mime_path.write_text(mime, encoding="utf-8")
-            except OSError:
-                pass
-            return Response(content=img_bytes, media_type=mime, headers={"Cache-Control": "public, max-age=604800"})
-
-    # 2. Если у трека отмечено наличие миниатюры в Telegram (has_cover), скачиваем thumb
-    track = get_track_by_id(track_id)
-    if track and track.get("has_cover"):
-        try:
-            client = await get_telegram_client()
-            if client:
-                _, doc = await get_telegram_document_for_track(track_id)
-                if doc and getattr(doc, "thumbs", None):
-                    raw_thumb = await client.download_media(doc, file=bytes, thumb=-1)
-                    if isinstance(raw_thumb, (bytes, bytearray)) and len(raw_thumb) > 512:
-                        mime = "image/png" if raw_thumb[:4] == b"\x89PNG" else "image/jpeg"
-                        try:
-                            cover_cache_path.write_bytes(bytes(raw_thumb))
-                            cover_mime_path.write_text(mime, encoding="utf-8")
-                        except OSError:
-                            pass
-                        return Response(content=bytes(raw_thumb), media_type=mime, headers={"Cache-Control": "public, max-age=604800"})
-        except Exception:
-            await reset_telegram_client()
+        return Response(
+            content=img_bytes,
+            media_type=mime,
+            headers=headers,
+        )
 
     if fallback == "404":
         raise HTTPException(status_code=404, detail="No embedded cover")
 
+    placeholder_headers = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "X-Cover-Source": "placeholder",
+        "X-Cover-Placeholder": "true",
+    }
     if LOGO_PATH.exists():
-        return FileResponse(LOGO_PATH, media_type="image/png", headers={"Cache-Control": "public, max-age=604800"})
+        return FileResponse(LOGO_PATH, media_type="image/png", headers=placeholder_headers)
     return Response(
         content=DEFAULT_VINYL_SVG,
         media_type="image/svg+xml",
-        headers={"Cache-Control": "public, max-age=604800"}
+        headers=placeholder_headers,
     )
 
 

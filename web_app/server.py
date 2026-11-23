@@ -89,7 +89,7 @@ app.include_router(instruction_generator_router)
 # - "work"  (для Render): только Work Center без стриминга музыки (чтобы не тратить лимит 5 ГБ)
 # - "music" (для отдельного бесплатного сервера музыки, например Hugging Face Spaces): только Музыка
 APP_MODE = os.getenv("APP_MODE", "all").strip().lower() or "all"
-MUSIC_EXTERNAL_URL = os.getenv("MUSIC_EXTERNAL_URL", "").strip()
+MUSIC_EXTERNAL_URL = os.getenv("MUSIC_EXTERNAL_URL", "https://bahoniq-music.onrender.com/music/").strip()
 
 if APP_MODE != "work":
     from .routers.music import router as music_router

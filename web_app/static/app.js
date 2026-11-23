@@ -96,6 +96,10 @@ function openModule(modId, label) {
     }
   }
   if (modId === 'platonus' && typeof window.loadPlatonusWiki === 'function') window.loadPlatonusWiki();
+  if (dashView) {
+    dashView.dataset.motionActive = 'false';
+    $$('#dashboardView .tool-tile').forEach(t => { t.style.transform = ''; });
+  }
   dashView.classList.add('hidden');
   $$('.module-page').forEach(p => p.classList.remove('active'));
   target.classList.add('active');
@@ -110,10 +114,14 @@ function returnToDashboard() {
   modHost.classList.add('hidden');
   modHost.classList.remove('panorama-in', 'panorama-out');
   $$('.module-page').forEach(p => p.classList.remove('active'));
-  dashView.classList.remove('hidden');
-  dashView.classList.add('panorama-in');
+  if (dashView) {
+    dashView.dataset.motionActive = 'true';
+    dashView.classList.add('motion-entered');
+    dashView.classList.remove('hidden');
+    dashView.classList.add('panorama-in');
+  }
   window.history.replaceState(null, '', location.pathname + location.search);
-  setTimeout(() => dashView.classList.remove('panorama-in'), 380);
+  setTimeout(() => dashView?.classList.remove('panorama-in'), 380);
 }
 
 $('#backToDash')?.addEventListener('click', returnToDashboard);
@@ -151,15 +159,28 @@ const TOOL_CATEGORIES = {
   analytics: 'ДАННЫЕ И ВЫВОДЫ',
   phonebook: 'КОНТАКТЫ',
   academy: 'ОБУЧЕНИЕ',
-  designAcademy: 'ДИЗАЙН И ПРАКТИКА'
+  designAcademy: 'ДИЗАЙН И ПРАКТИКА',
+  systemsDrawer: 'БЫСТРЫЙ ДОСТУП'
 };
 
 function initializePremiumMotion() {
+  if (dashView) {
+    dashView.dataset.motionActive = 'true';
+    if (!dashView.dataset.arrivalScheduled) {
+      dashView.dataset.arrivalScheduled = 'true';
+      setTimeout(() => dashView.classList.add('motion-entered'), 700);
+    }
+  }
   const tiles = $$('#dashboardView .tool-tile');
   tiles.forEach((tile, index) => {
     if (tile.dataset.motionReady === 'true') return;
     tile.dataset.motionReady = 'true';
     tile.style.setProperty('--tile-index', index);
+
+    if (tile.tagName !== 'A' && !tile.hasAttribute('tabindex')) {
+      tile.setAttribute('tabindex', '0');
+      tile.setAttribute('role', 'button');
+    }
 
     const number = document.createElement('span');
     number.className = 'tool-number';
@@ -185,13 +206,14 @@ function initializePremiumMotion() {
     }
 
     tile.addEventListener('pointermove', (event) => {
+      if (dashView?.dataset.motionActive === 'false' || dashView?.classList.contains('hidden')) return;
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
-          window.matchMedia('(hover: none)').matches) return;
+          window.matchMedia('(hover: none), (pointer: coarse)').matches) return;
       const rect = tile.getBoundingClientRect();
       const x = event.clientX - rect.left;
       const y = event.clientY - rect.top;
-      const rotateX = ((y / rect.height) - 0.5) * -5;
-      const rotateY = ((x / rect.width) - 0.5) * 7;
+      const rotateX = ((y / rect.height) - 0.5) * -3.5;
+      const rotateY = ((x / rect.width) - 0.5) * 4;
       tile.style.setProperty('--mouse-x', `${x}px`);
       tile.style.setProperty('--mouse-y', `${y}px`);
       tile.style.transform = `translateY(-6px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
@@ -209,8 +231,7 @@ if (document.readyState === 'loading') {
   initializePremiumMotion();
 }
 
-document.addEventListener('click', (e) => {
-  const tile = e.target.closest('.tool-tile');
+function activateToolTile(tile) {
   if (!tile) return;
   if (tile.dataset.desktopOnly === 'true') {
     const title = tile.dataset.title || tile.querySelector('.tool-name')?.textContent || '';
@@ -220,6 +241,13 @@ document.addEventListener('click', (e) => {
   }
   const modId = tile.dataset.open;
   if (!modId) return;
+  if (modId === 'systemsDrawer') {
+    const sb = $('.sidebar'), bd = $('#sidebarBackdrop'), btn = $('#sidebarToggle');
+    sb?.classList.add('open');
+    bd?.classList.add('show');
+    btn?.setAttribute('aria-expanded', 'true');
+    return;
+  }
   if (modId === 'reconcile') {
     openModule('excel', 'Excel AI — Сверка студентов');
     const recTab = document.querySelector('[data-tab="excelReconcile"]');
@@ -228,6 +256,20 @@ document.addEventListener('click', (e) => {
   }
   const name = tile.querySelector('.tool-name')?.textContent || '';
   openModule(modId, name);
+}
+
+document.addEventListener('click', (e) => {
+  const tile = e.target.closest('.tool-tile');
+  if (!tile) return;
+  activateToolTile(tile);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const tile = e.target.closest?.('.tool-tile[data-open]');
+  if (!tile) return;
+  e.preventDefault();
+  activateToolTile(tile);
 });
 
 // Модальное окно при блокировке браузером множественного открытия вкладок
@@ -654,8 +696,7 @@ if (toolList) {
   Object.entries(pdfOps).forEach(([key, v]) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'button secondary' + (key === pdfOperation ? ' active' : '');
-    b.style.margin = '0 6px 6px 0';
+    b.className = 'tab button secondary' + (key === pdfOperation ? ' active' : '');
     b.textContent = v[0];
     b.onclick = () => selectPdf(key);
     toolList.appendChild(b);
@@ -722,7 +763,9 @@ function renderQueue(note = '') {
   const orderMatters = ['merge_pdf', 'images_pdf'].includes(pdfOperation);
   $('#pdfFileNames').textContent = files.length
     ? `${files.length} файл(ов) выбрано · нажмите, чтобы добавить ещё, или перетащите сюда`
-    : 'Выберите несколько файлов или перетащите их сюда · ' + pdfAcceptList().join(', ');
+    : 'Нажмите для выбора файла · поддерживается: ' + pdfAcceptList().join(', ');
+  const submitBtn = $('#pdfSubmitBtn') || document.querySelector('#pdfForm button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = files.length === 0;
   const rows = files.map((f, i) => `<div class="queue-item pdf-queue-row"><span class="pdf-queue-name"><b>${String(i + 1).padStart(2, '0')}. ${esc(f.name)}</b> <small style="color:var(--text-sub)">(${formatBytes(f.size)})</small></span><span class="pdf-queue-actions">${orderMatters ? `<button type="button" data-q="up" data-i="${i}" title="Выше" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" data-q="down" data-i="${i}" title="Ниже" ${i === files.length - 1 ? 'disabled' : ''}>↓</button>` : ''}<button type="button" data-q="del" data-i="${i}" title="Убрать">✕</button></span></div>`).join('');
   const clear = files.length > 1 ? `<div style="padding:6px 0"><button type="button" class="pdf-queue-clear" data-q="clear" data-i="0">Очистить список</button></div>` : '';
   const warn = note ? `<div style="color:var(--yellow);font-size:12px;padding:4px 0">${esc(note)}</div>` : '';
@@ -1380,7 +1423,6 @@ convertForm?.addEventListener('submit', async e => {
   btn.addEventListener('click', () => setOpen(!sb.classList.contains('open')));
   bd?.addEventListener('click', () => setOpen(false));
   sb.addEventListener('click', e => { if (e.target.closest('a.system-item')) setOpen(false); });
-  window.addEventListener('resize', () => { if (window.innerWidth > 768) setOpen(false); });
 })();
 
 
@@ -1821,6 +1863,7 @@ convertForm?.addEventListener('submit', async e => {
       askBtn.disabled = true;
       askBtn.textContent = 'ИИ ищет в базе...';
     }
+    $('#wikiEmptyState')?.classList.add('hidden');
     answerBox?.classList.remove('hidden');
     if (answerContent) {
       answerContent.innerHTML = '⏳ Поиск релевантных инструкций в базе знаний и подготовка пошагового ответа...';

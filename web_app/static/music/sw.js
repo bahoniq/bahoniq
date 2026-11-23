@@ -1,5 +1,6 @@
 ﻿/* BahonIQ Музыка в авто - Изолированный Service Worker (Scope: /music/) — 100% Offline Ready */
-const CACHE_NAME = 'bahoniq-music-shell-v43-direct-radio';
+const CACHE_NAME = 'bahoniq-music-shell-v44-covers-fix';
+const COVERS_CACHE_NAME = 'bahoniq-music-covers-v1';
 const SHELL_ASSETS = [
   '/music/',
   '/music/manifest.webmanifest',
@@ -23,7 +24,9 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => {
       return Promise.all(
-        keys.filter(k => k.startsWith('bahoniq-music-') && k !== CACHE_NAME).map(k => caches.delete(k))
+        keys
+          .filter(k => k.startsWith('bahoniq-music-') && k !== CACHE_NAME && k !== COVERS_CACHE_NAME)
+          .map(k => caches.delete(k))
       );
     }).then(() => self.clients.claim())
   );
@@ -43,11 +46,45 @@ function fetchWithTimeout(request, timeoutMs = 2500) {
   });
 }
 
+function isCoverApiRequest(url) {
+  return (
+    url.pathname.startsWith('/api/music/cover/') ||
+    (url.pathname.startsWith('/api/music/tracks/') && url.pathname.endsWith('/cover'))
+  );
+}
+
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
 
-  // Для API-запросов и стриминга отдаём напрямую (аудио и список треков кэшируются плеером в IndexedDB/OPFS)
+  // Кэширование ТОЛЬКО реальных обложек треков (заглушки X-Cover-Placeholder: true и ошибки 404/5xx никогда не сохраняются)
+  if (isCoverApiRequest(url)) {
+    const ver = url.searchParams.get('v') || '0';
+    const hasHashVersion = ver && ver !== '0';
+    event.respondWith(
+      caches.open(COVERS_CACHE_NAME).then(async cache => {
+        if (hasHashVersion) {
+          const cached = await cache.match(event.request);
+          if (cached) return cached;
+        }
+        try {
+          const response = await fetch(event.request);
+          const isPlaceholder = response.headers.get('X-Cover-Placeholder') === 'true';
+          if (response && response.status === 200 && !isPlaceholder) {
+            cache.put(event.request, response.clone());
+          }
+          return response;
+        } catch (err) {
+          const fallbackCached = await cache.match(event.request);
+          if (fallbackCached) return fallbackCached;
+          throw err;
+        }
+      })
+    );
+    return;
+  }
+
+  // Для остальных API-запросов и стриминга отдаём напрямую (аудио и список треков кэшируются плеером в IndexedDB/OPFS)
   if (url.pathname.startsWith('/api/')) {
     return;
   }

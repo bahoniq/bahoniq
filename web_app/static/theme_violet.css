@@ -22,6 +22,8 @@ body.theme-day {
   --vl-accent-ln: rgba(45, 212, 208, 0.38);
 }
 
+body.theme-day .content-body { scrollbar-width: none !important; }
+body.theme-day .content-body::-webkit-scrollbar { width: 0px !important; height: 0px !important; display: none !important; }
 body.theme-day ::-webkit-scrollbar { width: 10px; height: 10px; }
 body.theme-day ::-webkit-scrollbar-track { background: rgba(23, 20, 37, 0.6); }
 body.theme-day ::-webkit-scrollbar-thumb {
@@ -224,16 +226,63 @@ body.theme-day #dashboardView .tool-tile {
   box-shadow: 0 12px 32px rgba(5,3,12,.30), inset 0 1px 0 rgba(255,255,255,.06);
 }
 body.theme-day #dashboardView .tool-tile::before {
-  background: radial-gradient(360px circle at var(--mouse-x,50%) var(--mouse-y,50%), rgba(54,227,224,.18), transparent 46%);
+  background: radial-gradient(380px circle at var(--mouse-x,50%) var(--mouse-y,50%), rgba(54,227,224,.26), transparent 48%);
 }
 body.theme-day #dashboardView .tool-tile:hover {
   background:
-    linear-gradient(145deg, rgba(255,255,255,.055), transparent 45%),
-    linear-gradient(145deg, rgba(43,35,67,.99), rgba(27,22,46,.98));
-  border-color: rgba(54,227,224,.52);
-  box-shadow: 0 22px 58px rgba(5,3,12,.45), 0 0 34px rgba(54,227,224,.08), inset 0 1px 0 rgba(255,255,255,.09);
+    linear-gradient(145deg, rgba(255,255,255,.065), transparent 45%),
+    linear-gradient(145deg, rgba(45,37,70,.99), rgba(28,23,48,.98));
+  border-color: rgba(54,227,224,.70);
+  box-shadow: 0 22px 58px rgba(5,3,12,.48), 0 0 38px rgba(54,227,224,.15), inset 0 1px 0 rgba(255,255,255,.14);
 }
 body.theme-day #dashboardView .tool-number { color: rgba(200,190,221,.56); }
 body.theme-day #dashboardView .tool-category { color: #36E3E0; }
 body.theme-day #dashboardView .tool-arrow { color:#36E3E0;border-color:rgba(54,227,224,.30); }
 body.theme-day #dashboardView .tool-tile:hover .tool-arrow:not(.tool-lock) { background:#36E3E0;border-color:#36E3E0;color:#100D1A; }
+body.theme-day #dashboardView .tool-tile:focus-visible { outline:2px solid #36E3E0; outline-offset:3px; border-color:rgba(54,227,224,.62); }
+
+/* Violet — унификация внутренних модулей */
+body.theme-day .module-page .card,
+body.theme-day .module-page .settings-card,
+body.theme-day .module-page .preview-card {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.032), transparent 48%),
+    linear-gradient(145deg, rgba(31,25,49,.96), rgba(20,16,35,.95)) !important;
+  border-color: rgba(196,165,255,.18) !important;
+  box-shadow: 0 14px 36px rgba(5,3,12,.32), inset 0 1px 0 rgba(255,255,255,.06) !important;
+}
+body.theme-day .wiki-sidebar {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.025), transparent 50%),
+    linear-gradient(145deg, rgba(26,21,42,.97), rgba(17,13,30,.96)) !important;
+}
+body.theme-day .button.primary {
+  background: linear-gradient(135deg, #36E3E0 0%, #14B8A6 100%) !important;
+  color: #081217 !important;
+  border-color: rgba(255,255,255,.22) !important;
+  box-shadow: 0 6px 20px rgba(54,227,224,.20), inset 0 1px 0 rgba(255,255,255,.35) !important;
+}
+body.theme-day .button.primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5EEAD4 0%, #2DD4BF 100%) !important;
+  color: #040D12 !important;
+}
+body.theme-day .tab.active,
+body.theme-day #pdfTools button.active {
+  background: rgba(54,227,224,.16) !important;
+  border-color: rgba(54,227,224,.55) !important;
+  color: var(--vl-text) !important;
+}
+body.theme-day .file-drop,
+body.theme-day .wiki-empty-state {
+  background: rgba(20,16,35,.55) !important;
+  border-color: rgba(196,165,255,.26) !important;
+}
+body.theme-day .file-drop:hover,
+body.theme-day .file-drop.dragover {
+  border-color: #36E3E0 !important;
+  background: rgba(54,227,224,.08) !important;
+}
+body.theme-day .file-queue {
+  background: rgba(18,14,32,.55) !important;
+  border-color: rgba(196,165,255,.15) !important;
+}

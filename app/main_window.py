@@ -45,14 +45,14 @@ from modules.phonebook import open_phonebook
 # ITALY COLORS
 # ============================================================
 
-ITALY_GREEN = "#009246"
+ITALY_GREEN = "#00B8D4"
 ITALY_WHITE = "#FFFFFF"
 ITALY_RED = "#CE2B37"
 
-ITALY_GREEN_DARK = "#007A3D"
+ITALY_GREEN_DARK = "#00E5FF"
 ITALY_RED_DARK = "#A91F2D"
 
-ITALY_GREEN_LIGHT = "#E8F5EE"
+ITALY_GREEN_LIGHT = "#E6FAFD"
 ITALY_RED_LIGHT = "#F9E8EA"
 
 ITALY_BORDER = "#D9E2DC"
@@ -603,9 +603,9 @@ class MainWindow:
         self.main.pack(fill="both", expand=True, padx=20, pady=(0, 10))
         state.main = self.main
 
-        # LEFT SIDEBAR
+        # LEFT SIDEBAR (скрыт по умолчанию, открывается по карточке «Рабочие системы»)
         left = tk.Frame(self.main, width=286, bd=0, bg=theme["bg"])
-        left.pack(side="left", fill="y", padx=(0, 14))
+        self.left_panel = left
         left.pack_propagate(False)
 
         self.systems_card = tk.Frame(
@@ -788,6 +788,7 @@ class MainWindow:
             ("⌘", "Code Academy", "Python, SQL и архитектура BahonIQ", "#7354A5"),
             ("🎨", "Design Academy Studio", "UI/UX дизайн и векторная графика", "#E879F9"),
             ("⊞", "Excel Academy Studio", "Офисные и IT-задачи, формулы и анализ", "#10B981"),
+            ("⚡", "Рабочие системы", "Platonus, Поддержка, Почта и мессенджеры", ITALY_RED),
         ]
 
         self.tool_cards = []
@@ -813,7 +814,7 @@ class MainWindow:
             highlightbackground=theme["border"],
             cursor="hand2",
         )
-        frame.grid(row=row, column=column, sticky="nsew", padx=5, pady=5)
+        frame.grid(row=row, column=column, sticky="nsew", padx=7, pady=7)
 
         accent_bar = tk.Frame(frame, width=5, bg=accent, bd=0, cursor="hand2")
         accent_bar.pack(side="left", fill="y")
@@ -821,22 +822,22 @@ class MainWindow:
         icon_box = tk.Label(
             frame,
             text=icon,
-            font=("Segoe UI Symbol", 20, "bold"),
+            font=("Segoe UI Symbol", 25, "bold"),
             width=3,
             bg=theme["card"],
             fg=accent,
             bd=0,
             cursor="hand2",
         )
-        icon_box.pack(side="left", fill="y", padx=(10, 5))
+        icon_box.pack(side="left", fill="y", padx=(14, 8))
 
         text_box = tk.Frame(frame, bd=0, bg=theme["card"], cursor="hand2")
-        text_box.pack(side="left", fill="both", expand=True, pady=10)
+        text_box.pack(side="left", fill="both", expand=True, pady=18)
 
         title = tk.Label(
             text_box,
             text=name,
-            font=("Segoe UI", 11, "bold"),
+            font=("Segoe UI", 13, "bold"),
             anchor="w",
             bg=theme["card"],
             fg=theme["text"],
@@ -1452,6 +1453,14 @@ class MainWindow:
 
         if name == "Ticket Writer AI":
             open_ticket_writer(self.root)
+            return
+
+        if name == "Рабочие системы":
+            if getattr(self, "left_panel", None) is not None:
+                if self.left_panel.winfo_ismapped():
+                    self.left_panel.pack_forget()
+                else:
+                    self.left_panel.pack(side="left", fill="y", padx=(0, 14), before=self.right)
             return
 
         if name == "Code Academy":

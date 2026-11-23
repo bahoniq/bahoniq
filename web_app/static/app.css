@@ -3629,54 +3629,513 @@ body.theme-day tbody tr:hover { background: rgba(54,227,224,.055) !important; }
 body.theme-day tbody td { color: var(--text-muted) !important; border-color: rgba(196,165,255,.12) !important; }
 
 /* ========================================================================== 
-   BAHONIQ PREMIUM MOTION — КОМПАКТНЫЕ КАРТОЧКИ ГЛАВНОГО ЭКРАНА
+   BAHONIQ PREMIUM HYBRID — NOVEMBER 2026 FINAL (КРУПНЫЕ КАРТОЧКИ + DRAWER СИСТЕМ)
    ========================================================================== */
-#dashboardView .welcome-banner { padding: 16px 22px; margin-bottom: 14px; }
-#dashboardView .welcome-banner h1 { font-size: 24px; margin-bottom: 4px; }
-#dashboardView .welcome-banner p { font-size: 13.5px; }
-#dashboardView .section-heading { margin-bottom: 10px; }
-#dashboardView .section-heading h2 { font-size: 16px; }
-#dashboardView .tools-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap:12px; perspective:1100px; }
+.content-body, html, body { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+body .content-body::-webkit-scrollbar,
+body.theme-day .content-body::-webkit-scrollbar,
+html::-webkit-scrollbar,
+body::-webkit-scrollbar { width: 0px !important; height: 0px !important; display: none !important; background: transparent !important; }
+
+/* Сайдбар «СИСТЕМЫ» скрыт по умолчанию и открывается из 12-й карточки или кнопки ☰ */
+.sidebar-toggle {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  cursor: pointer;
+  margin-right: 12px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.sidebar-toggle:hover { border-color: var(--cyan-neon); background: rgba(0, 229, 255, 0.08); }
+.brand-group { display: flex; align-items: center; }
+.sidebar,
+body.theme-day .sidebar {
+  position: fixed !important;
+  left: -320px !important;
+  top: 0 !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  width: 280px !important;
+  z-index: 1200 !important;
+  transition: left 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 22px 16px 20px !important;
+  box-sizing: border-box !important;
+}
+.sidebar.open,
+body.theme-day .sidebar.open {
+  left: 0 !important;
+  box-shadow: 12px 0 40px rgba(0, 0, 0, 0.65) !important;
+}
+.sidebar-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(2, 6, 16, 0.62) !important;
+  backdrop-filter: blur(4px) !important;
+  z-index: 1190 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.28s ease !important;
+  display: block !important;
+}
+.sidebar-backdrop.show {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+#dashboardView { overflow-x: hidden; }
+#dashboardView .section-heading-spaced { margin-top: 28px; }
+#dashboardView .tools-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap:16px; perspective:1100px; }
 #dashboardView .tool-tile {
-  display:block; min-height:156px; padding:14px 18px; border-radius:16px;
+  display:flex; flex-direction:column; justify-content:flex-end;
+  min-height:228px; padding:70px 24px 56px; border-radius:22px;
   background:linear-gradient(145deg,rgba(255,255,255,.035),transparent 45%),linear-gradient(145deg,rgba(16,29,49,.96),rgba(10,18,34,.94));
   transform-style:preserve-3d; transform-origin:center; will-change:transform; opacity:0;
-  animation:premiumTileArrive .55s cubic-bezier(.2,.8,.2,1) forwards;
-  animation-delay:calc(var(--tile-index,0) * 70ms);
+  animation:premiumTileArrive .44s cubic-bezier(.2,.8,.2,1) forwards;
+  animation-delay:min(calc(var(--tile-index,0) * 40ms), 240ms);
   transition:transform .2s ease,border-color .25s ease,box-shadow .25s ease,background .25s ease;
 }
-@keyframes premiumTileArrive { from{opacity:0;transform:translateY(28px) scale(.97)} to{opacity:1;transform:none} }
+#dashboardView.motion-entered .tool-tile { opacity:1; animation:none; }
+@keyframes premiumTileArrive { from{opacity:0;transform:translateY(22px) scale(.975)} to{opacity:1;transform:none} }
 #dashboardView .tool-tile::before {
-  inset:-1px; border-radius:16px;
-  background:radial-gradient(360px circle at var(--mouse-x,50%) var(--mouse-y,50%),rgba(0,229,255,.18),transparent 46%);
+  inset:-1px; border-radius:22px;
+  background:radial-gradient(380px circle at var(--mouse-x,50%) var(--mouse-y,50%),rgba(0,229,255,.26),transparent 48%);
+  opacity:0; transition:opacity .28s ease;
   z-index:0;
 }
+#dashboardView .tool-tile:hover::before { opacity:1; }
 #dashboardView .tool-tile::after {
   content:''; position:absolute; top:-60%; left:-85%; width:42%; height:220%;
-  background:linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);
   transform:rotate(18deg); transition:left .72s cubic-bezier(.2,.8,.2,1); pointer-events:none; z-index:1;
 }
 #dashboardView .tool-tile:hover {
-  border-color:rgba(0,229,255,.48);
-  background:linear-gradient(145deg,rgba(255,255,255,.055),transparent 45%),linear-gradient(145deg,rgba(20,35,59,.98),rgba(11,22,40,.96));
-  box-shadow:0 22px 58px rgba(0,0,0,.36),0 0 34px rgba(0,229,255,.08),inset 0 1px 0 rgba(255,255,255,.11);
+  transform:translateY(-6px);
+  border-color:rgba(0,229,255,.68);
+  background:linear-gradient(145deg,rgba(255,255,255,.065),transparent 45%),linear-gradient(145deg,rgba(22,38,64,.98),rgba(12,23,42,.96));
+  box-shadow:0 22px 58px rgba(0,0,0,.42),0 0 38px rgba(0,229,255,.15),inset 0 1px 0 rgba(255,255,255,.16);
 }
 #dashboardView .tool-tile:hover::after { left:145%; }
-#dashboardView .tool-tile:active { transform:scale(.975)!important; transition-duration:.08s; }
-#dashboardView .tool-number { position:absolute;top:14px;left:18px;z-index:2;color:rgba(169,189,211,.56);font-size:11px;line-height:1;font-weight:800;letter-spacing:.03em; }
-#dashboardView .tool-icon { position:absolute;top:11px;right:16px;z-index:2;width:36px;height:36px;min-width:36px;border-radius:11px;transition:transform .35s cubic-bezier(.2,.8,.2,1),background .3s ease,box-shadow .3s ease; }
-#dashboardView .tool-icon svg { width:18px;height:18px; }
-#dashboardView .tool-tile:hover .tool-icon { transform:translateY(-4px) rotate(4deg) scale(1.08);box-shadow:0 12px 28px rgba(0,0,0,.25); }
-#dashboardView .tool-meta { position:absolute;left:18px;right:18px;bottom:38px;z-index:2;transform:translateZ(20px); }
-#dashboardView .tool-category { margin-bottom:3px;color:var(--cyan-neon);font-size:9.5px;line-height:1.15;font-weight:800;letter-spacing:.13em;text-transform:uppercase; }
-#dashboardView .tool-name { margin-bottom:4px;font-size:16px;line-height:1.18;letter-spacing:-.02em; }
-#dashboardView .tool-desc { max-width:96%;min-height:31px;font-size:11.8px;line-height:1.34;-webkit-line-clamp:2; }
-#dashboardView .tool-action-label { position:absolute;left:18px;bottom:10px;z-index:2;color:var(--text-muted);font-size:11.2px;line-height:22px;opacity:.76;transform:translateY(3px);transition:opacity .28s ease,transform .28s ease,color .28s ease; }
-#dashboardView .tool-arrow { position:absolute;right:16px;bottom:9px;z-index:2;width:25px;height:25px;min-width:25px;border-radius:50%;color:var(--cyan-neon);border-color:rgba(0,229,255,.30);transition:transform .28s ease,color .28s ease,background .28s ease,border-color .28s ease; }
-#dashboardView .tool-arrow svg { width:14px;height:14px; }
+#dashboardView .tool-tile:active { transform:scale(.985)!important; transition-duration:.08s; }
+#dashboardView .tool-tile:focus-visible {
+  outline:2px solid var(--cyan-neon); outline-offset:3px;
+  border-color:rgba(0,229,255,.58);
+}
+#dashboardView .tool-number { position:absolute;top:22px;left:24px;z-index:2;color:rgba(169,189,211,.56);font-size:13px;line-height:1;font-weight:800;letter-spacing:.03em; }
+#dashboardView .tool-icon { position:absolute;top:18px;right:24px;z-index:2;width:44px;height:44px;min-width:44px;border-radius:14px;transition:transform .32s cubic-bezier(.2,.8,.2,1),background .3s ease,box-shadow .3s ease; }
+#dashboardView .tool-icon svg { width:22px;height:22px; }
+#dashboardView .tool-tile:hover .tool-icon { transform:translateY(-4px) rotate(3deg);box-shadow:0 10px 24px rgba(0,0,0,.25),0 0 18px rgba(0,229,255,.20); }
+#dashboardView .tool-meta { position:relative;left:auto;right:auto;bottom:auto;z-index:2;transform:translateZ(20px); }
+#dashboardView .tool-category { margin-bottom:7px;color:var(--cyan-neon);font-size:10.5px;line-height:1.2;font-weight:800;letter-spacing:.12em;text-transform:uppercase; }
+#dashboardView .tool-name { margin-bottom:7px;font-size:20.5px;line-height:1.18;letter-spacing:-.02em; }
+#dashboardView .tool-desc { max-width:96%;min-height:38px;font-size:13px;line-height:1.45;-webkit-line-clamp:2; }
+#dashboardView .tool-action-label { position:absolute;left:24px;bottom:18px;z-index:2;color:var(--text-muted);font-size:13px;line-height:30px;opacity:.78;transform:translateY(4px);transition:opacity .28s ease,transform .28s ease,color .28s ease; }
+#dashboardView .tool-arrow { position:absolute;right:24px;bottom:15px;z-index:2;width:32px;height:32px;min-width:32px;border-radius:50%;color:var(--cyan-neon);border-color:rgba(0,229,255,.30);transition:transform .28s ease,color .28s ease,background .28s ease,border-color .28s ease; }
+#dashboardView .tool-arrow svg { width:16px;height:16px; }
 #dashboardView .tool-tile:hover .tool-action-label { color:var(--text-main);opacity:1;transform:none; }
 #dashboardView .tool-tile:hover .tool-arrow:not(.tool-lock) { color:#041014;background:var(--cyan-neon);border-color:var(--cyan-neon);transform:translateX(3px); }
 @media(max-width:940px){#dashboardView .tools-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:760px){#dashboardView .tools-grid{grid-template-columns:1fr}#dashboardView .tool-tile{min-height:148px}#dashboardView .tool-name{font-size:15.5px}}
+@media(max-width:719px){#dashboardView .tools-grid{grid-template-columns:1fr}#dashboardView .tool-tile{min-height:216px;padding:66px 22px 54px}#dashboardView .tool-name{font-size:19.5px}#dashboardView .tool-number,#dashboardView .tool-action-label{left:22px}#dashboardView .tool-icon,#dashboardView .tool-arrow{right:22px}}
 @media(hover:none),(pointer:coarse){#dashboardView .tool-tile{transform:none!important}#dashboardView .tool-tile::after{display:none}#dashboardView .tool-action-label{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){#dashboardView .tool-tile,#dashboardView .tool-icon,#dashboardView .tool-action-label,#dashboardView .tool-arrow{animation:none!important;transition-duration:.01ms!important;transform:none!important;opacity:1!important}#dashboardView .tool-tile::after{display:none}}
+
+/* ==========================================================================
+   BAHONIQ INTERNAL MODULES — ФИНАЛЬНАЯ ВИЗУАЛЬНАЯ УНИФИКАЦИЯ ВНУТРЕННИХ СТРАНИЦ
+   ========================================================================== */
+.module-host.panorama-in { animation: none !important; }
+.module-page.active {
+  display: block;
+  animation: internalModuleArrive 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes internalModuleArrive {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 1. Единая верхняя часть модуля */
+.module-top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.back-btn {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease, transform 0.15s ease;
+}
+.back-btn:hover {
+  border-color: rgba(0, 229, 255, 0.55);
+  color: var(--cyan-neon);
+  background: rgba(0, 229, 255, 0.07);
+  transform: translateX(-2px);
+}
+.back-btn:focus-visible {
+  outline: 2px solid var(--cyan-neon);
+  outline-offset: 2px;
+}
+.current-mod-name {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.24);
+  color: var(--cyan-neon);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.page-heading h1,
+.acad-top-title-group h1,
+.das-header h1 {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+  margin: 0 0 6px 0;
+}
+.page-heading p,
+.acad-top-title-group p,
+.das-header p {
+  font-size: 14.5px;
+  line-height: 1.48;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* 2. Панели и карточки внутренних модулей (18–22px скругление, родственны главной) */
+.module-page .card,
+.module-page .settings-card,
+.module-page .preview-card {
+  border-radius: 20px;
+  padding: 24px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.028), transparent 48%),
+    linear-gradient(145deg, rgba(16, 29, 49, 0.94), rgba(10, 18, 34, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* 3. Кнопки и цветовая система (основной — бирюзовый/циановый, без зелёных primary) */
+.button {
+  border-radius: 12px;
+  padding: 11px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease, opacity 0.18s ease;
+}
+.button.primary {
+  background: linear-gradient(135deg, #00E5FF 0%, #00B8D4 100%);
+  color: #04131A;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  box-shadow: 0 6px 20px rgba(0, 229, 255, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.button.primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #29ECFF 0%, #00CBE6 100%);
+  color: #021017;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(0, 229, 255, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.button.primary:active:not(:disabled),
+.button.secondary:active:not(:disabled) {
+  transform: scale(0.985);
+}
+.button.secondary {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-main);
+}
+.button.secondary:hover:not(:disabled) {
+  border-color: rgba(0, 229, 255, 0.52);
+  color: var(--cyan-neon);
+  background: rgba(0, 229, 255, 0.08);
+  transform: translateY(-1px);
+}
+.button.danger,
+.wiki-danger-btn {
+  background: rgba(239, 68, 68, 0.10) !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  color: #FCA5A5 !important;
+}
+.button.danger:hover:not(:disabled),
+.wiki-danger-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.18) !important;
+  border-color: rgba(239, 68, 68, 0.60) !important;
+  color: #FECACA !important;
+}
+.button.warning {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.38);
+  color: #FCD34D;
+}
+.button.success {
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.40);
+  color: #6EE7B7;
+}
+.button:focus-visible,
+.tab:focus-visible,
+#pdfTools button:focus-visible,
+.wiki-chip:focus-visible,
+.template-chip:focus-visible {
+  outline: 2px solid var(--cyan-neon);
+  outline-offset: 2px;
+}
+.button:disabled {
+  opacity: 0.42 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* 4. Вкладки и навигация (одинаковая высота, горизонтальный скролл без переноса) */
+.tabs,
+#pdfTools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  padding-bottom: 4px;
+  margin-bottom: 18px;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.tabs::-webkit-scrollbar,
+#pdfTools::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+.tab,
+#pdfTools button {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 11px;
+  font-size: 13.5px;
+  font-weight: 600;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin: 0 !important;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.15s ease;
+}
+.tab:hover,
+#pdfTools button:hover {
+  color: var(--text-main);
+  border-color: rgba(0, 229, 255, 0.38);
+  background: rgba(0, 229, 255, 0.07);
+}
+.tab.active,
+#pdfTools button.active {
+  background: rgba(0, 229, 255, 0.15) !important;
+  border-color: rgba(0, 229, 255, 0.55) !important;
+  color: var(--text-main) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+/* 5. Поля ввода, формы и upload-зоны (текст 14.5–15.5px, скругление 12px) */
+.module-page label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  gap: 7px;
+}
+.module-page input:not([type="checkbox"]):not([type="range"]):not([type="color"]):not([type="file"]),
+.module-page select,
+.module-page textarea {
+  font-size: 14.5px;
+  line-height: 1.5;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: rgba(6, 13, 25, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  color: var(--text-main);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.module-page input:not([type="checkbox"]):not([type="range"]):not([type="color"]):not([type="file"]):focus,
+.module-page select:focus,
+.module-page textarea:focus {
+  border-color: var(--cyan-neon);
+  box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.15);
+  outline: none;
+}
+.module-page input:disabled,
+.module-page select:disabled,
+.module-page textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.file-drop {
+  border: 1.5px dashed rgba(0, 229, 255, 0.28);
+  border-radius: 16px;
+  padding: 28px 22px;
+  background: rgba(8, 17, 32, 0.52);
+  gap: 8px;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+.file-drop:hover,
+.file-drop.dragover {
+  border-color: var(--cyan-neon);
+  background: rgba(0, 229, 255, 0.08);
+  transform: translateY(-2px);
+}
+.file-drop-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 229, 255, 0.12);
+  border: 1px solid rgba(0, 229, 255, 0.28);
+  color: var(--cyan-neon);
+  margin-bottom: 4px;
+}
+.file-drop .file-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+.file-drop small {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* 6. PDF Center — точечная доработка */
+.pdf-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pdf-op-header {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.pdf-op-header h2 {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0 0 5px 0;
+}
+.pdf-op-header p {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin: 0;
+}
+.file-queue {
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(6, 13, 25, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+/* 7. Platonus Wiki AI — точечная доработка и пустое состояние */
+.wiki-sidebar {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.02), transparent 50%),
+    linear-gradient(145deg, rgba(13, 24, 42, 0.96), rgba(8, 15, 28, 0.95)) !important;
+}
+.wiki-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 34px 24px;
+  border-radius: 16px;
+  background: rgba(6, 13, 25, 0.42);
+  border: 1px dashed rgba(0, 229, 255, 0.22);
+  gap: 8px;
+}
+.wiki-empty-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 229, 255, 0.11);
+  border: 1px solid rgba(0, 229, 255, 0.26);
+  color: var(--cyan-neon);
+  margin-bottom: 4px;
+}
+.wiki-empty-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+.wiki-empty-sub {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  max-width: 540px;
+  line-height: 1.5;
+}
+
+@media (max-width: 1024px) {
+  .wiki-layout {
+    grid-template-columns: 1fr;
+  }
+  .wiki-sidebar {
+    height: auto;
+    max-height: 360px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .module-page.active,
+  .button,
+  .back-btn,
+  .tab,
+  .file-drop {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+    transform: none !important;
+  }
+}

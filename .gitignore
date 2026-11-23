@@ -20,6 +20,8 @@ env/
 data/*
 !data/wiki_seed.json
 !data/wiki.db
+!data/music_covers/
+!data/music_covers/*
 
 # Local databases and generated reports
 *.db
