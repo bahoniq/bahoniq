@@ -1,5 +1,5 @@
 // BahonIQ Work Center Service Worker — Offline Shell Support
-const CACHE_NAME = 'bahoniq-pwa-v26-evidence-v1';
+const CACHE_NAME = 'bahoniq-pwa-v27-excel-chat-v2';
 const PRECACHE_URLS = [
   '/',
   '/assets/app.css',

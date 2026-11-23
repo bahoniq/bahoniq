@@ -34,6 +34,13 @@ NAME_WORDS = {
     "сотрудник", "қызметкер", "товар", "өнім", "product", "клиент", "client",
 }
 
+STUDENT_KEY_ALIASES = {
+    "iin": {"иин", "жсн", "iin", "иин обучающегося", "иин студента"},
+    "email": {"почта", "электронная почта", "email", "e mail", "e-mail", "корпоративная почта"},
+    "fio": {"фио", "ф и о", "фио обучающегося", "фио студента", "полное имя"},
+    "translit": {"фио транслитом", "фио латиницей", "фио латин", "translit fio", "full name latin"},
+}
+
 
 def _text(value) -> str:
     return "" if value is None else str(value).strip()
@@ -546,3 +553,207 @@ def execute_multi_file_plan(plan: dict, schemas: dict, output_path) -> dict:
         "output": str(destination), "records": len(rows), "columns": validated["output_columns"],
         "mode": validated["mode"], "source_files": len(validated["sources"]),
     }
+
+
+def _student_key_kind(header: str) -> str | None:
+    normalized = _norm(header)
+    for kind, aliases in STUDENT_KEY_ALIASES.items():
+        if normalized in {_norm(alias) for alias in aliases}:
+            return kind
+    return None
+
+
+def _student_key(value, kind: str) -> str:
+    raw = _text(value)
+    if kind == "iin":
+        digits = re.sub(r"\D", "", raw)
+        return digits.zfill(12) if digits and len(digits) <= 12 else digits
+    if kind == "email":
+        return re.sub(r"\s+", "", raw).casefold()
+    return _norm(raw)
+
+
+def enrich_student_list(
+    target_path: str | Path,
+    reference_path: str | Path,
+    output_path: str | Path,
+    *,
+    target_sheet: str = "",
+    reference_sheet: str = "",
+) -> dict:
+    """Add missing columns from a reference workbook to a target student list.
+
+    Matching is conservative and deterministic: IIN, email, normalized full name,
+    then transliterated full name.  A row is enriched only when the selected key
+    resolves to exactly one reference row.  Unmatched and ambiguous rows are
+    recorded on a separate audit sheet instead of being guessed.
+    """
+    target = Path(target_path).expanduser().resolve()
+    reference = Path(reference_path).expanduser().resolve()
+    destination = Path(output_path).expanduser().resolve()
+    if destination.suffix.lower() != ".xlsx":
+        destination = destination.with_suffix(".xlsx")
+    if target == reference or destination in {target, reference}:
+        raise ValueError("Исходные файлы и итоговый файл должны быть разными.")
+
+    target_wb = load_workbook(target, data_only=False)
+    reference_wb = load_workbook(reference, data_only=True, read_only=True)
+    try:
+        target_ws = target_wb[target_sheet] if target_sheet in target_wb.sheetnames else target_wb.active
+        reference_ws = reference_wb[reference_sheet] if reference_sheet in reference_wb.sheetnames else reference_wb.active
+        target_header_row = _find_header_row(target_ws)
+        reference_header_row = _find_header_row(reference_ws)
+        target_headers = _unique_headers([
+            target_ws.cell(target_header_row, col).value for col in range(1, target_ws.max_column + 1)
+        ])
+        reference_headers = _unique_headers([
+            reference_ws.cell(reference_header_row, col).value for col in range(1, reference_ws.max_column + 1)
+        ])
+        target_key_cols = {
+            kind: index for index, header in enumerate(target_headers, 1)
+            if (kind := _student_key_kind(header))
+        }
+        reference_key_cols = {
+            kind: index for index, header in enumerate(reference_headers, 1)
+            if (kind := _student_key_kind(header))
+        }
+        shared_keys = [kind for kind in ("iin", "email", "fio", "translit") if kind in target_key_cols and kind in reference_key_cols]
+        if not shared_keys:
+            raise ValueError(
+                "Не найден общий ключ. Нужен хотя бы один столбец: ИИН, Почта, ФИО или ФИО транслитом."
+            )
+
+        indices = {kind: defaultdict(list) for kind in shared_keys}
+        reference_rows = {}
+        for row_number, raw_values in enumerate(
+            reference_ws.iter_rows(
+                min_row=reference_header_row + 1,
+                max_col=len(reference_headers),
+                values_only=True,
+            ),
+            start=reference_header_row + 1,
+        ):
+            values = list(raw_values)
+            if not any(value not in (None, "") for value in values):
+                continue
+            reference_rows[row_number] = values
+            for kind in shared_keys:
+                key = _student_key(values[reference_key_cols[kind] - 1], kind)
+                if key:
+                    indices[kind][key].append(row_number)
+
+        existing = {_norm(header) for header in target_headers}
+        appended = [
+            (index, header) for index, header in enumerate(reference_headers, 1)
+            if _norm(header) not in existing
+        ]
+        if not appended:
+            raise ValueError("Во втором файле нет новых столбцов для добавления.")
+
+        first_new_col = target_ws.max_column + 1
+        source_header_style = target_ws.cell(target_header_row, 1)
+        from copy import copy
+        for offset, (_, header) in enumerate(appended):
+            cell = target_ws.cell(target_header_row, first_new_col + offset, header)
+            cell.font = copy(source_header_style.font)
+            cell.fill = copy(source_header_style.fill)
+            cell.border = copy(source_header_style.border)
+            cell.alignment = copy(source_header_style.alignment)
+            cell.number_format = source_header_style.number_format
+            cell.protection = copy(source_header_style.protection)
+
+        matched = unmatched = ambiguous = conflicts = 0
+        method_counts = Counter()
+        audit_rows = []
+        for row_number in range(target_header_row + 1, target_ws.max_row + 1):
+            if not any(target_ws.cell(row_number, col).value not in (None, "") for col in range(1, len(target_headers) + 1)):
+                continue
+            candidates_by_kind = []
+            for kind in shared_keys:
+                key = _student_key(target_ws.cell(row_number, target_key_cols[kind]).value, kind)
+                rows = indices[kind].get(key, []) if key else []
+                if rows:
+                    candidates_by_kind.append((kind, key, rows))
+
+            unique_evidence = [(kind, key, rows[0]) for kind, key, rows in candidates_by_kind if len(rows) == 1]
+            unique_rows = {item[2] for item in unique_evidence}
+            selected = None
+            method = ""
+            status = ""
+            if len(unique_rows) > 1:
+                conflicts += 1
+                status = "Конфликт ключей"
+            elif len(unique_rows) == 1:
+                selected = next(iter(unique_rows))
+                method = next(kind for kind, _, ref_row in unique_evidence if ref_row == selected)
+            else:
+                all_rows = {ref_row for _, _, rows in candidates_by_kind for ref_row in rows}
+                if len(all_rows) == 1:
+                    selected = next(iter(all_rows))
+                    method = next(kind for kind, _, rows in candidates_by_kind if selected in rows)
+                elif all_rows:
+                    ambiguous += 1
+                    status = "Неоднозначное совпадение"
+                else:
+                    unmatched += 1
+                    status = "Не найден"
+
+            if selected is not None:
+                matched += 1
+                method_counts[method] += 1
+                source_values = reference_rows[selected]
+                for offset, (source_col, _) in enumerate(appended):
+                    target_ws.cell(row_number, first_new_col + offset, source_values[source_col - 1])
+            else:
+                audit_rows.append([
+                    row_number,
+                    status,
+                    _text(target_ws.cell(row_number, target_key_cols.get("iin", 0)).value) if "iin" in target_key_cols else "",
+                    _text(target_ws.cell(row_number, target_key_cols.get("email", 0)).value) if "email" in target_key_cols else "",
+                    _text(target_ws.cell(row_number, target_key_cols.get("fio", 0)).value) if "fio" in target_key_cols else "",
+                ])
+
+        audit_name = "Отчёт сопоставления"
+        if audit_name in target_wb.sheetnames:
+            del target_wb[audit_name]
+        audit_ws = target_wb.create_sheet(audit_name)
+        audit_ws.append(["Показатель", "Значение"])
+        audit_ws.append(["Всего строк", matched + unmatched + ambiguous + conflicts])
+        audit_ws.append(["Успешно дополнено", matched])
+        audit_ws.append(["Не найдено", unmatched])
+        audit_ws.append(["Неоднозначных", ambiguous])
+        audit_ws.append(["Конфликтов ключей", conflicts])
+        audit_ws.append(["Добавлено столбцов", len(appended)])
+        audit_ws.append(["Новые столбцы", ", ".join(header for _, header in appended)])
+        audit_ws.append(["Методы", ", ".join(f"{kind}: {count}" for kind, count in method_counts.items()) or "Нет"])
+        audit_ws.append([])
+        audit_ws.append(["Строка исходного файла", "Статус", "ИИН", "Почта", "ФИО"])
+        for row in audit_rows:
+            audit_ws.append(row)
+        audit_ws.freeze_panes = "A12"
+        for cell in audit_ws[1]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="1F4E78")
+        for cell in audit_ws[11]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="1F4E78")
+        for col, width in {"A": 25, "B": 28, "C": 18, "D": 34, "E": 42}.items():
+            audit_ws.column_dimensions[col].width = width
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        target_wb.save(destination)
+        return {
+            "output": str(destination),
+            "total": matched + unmatched + ambiguous + conflicts,
+            "matched": matched,
+            "unmatched": unmatched,
+            "ambiguous": ambiguous,
+            "conflicts": conflicts,
+            "added_columns": [header for _, header in appended],
+            "methods": dict(method_counts),
+            "target_sheet": target_ws.title,
+            "reference_sheet": reference_ws.title,
+        }
+    finally:
+        target_wb.close()
+        reference_wb.close()

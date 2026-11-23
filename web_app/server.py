@@ -33,6 +33,13 @@ from .modules.excel_ai.ai_interpreter import interpret_task
 from .modules.excel_ai.analyzer import analyze_workbook
 from .modules.excel_ai.operations import execute_operations, plan_operations
 from .modules.excel_ai.comparison import _read_book, reconcile_students, save_student_reconciliation_report
+from .modules.excel_ai.comprehensive_audit import is_comprehensive_audit_request, run_comprehensive_audit
+from .modules.excel_ai.universal_runner import run_universal_excel_ai
+from .modules.excel_ai.smart_merge import (
+    enrich_student_list,
+    execute_multi_file_plan,
+    plan_multi_file_task,
+)
 from .modules.report_studio.launcher import generate_report, inspect_excel
 from .modules.report_studio.fast_inspector import fast_inspect_excel
 from .modules.ticket_writer import generate_ticket, generate_ticket_stream
@@ -594,6 +601,132 @@ async def excel_plan(
         raise HTTPException(400, str(exc)) from exc
 
 
+@app.post("/api/excel/chat")
+async def excel_chat(
+    instruction: str = Form(...),
+    files: list[UploadFile] = File(...),
+):
+    """Единый свободный интерфейс Excel AI для одного или нескольких файлов."""
+    _cleanup()
+    instruction = instruction.strip()
+    if not instruction:
+        raise HTTPException(400, "Опишите, что нужно сделать.")
+    if not files:
+        raise HTTPException(400, "Прикрепите хотя бы один Excel-файл.")
+    if len(files) > 10:
+        raise HTTPException(400, "За один раз можно обработать не более 10 файлов.")
+
+    token, directory = _new_session("excel_chat")
+    try:
+        sources = []
+        for index, upload in enumerate(files, 1):
+            original = Path(upload.filename or f"file_{index}.xlsx").name
+            suffix = Path(original).suffix.lower()
+            if suffix not in EXCEL_EXTENSIONS:
+                raise HTTPException(400, f"Файл «{original}»: поддерживаются .xls, .xlsx и .xlsm.")
+            source = await _receive_any(upload, directory, index)
+            if suffix == ".xls":
+                converted = directory / f"{index:03d}_{Path(original).stem}.xlsx"
+                from .modules.excel_ai.converter import convert_xls_to_xlsx
+                await run_in_threadpool(convert_xls_to_xlsx, source, converted)
+                source = converted
+            sources.append(source)
+
+        task = instruction.casefold().replace("ё", "е")
+        output = directory / "Excel_AI_result.xlsx"
+        response = {"status": "completed", "session_id": token}
+
+        if is_comprehensive_audit_request(instruction):
+            result = await run_in_threadpool(run_comprehensive_audit, sources, instruction, output)
+            verification = result["verification"]
+            counts = result["counts"]
+            passed = bool(verification.get("passed"))
+            response.update({
+                "status": "completed" if passed else "verification_failed",
+                "mode": "comprehensive_audit",
+                "message": (
+                    f"Комплексная сверка выполнена: {counts['final_cards']} карточек, "
+                    f"конфликтов: {counts['conflicts']}, дубликатов: {counts['exact_duplicates'] + counts['probable_duplicates']}, "
+                    f"ошибок данных: {counts['invalid_iin'] + counts['invalid_email']}."
+                    if passed
+                    else "Постпроверка выявила невыполненные требования: " + "; ".join(verification.get("errors", []))
+                ),
+                "stats": counts,
+                "requirements": result["requirements"],
+                "verification": verification,
+            })
+        else:
+            enrich_markers = ("допол", "добав", "перенес", "подтян", "обогат", "недостающ")
+            student_markers = ("студент", "обучающ", "фио", "иин", "почт", "список")
+            reconcile_markers = ("свер", "сравн", "совпад", "неповтор", "разниц")
+            custom_ai_markers = (
+                "только ", "новом листе", "новый лист", "сгруппир", "отсортир",
+                "посчитай", "удали ", "оставь ", "топ-", "топ ", "формул",
+            )
+
+            if (
+                len(sources) == 2
+                and any(x in task for x in enrich_markers)
+                and any(x in task for x in student_markers)
+                and not any(x in task for x in custom_ai_markers)
+            ):
+                result = await run_in_threadpool(enrich_student_list, sources[0], sources[1], output)
+                response.update({
+                    "mode": "enrich",
+                    "message": f"Найдено и дополнено {result['matched']} из {result['total']} записей.",
+                    "stats": {key: result[key] for key in ("total", "matched", "unmatched", "ambiguous", "conflicts")},
+                    "added_columns": result["added_columns"],
+                })
+            elif (
+                len(sources) == 2
+                and any(x in task for x in reconcile_markers)
+                and not any(x in task for x in custom_ai_markers)
+            ):
+                books1 = await run_in_threadpool(_read_book, sources[0])
+                books2 = await run_in_threadpool(_read_book, sources[1])
+                if not books1 or not books2:
+                    raise ValueError("В одном из файлов не найдено листов с данными.")
+                result = await run_in_threadpool(
+                    reconcile_students, sources[0], books1[0]["name"], sources[1], books2[0]["name"]
+                )
+                await run_in_threadpool(save_student_reconciliation_report, result, output)
+                response.update({
+                    "mode": "reconcile",
+                    "message": f"Сверка завершена: найдено {result['counts']['matched']} совпадений.",
+                    "stats": result["counts"],
+                })
+            else:
+                result = await run_in_threadpool(run_universal_excel_ai, sources, instruction, output)
+                passed = bool(result.get("passed"))
+                response.update({
+                    "status": "completed" if passed else "verification_failed",
+                    "mode": "universal_ai",
+                    "message": (
+                        result.get("message") or "Задача выполнена универсальным Excel AI."
+                        if passed
+                        else "Не удалось выполнить задачу: " + "; ".join(result.get("verification", {}).get("errors", []))
+                    ),
+                    "stats": result.get("stats", {}),
+                    "added_columns": result.get("added_columns", []),
+                    "attempts": result.get("attempts", 1),
+                    "verification": result.get("verification", {}),
+                })
+
+        with _lock:
+            _sessions[token] = {
+                "kind": "excel", "created": time.time(), "directory": directory,
+                "output": output, "complete": True,
+            }
+        response["download_url"] = f"/api/download/{token}/excel"
+        return response
+    except HTTPException:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
+    except Exception as exc:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise HTTPException(400, str(exc)) from exc
+
+
 @app.post("/api/excel/inspect")
 async def excel_inspect(workbook: UploadFile = File(...)):
     """Безопасный краткий предпросмотр структуры до построения плана."""
@@ -1048,6 +1181,59 @@ async def excel_reconcile(
             "sheet2_name": s2_name,
             "samples_only1": samples_only1,
             "samples_only2": samples_only2,
+        }
+    except HTTPException:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
+    except Exception as exc:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/excel/enrich-students")
+async def excel_enrich_students(
+    target_file: UploadFile = File(...),
+    reference_file: UploadFile = File(...),
+    target_sheet: str = Form(""),
+    reference_sheet: str = Form(""),
+):
+    """Дополняет короткий список студентов столбцами из полной базы."""
+    token, directory = _new_session("excel_enrich")
+    try:
+        async def _save_excel(upload: UploadFile, index: int, stem: str) -> Path:
+            original = Path(upload.filename or f"{stem}.xlsx").name
+            suffix = Path(original).suffix.lower()
+            if suffix not in EXCEL_EXTENSIONS:
+                raise HTTPException(400, f"Файл «{original}»: поддерживаются .xls, .xlsx и .xlsm.")
+            uploaded = await _receive_any(upload, directory, index)
+            if suffix != ".xls":
+                return uploaded
+            converted = directory / f"{stem}.xlsx"
+            from .modules.excel_ai.converter import convert_xls_to_xlsx
+            await run_in_threadpool(convert_xls_to_xlsx, uploaded, converted)
+            return converted
+
+        target = await _save_excel(target_file, 1, "target")
+        reference = await _save_excel(reference_file, 2, "reference")
+        output = directory / "Excel_AI_дополненный_список.xlsx"
+        result = await run_in_threadpool(
+            enrich_student_list,
+            target,
+            reference,
+            output,
+            target_sheet=target_sheet.strip(),
+            reference_sheet=reference_sheet.strip(),
+        )
+        with _lock:
+            _sessions[token] = {
+                "kind": "excel", "created": time.time(), "directory": directory,
+                "output": output, "complete": True,
+            }
+        return {
+            "status": "completed",
+            "session_id": token,
+            "download_url": f"/api/download/{token}/excel",
+            **{key: value for key, value in result.items() if key != "output"},
         }
     except HTTPException:
         shutil.rmtree(directory, ignore_errors=True)

@@ -549,6 +549,136 @@ $('#analyticsForm')?.addEventListener('submit', async e => {
   }
 });
 
+// ----------------- EXCEL AI — СВОБОДНЫЙ ЧАТ -----------------
+const excelChatForm = $('#excelChatForm');
+const excelChatFiles = $('#excelChatFiles');
+const excelChatFileNames = $('#excelChatFileNames');
+const excelChatQueue = $('#excelChatQueue');
+const excelChatInstruction = $('#excelChatInstruction');
+const excelChatSubmit = $('#excelChatSubmit');
+const excelChatProgress = $('#excelChatProgress');
+const excelChatResult = $('#excelChatResult');
+
+let excelChatSelectedFiles = [];
+
+function renderExcelChatFiles() {
+  const files = excelChatSelectedFiles;
+  if (excelChatFileNames) {
+    excelChatFileNames.textContent = files.length ? `Выбрано файлов: ${files.length}` : 'Можно выбрать до 10 файлов · .xls, .xlsx, .xlsm';
+  }
+  if (!excelChatQueue) return;
+  excelChatQueue.innerHTML = files.length
+    ? files.map((file, index) => `
+      <div class="queue-item" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div><b>${index + 1}. ${esc(file.name)}</b><small style="display:block">${formatBytes(file.size)}</small></div>
+        <button type="button" class="button ghost excel-chat-remove-file" data-index="${index}" title="Убрать файл" style="padding:2px 8px;min-width:auto">×</button>
+      </div>
+    `).join('')
+    : '<span>Файлы пока не выбраны</span>';
+}
+
+excelChatQueue?.addEventListener('click', event => {
+  const btn = event.target.closest('.excel-chat-remove-file');
+  if (!btn) return;
+  const idx = Number(btn.dataset.index);
+  if (!Number.isNaN(idx)) {
+    excelChatSelectedFiles.splice(idx, 1);
+    renderExcelChatFiles();
+  }
+});
+
+excelChatFiles?.addEventListener('change', () => {
+  const added = Array.from(excelChatFiles.files || []);
+  for (const file of added) {
+    const dup = excelChatSelectedFiles.some(f => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified);
+    if (!dup && excelChatSelectedFiles.length < 10) {
+      excelChatSelectedFiles.push(file);
+    }
+  }
+  excelChatFiles.value = '';
+  renderExcelChatFiles();
+});
+
+document.querySelectorAll('.excel-chat-example').forEach(button => {
+  button.addEventListener('click', () => {
+    if (excelChatInstruction) {
+      excelChatInstruction.value = button.textContent.trim();
+      excelChatInstruction.focus();
+    }
+  });
+});
+
+excelChatForm?.addEventListener('submit', async event => {
+  event.preventDefault();
+  const files = excelChatSelectedFiles;
+  const instruction = excelChatInstruction?.value?.trim() || '';
+  if (!files.length) {
+    alert('Прикрепите хотя бы один Excel-файл.');
+    return;
+  }
+  if (files.length > 10) {
+    alert('За один раз можно прикрепить не более 10 файлов.');
+    return;
+  }
+  if (!instruction) {
+    alert('Напишите, что нужно сделать с файлами.');
+    return;
+  }
+
+  const fd = new FormData();
+  files.forEach(file => fd.append('files', file));
+  fd.append('instruction', instruction);
+  setBusy(excelChatSubmit, true, 'Excel AI выполняет задачу…');
+  excelChatProgress?.classList.remove('hidden');
+  excelChatResult?.classList.add('hidden');
+  try {
+    const data = await api('/api/excel/chat', { method: 'POST', body: fd });
+    if (data.status === 'questions') {
+      showResult(excelChatResult, `
+        <h2 style="margin:0 0 10px">Нужно уточнение</h2>
+        <p style="color:var(--text-muted)">Excel AI не будет угадывать структуру данных. Дополните команду:</p>
+        <ul>${(data.questions || []).map(question => `<li>${esc(question)}</li>`).join('')}</ul>
+      `);
+      return;
+    }
+    if (data.status === 'verification_failed') {
+      showResult(excelChatResult, `
+        <h2 style="margin:0 0 8px">Требуется проверка</h2>
+        <p>${esc(data.message || 'Не все требования команды прошли постпроверку.')}</p>
+      `, true);
+      return;
+    }
+    const stats = Object.entries(data.stats || {}).map(([key, value]) => {
+      const labels = {
+        total: 'Обработано', matched: 'Найдено', unmatched: 'Не найдено',
+        ambiguous: 'Неоднозначных', conflicts: 'Конфликтов', total1: 'Файл 1',
+        total2: 'Файл 2', only1: 'Только в файле 1', only2: 'Только в файле 2',
+        unique_total: 'Неповторяющихся', records: 'Строк результата', source_files: 'Файлов',
+        total_rows: 'Исходных строк', final_cards: 'Карточек в базе',
+        exact_duplicates: 'Полных дубликатов', probable_duplicates: 'Вероятных дубликатов',
+        invalid_iin: 'Ошибок ИИН', invalid_email: 'Ошибок email',
+        sheets_count: 'Листов', rows_written: 'Строк записано'
+      };
+      return `<div class="queue-item"><small>${esc(labels[key] || key)}</small><b style="display:block;font-size:20px">${esc(value)}</b></div>`;
+    }).join('');
+    const changes = (data.changes || []).map(item => `<li>${esc(typeof item === 'string' ? item : JSON.stringify(item))}</li>`).join('');
+    const columns = (data.added_columns || []).map(esc).join(' · ');
+    showResult(excelChatResult, `
+      <h2 style="margin:0 0 8px">Готово</h2>
+      <p>${esc(data.message || 'Задача успешно выполнена.')}</p>
+      ${stats ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:14px 0">${stats}</div>` : ''}
+      ${columns ? `<p><b>Столбцы результата:</b> ${columns}</p>` : ''}
+      ${changes ? `<ul>${changes}</ul>` : ''}
+      <a class="button primary" href="${data.download_url}" download>Скачать готовый Excel</a>
+    `);
+  } catch (error) {
+    showResult(excelChatResult, esc(error.message), true);
+  } finally {
+    excelChatProgress?.classList.add('hidden');
+    setBusy(excelChatSubmit, false);
+  }
+});
+
 // ----------------- EXCEL AI ШАБЛОНЫ -----------------
 const EXCEL_TEMPLATES = {
   dedup: {
@@ -1198,6 +1328,65 @@ $('#clearNotesBtn')?.addEventListener('click', async () => {
 });
 
 // ----------------- СВЕРКА СТУДЕНТОВ (RECONCILE) -----------------
+const enrichForm = $('#excelEnrichForm');
+const enrichTarget = $('#excelEnrichTarget');
+const enrichReference = $('#excelEnrichReference');
+const enrichTargetName = $('#excelEnrichTargetName');
+const enrichReferenceName = $('#excelEnrichReferenceName');
+const enrichProgress = $('#excelEnrichProgress');
+const enrichResult = $('#excelEnrichResult');
+const enrichSubmit = $('#excelEnrichSubmit');
+
+enrichTarget?.addEventListener('change', e => {
+  const file = e.target.files?.[0];
+  if (enrichTargetName) enrichTargetName.textContent = file ? `${file.name} (${formatBytes(file.size)})` : 'Например: 61 студент с некорректной почтой';
+});
+
+enrichReference?.addEventListener('change', e => {
+  const file = e.target.files?.[0];
+  if (enrichReferenceName) enrichReferenceName.textContent = file ? `${file.name} (${formatBytes(file.size)})` : 'Например: выгрузка 1С с ИИН, ID и контактами';
+});
+
+enrichForm?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const target = enrichTarget?.files?.[0];
+  const reference = enrichReference?.files?.[0];
+  if (!target || !reference) {
+    alert('Выберите оба Excel-файла.');
+    return;
+  }
+  const fd = new FormData();
+  fd.append('target_file', target);
+  fd.append('reference_file', reference);
+  setBusy(enrichSubmit, true, 'Ищу студентов и добавляю столбцы…');
+  enrichProgress?.classList.remove('hidden');
+  enrichResult?.classList.add('hidden');
+  try {
+    const data = await api('/api/excel/enrich-students', { method: 'POST', body: fd });
+    const added = (data.added_columns || []).map(esc).join(' · ');
+    const methodLabels = { iin: 'ИИН', email: 'почта', fio: 'ФИО', translit: 'ФИО транслитом' };
+    const methods = Object.entries(data.methods || {}).map(([key, value]) => `${methodLabels[key] || key}: ${value}`).join(' · ');
+    showResult(enrichResult, `
+      <h2 style="margin:0 0 12px">Список успешно дополнен</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
+        <div class="queue-item"><small>Строк обработано</small><b style="display:block;font-size:22px">${data.total || 0}</b></div>
+        <div class="queue-item"><small>Найдено</small><b style="display:block;font-size:22px;color:var(--green-neon)">${data.matched || 0}</b></div>
+        <div class="queue-item"><small>Не найдено</small><b style="display:block;font-size:22px">${data.unmatched || 0}</b></div>
+        <div class="queue-item"><small>Спорных</small><b style="display:block;font-size:22px">${(data.ambiguous || 0) + (data.conflicts || 0)}</b></div>
+      </div>
+      <p><b>Добавлены столбцы:</b> ${added || 'нет'}</p>
+      ${methods ? `<p><b>Как найдены:</b> ${esc(methods)}</p>` : ''}
+      <p style="color:var(--text-muted)">Подробности проверки сохранены внутри файла на листе «Отчёт сопоставления».</p>
+      <a class="button primary" href="${data.download_url}" download>Скачать дополненный Excel</a>
+    `);
+  } catch (error) {
+    showResult(enrichResult, esc(error.message), true);
+  } finally {
+    enrichProgress?.classList.add('hidden');
+    setBusy(enrichSubmit, false);
+  }
+});
+
 const recFile1 = $('#reconcileFile1');
 const recFile2 = $('#reconcileFile2');
 const recName1 = $('#reconcileFileName1');

@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=20261123_evidence_v1">
+  <link rel="stylesheet" href="/assets/app.css?v=20261123_excel_chat_v2">
   <link rel="stylesheet" href="/assets/design_academy.css?v=20261117_android_fix_v9">
   <link rel="stylesheet" href="/assets/design_academy_pro.css?v=20261117_android_fix_v9">
   <style>
@@ -444,14 +444,41 @@
                 <p>Умная обработка, очистка и слияние электронных таблиц по текстовым указаниям.</p>
               </div>
             </div>
-            <div class="tabs">
-              <button class="tab active" data-tab="excelTask">Задание</button>
-              <button class="tab" data-tab="excelReconcile" style="background:rgba(20,200,193,0.15);color:var(--green-neon);font-weight:600;">⚡ Сверка студентов</button>
-              <button class="tab" data-tab="excelConvert">🔄 Конвертер XLS → XLSX</button>
-              <button class="tab" data-tab="excelPlan">План и результат</button>
-              <button class="tab" data-tab="excelHistory">История</button>
+            <div class="card" style="margin-bottom:18px;padding:0;overflow:hidden;">
+              <form id="excelChatForm">
+                <div style="padding:22px 22px 12px;">
+                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+                    <div class="tool-icon icon-blue" style="flex:0 0 auto;">✦</div>
+                    <div>
+                      <h2 style="margin:0 0 4px;font-size:20px;">Что сделать с таблицами?</h2>
+                      <p style="margin:0;color:var(--text-muted);font-size:13px;">Прикрепите один или несколько Excel-файлов и напишите задачу обычными словами.</p>
+                    </div>
+                  </div>
+                  <label class="file-drop large" style="margin-bottom:16px;">
+                    <input id="excelChatFiles" type="file" accept=".xls,.xlsx,.xlsm" multiple>
+                    <span class="file-drop-icon" aria-hidden="true">＋</span>
+                    <span class="file-title">Прикрепить Excel-файлы</span>
+                    <small id="excelChatFileNames">Можно выбрать до 10 файлов · .xls, .xlsx, .xlsm</small>
+                  </label>
+                  <div id="excelChatQueue" class="file-queue" style="margin-bottom:16px;"><span>Файлы пока не выбраны</span></div>
+                  <label style="margin-bottom:0;">Ваша команда
+                    <textarea id="excelChatInstruction" rows="5" required placeholder="Например: найди студентов из первого файла во втором, добавь недостающие столбцы и отдай новый Excel"></textarea>
+                  </label>
+                  <div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 16px;">
+                    <button type="button" class="excel-chat-example button secondary">Очисти таблицу и удали дубликаты</button>
+                    <button type="button" class="excel-chat-example button secondary">Сверь два списка студентов</button>
+                    <button type="button" class="excel-chat-example button secondary">Найди студентов и добавь недостающие столбцы</button>
+                  </div>
+                  <button class="button primary" id="excelChatSubmit" type="submit">Выполнить задачу</button>
+                </div>
+                <div id="excelChatProgress" class="progress-panel hidden" style="margin:0 22px 20px;">
+                  <div class="progress-copy"><b>Excel AI изучает файлы и выполняет задачу…</b><span>Обработка</span></div>
+                  <div class="progress-track"><span style="width:100%;"></span></div>
+                </div>
+                <div id="excelChatResult" class="result-panel hidden" style="margin:0 22px 22px;"></div>
+              </form>
             </div>
-            <div id="excelTask" class="tab-page active card">
+            <div id="excelTask" class="tab-page card hidden">
               <div class="excel-student-banner" style="background:rgba(20,200,193,0.12);border:1px solid rgba(20,200,193,0.35);border-radius:10px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
                 <div style="display:flex;align-items:center;gap:10px;">
                   <span style="font-size:20px;">👥</span>
@@ -545,6 +572,43 @@
                 <label>Опишите задачу своими словами<textarea id="excelInstruction" rows="5" required placeholder="Например: объедини столбцы Фамилия, Имя и Отчество в новый столбец ФИО…"></textarea></label>
                 <p class="helper">Сначала строится безопасный план. Исходный файл не изменяется.</p>
                 <button class="button primary" type="submit">Разобрать задачу и подготовить план</button>
+              </form>
+            </div>
+
+            <!-- Вкладка Дополнение списка из полной базы -->
+            <div id="excelEnrich" class="tab-page card">
+              <form id="excelEnrichForm">
+                <div style="margin-bottom:16px;">
+                  <h2 style="font-size:18px;color:var(--text-main);margin:0 0 6px 0;">Дополнить список данными из второго Excel</h2>
+                  <p style="font-size:13px;color:var(--text-muted);margin:0;line-height:1.55;">Загрузите короткий список и полную базу. Excel AI найдёт каждого студента по ИИН, почте, ФИО или ФИО транслитом и перенесёт все недостающие столбцы в новый файл.</p>
+                </div>
+                <div class="reconcile-files-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:16px;margin-bottom:16px;">
+                  <div class="reconcile-file-box">
+                    <label style="display:block;margin-bottom:6px;font-size:13px;color:var(--text-main);font-weight:600;">1. Список, который нужно дополнить</label>
+                    <label class="file-drop" style="margin-bottom:0;padding:24px;">
+                      <input id="excelEnrichTarget" type="file" accept=".xls,.xlsx,.xlsm" required>
+                      <span class="file-title">Выберите короткий список</span>
+                      <small id="excelEnrichTargetName">Например: 61 студент с некорректной почтой</small>
+                    </label>
+                  </div>
+                  <div class="reconcile-file-box">
+                    <label style="display:block;margin-bottom:6px;font-size:13px;color:var(--text-main);font-weight:600;">2. Полная база с нужными столбцами</label>
+                    <label class="file-drop" style="margin-bottom:0;padding:24px;">
+                      <input id="excelEnrichReference" type="file" accept=".xls,.xlsx,.xlsm" required>
+                      <span class="file-title">Выберите полную базу</span>
+                      <small id="excelEnrichReferenceName">Например: выгрузка 1С с ИИН, ID и контактами</small>
+                    </label>
+                  </div>
+                </div>
+                <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:var(--text-muted);line-height:1.55;">
+                  <b style="color:var(--text-main);">Безопасное сопоставление:</b> ИИН → электронная почта → точное нормализованное ФИО → ФИО транслитом. Excel AI не угадывает: спорные и ненайденные записи попадут на лист «Отчёт сопоставления».
+                </div>
+                <button class="button primary" id="excelEnrichSubmit" type="submit">Найти студентов и дополнить Excel</button>
+                <div id="excelEnrichProgress" class="progress-panel hidden" style="margin-top:20px;">
+                  <div class="progress-copy"><b>Excel AI сопоставляет студентов…</b><span>Обработка</span></div>
+                  <div class="progress-track"><span style="width:100%;"></span></div>
+                </div>
+                <div id="excelEnrichResult" class="result-panel hidden" style="margin-top:20px;"></div>
               </form>
             </div>
 
@@ -1169,7 +1233,7 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261123_evidence_v1"></script>
+  <script src="/assets/app.js?v=20261123_excel_chat_v3"></script>
   <script src="/assets/design_academy.js?v=20261116_pro_v5"></script>
   <script src="/assets/design_academy_pro.js?v=20261116_pro_v5"></script>
   <script>

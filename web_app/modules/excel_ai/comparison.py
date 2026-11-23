@@ -216,6 +216,7 @@ def detect_student_columns(headers, sample_rows=None):
     last_name_col = None
     first_name_col = None
     middle_name_col = None
+    email_col = None
 
     for h in headers:
         hl = h.strip().lower()
@@ -223,7 +224,14 @@ def detect_student_columns(headers, sample_rows=None):
             iin_col = h
         elif not iin_col and re.search(r"иин|iin|жсн", hl):
             iin_col = h
-        elif not fio_col and re.search(r"^(фио|ф\.и\.о\.|студент|обучающийся|аты-жөні|fio|student|name|full.*name)$", hl):
+        elif (
+            not fio_col
+            and (
+                re.search(r"^(фио|ф\.и\.о\.|студент|обучающийся|аты-жөні|fio|student|name|full.*name)$", hl)
+                or ("фио" in hl and not re.search(r"транслит|латин", hl))
+                or re.search(r"(полное.*имя|full.*name)", hl)
+            )
+        ):
             fio_col = h
         elif not last_name_col and re.search(r"^(фамилия|тегі|last.*name|surname)$", hl):
             last_name_col = h
@@ -231,6 +239,8 @@ def detect_student_columns(headers, sample_rows=None):
             first_name_col = h
         elif not middle_name_col and re.search(r"^(отчество|әкесінің.*аты|middle.*name|patronymic)$", hl):
             middle_name_col = h
+        elif not email_col and re.search(r"(^|\s)(почта|email|e-mail|e mail)(\s|$)", hl):
+            email_col = h
 
     # Если ИИН по названию не найден, проверим образцы данных
     if not iin_col and sample_rows:
@@ -251,6 +261,7 @@ def detect_student_columns(headers, sample_rows=None):
         "last_name": last_name_col,
         "first_name": first_name_col,
         "middle_name": middle_name_col,
+        "email": email_col,
         "is_split_fio": is_split_fio,
     }
 
@@ -334,6 +345,10 @@ def reconcile_students(path1, sheet1_name, path2, sheet2_name, col_map1=None, co
         else:
             fio = str(vals[0] or "").strip()
 
+        email = ""
+        if m.get("email") and m["email"] in headers:
+            email = re.sub(r"\s+", "", str(vals[headers.index(m["email"])] or "")).casefold()
+
         kurs = str(vals[headers.index(aux["kurs"])] or "") if aux.get("kurs") and aux["kurs"] in headers else ""
         fac_spec = str(vals[headers.index(aux["fac_spec"])] or "") if aux.get("fac_spec") and aux["fac_spec"] in headers else ""
         dorm = str(vals[headers.index(aux["dorm"])] or "") if aux.get("dorm") and aux["dorm"] in headers else ""
@@ -347,6 +362,7 @@ def reconcile_students(path1, sheet1_name, path2, sheet2_name, col_map1=None, co
             "iin": iin,
             "fio": fio,
             "norm_fio": norm_fio(fio),
+            "email": email,
             "kurs": kurs,
             "fac_spec": fac_spec,
             "dorm": dorm,
@@ -360,6 +376,7 @@ def reconcile_students(path1, sheet1_name, path2, sheet2_name, col_map1=None, co
 
     f1_by_iin = {}
     f1_by_fio = {}
+    f1_by_email = {}
     f1_iin_duplicates = defaultdict(list)
     f2_iin_duplicates = defaultdict(list)
 
@@ -372,6 +389,8 @@ def reconcile_students(path1, sheet1_name, path2, sheet2_name, col_map1=None, co
                 f1_by_iin[iin] = idx
         if s["norm_fio"]:
             f1_by_fio[s["norm_fio"]] = idx
+        if s["email"]:
+            f1_by_email[s["email"]] = idx
 
     f2_seen_iin = {}
     for idx, s in enumerate(students2):
@@ -390,10 +409,13 @@ def reconcile_students(path1, sheet1_name, path2, sheet2_name, col_map1=None, co
     for idx2, s2 in enumerate(students2):
         iin2 = s2["iin"]
         nfio2 = s2["norm_fio"]
+        email2 = s2["email"]
         matched_idx1 = None
 
         if iin2 and iin2 != "000000000000" and len(iin2) == 12 and iin2 in f1_by_iin:
             matched_idx1 = f1_by_iin[iin2]
+        elif email2 and email2 in f1_by_email:
+            matched_idx1 = f1_by_email[email2]
         elif nfio2 and nfio2 in f1_by_fio:
             matched_idx1 = f1_by_fio[nfio2]
 
