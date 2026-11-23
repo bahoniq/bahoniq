@@ -3637,22 +3637,10 @@ body.theme-day .content-body::-webkit-scrollbar,
 html::-webkit-scrollbar,
 body::-webkit-scrollbar { width: 0px !important; height: 0px !important; display: none !important; background: transparent !important; }
 
-/* Сайдбар «СИСТЕМЫ» скрыт по умолчанию и открывается из 12-й карточки или кнопки ☰ */
+/* Сайдбар «СИСТЕМЫ» скрыт по умолчанию и открывается из 12-й карточки «Рабочие системы» */
 .sidebar-toggle {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border);
-  color: var(--text-main);
-  cursor: pointer;
-  margin-right: 12px;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  display: none !important;
 }
-.sidebar-toggle:hover { border-color: var(--cyan-neon); background: rgba(0, 229, 255, 0.08); }
 .brand-group { display: flex; align-items: center; }
 .sidebar,
 body.theme-day .sidebar {
