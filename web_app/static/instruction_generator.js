@@ -849,11 +849,11 @@
       <section class="ig-step-doc">
         <h2 class="ig-step-num-title">${s.number}. ${escapeHtml(s.caption || ('Шаг ' + s.number))}</h2>
         <p class="ig-step-body">${escapeHtml(s.text)}</p>
-        ${s.note ? `<div class="ig-step-note"><b>Важно:</b> ${escapeHtml(s.note)}</div>` : ''}
+        ${s.note ? `<div class="ig-step-note" style="background:#fef2f2;border:1px solid #dc2626;padding:8px 12px;border-radius:6px;margin:8px 0;"><b style="color:#b91c1c;">Важно:</b> ${escapeHtml(s.note)}</div>` : ''}
         ${s.image ? `
           <div class="ig-screen-box">
-            <img class="ig-screen-img ${s.mode === 'compact' ? 'compact-window' : 'salem-standard'}" src="${s.image}" alt="${escapeHtml(s.caption)}">
-            <div class="ig-screen-caption"><b>Рисунок ${s.number}.</b> ${escapeHtml(s.caption)}</div>
+            <img class="ig-screen-img ${s.mode === 'compact' ? 'compact-window' : 'salem-standard'}" src="${s.image}" alt="${escapeHtml(s.figure_caption || s.caption)}">
+            <div class="ig-screen-caption"><b>Рисунок ${s.number}.</b> ${escapeHtml(s.figure_caption || s.caption)}</div>
           </div>
         ` : ''}
       </section>

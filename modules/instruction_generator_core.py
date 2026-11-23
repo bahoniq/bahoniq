@@ -152,23 +152,27 @@ def generate_instruction(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Добавьте хотя бы один заполненный шаг")
 
     system = (
-        "Ты редактор официальных университетских инструкций. Твоя задача — составить строгий регламент по черновику.\n"
+        "Ты редактор официальных университетских инструкций. Твоя задача — составить строгий, грамотный регламент по черновику.\n"
         "Правила:\n"
-        "1. Для каждого шага обязательно создай КРАТКОЕ НАЗВАНИЕ в поле 'caption' длиной строго 2-7 слов в именительном падеже (например: «Авторизация в системе», «Выбор студента», «Добавление дисциплины», «Сохранение изменений»). Полное описание нельзя использовать как заголовок!\n"
-        "2. В поле 'text' напиши четкое пошаговое действие в повелительной форме ('Перейдите в раздел «...»', 'Нажмите кнопку «...»'). Не дублируй краткое название в начале описания.\n"
-        "3. Поле 'note' заполняй только если в исходнике прямо указано предупреждение или важное примечание, иначе оставь пустой строкой.\n"
-        "Верни строго JSON: {\"title\":\"...\",\"intro\":\"...\",\"steps\":[{\"text\":\"...\",\"caption\":\"...\",\"note\":\"\"}]}"
+        "1. Для каждого шага создай КРАТКОЕ НАЗВАНИЕ в поле 'caption' (2-6 слов в именительном падеже, например: «Авторизация в системе», «Поиск обучающегося»).\n"
+        "2. В поле 'text' напиши чёткое пошаговое действие в повелительной форме ('Перейдите в раздел «...»', 'Нажмите кнопку «...»'). Исправь все опечатки черновика. Проверяй орфографию: используй только реальные, точные русские слова (без выдуманных слов).\n"
+        "3. В поле 'figure_caption' напиши отдельную подпись для скриншота (что именно изображено на экране, 3-8 слов, БЕЗ дословного повторения 'caption', например: «Окно входа в систему Platonus», «Список фильтров и таблица студентов»).\n"
+        "4. Поле 'note' заполняй только если в исходнике прямо указано предупреждение или важное примечание, иначе оставь пустой строкой.\n"
+        "Верни строго JSON: {\"title\":\"...\",\"intro\":\"...\",\"steps\":[{\"text\":\"...\",\"caption\":\"...\",\"figure_caption\":\"...\",\"note\":\"\"}]}"
     )
     prompt = json.dumps({
         "style_profile": STYLE_PROFILE,
         "document": {"title": title, "audience": audience, "department": department, "intro": intro},
-        "steps": [{"text": clean_text(s.get("text")), "caption": clean_text(s.get("caption"))} for s in source_steps],
+        "steps": [
+            {"text": clean_text(s.get("text")), "caption": clean_text(s.get("caption")), "has_image": bool(s.get("image"))}
+            for s in source_steps
+        ],
     }, ensure_ascii=False)
     data: dict[str, Any] = {}
     provider = "local-rules"
     try:
         from ai_service import generate_text
-        raw = generate_text(prompt, system_instruction=system, temperature=0.1, timeout=120)
+        raw = generate_text(prompt, system_instruction=system, temperature=0.05, timeout=120)
         data = _extract_json(raw[0] if isinstance(raw, tuple) else raw)
         provider = raw[1] if isinstance(raw, tuple) and len(raw) > 1 else "ai"
     except Exception:
@@ -182,11 +186,15 @@ def generate_instruction(payload: dict[str, Any]) -> dict[str, Any]:
         explicit_note = bool(re.search(r"\b(?:важно|обязательно|примечани[ея]|обратите внимание)\b", source_text, re.I))
         raw_caption = candidate.get("caption") or source.get("caption") or ""
         short_title = make_step_title(raw_caption, source_text, index)
+        fig_caption = clean_text(candidate.get("figure_caption")) or f"Экран шага «{short_title}»"
         action_text = clean_text(candidate.get("text")) or fallback_rewrite(source_text or short_title)
+        if source.get("image") and "рисунок" not in action_text.casefold():
+            action_text = action_text.rstrip(".") + f" (см. Рисунок {index})."
         result_steps.append({
             "number": index,
             "text": action_text,
             "caption": short_title,
+            "figure_caption": fig_caption,
             "note": clean_text(candidate.get("note")) if explicit_note else "",
             "image": source.get("image", ""),
             "mode": source.get("mode", "standard"),
@@ -387,11 +395,9 @@ def draw_page_border(canvas, doc, font_name: str = "Times-Roman"):
     canvas.saveState()
     canvas.setStrokeColorRGB(0, 0, 0)
     canvas.setLineWidth(1.15)
-    # Continuous black frame on every page: 10 mm from edges
     canvas.rect(10 * mm, 10 * mm, A4[0] - 20 * mm, A4[1] - 20 * mm)
     canvas.setFont(font_name, 11)
     canvas.setFillColorRGB(0, 0, 0)
-    # Centered page number at 14 mm from bottom
     canvas.drawCentredString(A4[0] / 2, 14 * mm, str(canvas.getPageNumber()))
     canvas.restoreState()
 
@@ -469,7 +475,19 @@ def to_pdf(doc: dict[str, Any]) -> bytes:
             Paragraph(html.escape(desc), normal),
         ]
         if step.get("note"):
-            chunk.append(Paragraph(f"<b>Важно:</b> {html.escape(step['note'])}", note_style))
+            warn_box = Table(
+                [[Paragraph(f'<font color="#B91C1C"><b>Важно:</b></font> {html.escape(step["note"])}', note_style)]],
+                colWidths=[165 * mm],
+            )
+            warn_box.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FEF2F2")),
+                ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#DC2626")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]))
+            chunk += [Spacer(1, 1.5*mm), warn_box, Spacer(1, 2*mm)]
 
         raw = _image_bytes(step.get("image", ""))
         if raw:
@@ -507,7 +525,8 @@ def to_pdf(doc: dict[str, Any]) -> bytes:
                         ("TOPPADDING", (0, 0), (-1, -1), 0),
                         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
                     ]))
-                    cap = Paragraph(f"<b>Рисунок {num}.</b> {html.escape(title_text)}", caption)
+                    fig_cap = clean_text(step.get("figure_caption")) or title_text
+                    cap = Paragraph(f"<b>Рисунок {num}.</b> {html.escape(fig_cap)}", caption)
                     chunk += [Spacer(1, 2*mm), frame, Spacer(1, 1.5*mm), cap]
             except Exception:
                 pass
@@ -517,3 +536,85 @@ def to_pdf(doc: dict[str, Any]) -> bytes:
     on_page = lambda c, d: draw_page_border(c, d, font)
     pdf.build(story, onFirstPage=on_page, onLaterPages=on_page)
     return out.getvalue()
+
+
+def to_docx(doc: dict[str, Any]) -> bytes:
+    """Экспортирует инструкцию в редактируемый документ Word (.docx) по университетскому стандарту."""
+    from docx import Document
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Cm, Pt, RGBColor
+
+    d = Document()
+    section = d.sections[0]
+    section.top_margin = Cm(1.8)
+    section.bottom_margin = Cm(1.8)
+    section.left_margin = Cm(2.0)
+    section.right_margin = Cm(2.0)
+
+    style = d.styles["Normal"]
+    style.font.name = "Times New Roman"
+    style.font.size = Pt(12)
+
+    p_super = d.add_paragraph()
+    p_super.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_super = p_super.add_run("Инструкция")
+    r_super.bold = True
+    r_super.font.size = Pt(15)
+
+    p_title = d.add_paragraph()
+    p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_title = p_title.add_run(clean_text(doc.get("title")) or "Инструкция")
+    r_title.bold = True
+    r_title.font.size = Pt(14)
+
+    toc_h = d.add_paragraph()
+    r_toc = toc_h.add_run("Содержание")
+    r_toc.bold = True
+    r_toc.font.size = Pt(13)
+
+    steps = doc.get("steps", [])
+    for i, step in enumerate(steps, 1):
+        num = step.get("number", i)
+        title_text = make_step_title(step.get("caption"), step.get("text"), num)
+        tp = d.add_paragraph(f"{num}. {title_text}")
+        tp.paragraph_format.left_indent = Cm(0.6)
+
+    d.add_page_break()
+
+    for i, step in enumerate(steps, 1):
+        num = step.get("number", i)
+        title_text = make_step_title(step.get("caption"), step.get("text"), num)
+        hp = d.add_paragraph()
+        rh = hp.add_run(f"{num}. {title_text}")
+        rh.bold = True
+        rh.font.size = Pt(13)
+
+        d.add_paragraph(clean_text(step.get("text")))
+
+        if step.get("note"):
+            np = d.add_paragraph()
+            rn1 = np.add_run("Важно: ")
+            rn1.bold = True
+            rn1.font.color.rgb = RGBColor(185, 28, 28)
+            np.add_run(clean_text(step["note"]))
+
+        raw = _image_bytes(step.get("image", ""))
+        if raw:
+            try:
+                pic_p = d.add_paragraph()
+                pic_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                pic_p.add_run().add_picture(io.BytesIO(raw), width=Cm(16.5))
+                cap_p = d.add_paragraph()
+                cap_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                fig_cap = clean_text(step.get("figure_caption")) or title_text
+                rc1 = cap_p.add_run(f"Рисунок {num}. ")
+                rc1.bold = True
+                rc1.font.size = Pt(11)
+                rc2 = cap_p.add_run(fig_cap)
+                rc2.font.size = Pt(11)
+            except Exception:
+                pass
+
+    buf = io.BytesIO()
+    d.save(buf)
+    return buf.getvalue()
