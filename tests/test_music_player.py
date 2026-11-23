@@ -28,10 +28,13 @@ from modules.music_core import (
     query_tracks,
     resolve_track_cover,
     save_real_cover,
+    select_linked_photo_candidate,
 )
 from modules.music_covers import (
+    clean_music_query,
     compute_cover_hash,
     extract_embedded_cover_from_bytes,
+    fetch_itunes_cover_bytes,
     validate_image_bytes,
 )
 from web_app.routers.music import _parse_single_range, get_track, list_tracks, track_cover
@@ -516,6 +519,93 @@ class TestMusicPlayer(unittest.TestCase):
         # Проверяем, что Service Worker не кэширует заглушки (X-Cover-Placeholder: true)
         self.assertIn("X-Cover-Placeholder", sw_js)
         self.assertIn("COVERS_CACHE_NAME", sw_js)
+
+    def test_deduplication_by_normalized_artist_title_prefers_real_cover(self):
+        conn = get_db_connection()
+        with conn:
+            conn.execute("""
+                INSERT INTO tracks (id, telegram_msg_id, document_id, access_hash, title, artist, duration, file_size, mime_type, date, has_cover, cover_source, cover_hash, file_unique_id)
+                VALUES
+                    (10, 10010, 70010, 111, 'Rozalina [muzik.kz]', 'DAKELOT', 200, 4000000, 'audio/mpeg', '2026-05-01T10:00:00+00:00', 0, 'none', '', 'tgdoc_70010'),
+                    (11, 20011, 70011, 222, 'Rozalina', 'Dakelot', 200, 4200000, 'audio/mpeg', '2026-11-23T14:00:00+00:00', 1, 'embedded', 'abc123def456', 'tgdoc_70011'),
+                    (12, 10012, 70012, 333, 'Dosym', 'Baxa', 180, 3500000, 'audio/mpeg', '2026-05-01T10:00:00+00:00', 0, 'none', '', 'tgdoc_70012')
+            """)
+        conn.close()
+
+        tracks, total = query_tracks()
+        self.assertEqual(total, 2)
+        roz = [t for t in tracks if "rozalina" in t["title"].lower()]
+        self.assertEqual(len(roz), 1)
+        self.assertEqual(roz[0]["id"], 11)
+        self.assertEqual(roz[0]["cover_source"], "embedded")
+        self.assertEqual(roz[0]["cover_hash"], "abc123def456")
+
+    def test_select_linked_photo_candidate_ignores_service_avatar_and_matches_album_reply_caption(self):
+        track = {"title": "Osek sozler", "artist": "Ajiniyaz"}
+        # Служебное сообщение о смене аватарки чата (как msg_id=3 в @bahoniqmusic) должно игнорироваться
+        service_avatar = SimpleNamespace(id=3, photo=True, action=object(), grouped_id=None, message="")
+        unrelated_photo = SimpleNamespace(id=2, photo=True, action=None, grouped_id=None, message="Другая песня")
+        audio_plain = SimpleNamespace(id=4, photo=None, action=None, grouped_id=None, reply_to=None)
+        self.assertIsNone(select_linked_photo_candidate(audio_plain, [service_avatar, unrelated_photo], track))
+
+        # Совпадение по grouped_id (медиаальбом)
+        album_photo = SimpleNamespace(id=10, photo=True, action=None, grouped_id=99999, message="")
+        audio_album = SimpleNamespace(id=11, photo=None, action=None, grouped_id=99999, reply_to=None)
+        self.assertIs(select_linked_photo_candidate(audio_album, [service_avatar, album_photo], track), album_photo)
+
+        # Совпадение по reply_to
+        replied_photo = SimpleNamespace(id=20, photo=True, action=None, grouped_id=None, message="")
+        audio_reply = SimpleNamespace(
+            id=21, photo=None, action=None, grouped_id=None, reply_to=SimpleNamespace(reply_to_msg_id=20)
+        )
+        self.assertIs(select_linked_photo_candidate(audio_reply, [unrelated_photo, replied_photo], track), replied_photo)
+
+        # Совпадение по caption/title
+        caption_photo = SimpleNamespace(id=30, photo=True, action=None, grouped_id=None, message="Ajiniyaz - Osek sozler")
+        self.assertIs(select_linked_photo_candidate(audio_plain, [unrelated_photo, caption_photo], track), caption_photo)
+
+    def test_clean_music_query_and_itunes_fallback_mocked(self):
+        a, t = clean_music_query("HammAli &amp; Navai", "А если это любовь? [kzmp3.kz] (2024)")
+        self.assertEqual(a, "HammAli")
+        self.assertEqual(t, "А если это любовь?")
+
+        a2, t2 = clean_music_query("Неизвестный исполнитель", "Sadraddin - Taxi [muzik.kz]")
+        self.assertEqual(a2, "Sadraddin")
+        self.assertEqual(t2, "Taxi")
+
+        jpg = self._make_test_image("JPEG", color=(30, 120, 210))
+
+        class FakeResp:
+            def __init__(self, data: bytes, status: int = 200):
+                self._data = data
+                self.status = status
+
+            def read(self, n: int = -1):
+                return self._data if n < 0 else self._data[:n]
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        search_json = (
+            '{"results":[{"artistName":"Sadraddin","trackName":"Taxi",'
+            '"artworkUrl100":"https://is1-ssl.mzstatic.com/image/thumb/Music/100x100bb.jpg"}]}'
+        ).encode("utf-8")
+
+        def fake_urlopen(req, timeout=4.0):
+            url = req.full_url if hasattr(req, "full_url") else str(req)
+            if "itunes.apple.com/search" in url:
+                return FakeResp(search_json)
+            self.assertIn("300x300bb.jpg", url)
+            return FakeResp(jpg)
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            res = fetch_itunes_cover_bytes("Sadraddin", "Taxi")
+        self.assertIsNotNone(res)
+        self.assertEqual(res[0], jpg)
+        self.assertEqual(res[1], "image/jpeg")
 
 
 if __name__ == "__main__":

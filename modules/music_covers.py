@@ -12,9 +12,13 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import html
 import io
 import json
+import re
 import struct
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -399,3 +403,115 @@ def extract_embedded_cover_from_bytes(data: bytes) -> Optional[Tuple[bytes, str]
 
     # Приоритет 2: Первая валидная картинка
     return candidates[0][1], candidates[0][2]
+
+
+def _norm_lookup_tokens(text: str) -> List[str]:
+    cleaned = re.sub(r"[^a-zа-яёәіңғүұқөһ0-9]+", " ", (text or "").lower()).strip()
+    return [t for t in cleaned.split() if len(t) >= 2]
+
+
+def clean_music_query(artist: str, title: str) -> Tuple[str, str]:
+    """Очищает artist и title от мусора сайтов/тегов (kzmp3.kz, amp;, скобок) для точного поиска обложки."""
+    a = html.unescape(artist or "").replace("amp;", "&").strip()
+    t = html.unescape(title or "").replace("amp;", "&").strip()
+
+    noise_re = re.compile(
+        r"\[[^\]]*\]|\([^\)]*\)|"
+        r"\b(?:kzmp3\.kz|muzik\.kz|agugai\.kz|kazamuza\.net|kissvk\.com|muzzona\.kz|official\s*video|mv|hd|hq|lyrics|remix|mashup|cover|ai\s*cover|tiktok)\b",
+        re.IGNORECASE,
+    )
+    a = re.sub(noise_re, " ", a)
+    t = re.sub(noise_re, " ", t)
+    a = re.sub(r"\s+", " ", a).strip(" -_|·")
+    t = re.sub(r"\s+", " ", t).strip(" -_|·")
+
+    generic_artists = {"неизвестный исполнитель", "музыка дит", "musical.ly", "unknown", "unknown artist", ""}
+    if a.lower() in generic_artists and " - " in t:
+        left, right = t.split(" - ", 1)
+        a, t = left.strip(), right.strip()
+
+    # Убираем дублирование «Исполнитель - Название» внутри title
+    if a and t.lower().startswith(a.lower() + " - "):
+        t = t[len(a) + 3 :].strip()
+    elif a and t.lower().startswith(a.lower() + " – "):
+        t = t[len(a) + 3 :].strip()
+
+    # Убираем feat. / ft. для более широкого совпадения
+    a = re.split(r"\s+(?:feat\.?|ft\.?|x|&|и)\s+", a, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+    t = re.split(r"\s+(?:feat\.?|ft\.?)\s+", t, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+    return a, t
+
+
+def _itunes_result_matches(clean_artist: str, clean_title: str, item: Dict[str, Any]) -> bool:
+    res_title = str(item.get("trackName") or "").lower()
+    res_artist = str(item.get("artistName") or "").lower()
+    if not res_title or not item.get("artworkUrl100"):
+        return False
+
+    t_tokens = _norm_lookup_tokens(clean_title)
+    res_t_tokens = set(_norm_lookup_tokens(res_title))
+    if not t_tokens:
+        return False
+
+    title_hits = sum(1 for tok in t_tokens if tok in res_t_tokens)
+    if title_hits < max(1, len(t_tokens) // 2 + (1 if len(t_tokens) == 1 else 0)):
+        if clean_title.lower() not in res_title and res_title not in clean_title.lower():
+            return False
+
+    a_tokens = _norm_lookup_tokens(clean_artist)
+    if a_tokens:
+        res_a_tokens = set(_norm_lookup_tokens(res_artist))
+        if not any(tok in res_a_tokens for tok in a_tokens) and clean_artist.lower() not in res_artist:
+            return False
+
+    return True
+
+
+def fetch_itunes_cover_bytes(
+    artist: str,
+    title: str,
+    timeout: float = 4.0,
+) -> Optional[Tuple[bytes, str]]:
+    """
+    Ищет официальную обложку трека в открытом iTunes Search API (без ключей и токенов),
+    как это делает официальный клиент Telegram, и возвращает (bytes, mime) размером 300x300.
+    """
+    clean_artist, clean_title = clean_music_query(artist, title)
+    if not clean_title or len(clean_title) < 2:
+        return None
+
+    term = f"{clean_artist} {clean_title}".strip() if clean_artist else clean_title
+    search_url = (
+        "https://itunes.apple.com/search?"
+        + urllib.parse.urlencode({"term": term, "media": "music", "entity": "song", "limit": "5"})
+    )
+    try:
+        req = urllib.request.Request(search_url, headers={"User-Agent": "BahonIQMusic/1.0"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if resp.status != 200:
+                return None
+            payload = json.loads(resp.read().decode("utf-8", errors="ignore"))
+    except Exception:
+        return None
+
+    results = payload.get("results") or []
+    chosen_url = ""
+    for item in results:
+        if isinstance(item, dict) and _itunes_result_matches(clean_artist, clean_title, item):
+            art_url = str(item.get("artworkUrl100") or "").strip()
+            if art_url:
+                chosen_url = art_url.replace("100x100bb", "300x300bb")
+                break
+
+    if not chosen_url:
+        return None
+
+    try:
+        img_req = urllib.request.Request(chosen_url, headers={"User-Agent": "BahonIQMusic/1.0"})
+        with urllib.request.urlopen(img_req, timeout=timeout) as img_resp:
+            if img_resp.status != 200:
+                return None
+            raw_img = img_resp.read(MAX_COVER_BYTES + 1)
+        return validate_image_bytes(raw_img)
+    except Exception:
+        return None

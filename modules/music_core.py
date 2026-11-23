@@ -27,6 +27,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 from modules.music_covers import (
     compute_cover_hash,
     extract_embedded_cover_from_bytes,
+    fetch_itunes_cover_bytes,
     validate_image_bytes,
 )
 
@@ -112,7 +113,8 @@ def get_db_connection() -> sqlite3.Connection:
                 cover_hash TEXT NOT NULL DEFAULT '',
                 cover_source TEXT NOT NULL DEFAULT '',
                 cover_checked_at INTEGER NOT NULL DEFAULT 0,
-                file_unique_id TEXT NOT NULL DEFAULT ''
+                file_unique_id TEXT NOT NULL DEFAULT '',
+                cover_message_id INTEGER NOT NULL DEFAULT 0
             )
         """)
         existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracks)").fetchall()}
@@ -122,6 +124,7 @@ def get_db_connection() -> sqlite3.Connection:
             ("cover_source", "ALTER TABLE tracks ADD COLUMN cover_source TEXT NOT NULL DEFAULT ''"),
             ("cover_checked_at", "ALTER TABLE tracks ADD COLUMN cover_checked_at INTEGER NOT NULL DEFAULT 0"),
             ("file_unique_id", "ALTER TABLE tracks ADD COLUMN file_unique_id TEXT NOT NULL DEFAULT ''"),
+            ("cover_message_id", "ALTER TABLE tracks ADD COLUMN cover_message_id INTEGER NOT NULL DEFAULT 0"),
         ]
         for col_name, ddl in migrations:
             if col_name not in existing_cols:
@@ -668,6 +671,35 @@ def get_catalog_status() -> Dict[str, Any]:
         conn.close()
 
 
+def _normalize_meta_part(text: str) -> str:
+    s = (text or "").lower().strip()
+    s = re.sub(r"\[[^\]]*\]|\([^\)]*\)", " ", s)
+    s = re.sub(r"[^a-zа-яёәіңғүұқөһ0-9]+", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def normalize_track_identity(artist: str, title: str) -> str:
+    """Нормализованный ключ (artist + title) для дедупликации одинаковых песен в каталоге."""
+    norm_artist = _normalize_meta_part(artist)
+    norm_title = _normalize_meta_part(title)
+    if norm_artist in ("музыка дит", "неизвестный исполнитель", "unknown artist", "unknown"):
+        norm_artist = ""
+    return f"{norm_artist}::{norm_title}"
+
+
+def _track_preference_score(track: Dict[str, Any]) -> Tuple[int, str, int]:
+    """При дубликатах по artist + title предпочитает запись с настоящей обложкой, затем более новую."""
+    c_src = track.get("cover_source") or ""
+    c_hash = track.get("cover_hash") or ""
+    if c_src == "embedded" or (c_hash and c_src != "thumb"):
+        cover_rank = 3
+    elif c_src == "thumb" or c_hash or (track.get("has_cover") and c_src != "none"):
+        cover_rank = 2
+    else:
+        cover_rank = 0
+    return (cover_rank, str(track.get("date") or ""), int(track.get("id") or 0))
+
+
 def query_tracks(
     query: Optional[str] = None,
     artist: Optional[str] = None,
@@ -677,7 +709,7 @@ def query_tracks(
     limit: int = 100,
     offset: int = 0
 ) -> Tuple[List[Dict[str, Any]], int]:
-    """Возвращает отфильтрованный список треков из SQLite-кэша."""
+    """Возвращает отфильтрованный и дедуплицированный список треков из SQLite-кэша."""
     conn = get_db_connection()
     try:
         where_clauses = []
@@ -707,9 +739,6 @@ def query_tracks(
 
         sort_dir = "ASC" if order.lower() == "asc" else "DESC"
 
-        count_sql = f"SELECT COUNT(*) FROM tracks {where_sql}"
-        total = conn.execute(count_sql, params).fetchone()[0]
-
         select_sql = f"""
             SELECT id, telegram_msg_id, document_id, title, artist, album, duration,
                    file_size, mime_type, file_name, date, has_cover,
@@ -717,18 +746,18 @@ def query_tracks(
             FROM tracks
             {where_sql}
             ORDER BY {col} {sort_dir}
-            LIMIT ? OFFSET ?
         """
-        rows = conn.execute(select_sql, params + [limit, offset]).fetchall()
+        rows = conn.execute(select_sql, params).fetchall()
 
-        tracks = []
+        deduped: List[Dict[str, Any]] = []
+        seen_idx_by_key: Dict[str, int] = {}
         for r in rows:
             doc_id = r["document_id"]
             unique_id = r["file_unique_id"] or (f"tgdoc_{doc_id}" if doc_id else f"track_{r['id']}")
             c_hash = r["cover_hash"] or ""
             c_source = r["cover_source"] or ""
             c_ver = c_hash if c_hash else (r["cover_version"] or 0)
-            tracks.append({
+            item = {
                 "id": r["id"],
                 "telegram_msg_id": r["telegram_msg_id"],
                 "document_id": doc_id,
@@ -745,8 +774,21 @@ def query_tracks(
                 "cover_hash": c_hash,
                 "cover_source": c_source,
                 "cover_version": c_ver,
-            })
-        return tracks, total
+            }
+            norm_key = normalize_track_identity(item["artist"], item["title"])
+            if norm_key == "::":
+                deduped.append(item)
+                continue
+            existing_pos = seen_idx_by_key.get(norm_key)
+            if existing_pos is None:
+                seen_idx_by_key[norm_key] = len(deduped)
+                deduped.append(item)
+            else:
+                if _track_preference_score(item) > _track_preference_score(deduped[existing_pos]):
+                    deduped[existing_pos] = item
+
+        total = len(deduped)
+        return deduped[offset : offset + limit], total
     finally:
         conn.close()
 
@@ -892,9 +934,9 @@ def load_saved_real_cover(track: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                         meta = {}
                 c_hash = meta.get("cover_hash") or compute_cover_hash(clean_bytes)
                 c_source = meta.get("source")
-                if c_source not in ("embedded", "thumb"):
+                if c_source not in ("linked_photo", "embedded", "thumb", "itunes"):
                     t_src = track.get("cover_source")
-                    c_source = t_src if t_src in ("embedded", "thumb") else "embedded"
+                    c_source = t_src if t_src in ("linked_photo", "embedded", "thumb", "itunes") else "embedded"
                 if track.get("cover_hash") != c_hash or track.get("cover_source") != c_source:
                     conn = get_db_connection()
                     try:
@@ -940,16 +982,69 @@ def load_saved_real_cover(track: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return None
 
 
+def select_linked_photo_candidate(
+    audio_msg: Any,
+    candidate_messages: List[Any],
+    track: Dict[str, Any],
+) -> Optional[Any]:
+    """
+    Находит отдельное Telegram-сообщение с картинкой, точно связанное с аудиотреком.
+    Приоритет:
+    1. Тот же grouped_id (медиаальбом).
+    2. Прямой reply_to на сообщение с фото.
+    3. Совпадение нормализованных caption / title / performer.
+    Служебные сообщения (смена аватарки чата MessageActionChatEditPhoto и т.п.) игнорируются.
+    """
+    if not audio_msg or not candidate_messages:
+        return None
+
+    def _is_real_photo_msg(m: Any) -> bool:
+        if not m or getattr(m, "action", None) is not None:
+            return False
+        return bool(getattr(m, "photo", None))
+
+    photo_msgs = [m for m in candidate_messages if _is_real_photo_msg(m) and getattr(m, "id", None) != getattr(audio_msg, "id", None)]
+    if not photo_msgs:
+        return None
+
+    audio_grp = getattr(audio_msg, "grouped_id", None)
+    if audio_grp:
+        for pm in photo_msgs:
+            if getattr(pm, "grouped_id", None) == audio_grp:
+                return pm
+
+    reply_obj = getattr(audio_msg, "reply_to", None)
+    reply_id = getattr(reply_obj, "reply_to_msg_id", None) if reply_obj else None
+    if reply_id:
+        for pm in photo_msgs:
+            if getattr(pm, "id", None) == reply_id:
+                return pm
+
+    norm_title = _normalize_meta_part(track.get("title") or "")
+    norm_artist = _normalize_meta_part(track.get("artist") or "")
+    for pm in photo_msgs:
+        cap = _normalize_meta_part(getattr(pm, "message", "") or "")
+        if not cap:
+            continue
+        if norm_title and len(norm_title) >= 4 and norm_title in cap:
+            return pm
+        if norm_artist and len(norm_artist) >= 4 and norm_artist in cap and any(w in cap for w in norm_title.split() if len(w) >= 3):
+            return pm
+
+    return None
+
+
 async def resolve_track_cover(
     track_id: int,
     allow_network: bool = True,
 ) -> Optional[Dict[str, Any]]:
     """
     Единая цепочка получения обложки трека со строгим приоритетом:
-    1. Встроенная обложка из метаданных аудиофайла (ID3v2.2 PIC, ID3v2.3/2.4 APIC, MP4 covr, FLAC, OGG).
-    2. Миниатюра Telegram-сообщения/документа (document.thumbs), если встроенной обложки нет.
-    3. Ранее сохранённая реальная обложка этого трека.
-    4. None (вызывающий код отдаёт фирменную заглушку BahonIQ без перезаписи реальной обложки).
+    1. Отдельная Telegram-картинка, точно связанная с треком (grouped_id / reply_to / caption).
+    2. Встроенная обложка из метаданных аудиофайла (ID3v2.2 PIC, ID3v2.3/2.4 APIC, MP4 covr, FLAC, OGG).
+    3. Миниатюра Telegram-сообщения/документа (document.thumbs).
+    4. Ранее сохранённая реальная обложка этого трека.
+    5. None (заглушка без перезаписи реальной обложки).
     """
     track = get_track_by_id(track_id)
     if not track:
@@ -959,8 +1054,8 @@ async def resolve_track_cover(
         track = get_track_by_id(track_id) or track
         saved = load_saved_real_cover(track)
 
-        # Если уже сохранена встроенная обложка (приоритет №1) — отдаём мгновенно
-        if saved and saved.get("source") == "embedded":
+        # Если уже сохранена связанная Telegram-картинка, встроенный APIC или кэшированная обложка iTunes — отдаём мгновенно
+        if saved and saved.get("source") in ("linked_photo", "embedded", "itunes"):
             return saved
 
         # Проверяем, есть ли полный аудиофайл в локальном серверном кэше
@@ -990,7 +1085,7 @@ async def resolve_track_cover(
             return saved
 
         async with _telegram_cover_fetch_lock:
-            # Обращаемся к Telegram для проверки метаданных файла (первые 256 КБ) и/или document.thumbs
+            # Обращаемся к Telegram для проверки связанного фото, метаданных файла (первые 256 КБ) и/или document.thumbs
             _, doc = await get_telegram_document_for_track(track_id)
             client = await get_telegram_client()
             if not doc or not client:
@@ -998,7 +1093,39 @@ async def resolve_track_cover(
                 # НЕ помечая cover_source='none', чтобы при следующем запросе повторить попытку.
                 return saved
 
-            # Приоритет №1: пробуем извлечь встроенную обложку из первых 256 КБ аудиофайла в Telegram
+            # Приоритет №1: отдельная Telegram-картинка, точно связанная с треком (grouped_id / reply_to / caption)
+            try:
+                msg_id = int(track.get("telegram_msg_id") or 0)
+                if msg_id:
+                    channel = await get_channel_entity(client)
+                    target_ent = None if msg_id > 1000 else channel
+                    audio_msg = await client.get_messages(target_ent, ids=msg_id)
+                    if audio_msg:
+                        neighbor_ids = [i for i in range(max(1, msg_id - 2), msg_id + 3) if i != msg_id]
+                        neighbors = await client.get_messages(target_ent, ids=neighbor_ids)
+                        linked_photo = select_linked_photo_candidate(audio_msg, neighbors or [], track)
+                        if linked_photo:
+                            photo_bytes = await client.download_media(linked_photo, file=bytes)
+                            if isinstance(photo_bytes, (bytes, bytearray)) and photo_bytes:
+                                validated_photo = validate_image_bytes(bytes(photo_bytes))
+                                if validated_photo:
+                                    clean_photo, photo_mime = validated_photo
+                                    res = save_real_cover(track_id, clean_photo, photo_mime, source="linked_photo")
+                                    if res:
+                                        conn = get_db_connection()
+                                        try:
+                                            with conn:
+                                                conn.execute(
+                                                    "UPDATE tracks SET cover_message_id=? WHERE id=?",
+                                                    (int(linked_photo.id), track_id),
+                                                )
+                                        finally:
+                                            conn.close()
+                                        return res
+            except Exception as exc:
+                LOGGER.debug("Не удалось проверить связанное фото для трека %s: %s", track_id, exc)
+
+            # Приоритет №2: пробуем извлечь встроенную обложку из первых 256 КБ аудиофайла в Telegram
             try:
                 buf = bytearray()
                 async for chunk in client.iter_download(
@@ -1032,11 +1159,26 @@ async def resolve_track_cover(
                 except Exception as exc:
                     LOGGER.debug("Не удалось скачать thumb трека %s из Telegram: %s", track_id, exc)
 
-        # Приоритет №3: ранее сохранённая реальная обложка (никогда не затираем её заглушкой)
+        # Приоритет №4: ранее сохранённая реальная обложка (никогда не затираем её заглушкой)
         if saved:
             return saved
 
-        # Приоритет №4: обложки в файле и в Telegram действительно нет — фиксируем cover_source='none'
+        # Приоритет №5: официальная обложка из открытого iTunes Search API (как в клиенте Telegram)
+        try:
+            itunes_res = await asyncio.to_thread(
+                fetch_itunes_cover_bytes,
+                track.get("artist") or "",
+                track.get("title") or "",
+            )
+            if itunes_res:
+                it_bytes, it_mime = itunes_res
+                res = save_real_cover(track_id, it_bytes, it_mime, source="itunes")
+                if res:
+                    return res
+        except Exception as exc:
+            LOGGER.debug("Не удалось получить обложку iTunes для трека %s: %s", track_id, exc)
+
+        # Приоритет №6: обложки нет нигде — фиксируем cover_source='none'
         conn = get_db_connection()
         try:
             with conn:
