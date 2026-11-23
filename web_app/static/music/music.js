@@ -1099,6 +1099,7 @@
       ? targetSrc
       : new URL(targetSrc, window.location.origin).href;
     if (audio.src !== absoluteTargetSrc) {
+      audio.removeAttribute('crossorigin');
       audio.src = targetSrc;
     }
 
@@ -1354,6 +1355,7 @@
       if (station && station.fallback_stream_url && !station._usingFallback) {
         station._usingFallback = true;
         console.info('Direct radio stream failed, falling back to server proxy:', station.id);
+        audio.removeAttribute('crossorigin');
         audio.src = station.fallback_stream_url;
         audio.load();
         audio.play().catch(() => {});
@@ -2717,11 +2719,17 @@
     clearTimeout(radioPlayTimeout);
     station._usingFallback = false;
     audio.pause();
+    if (/^https?:\/\//i.test(String(station.stream_url || ''))) {
+      audio.crossOrigin = 'anonymous';
+    } else {
+      audio.removeAttribute('crossorigin');
+    }
     audio.src = station.stream_url;
     audio.load();
     audio.play().catch(err => {
       if (station.fallback_stream_url && !station._usingFallback) {
         station._usingFallback = true;
+        audio.removeAttribute('crossorigin');
         audio.src = station.fallback_stream_url;
         audio.load();
         audio.play().catch(() => {

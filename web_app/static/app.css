@@ -3690,7 +3690,18 @@ body.theme-day .sidebar.open {
   opacity: 1 !important;
   pointer-events: auto !important;
 }
-#dashboardView { overflow-x: hidden; }
+#dashboardView {
+  width: calc(100% - 48px);
+  max-width: 1480px;
+  margin-inline: auto;
+  overflow-x: hidden;
+}
+@media (max-width: 768px) {
+  #dashboardView {
+    width: 100%;
+    max-width: 100%;
+  }
+}
 #dashboardView .section-heading-spaced { margin-top: 28px; }
 #dashboardView .tools-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap:16px; perspective:1100px; }
 #dashboardView .tool-tile {

@@ -1,5 +1,5 @@
 // BahonIQ Work Center Service Worker — Offline Shell Support
-const CACHE_NAME = 'bahoniq-pwa-v23-internal-ui-final-v1';
+const CACHE_NAME = 'bahoniq-pwa-v24-internal-ui-final-v2';
 const PRECACHE_URLS = [
   '/',
   '/assets/app.css',

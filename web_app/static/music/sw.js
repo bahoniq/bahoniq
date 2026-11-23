@@ -1,5 +1,5 @@
 ﻿/* BahonIQ Музыка в авто - Изолированный Service Worker (Scope: /music/) — 100% Offline Ready */
-const CACHE_NAME = 'bahoniq-music-shell-v45-android-mediasession';
+const CACHE_NAME = 'bahoniq-music-shell-v46-radio-cors-fix';
 const COVERS_CACHE_NAME = 'bahoniq-music-covers-v1';
 const SHELL_ASSETS = [
   '/music/',
