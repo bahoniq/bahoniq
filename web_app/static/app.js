@@ -3159,12 +3159,13 @@ convertForm?.addEventListener('submit', async e => {
   }
 
   function updateChatBadge(count) {
-    if (!chatCountBadge) return;
+    const badge = document.querySelector('#acadChatCountBadge, #chatCountBadge');
+    if (!badge) return;
     if (count > 0 && !isChatOpen()) {
-      chatCountBadge.textContent = count;
-      chatCountBadge.classList.remove('hidden');
+      badge.textContent = count;
+      badge.classList.remove('hidden');
     } else {
-      chatCountBadge.classList.add('hidden');
+      badge.classList.add('hidden');
     }
   }
 
