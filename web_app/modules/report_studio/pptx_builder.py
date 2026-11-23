@@ -905,11 +905,14 @@ def _v53_numeric_ranked(analysis: dict, column: dict, limit: int = 9):
 def build_analytics_pptx_v52(
     matrix:list[list],title:str,output_dir:str|Path|None=None,description:str="",
     ai_analysis:dict|None=None,report_profile:str="Автоматически",audience:str="Руководство",
+    report_depth:str="Полный аудит (Все категории, 8+ стр)",
 )->Path:
     """Domain-neutral deck generated only from columns in the current workbook."""
     analysis=analyze_matrix(matrix);total=int(analysis.get("row_count",0) or 0)
     if total<=0:raise ValueError("В выбранном листе нет строк данных для отчёта.")
-    dimensions=_v52_dimensions(analysis)
+    depth=str(report_depth).casefold()
+    dimension_limit = 8 if ("полн" in depth or "8" in depth) else (2 if ("крат" in depth or "3-4" in depth) else 4)
+    dimensions=_v52_dimensions(analysis)[:dimension_limit]
     out=Path(output_dir).expanduser() if output_dir else Path.home()/"Documents"/"BahonIQ Reports";out.mkdir(parents=True,exist_ok=True)
     display_title=_safe((ai_analysis or {}).get("report_title"),180) or title
     display_subtitle=_safe((ai_analysis or {}).get("report_subtitle"),300) or "Структура, сравнения и доказательные выводы"

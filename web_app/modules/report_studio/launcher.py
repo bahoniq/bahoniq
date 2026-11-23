@@ -352,6 +352,7 @@ def generate_report(
     report_profile: str = "Автоматически",
     audience: str = "Руководство",
     ai_model: str | None = None,
+    report_depth: str = "Полный аудит (Все категории, 8+ стр)",
 ) -> dict[str, Any]:
     """
     Формирует аналитический PDF для выбранного листа.
@@ -469,6 +470,7 @@ def generate_report(
                     ai_analysis=ai_analysis,
                     report_profile=report_profile,
                     audience=audience,
+                    report_depth=report_depth,
                 ))
             if "pptx" in formats:
                 report_progress(82, "Сборка редактируемой PowerPoint-презентации")
@@ -480,6 +482,7 @@ def generate_report(
                     ai_analysis=ai_analysis,
                     report_profile=report_profile,
                     audience=audience,
+                    report_depth=report_depth,
                 ))
             for artifact in (output_path, presentation_path):
                 if artifact and (not artifact.is_file() or not artifact.stat().st_size):
