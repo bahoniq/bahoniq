@@ -530,7 +530,7 @@ $('#analyticsForm')?.addEventListener('submit', async e => {
     ['pptx', format !== 'pdf'],
     ['include_source_table', $('#includeSource').checked],
     ['report_profile', $('#reportProfile').value],
-    ['report_depth', $('#reportDepth').value]
+    ['report_depth', 'Полный аудит (Все категории, 8+ стр)']
   ].forEach(([k, v]) => fd.append(k, v));
 
   try {

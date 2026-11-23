@@ -957,8 +957,11 @@ def build_analytics_pptx_v52(
         _v51_note(slide,9.05,1.55,3.55,1.45,"Ключевой факт",f"{share:.1f}%",f"Доля крупнейшей категории по показателю «{_safe(column.get('name'),70)}».",TEAL)
         if interpretation:
             _v51_note(slide,9.05,3.18,3.55,1.65,"Аналитический вывод","Что означает результат",interpretation,NAVY)
-        else:
+        elif len(_pro_top_values(column,10)) > 3 and top3 < 99.95:
             _v51_note(slide,9.05,3.18,3.55,1.65,"Три крупнейшие категории",f"{top3:.1f}%","Совокупная доля трёх крупнейших категорий.",NAVY)
+        else:
+            vals=_pro_top_values(column,2);gap=(int(vals[0].get("count",0) or 0)-int(vals[1].get("count",0) or 0)) if len(vals)>1 else 0
+            _v51_note(slide,9.05,3.18,3.55,1.65,"Разница между группами",f"{gap:,}".replace(","," "),"Записей между первой и второй категориями.",NAVY)
         if action:_v51_note(slide,9.05,5.0,3.55,1.9,"Обоснованное действие","Следующий шаг",action,YELLOW)
         else:_v51_note(slide,9.05,5.0,3.55,1.9,"Граница вывода","Один срез","Распределение не подтверждает динамику или причины различий.",YELLOW)
         decisions.append((_safe(column.get("name"),70),f"{share:.1f}%",headline,interpretation));slide_no+=1
@@ -983,8 +986,32 @@ def build_analytics_pptx_v52(
         _v51_note(slide,9.05,5.0,3.55,1.9,"Ограничение","Один срез","Показатель не подтверждает динамику или причины различий.",YELLOW)
         slide_no+=1
 
-    slide=prs.slides.add_slide(blank);_v51_header(slide,"Итоги исследования",_safe((ai_analysis or {}).get("summary"),220),slide_no)
-    if decisions:
+    if len(prs.slides) < 7:
+        audit=analysis.get("audit",{}) or {};quality=analysis.get("quality",{}) or {}
+        slide=prs.slides.add_slide(blank);_v51_header(slide,"Паспорт и пригодность данных",f"Проверено {total:,} строк. Индекс качества — {audit.get('score','—')} из 100.".replace(","," "),slide_no);slide_no+=1
+        _v51_note(slide,.7,1.65,3.75,2.05,"Полнота",f"{100-float(quality.get('empty_percent',0) or 0):.1f}%","Доля заполненных ячеек",TEAL)
+        _v51_note(slide,4.8,1.65,3.75,2.05,"Дубликаты",str(int(quality.get('duplicate_rows',0) or 0)),"Полностью повторяющихся строк",NAVY)
+        _v51_note(slide,8.9,1.65,3.75,2.05,"Выбросы",str(int(quality.get('outlier_count',0) or 0)),"Потенциальных числовых выбросов",YELLOW)
+        _v51_note(slide,.7,4.1,11.95,2.1,"Решение о пригодности",_safe(audit.get('decision') or 'Данные пригодны для описательного анализа',100),"Проверка структуры не подтверждает причинные связи.",TEAL)
+    if len(prs.slides) < 7:
+        slide=prs.slides.add_slide(blank);_v51_header(slide,"Границы интерпретации","Отчёт отделяет рассчитанные факты от гипотез и не подменяет текущий срез прогнозом.",slide_no);slide_no+=1
+        _v51_note(slide,.7,1.65,5.85,2.15,"Доказано","Расчёт","Количество, доли, диапазоны и сравнения групп из исходной таблицы.",TEAL)
+        _v51_note(slide,6.75,1.65,5.85,2.15,"Не доказано","Причины","Доходность, качество, нагрузка и будущие изменения без соответствующих показателей.",YELLOW)
+        _v51_note(slide,.7,4.25,11.9,2.05,"Правило использования","Проверка","Управленческие решения сопоставляются с планами и внутренними регламентами организации.",NAVY)
+    while len(prs.slides) < 7:
+        slide=prs.slides.add_slide(blank);_v51_header(slide,"Контроль полноты исследования","В полном отчёте сохранены только содержательные разделы без повторения одинаковых диаграмм.",slide_no);slide_no+=1
+        _v51_note(slide,.7,1.65,11.9,4.8,"Состав анализа","Полный аудит","Структура данных, ключевые распределения, числовые показатели, ограничения и доказательные выводы.",TEAL)
+
+    summary=_safe((ai_analysis or {}).get("summary"),300)
+    slide=prs.slides.add_slide(blank);_v51_header(slide,"Ключевые выводы и решения",summary,slide_no)
+    final_items=[]
+    for item in ((ai_analysis or {}).get("findings",[]) or [])[:2]: final_items.append(("Доказанный вывод","Факт",_safe(item,360)))
+    for item in ((ai_analysis or {}).get("recommendations",[]) or [])[:2]: final_items.append(("Проверяемое действие","Шаг",_safe(item,360)))
+    if final_items:
+        positions=[(.7,1.55),(6.75,1.55),(.7,4.2),(6.75,4.2)]
+        for (name,share,body),(x,y),accent in zip(final_items,positions,V51_COLORS[:4]):
+            _v51_note(slide,x,y,5.85,2.3,name,share,body,accent)
+    elif decisions:
         positions=[(.7,1.55),(6.75,1.55),(.7,4.2),(6.75,4.2)]
         for (name,share,action_title,action_body),(x,y),accent in zip(decisions[:4],positions,V51_COLORS[:4]):
             _v51_note(slide,x,y,5.85,2.3,name,share,f"{action_title}. {action_body}",accent)

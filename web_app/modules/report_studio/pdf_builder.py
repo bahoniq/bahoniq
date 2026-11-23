@@ -2926,12 +2926,23 @@ def build_analytics_pdf_v53(
                     colors.HexColor("#EAF8F7"),
                 ),
             ])
-        else:
+        elif len(top) > 3 and top3 < 99.95:
             side.extend([
                 Spacer(1, 3 * mm),
                 _v51_callout(
                     "ТРИ КРУПНЕЙШИЕ КАТЕГОРИИ", f"{top3:.1f}%",
                     "Совокупная доля трёх крупнейших категорий",
+                    styles, colors.HexColor("#F4F7FB"),
+                ),
+            ])
+        else:
+            second = int(top[1].get("count", 0) or 0) if len(top) > 1 else 0
+            gap = int(top[0].get("count", 0) or 0) - second if top else 0
+            side.extend([
+                Spacer(1, 3 * mm),
+                _v51_callout(
+                    "РАЗНИЦА МЕЖДУ ГРУППАМИ", _format_number(gap),
+                    "Записей между первой и второй категориями",
                     styles, colors.HexColor("#F4F7FB"),
                 ),
             ])
@@ -3082,6 +3093,53 @@ def build_analytics_pdf_v53(
                     "Для содержательного сравнения по годам нужно не менее двух годовых групп.",
                     styles, colors.HexColor("#F4F7FB"),
                 ))
+
+    # Полный аудит сохраняет содержательную минимальную глубину даже для
+    # компактных таблиц: вместо повторных диаграмм добавляются контрольные
+    # страницы о пригодности данных и границах интерпретации.
+    if page_no < 6:
+        page_no += 1
+        story.append(PageBreak())
+        audit = analysis.get("audit", {}) or {}
+        quality = analysis.get("quality", {}) or {}
+        _v51_page_title(
+            story, page_no, "Паспорт и пригодность данных",
+            f"Проверено {_format_number(total)} строк и {len(analysis.get('headers', []))} столбцов. "
+            f"Индекс качества — {audit.get('score', '—')} из 100.", styles,
+        )
+        cards = [
+            _v51_callout("ПОЛНОТА", f"{100-float(quality.get('empty_percent', 0) or 0):.1f}%", "Доля заполненных ячеек", styles, colors.HexColor("#EAF8F7")),
+            _v51_callout("ДУБЛИКАТЫ", _format_number(quality.get('duplicate_rows', 0)), "Полностью повторяющихся строк", styles, colors.HexColor("#F4F7FB")),
+            _v51_callout("ВЫБРОСЫ", _format_number(quality.get('outlier_count', 0)), "Потенциальных числовых выбросов", styles, colors.HexColor("#FFF6E2")),
+        ]
+        story.append(Table([cards], colWidths=[width / 3] * 3, style=TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")])))
+        story.append(Spacer(1, 7 * mm))
+        story.append(_v51_callout(
+            "РЕШЕНИЕ О ПРИГОДНОСТИ", _safe_text(audit.get("decision") or "Данные пригодны для описательного анализа", 100),
+            "Оценка проверяет структуру, заполненность, дубли и выбросы. Она не подтверждает причинные связи.",
+            styles, colors.HexColor("#EAF8F7"),
+        ))
+
+    if page_no < 6:
+        page_no += 1
+        story.append(PageBreak())
+        _v51_page_title(
+            story, page_no, "Границы интерпретации",
+            "Отчёт отделяет рассчитанные факты от гипотез и не подменяет текущий срез прогнозом.", styles,
+        )
+        limitations = _v53_ai_items(ai_analysis, "limitations", 5) or [
+            "Текущий набор описывает представленные записи, но сам по себе не устанавливает причины различий.",
+            "Динамика оценивается только при наличии сопоставимых периодов и корректного поля даты.",
+            "Рекомендации требуют проверки по плановым значениям и внутренним регламентам организации.",
+        ]
+        blocks = [[
+            _v51_callout("ДОКАЗАНО", "Расчёт", "Количество, доли, диапазоны и сравнения групп из исходной таблицы.", styles, colors.HexColor("#EAF8F7")),
+            _v51_callout("НЕ ДОКАЗАНО", "Причины", "Доходность, качество, нагрузка и будущие изменения без соответствующих показателей.", styles, colors.HexColor("#FFF6E2")),
+        ]]
+        story.append(Table(blocks, colWidths=[width / 2] * 2, style=TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")])))
+        story.append(Spacer(1, 6 * mm))
+        for item in limitations[:4]:
+            story.append(_bullet(item, styles))
 
     findings = _v53_ai_items(ai_analysis, "findings", 6)
     risks = _v53_ai_items(ai_analysis, "risks", 4)

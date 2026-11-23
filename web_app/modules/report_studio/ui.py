@@ -409,24 +409,7 @@ class ReportStudio:
             style="BIQ.TCombobox",
         ).pack(fill="x", pady=(5, 12))
 
-        ttk.Label(
-            parent,
-            text="Глубина отчёта",
-            style="BIQ.Surface.TLabel",
-        ).pack(anchor="w")
-
         self.report_depth_var = tk.StringVar(value="Полный аудит (Все категории, 8+ стр)")
-        ttk.Combobox(
-            parent,
-            textvariable=self.report_depth_var,
-            values=[
-                "Полный аудит (Все категории, 8+ стр)",
-                "Стандартный (Управленческий, 5-6 стр)",
-                "Краткий (C-Level, 3-4 стр)",
-            ],
-            state="readonly",
-            style="BIQ.TCombobox",
-        ).pack(fill="x", pady=(5, 12))
 
         ttk.Label(
             parent,
@@ -991,7 +974,7 @@ class ReportStudio:
             "orientation": orientation_map.get(
                 self.orientation_var.get(), "auto"
             ),
-            "report_depth": self.report_depth_var.get(),
+            "report_depth": "Полный аудит (Все категории, 8+ стр)",
             "output_formats": {
                 "Только PDF": ("pdf",),
                 "Только PowerPoint": ("pptx",),
@@ -1041,7 +1024,7 @@ class ReportStudio:
                 report_profile=settings["report_profile"],
                 audience=settings["audience"],
                 ai_model=settings.get("ai_model"),
-                report_depth=settings.get("report_depth", "Краткий (C-Level, 3-4 стр)"),
+                report_depth="Полный аудит (Все категории, 8+ стр)",
             )
             self.events.put(("generation_success", result))
         except Exception as exc:

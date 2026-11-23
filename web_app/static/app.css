@@ -4138,3 +4138,13 @@ body.theme-day .sidebar.open {
     transform: none !important;
   }
 }
+.analytics-full-report-note {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(0, 229, 255, .25);
+  border-radius: 12px;
+  background: rgba(0, 229, 255, .06);
+}
+.analytics-full-report-note small { color: var(--muted); line-height: 1.4; }

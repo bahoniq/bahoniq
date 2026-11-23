@@ -755,7 +755,7 @@ async def analytics_generate(
             session["source"], sheet_name, title,
             session["directory"], description, include_source_table,
             orientation, formats, None, report_profile, audience,
-            None, report_depth,
+            None, "Полный аудит (Все категории, 8+ стр)",
         )
         files = {}
         for key, label in (("output_file", "pdf"), ("presentation_file", "pptx")):
