@@ -1284,6 +1284,9 @@
           });
         } catch {}
       }
+      if (typeof syncStateToAndroid === 'function') {
+        syncStateToAndroid(false);
+      }
     }
   });
 
@@ -1300,6 +1303,7 @@
       streamRetryByTrack.delete(Number(playlist[currentIndex].id));
     }
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+    if (typeof syncStateToAndroid === 'function') syncStateToAndroid(true);
     if (radioMode) {
       clearTimeout(radioPlayTimeout);
       const station = getAllRadioStations()[currentRadioIndex];
@@ -1335,6 +1339,7 @@
     btnPlay.classList.remove('loading');
     updatePlayButton(false);
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+    if (typeof syncStateToAndroid === 'function') syncStateToAndroid(true);
     if (radioMode) {
       stopRadioMetadataPolling();
       renderRadioList();
@@ -1556,52 +1561,215 @@
     }
   }
 
+  let lastAndroidSyncAt = 0;
+  let lastAndroidSyncKey = '';
+  const MEDIA_CMD_DEBOUNCE_MS = 350;
+  const lastMediaCmdAt = Object.create(null);
+
+  function buildPlaybackStatePayload() {
+    const isRadioNow = Boolean(radioMode);
+    let title = 'BahonIQ Music';
+    let artist = 'Музыка ДИТ';
+    let album = 'BahonIQ Music';
+    let coverPath = '/music/assets/logo.png';
+    let durationSec = Number.isFinite(audio.duration) ? audio.duration : 0;
+
+    if (isRadioNow) {
+      const station = getAllRadioStations()[currentRadioIndex];
+      title = (trackTitle?.textContent || station?.name || 'Радио').trim();
+      artist = (trackArtist?.textContent || `${station?.freq || 'FM'} · BahonIQ Радио`).trim();
+      album = station?.name ? `Прямой эфир · ${station.name}` : 'Прямой эфир';
+      durationSec = 0;
+    } else if (currentIndex >= 0 && playlist[currentIndex]) {
+      const track = playlist[currentIndex];
+      title = track.title || 'Музыка';
+      artist = track.artist || 'Музыка ДИТ';
+      album = track.album || 'BahonIQ Music';
+      coverPath = track.cover_source === 'none'
+        ? '/music/assets/logo.png'
+        : getTrackCoverUrl(track, false);
+      if (!durationSec && Number.isFinite(Number(track.duration))) {
+        durationSec = Number(track.duration);
+      }
+    }
+
+    let coverUrl = coverPath;
+    try {
+      coverUrl = new URL(coverPath, window.location.origin).href;
+    } catch {}
+
+    return {
+      isPlaying: !audio.paused,
+      title: String(title),
+      artist: String(artist),
+      album: String(album),
+      coverUrl: String(coverUrl),
+      duration: Math.max(0, Math.floor(durationSec * 1000)),
+      position: Math.max(0, Math.floor((Number.isFinite(audio.currentTime) ? audio.currentTime : 0) * 1000)),
+      isRadio: isRadioNow
+    };
+  }
+
+  function syncStateToAndroid(force = false) {
+    const bridge = window.BahonIQAndroid;
+    if (!bridge || typeof bridge.onPlaybackState !== 'function') return;
+    const now = Date.now();
+    const state = buildPlaybackStatePayload();
+    const stateKey = `${state.isPlaying}|${state.title}|${state.artist}|${state.coverUrl}|${state.isRadio}`;
+    if (!force && stateKey === lastAndroidSyncKey && (now - lastAndroidSyncAt) < 1500) {
+      return;
+    }
+    lastAndroidSyncAt = now;
+    lastAndroidSyncKey = stateKey;
+    try {
+      bridge.onPlaybackState(JSON.stringify(state));
+    } catch {}
+  }
+
+  function runMediaCommand(action, source = 'unknown', payload = null) {
+    const act = String(action || '').toLowerCase();
+    if (!act) return false;
+
+    if (act === 'duck') {
+      audio.volume = 0.25;
+      return true;
+    }
+    if (act === 'unduck') {
+      audio.volume = 1.0;
+      return true;
+    }
+
+    // Защита от двойного срабатывания, если событие одновременно пришло из WebView MediaSession/keydown и нативной MediaSession
+    if (source !== 'native_focus' && act !== 'seekto') {
+      const now = Date.now();
+      const prevAt = lastMediaCmdAt[act] || 0;
+      if (now - prevAt < MEDIA_CMD_DEBOUNCE_MS) {
+        return false;
+      }
+      lastMediaCmdAt[act] = now;
+    }
+
+    if (act === 'play') {
+      recordDiagnosticCommand(`PLAY (${source})`);
+      resumeAudioContext();
+      if (!audio.src || audio.src === window.location.href) {
+        if (currentIndex >= 0) playTrack(currentIndex, false);
+        else if (playlist.length > 0) playTrack(0);
+      } else {
+        audio.play().then(() => updatePlayButton(true)).catch(err => console.warn('Media play failed:', err));
+      }
+      return true;
+    }
+    if (act === 'pause') {
+      recordDiagnosticCommand(`PAUSE (${source})`);
+      audio.pause();
+      updatePlayButton(false);
+      return true;
+    }
+    if (act === 'toggle' || act === 'playpause') {
+      recordDiagnosticCommand(`PLAY/PAUSE (${source})`);
+      btnPlay.click();
+      return true;
+    }
+    if (act === 'stop') {
+      recordDiagnosticCommand(`STOP (${source})`);
+      audio.pause();
+      try { audio.currentTime = 0; } catch {}
+      updatePlayButton(false);
+      return true;
+    }
+    if (act === 'next') {
+      recordDiagnosticCommand(`NEXT (${source})`);
+      playNextTrack();
+      return true;
+    }
+    if (act === 'previous' || act === 'prev') {
+      recordDiagnosticCommand(`PREVIOUS (${source})`);
+      playPrevTrack();
+      return true;
+    }
+    if (act === 'seekbackward') {
+      recordDiagnosticCommand(`SEEK -10s (${source})`);
+      audio.currentTime = Math.max(0, audio.currentTime - 10);
+      syncStateToAndroid(true);
+      return true;
+    }
+    if (act === 'seekforward') {
+      recordDiagnosticCommand(`SEEK +10s (${source})`);
+      audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 10);
+      syncStateToAndroid(true);
+      return true;
+    }
+    if (act === 'seekto' && payload !== null && payload !== undefined) {
+      const sec = Number(payload);
+      if (!Number.isNaN(sec) && Number.isFinite(sec)) {
+        const position = Math.max(0, Math.min(audio.duration || sec, sec));
+        audio.currentTime = position;
+        syncStateToAndroid(true);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  window.BahonIQNativeBridge = {
+    handleCommand(action, payload) {
+      return runMediaCommand(action, 'native', payload);
+    },
+    handleFocusCommand(action) {
+      return runMediaCommand(action, 'native_focus', null);
+    },
+    getState() {
+      return buildPlaybackStatePayload();
+    }
+  };
+
   function updateMediaSession(track) {
-    if (!('mediaSession' in navigator)) return;
     const coverSrc = track.cover_source === 'none'
       ? '/music/assets/logo.png'
       : getTrackCoverUrl(track, false);
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: track.title || 'Музыка',
-      artist: track.artist || 'Музыка ДИТ',
-      album: track.album || 'BahonIQ Music',
-      artwork: [
-        { src: coverSrc, sizes: '512x512', type: 'image/png' }
-      ]
-    });
-    navigator.mediaSession.playbackState = 'playing';
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.title || 'Музыка',
+        artist: track.artist || 'Музыка ДИТ',
+        album: track.album || 'BahonIQ Music',
+        artwork: [
+          { src: coverSrc, sizes: '512x512', type: 'image/png' }
+        ]
+      });
+      navigator.mediaSession.playbackState = 'playing';
+    }
+    syncStateToAndroid(true);
   }
 
   function setupMediaSession() {
-    if (!('mediaSession' in navigator)) return;
+    if ('mediaSession' in navigator) {
+      const actionHandlers = [
+        ['play', () => runMediaCommand('play', 'mediasession')],
+        ['pause', () => runMediaCommand('pause', 'mediasession')],
+        ['stop', () => runMediaCommand('stop', 'mediasession')],
+        ['previoustrack', () => runMediaCommand('previous', 'mediasession')],
+        ['nexttrack', () => runMediaCommand('next', 'mediasession')],
+        ['seekbackward', () => runMediaCommand('seekbackward', 'mediasession')],
+        ['seekforward', () => runMediaCommand('seekforward', 'mediasession')],
+        ['seekto', details => {
+          if (details && details.seekTime !== undefined && !isNaN(details.seekTime)) {
+            if (details.fastSeek && typeof audio.fastSeek === 'function') {
+              audio.fastSeek(Math.max(0, Math.min(audio.duration || details.seekTime, details.seekTime)));
+              syncStateToAndroid(true);
+            } else {
+              runMediaCommand('seekto', 'mediasession', details.seekTime);
+            }
+          }
+        }]
+      ];
 
-    const actionHandlers = [
-      ['play', () => {
-        recordDiagnosticCommand('PLAY');
-        resumeAudioContext();
-        audio.play().catch(err => console.warn('MediaSession play failed:', err));
-      }],
-      ['pause', () => { recordDiagnosticCommand('PAUSE'); audio.pause(); updatePlayButton(false); }],
-      ['stop', () => { recordDiagnosticCommand('STOP'); audio.pause(); audio.currentTime = 0; updatePlayButton(false); }],
-      ['previoustrack', () => { recordDiagnosticCommand('PREVIOUS TRACK'); playPrevTrack(); }],
-      ['nexttrack', () => { recordDiagnosticCommand('NEXT TRACK'); playNextTrack(); }],
-      ['seekbackward', () => { recordDiagnosticCommand('SEEK BACKWARD (-10s)'); audio.currentTime = Math.max(0, audio.currentTime - 10); }],
-      ['seekforward', () => { recordDiagnosticCommand('SEEK FORWARD (+10s)'); audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 10); }],
-      ['seekto', details => {
-        recordDiagnosticCommand(`SEEK TO ${formatTime(details.seekTime)}`);
-        if (details.seekTime !== undefined && !isNaN(details.seekTime)) {
-          const position = Math.max(0, Math.min(audio.duration || details.seekTime, details.seekTime));
-          if (details.fastSeek && typeof audio.fastSeek === 'function') audio.fastSeek(position);
-          else audio.currentTime = position;
+      for (const [action, handler] of actionHandlers) {
+        try {
+          navigator.mediaSession.setActionHandler(action, handler);
+        } catch (err) {
+          console.warn(`MediaSession action "${action}" not supported:`, err);
         }
-      }]
-    ];
-
-    for (const [action, handler] of actionHandlers) {
-      try {
-        navigator.mediaSession.setActionHandler(action, handler);
-      } catch (err) {
-        console.warn(`MediaSession action "${action}" not supported:`, err);
       }
     }
 
@@ -1613,29 +1781,22 @@
       const key = e.key || e.code;
       if (key === 'MediaTrackNext' || key === 'TrackNext' || e.keyCode === 176) {
         e.preventDefault();
-        recordDiagnosticCommand('МУЛЬТИРУЛЬ: СЛЕДУЮЩИЙ ТРЕК');
-        playNextTrack();
+        runMediaCommand('next', 'keydown');
       } else if (key === 'MediaTrackPrevious' || key === 'TrackPrevious' || e.keyCode === 177) {
         e.preventDefault();
-        recordDiagnosticCommand('МУЛЬТИРУЛЬ: ПРЕДЫДУЩИЙ ТРЕК');
-        playPrevTrack();
+        runMediaCommand('previous', 'keydown');
       } else if (key === 'MediaPlayPause' || key === 'PlayPause' || e.keyCode === 179) {
         e.preventDefault();
-        recordDiagnosticCommand('МУЛЬТИРУЛЬ: ПЛЕЙ/ПАУЗА');
-        btnPlay.click();
+        runMediaCommand('toggle', 'keydown');
       } else if (key === 'MediaPlay' || e.keyCode === 126) {
         e.preventDefault();
-        recordDiagnosticCommand('МУЛЬТИРУЛЬ: ПЛЕЙ');
-        if (audio.paused) btnPlay.click();
+        if (audio.paused) runMediaCommand('play', 'keydown');
       } else if (key === 'MediaPause' || e.keyCode === 127) {
         e.preventDefault();
-        recordDiagnosticCommand('МУЛЬТИРУЛЬ: ПАУЗА');
-        if (!audio.paused) btnPlay.click();
+        if (!audio.paused) runMediaCommand('pause', 'keydown');
       } else if (key === 'MediaStop' || e.keyCode === 178) {
         e.preventDefault();
-        recordDiagnosticCommand('МУЛЬТИРУЛЬ: СТОП');
-        audio.pause();
-        updatePlayButton(false);
+        runMediaCommand('stop', 'keydown');
       }
     });
   }
@@ -2487,6 +2648,7 @@
       if (label && 'mediaSession' in navigator && navigator.mediaSession.metadata) {
         navigator.mediaSession.metadata = new MediaMetadata({ title: meta.title || station.name, artist: meta.artist || station.name, album: station.name });
       }
+      syncStateToAndroid(true);
     } catch {}
   }
 
@@ -2590,6 +2752,7 @@
         });
       } catch {}
     }
+    syncStateToAndroid(true);
 
     renderRadioList();
     if (radioDrawer) radioDrawer.classList.remove('open');
