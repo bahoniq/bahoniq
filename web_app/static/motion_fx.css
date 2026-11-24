@@ -1,0 +1,201 @@
+/* ==========================================================================
+   BAHONIQ NEURAL UNIVERSE — 5-слойная живая сцена (Aqua + Violet)
+   ========================================================================== */
+
+body.universe-fx-on #bahoniqUniverse {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+  background: linear-gradient(135deg, #030711 0%, #071426 52%, #100B24 100%);
+  opacity: 0;
+  animation: bahoniqUniverseFadeIn 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+body.universe-fx-on.theme-day #bahoniqUniverse {
+  background: linear-gradient(135deg, #090516 0%, #150b2e 52%, #1e103d 100%);
+}
+
+@keyframes bahoniqUniverseFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+body.universe-fx-on #bahoniqUniverseCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Тонкий film-grain для глубины */
+body.universe-fx-on .bahoniq-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.03;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+}
+
+.content-body,
+.topbar {
+  position: relative;
+  z-index: 2;
+}
+
+/* Локальное свечение только за приветствием: глубина без нового UI. */
+body.universe-fx-on #dashboardView .welcome-banner {
+  position: relative;
+  isolation: isolate;
+}
+
+body.universe-fx-on #dashboardView .welcome-banner::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: -100px;
+  top: -68px;
+  width: min(620px, 70vw);
+  height: 190px;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 48% 52%, rgba(0, 184, 255, 0.15), transparent 52%),
+    radial-gradient(ellipse at 68% 42%, rgba(155, 92, 255, 0.10), transparent 58%);
+  filter: blur(24px);
+  opacity: 0.88;
+  transform: translateZ(0);
+  animation: bahoniqHeadingBreath 10s ease-in-out infinite;
+}
+
+body.universe-fx-on.theme-day #dashboardView .welcome-banner::before {
+  background:
+    radial-gradient(ellipse at 48% 52%, rgba(54, 227, 224, 0.13), transparent 52%),
+    radial-gradient(ellipse at 68% 42%, rgba(155, 92, 255, 0.18), transparent 58%);
+}
+
+@keyframes bahoniqHeadingBreath {
+  0%, 100% { opacity: 0.68; transform: scale(0.97); }
+  50% { opacity: 0.96; transform: scale(1.04); }
+}
+
+/* Световой проход по слову BahonIQ при загрузке */
+body.universe-fx-on #dashboardView .welcome-title,
+body.universe-fx-on #dashboardView h1 {
+  position: relative;
+}
+
+body.universe-fx-on #dashboardView h1 span,
+body.universe-fx-on #dashboardView .welcome-accent {
+  background: linear-gradient(
+    110deg,
+    #00f5d4 0%,
+    #00b8ff 30%,
+    #ffffff 48%,
+    #536dfe 64%,
+    #9b5cff 100%
+  );
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: bahoniqTitleSweep 1.8s cubic-bezier(0.22, 1, 0.36, 1) 0.25s 1 both;
+}
+
+@keyframes bahoniqTitleSweep {
+  from { background-position: 120% 0; }
+  to { background-position: 0% 0; }
+}
+
+/* Полупрозрачные стеклянные карточки */
+body.universe-fx-on #dashboardView .tool-tile {
+  background: linear-gradient(145deg, rgba(8, 17, 34, 0.91) 0%, rgba(10, 14, 30, 0.87) 100%) !important;
+  backdrop-filter: blur(10px) saturate(115%);
+  -webkit-backdrop-filter: blur(10px) saturate(115%);
+  border: 1px solid rgba(0, 245, 212, 0.20);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 0 20px rgba(0, 184, 255, 0.025),
+    0 12px 32px rgba(2, 6, 18, 0.52);
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.28s ease,
+    box-shadow 0.32s ease,
+    background 0.28s ease !important;
+}
+
+body.universe-fx-on.theme-day #dashboardView .tool-tile {
+  background: linear-gradient(145deg, rgba(30, 23, 49, 0.91) 0%, rgba(20, 15, 37, 0.87) 100%) !important;
+  border-color: rgba(196, 165, 255, 0.24);
+}
+
+@media (hover: hover) and (pointer: fine) {
+body.universe-fx-on   #dashboardView .tools-grid {
+    perspective: 1200px;
+  }
+
+body.universe-fx-on   #dashboardView .tool-tile {
+    position: relative;
+    overflow: hidden;
+    transform-style: preserve-3d;
+  }
+
+  /* Иконка выпускает короткое кольцо энергии при наведении */
+body.universe-fx-on   #dashboardView .tool-icon::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    border: 1.5px solid rgba(0, 245, 212, 0.65);
+    opacity: 0;
+    transform: scale(0.85);
+    pointer-events: none;
+  }
+
+body.universe-fx-on   #dashboardView .tool-tile:hover .tool-icon::after {
+    animation: bahoniqIconRing 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  @keyframes bahoniqIconRing {
+    0% { opacity: 0.75; transform: scale(0.9); }
+    100% { opacity: 0; transform: scale(1.45); }
+  }
+}
+
+/* Каскад карточек 40-60 мс */
+@keyframes bahoniqTileCascade {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+body.universe-fx-on #dashboardView .tool-tile.fx-cascade {
+  animation: bahoniqTileCascade 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+body.universe-fx-on   #bahoniqUniverse,
+body.universe-fx-on   #dashboardView h1 span,
+body.universe-fx-on   #dashboardView .tool-tile.fx-cascade,
+body.universe-fx-on   #dashboardView .welcome-banner::before {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+body.universe-fx-on   #dashboardView .welcome-banner::before {
+    left: -56px;
+    width: 100vw;
+    opacity: 0.62;
+  }
+}

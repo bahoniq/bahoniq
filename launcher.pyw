@@ -56,9 +56,17 @@ def main():
         if sys.stderr is None:
             sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
-        from main import main as start_bahoniq
+        if "--legacy" in sys.argv:
+            from main import main as start_bahoniq
+            start_bahoniq()
+            return
 
-        start_bahoniq()
+        try:
+            from run_desktop_web import main as start_desktop_web
+            start_desktop_web()
+        except ImportError:
+            from main import main as start_bahoniq
+            start_bahoniq()
 
     except BaseException:
 
