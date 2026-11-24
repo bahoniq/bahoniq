@@ -7,19 +7,28 @@
 
 body.theme-day {
   color-scheme: dark;
-  scrollbar-color: rgba(185, 138, 247, 0.45) rgba(23, 20, 37, 0.6);
+  scrollbar-color: rgba(168, 130, 230, 0.36) rgba(18, 15, 29, 0.72);
+  background: linear-gradient(145deg, #120f1e 0%, #161226 55%, #1a152e 100%) !important;
 
-  /* локальные поверхности Violet */
-  --vl-surface:   rgba(43, 36, 63, 0.92);
-  --vl-surface-2: rgba(33, 27, 50, 0.96);
-  --vl-surface-3: rgba(53, 45, 77, 0.96);
-  --vl-edge:      rgba(196, 165, 255, 0.20);
-  --vl-edge-soft: rgba(196, 165, 255, 0.12);
-  --vl-text:      #F7F3FF;
-  --vl-muted:     #C8BEDD;
-  --vl-accent:    #2DD4D0;
-  --vl-accent-bg: rgba(45, 212, 208, 0.12);
-  --vl-accent-ln: rgba(45, 212, 208, 0.38);
+  /* Приглушённые локальные поверхности Violet */
+  --bg-dark:           #120f1e;
+  --bg-sidebar:        rgba(17, 14, 28, 0.97);
+  --bg-card:           rgba(32, 27, 49, 0.93);
+  --bg-card-hover:     rgba(42, 35, 64, 0.96);
+  --bg-input:          rgba(23, 19, 36, 0.96);
+  --border:            rgba(182, 152, 240, 0.16);
+  --border-card-hover: rgba(158, 119, 237, 0.52);
+
+  --vl-surface:        rgba(34, 28, 52, 0.93);
+  --vl-surface-2:      rgba(25, 20, 40, 0.96);
+  --vl-surface-3:      rgba(44, 37, 66, 0.96);
+  --vl-edge:           rgba(182, 152, 240, 0.16);
+  --vl-edge-soft:      rgba(182, 152, 240, 0.10);
+  --vl-text:           #F2EEFA;
+  --vl-muted:          #B9B0CE;
+  --vl-accent:         #2DD4D0;
+  --vl-accent-bg:      rgba(45, 212, 208, 0.11);
+  --vl-accent-ln:      rgba(45, 212, 208, 0.34);
 }
 
 body.theme-day .content-body { scrollbar-width: none !important; }
@@ -285,4 +294,138 @@ body.theme-day .file-drop.dragover {
 body.theme-day .file-queue {
   background: rgba(18,14,32,.55) !important;
   border-color: rgba(196,165,255,.15) !important;
+}
+
+/* ==========================================================================
+   ТРЕТЬЯ ТЕМА: Indigo (Cobalt / Indigo — главная + все внутренние модули)
+   ========================================================================== */
+body.theme-indigo {
+  color-scheme: dark;
+  scrollbar-color: rgba(83, 109, 254, 0.45) rgba(7, 11, 24, 0.8);
+  background: linear-gradient(145deg, #070B18 0%, #0B1226 52%, #101936 100%) !important;
+
+  --bg-dark:           #070B18;
+  --bg-sidebar:        #0D1222;
+  --bg-card:           #11172A;
+  --bg-card-hover:     #161F38;
+  --bg-input:          #0A0F1E;
+  --border:            #293B65;
+  --border-focus:      #3B82F6;
+  --border-card-hover: #536DFE;
+  --text-main:         #EFF4FF;
+  --text-muted:        #A6B5D4;
+  --text-sub:          #7C8DB5;
+  --green:             #3B82F6;
+  --green-neon:        #60A5FA;
+  --cyan-neon:         #60A5FA;
+  --blue:              #60A5FA;
+  --purple:            #7C5CFC;
+}
+
+body.theme-indigo .topbar,
+body.theme-indigo .sidebar {
+  background: #0D1222 !important;
+  border-color: #293B65 !important;
+}
+
+body.theme-indigo .system-item:hover,
+body.theme-indigo .theme-toggle-btn,
+body.theme-indigo .desktop-badge,
+body.theme-indigo .back-btn,
+body.theme-indigo .module-badge {
+  background: #161F38 !important;
+  border-color: #293B65 !important;
+  color: #EFF4FF !important;
+}
+
+body.theme-indigo .tool-tile,
+body.theme-indigo #dashboardView .tool-tile,
+body.theme-indigo .card,
+body.theme-indigo .preview-card,
+body.theme-indigo .module-page .card,
+body.theme-indigo .wiki-topic-block,
+body.theme-indigo .wiki-answer-content,
+body.theme-indigo .wiki-article-body,
+body.theme-indigo .acad-quiz-card,
+body.theme-indigo #excelTemplatePreviewCard,
+body.theme-indigo .ea-work-detail section,
+body.theme-indigo .ea-work-flow > div,
+body.theme-indigo .ea-work-check,
+body.theme-indigo .notes-workspace-card,
+body.theme-indigo .pdf-workspace {
+  background: #11172A !important;
+  color: #EFF4FF !important;
+  border-color: #293B65 !important;
+}
+
+body.theme-indigo .tool-tile:hover,
+body.theme-indigo #dashboardView .tool-tile:hover {
+  background: #161F38 !important;
+  border-color: #536DFE !important;
+  box-shadow: 0 18px 42px rgba(3, 7, 18, 0.65), 0 0 24px rgba(83, 109, 254, 0.24) !important;
+}
+
+body.theme-indigo #dashboardView .tool-category,
+body.theme-indigo .brand-green,
+body.theme-indigo .welcome-accent {
+  color: #60A5FA !important;
+}
+
+body.theme-indigo #dashboardView .tool-arrow {
+  color: #60A5FA;
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+body.theme-indigo #dashboardView .tool-tile:hover .tool-arrow:not(.tool-lock) {
+  background: #3B82F6;
+  border-color: #3B82F6;
+  color: #ffffff;
+}
+
+body.theme-indigo .tool-tile[data-open="codeAcademy"] .tool-icon,
+body.theme-indigo .tool-tile[data-open="academy"] .tool-icon {
+  box-shadow: 0 0 18px rgba(124, 92, 252, 0.35);
+  border-color: rgba(124, 92, 252, 0.55);
+}
+
+/* Внутренние формы, поля ввода, кнопки, таблицы и модалки в Indigo */
+body.theme-indigo input,
+body.theme-indigo textarea,
+body.theme-indigo select,
+body.theme-indigo .wiki-tree-search,
+body.theme-indigo .wiki-question-textarea,
+body.theme-indigo .wiki-form-input,
+body.theme-indigo .wiki-form-textarea,
+body.theme-indigo .acad-lesson-search,
+body.theme-indigo .acad-reply-textarea,
+body.theme-indigo .modal-info-panel,
+body.theme-indigo .template-chip,
+body.theme-indigo .excel-templates-box {
+  background: #0A0F1E !important;
+  color: #EFF4FF !important;
+  border-color: #293B65 !important;
+}
+
+body.theme-indigo input:focus,
+body.theme-indigo textarea:focus,
+body.theme-indigo select:focus {
+  border-color: #3B82F6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.22) !important;
+}
+
+body.theme-indigo .button.primary,
+body.theme-indigo button.primary,
+body.theme-indigo .btn-primary {
+  background: linear-gradient(135deg, #3B82F6, #536DFE) !important;
+  color: #ffffff !important;
+  border-color: #60A5FA !important;
+}
+
+body.theme-indigo .button,
+body.theme-indigo .template-chip:hover,
+body.theme-indigo thead th,
+body.theme-indigo .ea-accordion summary {
+  background: #161F38 !important;
+  color: #EFF4FF !important;
+  border-color: #293B65 !important;
 }

@@ -13,6 +13,7 @@
     window.innerWidth < 760;
 
   function initNeuralUniverse() {
+    if (prefersReduced || isLowPower) return;
     if (document.getElementById("bahoniqUniverse")) return;
 
     const wrap = document.createElement("div");
@@ -80,22 +81,22 @@
       { bx: 0.82, by: 0.78, rx: 0.12, ry: 0.10, period: 27000, phase: 5.3, size: 0.44, color: "155, 92, 255" },
     ];
 
-    // 2. Локальные нейронные узлы (появляются только в радиусе 280-360px от курсора и затухают за 1-1.5s)
+    // 2. Локальные нейронные узлы (вдвое слабее)
     const neuralNodes = [];
-    const NODE_COUNT = isLowPower ? 18 : 34;
+    const NODE_COUNT = isLowPower ? 14 : 24;
     for (let i = 0; i < NODE_COUNT; i++) {
       neuralNodes.push({
         x: Math.random() * w,
         y: Math.random() * h,
-        vx: (Math.random() - 0.5) * 0.22,
-        vy: (Math.random() - 0.5) * 0.22,
+        vx: (Math.random() - 0.5) * 0.2,
+        vy: (Math.random() - 0.5) * 0.2,
         glow: 0,
       });
     }
 
-    // 5. Digital Dust (медленные микрочастицы, поднимающиеся вверх)
+    // 5. Digital Dust (сокращено на треть)
     const dust = [];
-    const DUST_COUNT = isLowPower ? 20 : 42;
+    const DUST_COUNT = isLowPower ? 14 : 26;
     for (let i = 0; i < DUST_COUNT; i++) {
       dust.push({
         x: Math.random() * w,
@@ -108,7 +109,8 @@
     }
 
     const startTime = performance.now();
-    let lastPulseTime = startTime;
+    let activePlanet = null;
+    let nextPlanetAt = startTime + 2500;
     const comets = [];
     let nextCometAt = startTime + 2000;
     const rainDrops = [];
@@ -179,18 +181,18 @@
         const maxDim = Math.max(w, h);
         const isViolet = document.body.classList.contains("theme-day");
 
-        // Слой 3: Едва заметное дыхание Energy Core за центром
+        // Слой 3: Приглушённое ядро (-30%)
         const corePulse = 0.5 + 0.5 * Math.sin(now * 0.0009);
         const coreX = w * 0.55 + px3x;
         const coreY = h * 0.48 + px3y;
-        const coreGrad = ctx.createRadialGradient(coreX, coreY, 0, coreX, coreY, maxDim * 0.38);
-        const coreRgb = isViolet ? "155, 92, 255" : "0, 184, 255";
-        coreGrad.addColorStop(0, `rgba(${coreRgb}, ${(0.055 + corePulse * 0.03) * introEase})`);
+        const coreGrad = ctx.createRadialGradient(coreX, coreY, 0, coreX, coreY, maxDim * 0.36);
+        const coreRgb = isViolet ? "139, 92, 246" : "0, 184, 255";
+        coreGrad.addColorStop(0, `rgba(${coreRgb}, ${(0.038 + corePulse * 0.02) * introEase})`);
         coreGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
         ctx.fillStyle = coreGrad;
         ctx.fillRect(0, 0, w, h);
 
-        // Слой 1: Liquid Aurora (раскрывается из центра за 1.8с, медленно меняет форму)
+        // Слой 1: Приглушённые облака (-30%, Violet остаётся тёмным)
         auroraClouds.forEach((cloud, idx) => {
           const angle = (now / cloud.period) * Math.PI * 2 + cloud.phase + scrollMorph;
           const targetX = (cloud.bx + Math.sin(angle) * cloud.rx) * w + px7x;
@@ -199,10 +201,11 @@
           const cy = h * 0.5 + (targetY - h * 0.5) * introEase;
           const rad = maxDim * cloud.size * (0.4 + 0.6 * introEase);
 
-          const rgb = isViolet && idx === 0 ? "155, 92, 255" : cloud.color;
+          const rgb = isViolet ? (idx % 2 === 0 ? "139, 92, 246" : "83, 109, 254") : cloud.color;
+          const intensity = isViolet ? 0.055 : 0.075;
           const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
-          g.addColorStop(0, `rgba(${rgb}, ${0.115 * introEase})`);
-          g.addColorStop(0.5, `rgba(${rgb}, ${0.04 * introEase})`);
+          g.addColorStop(0, `rgba(${rgb}, ${intensity * introEase})`);
+          g.addColorStop(0.5, `rgba(${rgb}, ${(intensity * 0.32) * introEase})`);
           g.addColorStop(1, `rgba(${rgb}, 0)`);
 
           ctx.fillStyle = g;
@@ -211,29 +214,14 @@
           ctx.fill();
         });
 
-        // Крупная полупрозрачная диагональная энергетическая лента
-        ctx.save();
-        const ribbonGrad = ctx.createLinearGradient(0, h, w, 0);
-        ribbonGrad.addColorStop(0, "rgba(0, 245, 212, 0)");
-        ribbonGrad.addColorStop(0.45, `rgba(${isViolet ? "155, 92, 255" : "0, 184, 255"}, 0.04)`);
-        ribbonGrad.addColorStop(0.75, "rgba(83, 109, 254, 0.03)");
-        ribbonGrad.addColorStop(1, "rgba(155, 92, 255, 0)");
-        ctx.strokeStyle = ribbonGrad;
-        ctx.lineWidth = Math.min(220, w * 0.16);
-        ctx.beginPath();
-        ctx.moveTo(-w * 0.1 + px7x, h * 1.05 + px7y);
-        ctx.quadraticCurveTo(w * 0.45, h * 0.48 + Math.sin(now * 0.0004) * 35, w * 1.1 + px7x, -h * 0.05 + px7y);
-        ctx.stroke();
-        ctx.restore();
-
-        // Слой 4: Dimensional Grid (перспективная техническая сетка с лёгкой деформацией)
+        // Сетка почти скрыта (0.014)
         if (!isLowPower) {
           const step = 84;
-          ctx.strokeStyle = `rgba(${isViolet ? "155, 92, 255" : "0, 184, 255"}, 0.045)`;
+          ctx.strokeStyle = `rgba(${isViolet ? "139, 92, 246" : "0, 184, 255"}, 0.014)`;
           ctx.lineWidth = 1;
           ctx.beginPath();
           for (let x = -step; x < w + step; x += step) {
-            const warp = Math.sin(x * 0.004 + now * 0.0004) * 6;
+            const warp = Math.sin(x * 0.004 + now * 0.0004) * 5;
             ctx.moveTo(x + px10x, 0);
             ctx.quadraticCurveTo(x + px10x + warp, h * 0.5, x + px10x, h);
           }
@@ -244,18 +232,53 @@
           ctx.stroke();
         }
 
-        // Редкая волна энергии раз в 15 секунд
-        if (now - lastPulseTime > 15000) lastPulseTime = now;
-        const pulseAge = now - lastPulseTime;
-        if (pulseAge < 2200) {
-          const p = pulseAge / 2200;
-          const sweepX = -w * 0.2 + p * w * 1.4;
-          const wg = ctx.createLinearGradient(sweepX - 120, 0, sweepX + 120, 0);
-          wg.addColorStop(0, "rgba(0, 245, 212, 0)");
-          wg.addColorStop(0.5, `rgba(0, 245, 212, ${(1 - p) * 0.045})`);
-          wg.addColorStop(1, "rgba(0, 245, 212, 0)");
-          ctx.fillStyle = wg;
-          ctx.fillRect(0, 0, w, h);
+        // Фирменная пасхалка: полупрозрачная планета с тонким кольцом (сразу при старте, далее 3–5 мин, вне зоны заголовка)
+        if (!prefersReduced && !activePlanet && now >= nextPlanetAt && w >= 640) {
+          activePlanet = {
+            startX: -50,
+            endX: w + 60,
+            y: Math.max(76, h * 0.11),
+            r: 26 + Math.random() * 6, // 52–64 px диаметр
+            born: now,
+            duration: 24000,
+          };
+          nextPlanetAt = now + 180000 + Math.random() * 120000;
+        }
+        if (activePlanet) {
+          const pp = (now - activePlanet.born) / activePlanet.duration;
+          if (pp >= 1) {
+            activePlanet = null;
+          } else {
+            const px = activePlanet.startX + (activePlanet.endX - activePlanet.startX) * pp;
+            const pa = Math.sin(Math.PI * pp) * 0.14;
+            const prgb = isViolet ? "167, 139, 250" : "0, 229, 255";
+            const pg = ctx.createRadialGradient(
+              px - activePlanet.r * 0.3,
+              activePlanet.y - activePlanet.r * 0.3,
+              1.5,
+              px,
+              activePlanet.y,
+              activePlanet.r
+            );
+            pg.addColorStop(0, `rgba(240, 248, 255, ${pa.toFixed(3)})`);
+            pg.addColorStop(0.7, `rgba(${prgb}, ${(pa * 0.72).toFixed(3)})`);
+            pg.addColorStop(1, "rgba(0, 0, 0, 0)");
+            ctx.fillStyle = pg;
+            ctx.beginPath();
+            ctx.arc(px, activePlanet.y, activePlanet.r, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.save();
+            ctx.translate(px, activePlanet.y);
+            ctx.rotate(-0.26);
+            ctx.scale(1, 0.28);
+            ctx.beginPath();
+            ctx.arc(0, 0, activePlanet.r * 1.65, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(${prgb}, ${(pa * 0.75).toFixed(3)})`;
+            ctx.lineWidth = 1.3;
+            ctx.stroke();
+            ctx.restore();
+          }
         }
 
         // Атмосферный дождь с мягкой рябью
@@ -383,19 +406,19 @@
               if (m.glow <= 0.02) continue;
               const d = Math.hypot(n.x - m.x, n.y - m.y);
               if (d < 170) {
-                const a = Math.min(n.glow, m.glow) * (1 - d / 170) * 0.34;
+                const a = Math.min(n.glow, m.glow) * (1 - d / 170) * 0.16;
                 ctx.beginPath();
                 ctx.moveTo(n.x, n.y);
                 ctx.lineTo(m.x, m.y);
                 ctx.strokeStyle = `rgba(${isViolet ? "155, 92, 255" : "0, 245, 212"}, ${a.toFixed(3)})`;
-                ctx.lineWidth = 1;
+                ctx.lineWidth = 0.85;
                 ctx.stroke();
               }
             }
 
             ctx.beginPath();
-            ctx.arc(n.x, n.y, 2, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(${isViolet ? "217, 70, 239" : "0, 245, 212"}, ${(n.glow * 0.72).toFixed(3)})`;
+            ctx.arc(n.x, n.y, 1.5, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${isViolet ? "217, 70, 239" : "0, 245, 212"}, ${(n.glow * 0.36).toFixed(3)})`;
             ctx.fill();
           }
         }
@@ -453,12 +476,14 @@
         tile.style.setProperty("--mouse-x", `${x}px`);
         tile.style.setProperty("--mouse-y", `${y}px`);
 
-        const rotY = (x / rect.width - 0.5) * 3.0; // макс ±1.5°
-        const rotX = -(y / rect.height - 0.5) * 3.0;
+        const rotY = (x / rect.width - 0.5) * 4.0;
+        const rotX = -(y / rect.height - 0.5) * 4.0;
+        tile.style.transition = "transform 0.06s linear, border-color 0.22s ease, box-shadow 0.28s ease";
         tile.style.transform = `perspective(1000px) translateY(-6px) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg)`;
       });
 
       tile.addEventListener("mouseleave", () => {
+        tile.style.transition = "";
         tile.style.transform = "";
       });
     });
@@ -504,15 +529,8 @@
     }
   }
 
-  let initializedFx = false;
-
   function enableUniverseMode() {
     document.body.classList.add("universe-fx-on");
-    if (!initializedFx) {
-      initializedFx = true;
-      initCascade();
-      initCardTilt();
-    }
     initNeuralUniverse();
   }
 
@@ -520,34 +538,11 @@
     document.body.classList.remove("universe-fx-on");
     const u = document.getElementById("bahoniqUniverse");
     if (u) u.remove();
-    document.querySelectorAll("#dashboardView .tool-tile").forEach((t) => {
-      t.style.transform = "";
-      t.classList.remove("fx-cascade");
-    });
   }
 
   function boot() {
-    const STORAGE_KEY = "bahoniq_universe_fx";
-    if (localStorage.getItem(STORAGE_KEY) === "1") {
-      enableUniverseMode();
-    }
-
-    // Тайный переключатель: двойной клик по "BahonIQ" в левом верхнем углу шапки
-    const brandTrigger = document.querySelector(".topbar .brand-green") || document.querySelector(".topbar .brand");
-    if (brandTrigger) {
-      brandTrigger.style.cursor = "pointer";
-      brandTrigger.addEventListener("dblclick", (e) => {
-        e.preventDefault();
-        const isOn = document.body.classList.contains("universe-fx-on");
-        if (isOn) {
-          localStorage.setItem(STORAGE_KEY, "0");
-          disableUniverseMode();
-        } else {
-          localStorage.setItem(STORAGE_KEY, "1");
-          enableUniverseMode();
-        }
-      });
-    }
+    localStorage.removeItem("bahoniq_universe_fx");
+    enableUniverseMode();
   }
 
   if (document.readyState === "loading") {

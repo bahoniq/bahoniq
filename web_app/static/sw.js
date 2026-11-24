@@ -1,5 +1,5 @@
 // BahonIQ Work Center Service Worker — Offline Shell Support
-const CACHE_NAME = 'bahoniq-pwa-v50-neural-universe-secret-v1';
+const CACHE_NAME = 'bahoniq-pwa-v59-cobalt-final-v2';
 const PRECACHE_URLS = [
   '/',
   '/assets/app.css',

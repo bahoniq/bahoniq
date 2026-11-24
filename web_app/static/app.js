@@ -27,9 +27,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Управление темами: Aqua / Violet.
-// Внутренние значения night/day сохранены для совместимости с уже
-// записанными настройками пользователей.
+// Управление темами: Aqua / Violet / Cobalt.
 function applyTheme(theme) {
   const body = document.body;
   const toggleBtn = $('#themeToggle');
@@ -37,36 +35,44 @@ function applyTheme(theme) {
   const label = toggleBtn?.querySelector('.theme-label');
   const aquaSvg = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.7 5.8 9.6a8 8 0 1 0 12.4 0L12 2.7Z"/><path d="M8.8 15.2c.7 1.5 1.8 2.2 3.4 2.2"/></svg>';
   const violetSvg = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/><path d="m18 3 .5 1.5L20 5l-1.5.5L18 7l-.5-1.5L16 5l1.5-.5L18 3Z"/></svg>';
-  
-  const isDay = (theme === 'day' || theme === 'light');
-  if (isDay) {
-    body.classList.remove('theme-night');
+  const cobaltSvg = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+
+  body.classList.remove('theme-night', 'theme-day', 'theme-indigo');
+
+  let normalized = 'night';
+  if (theme === 'day' || theme === 'light') {
+    normalized = 'day';
     body.classList.add('theme-day');
-    if (icon) icon.innerHTML = aquaSvg;
-    if (label) label.textContent = 'Aqua';
-    if (toggleBtn) {
-      toggleBtn.title = 'Переключить на тему Aqua';
-      toggleBtn.setAttribute('aria-label', 'Переключить на тему Aqua');
-    }
-  } else {
-    body.classList.remove('theme-day');
-    body.classList.add('theme-night');
     if (icon) icon.innerHTML = violetSvg;
     if (label) label.textContent = 'Violet';
-    if (toggleBtn) {
-      toggleBtn.title = 'Переключить на тему Violet';
-      toggleBtn.setAttribute('aria-label', 'Переключить на тему Violet');
-    }
+  } else if (theme === 'indigo' || theme === 'cobalt') {
+    normalized = 'cobalt';
+    body.classList.add('theme-indigo');
+    if (icon) icon.innerHTML = cobaltSvg;
+    if (label) label.textContent = 'Cobalt';
+  } else {
+    body.classList.add('theme-night');
+    if (icon) icon.innerHTML = aquaSvg;
+    if (label) label.textContent = 'Aqua';
   }
-  localStorage.setItem('bahoniq_theme', isDay ? 'day' : 'night');
+  if (toggleBtn) {
+    toggleBtn.title = 'Переключить тему';
+    toggleBtn.setAttribute('aria-label', 'Переключить тему');
+  }
+  localStorage.setItem('bahoniq_theme', normalized);
 }
 
 const savedTheme = localStorage.getItem('bahoniq_theme') || 'night';
 applyTheme(savedTheme);
 
 $('#themeToggle')?.addEventListener('click', () => {
-  const isNight = document.body.classList.contains('theme-night');
-  applyTheme(isNight ? 'day' : 'night');
+  if (document.body.classList.contains('theme-night')) {
+    applyTheme('day');
+  } else if (document.body.classList.contains('theme-day')) {
+    applyTheme('cobalt');
+  } else {
+    applyTheme('night');
+  }
 });
 
 // Навигация между Дашбордом и Модулями (PowerPoint-style плавные панорамные переходы)

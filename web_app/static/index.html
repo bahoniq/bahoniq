@@ -31,8 +31,8 @@
     .web-splash-logo { width: 200px !important; height: 200px !important; max-width: 200px !important; max-height: 200px !important; object-fit: contain !important; filter: drop-shadow(0 10px 30px rgba(0, 229, 255, 0.35)); }
   </style>
   <link rel="stylesheet" href="/assets/instruction_generator.css?v=20261119_original_ratio_2">
-<link rel="stylesheet" href="/assets/theme_violet.css?v=20261123_internal_ui_final_v1">
-<link rel="stylesheet" href="/assets/motion_fx.css?v=20261124_neural_universe_secret_v1">
+<link rel="stylesheet" href="/assets/theme_violet.css?v=20261124_three_themes_v1">
+<link rel="stylesheet" href="/assets/motion_fx.css?v=20261124_cobalt_final_v1">
 </head>
 <body class="theme-night">
   <script>
@@ -40,8 +40,11 @@
       try {
         var t = localStorage.getItem('bahoniq_theme');
         if (t === 'day' || t === 'light') {
-          document.body.classList.remove('theme-night');
+          document.body.classList.remove('theme-night', 'theme-indigo');
           document.body.classList.add('theme-day');
+        } else if (t === 'indigo' || t === 'cobalt') {
+          document.body.classList.remove('theme-night', 'theme-day');
+          document.body.classList.add('theme-indigo');
         }
       } catch (e) {}
     })();
@@ -1229,7 +1232,7 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=20261123_excel_chat_v4"></script>
+  <script src="/assets/app.js?v=20261124_cobalt_final_v1"></script>
   <script src="/assets/design_academy.js?v=20261116_pro_v5"></script>
   <script src="/assets/design_academy_pro.js?v=20261116_pro_v5"></script>
   <script>
@@ -1241,6 +1244,6 @@
   </script>
   <script src="/assets/instruction_image_processor.js?v=20261119_original_ratio"></script>
   <script src="/assets/instruction_generator.js?v=20261119_original_ratio"></script>
-  <script src="/assets/motion_fx.js?v=20261124_neural_universe_secret_v1"></script>
+  <script src="/assets/motion_fx.js?v=20261124_cobalt_final_v2"></script>
 </body>
 </html>
