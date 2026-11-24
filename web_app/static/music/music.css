@@ -44,10 +44,57 @@ html, body {
   background: radial-gradient(circle at 28% 52%, rgba(0, 229, 255, 0.06), transparent 65%), #050b14;
 }
 
+.ambient-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background-image: url('/music/assets/mountains-bg.jpg');
+  background-position: center top;
+  background-size: cover;
+  background-repeat: no-repeat;
+  mix-blend-mode: lighten;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.ambient-moon {
+  position: absolute;
+  left: 75.6%;
+  top: 11.2%;
+  width: 100px;
+  height: 100px;
+  transform: translate3d(-50%, calc(-50% + 24px), 0);
+  border-radius: 50%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform, opacity;
+  background: radial-gradient(circle at 38% 36%, #f4f9ff 0%, #dbeafe 55%, #b8d4f4 100%);
+  box-shadow:
+    0 0 28px 6px rgba(210, 232, 255, 0.45),
+    0 0 64px 16px rgba(170, 210, 255, 0.22);
+}
+
+@media (max-width: 767px), (prefers-reduced-motion: reduce) {
+  .ambient-moon {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .ambient-backdrop::before {
+    background-size: cover;
+    background-position: 50% top;
+    opacity: 0.65;
+  }
+}
+
 .ambient-backdrop::after {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 3;
   background:
     radial-gradient(circle at 50% 42%, rgba(4, 9, 18, 0.14) 0%, rgba(4, 9, 18, 0.56) 72%, rgba(3, 7, 14, 0.78) 100%);
   pointer-events: none;
@@ -596,8 +643,8 @@ body.playing .car-cover img {
   }
 
   .car-cover {
-    width: min(58vh, 40vw);
-    height: min(58vh, 40vw);
+    width: min(53.3vh, 36vw, 480px);
+    height: min(53.3vh, 36vw, 480px);
   }
 
   .car-right-panel {

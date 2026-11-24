@@ -1,11 +1,12 @@
 ﻿/* BahonIQ Музыка в авто - Изолированный Service Worker (Scope: /music/) — 100% Offline Ready */
-const CACHE_NAME = 'bahoniq-music-shell-v48-celestial-cycle';
+const CACHE_NAME = 'bahoniq-music-shell-v55-moon-motion';
 const COVERS_CACHE_NAME = 'bahoniq-music-covers-v1';
 const SHELL_ASSETS = [
   '/music/',
   '/music/manifest.webmanifest',
   '/music/assets/music.css',
   '/music/assets/music.js',
+  '/music/assets/mountains-bg.jpg',
   '/music/assets/logo.png',
   '/music/assets/icons/icon-192.png',
   '/music/assets/icons/icon-512.png',

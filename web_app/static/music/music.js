@@ -285,24 +285,8 @@
       orbR.style.borderRadius = `${r2}% ${100 - r2}% ${r1}% ${100 - r1}% / ${r1}% ${r2}% ${100 - r2}% ${100 - r1}%`;
     }
 
-    // Чередование небесных тел каждые 2–3 трека: Сатурн -> Луна -> Солнце
-    if (trackChangeCount >= nextParadeAtTrack && !activeCelestial) {
-      nextParadeAtTrack = trackChangeCount + 2 + Math.floor(Math.random() * 2);
-      const vw = window.innerWidth || 1280;
-      const vh = window.innerHeight || 800;
-      const kinds = ['saturn', 'moon', 'sun'];
-      const kind = kinds[celestialIndex % kinds.length];
-      celestialIndex += 1;
-      activeCelestial = {
-        kind,
-        born: performance.now(),
-        duration: 22000,
-        startX: -70,
-        endX: vw + 70,
-        y: vh * (0.14 + Math.random() * 0.12),
-        r: kind === 'sun' ? 28 : kind === 'saturn' ? 22 : 24,
-      };
-    }
+    // Планета Сатурн и небесные тела в музыкальном разделе отключены
+    activeCelestial = null;
 
     triggerCoverEntrance();
 
@@ -3134,6 +3118,7 @@
     schedulePulse();
 
     // Живой аудио-реактивный фон: 90% музыка, 9% атмосфера, 1% пасхалки
+    if (document.getElementById('carLiveBackdropCanvas')) return;
     const bgCanvas = document.createElement('canvas');
     bgCanvas.id = 'carLiveBackdropCanvas';
     bgCanvas.style.cssText =
@@ -3178,6 +3163,78 @@
     let nextCometAt = t0 + 2500;
     let nextRainAt = t0 + 1800;
 
+    // Редкая луна за правой горной вершиной (интервал: 4–7 минут)
+    const MOON_TEST_MODE = false;
+    const moonEl = document.querySelector('.ambient-moon');
+    const prefersReducedMotion =
+      window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let activeMoon = null;
+    let nextMoonAt = t0 + (MOON_TEST_MODE ? 5000 : 240000 + Math.random() * 180000);
+    let lastMoonTick = t0;
+
+    function easeInOutSine(t) {
+      return -(Math.cos(Math.PI * t) - 1) / 2;
+    }
+
+    function updateAmbientMoon(now) {
+      if (!moonEl) return;
+      if (prefersReducedMotion || w < 768) {
+        if (activeMoon) activeMoon = null;
+        moonEl.style.opacity = '0';
+        return;
+      }
+
+      if (!activeMoon && now >= nextMoonAt) {
+        if (comets.length > 0) {
+          nextMoonAt = now + 1500;
+          return;
+        }
+        activeMoon = {
+          born: now,
+          riseDur: 8000 + Math.random() * 4000,   // 8–12с подъём
+          holdDur: 15000 + Math.random() * 10000, // 15–25с удержание
+          exitDur: 6000 + Math.random() * 4000,   // 6–10с уход
+          risePx: 18 + Math.random() * 12,        // 18–30 px вверх
+          maxOpacity: 0.09,                       // 0.07–0.11
+        };
+      }
+
+      if (!activeMoon) return;
+
+      const elapsed = now - activeMoon.born;
+      const { riseDur, holdDur, exitDur, risePx, maxOpacity } = activeMoon;
+      const totalDur = riseDur + holdDur + exitDur;
+
+      if (elapsed >= totalDur) {
+        activeMoon = null;
+        moonEl.style.opacity = '0';
+        moonEl.style.transform = `translate3d(-50%, calc(-50% + ${risePx.toFixed(1)}px), 0)`;
+        nextMoonAt = MOON_TEST_MODE
+          ? now + 20000 + Math.random() * 10000
+          : now + 240000 + Math.random() * 180000; // 4–7 минут
+        return;
+      }
+
+      let offsetY = risePx;
+      let opacity = 0;
+
+      if (elapsed < riseDur) {
+        const p = easeInOutSine(elapsed / riseDur);
+        offsetY = risePx * (1 - p);
+        opacity = maxOpacity * p;
+      } else if (elapsed < riseDur + holdDur) {
+        offsetY = 0;
+        opacity = maxOpacity;
+      } else {
+        const p = easeInOutSine((elapsed - riseDur - holdDur) / exitDur);
+        offsetY = risePx * p;
+        opacity = maxOpacity * (1 - p);
+      }
+
+      moonEl.style.opacity = opacity.toFixed(3);
+      moonEl.style.transform = `translate3d(-50%, calc(-50% + ${offsetY.toFixed(1)}px), 0)`;
+    }
+
     let smoothBass = 0;
     let smoothMid = 0;
     let smoothHigh = 0;
@@ -3214,6 +3271,13 @@
 
     function drawLiveBg(now) {
       if (!document.hidden) {
+        const dtPause = now - lastMoonTick;
+        if (dtPause > 250) {
+          nextMoonAt += dtPause;
+          if (activeMoon) activeMoon.born += dtPause;
+        }
+        lastMoonTick = now;
+        updateAmbientMoon(now);
         sampleAudioBands();
         bgCtx.clearRect(0, 0, w, h);
         const rgb = getAccentRgb();
