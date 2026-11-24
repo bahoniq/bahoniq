@@ -205,8 +205,9 @@
   let isDarkCover = true;
   let trackChangeCount = 0;
   let auroraWaveStart = 0;
-  let activeParade = null;
-  let nextParadeAtTrack = 2 + Math.floor(Math.random() * 2); // парад планет каждые 2–3 трека
+  let activeCelestial = null;
+  let celestialIndex = 0; // 0: Сатурн -> 1: Луна -> 2: Солнце
+  let nextParadeAtTrack = 2 + Math.floor(Math.random() * 2); // каждые 2–3 трека новое небесное тело
 
   function extractBalancedCoverColor(imgEl) {
     try {
@@ -284,21 +285,22 @@
       orbR.style.borderRadius = `${r2}% ${100 - r2}% ${r1}% ${100 - r1}% / ${r1}% ${r2}% ${100 - r2}% ${100 - r1}%`;
     }
 
-    // Парад планет каждые 2–3 трека
-    if (trackChangeCount >= nextParadeAtTrack && !activeParade) {
+    // Чередование небесных тел каждые 2–3 трека: Сатурн -> Луна -> Солнце
+    if (trackChangeCount >= nextParadeAtTrack && !activeCelestial) {
       nextParadeAtTrack = trackChangeCount + 2 + Math.floor(Math.random() * 2);
       const vw = window.innerWidth || 1280;
       const vh = window.innerHeight || 800;
-      activeParade = {
+      const kinds = ['saturn', 'moon', 'sun'];
+      const kind = kinds[celestialIndex % kinds.length];
+      celestialIndex += 1;
+      activeCelestial = {
+        kind,
         born: performance.now(),
-        duration: 18000,
-        planets: [
-          { offset: 0.0, y: vh * 0.18, r: 22, ring: true, speed: 1.0 },
-          { offset: -0.14, y: vh * 0.25, r: 14, ring: false, speed: 1.08 },
-          { offset: -0.26, y: vh * 0.14, r: 10, ring: false, speed: 1.15 },
-        ],
-        startX: -60,
-        endX: vw + 120,
+        duration: 22000,
+        startX: -70,
+        endX: vw + 70,
+        y: vh * (0.14 + Math.random() * 0.12),
+        r: kind === 'sun' ? 28 : kind === 'saturn' ? 22 : 24,
       };
     }
 
@@ -3364,47 +3366,74 @@
           bgCtx.stroke();
         }
 
-        // Пасхалка: парад планет каждые 2–3 трека
-        if (activeParade && w >= 640) {
-          const baseP = (now - activeParade.born) / activeParade.duration;
-          if (baseP >= 1.35) {
-            activeParade = null;
+        // Пасхалка: Сатурн -> Луна -> Солнце (по одному каждые 2–3 трека)
+        if (activeCelestial && w >= 640) {
+          const pp = (now - activeCelestial.born) / activeCelestial.duration;
+          if (pp >= 1) {
+            activeCelestial = null;
           } else {
-            activeParade.planets.forEach((pl) => {
-              const pp = baseP * pl.speed + pl.offset;
-              if (pp <= 0 || pp >= 1) return;
-              const px = activeParade.startX + (activeParade.endX - activeParade.startX) * pp;
-              const pa = Math.sin(Math.PI * pp) * 0.24;
+            const cx = activeCelestial.startX + (activeCelestial.endX - activeCelestial.startX) * pp;
+            const cy = activeCelestial.y;
+            const r = activeCelestial.r;
+            const pa = Math.sin(Math.PI * pp) * 0.25;
 
-              const pg = bgCtx.createRadialGradient(
-                px - pl.r * 0.3,
-                pl.y - pl.r * 0.3,
-                1.5,
-                px,
-                pl.y,
-                pl.r
-              );
+            if (activeCelestial.kind === 'sun') {
+              const halo = bgCtx.createRadialGradient(cx, cy, r * 0.3, cx, cy, r * 2.8);
+              halo.addColorStop(0, `rgba(255, 214, 120, ${(pa * 1.15).toFixed(3)})`);
+              halo.addColorStop(0.45, `rgba(255, 165, 65, ${(pa * 0.55).toFixed(3)})`);
+              halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+              bgCtx.fillStyle = halo;
+              bgCtx.beginPath();
+              bgCtx.arc(cx, cy, r * 2.8, 0, Math.PI * 2);
+              bgCtx.fill();
+
+              const sunDisk = bgCtx.createRadialGradient(cx, cy, 2, cx, cy, r);
+              sunDisk.addColorStop(0, `rgba(255, 248, 210, ${(pa * 1.3).toFixed(3)})`);
+              sunDisk.addColorStop(0.75, `rgba(255, 185, 75, ${pa.toFixed(3)})`);
+              sunDisk.addColorStop(1, 'rgba(255, 140, 40, 0)');
+              bgCtx.fillStyle = sunDisk;
+              bgCtx.beginPath();
+              bgCtx.arc(cx, cy, r, 0, Math.PI * 2);
+              bgCtx.fill();
+            } else if (activeCelestial.kind === 'moon') {
+              const pg = bgCtx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 2, cx, cy, r);
+              pg.addColorStop(0, `rgba(240, 248, 255, ${(pa * 1.1).toFixed(3)})`);
+              pg.addColorStop(0.75, `rgba(180, 200, 230, ${(pa * 0.7).toFixed(3)})`);
+              pg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+              bgCtx.fillStyle = pg;
+              bgCtx.beginPath();
+              bgCtx.arc(cx, cy, r, 0, Math.PI * 2);
+              bgCtx.fill();
+
+              // Мягкие кратеры
+              bgCtx.fillStyle = `rgba(30, 45, 75, ${(pa * 0.45).toFixed(3)})`;
+              [[-0.25, -0.15, 0.16], [0.22, 0.18, 0.14], [-0.08, 0.28, 0.11]].forEach(([ox, oy, sr]) => {
+                bgCtx.beginPath();
+                bgCtx.arc(cx + r * ox, cy + r * oy, r * sr, 0, Math.PI * 2);
+                bgCtx.fill();
+              });
+            } else {
+              // Сатурн с кольцом
+              const pg = bgCtx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 2, cx, cy, r);
               pg.addColorStop(0, `rgba(240, 248, 255, ${pa.toFixed(3)})`);
               pg.addColorStop(0.7, `rgba(${rgb}, ${(pa * 0.72).toFixed(3)})`);
               pg.addColorStop(1, 'rgba(0, 0, 0, 0)');
               bgCtx.fillStyle = pg;
               bgCtx.beginPath();
-              bgCtx.arc(px, pl.y, pl.r, 0, Math.PI * 2);
+              bgCtx.arc(cx, cy, r, 0, Math.PI * 2);
               bgCtx.fill();
 
-              if (pl.ring) {
-                bgCtx.save();
-                bgCtx.translate(px, pl.y);
-                bgCtx.rotate(-0.26);
-                bgCtx.scale(1, 0.28);
-                bgCtx.beginPath();
-                bgCtx.arc(0, 0, pl.r * 1.65, 0, Math.PI * 2);
-                bgCtx.strokeStyle = `rgba(${rgb}, ${(pa * 0.75).toFixed(3)})`;
-                bgCtx.lineWidth = 1.3;
-                bgCtx.stroke();
-                bgCtx.restore();
-              }
-            });
+              bgCtx.save();
+              bgCtx.translate(cx, cy);
+              bgCtx.rotate(-0.26);
+              bgCtx.scale(1, 0.28);
+              bgCtx.beginPath();
+              bgCtx.arc(0, 0, r * 1.7, 0, Math.PI * 2);
+              bgCtx.strokeStyle = `rgba(${rgb}, ${(pa * 0.8).toFixed(3)})`;
+              bgCtx.lineWidth = 1.4;
+              bgCtx.stroke();
+              bgCtx.restore();
+            }
           }
         }
       }
