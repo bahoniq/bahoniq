@@ -41,15 +41,24 @@ html, body {
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
-  background: radial-gradient(circle at 28% 52%, rgba(0, 229, 255, 0.07), transparent 65%), #050b14;
+  background: radial-gradient(circle at 28% 52%, rgba(0, 229, 255, 0.06), transparent 65%), #050b14;
+}
+
+.ambient-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(4, 9, 18, 0.14) 0%, rgba(4, 9, 18, 0.56) 72%, rgba(3, 7, 14, 0.78) 100%);
+  pointer-events: none;
 }
 
 .ambient-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(95px);
-  opacity: 0.40;
-  transition: background 0.9s cubic-bezier(0.22, 1, 0.36, 1), transform 0.25s ease-out;
+  filter: blur(110px);
+  opacity: 0.34;
+  transition: background 1.05s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.85s ease, transform 0.25s ease-out;
   will-change: transform, background;
 }
 
@@ -257,12 +266,18 @@ body.playing .ambient-orb.orb-right {
   height: min(35vh, 80vw);
   border-radius: 24px;
   overflow: hidden;
-  box-shadow: 0 22px 58px rgba(0, 0, 0, 0.72), 0 0 38px rgba(0, 229, 255, 0.16);
-  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 22px 58px rgba(0, 0, 0, 0.74),
+    0 0 42px color-mix(in srgb, var(--cover-accent, #00e5ff) 20%, transparent);
+  border: 1.5px solid rgba(255, 255, 255, 0.16);
   background: #081223;
   position: relative;
   cursor: pointer;
-  transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-style: preserve-3d;
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.35s ease;
 }
 
 .car-cover img {
@@ -270,14 +285,29 @@ body.playing .ambient-orb.orb-right {
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.6s ease;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1);
   -webkit-user-drag: none;
   user-select: none;
   pointer-events: none;
 }
 
+.car-cover.is-entering img {
+  animation: carCoverEnter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes carCoverEnter {
+  from {
+    opacity: 0.25;
+    transform: scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 body.playing .car-cover img {
-  transform: scale(1.03);
+  transform: none;
 }
 
 /* Метаданные трека */
@@ -463,16 +493,24 @@ body.playing .car-cover img {
   width: 70px;
   height: 70px;
   border-radius: 50%;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  background: rgba(10, 18, 34, 0.72);
+  border: 1px solid rgba(165, 238, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 8px 20px rgba(0, 0, 0, 0.32);
   color: var(--text-main);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.18s ease, background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
   flex-shrink: 0;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+
+.car-btn-step:hover {
+  background: rgba(16, 30, 54, 0.86);
+  border-color: rgba(0, 229, 255, 0.38);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 10px 24px rgba(0, 0, 0, 0.4);
 }
 
 .car-btn-step:active {
@@ -501,13 +539,15 @@ body.playing .car-cover img {
   gap: 12px;
   padding: 10px 16px;
   border-radius: 14px;
-  background: rgba(13, 24, 42, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(10, 18, 34, 0.72);
+  border: 1px solid rgba(165, 238, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 22px rgba(0, 0, 0, 0.28);
   font-size: 13px;
   color: #cbd5e1;
   cursor: pointer;
-  transition: all 0.18s;
-  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
 }
 
 .up-next-strip:hover,
@@ -1604,4 +1644,89 @@ body.drive-mode .drive-only-fav {
   .car-radio-item { align-items: flex-start; flex-wrap: wrap; }
   .car-radio-actions { width: 100%; justify-content: flex-end; }
   .car-radio-form-row { grid-template-columns: 1fr; }
+}
+
+/* ==========================================================================
+   VISUAL REFRESH: Glass Controls, Cursor Dot, Rare Cover Pulse, Reduced Motion
+   ========================================================================== */
+.drive-mode-btn,
+.car-btn-sub,
+.car-topbar-btn {
+  background: rgba(10, 18, 34, 0.72);
+  border-color: rgba(165, 238, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 6px 18px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+
+.drive-mode-btn:hover,
+.car-btn-sub:hover,
+.car-topbar-btn:hover {
+  background: rgba(16, 30, 54, 0.86);
+  border-color: rgba(0, 229, 255, 0.36);
+}
+
+.car-progress-fill {
+  background: linear-gradient(90deg, var(--cover-accent, #00e5ff), #38bdf8);
+  transition: background 0.9s ease;
+}
+
+/* ��������� ���������� ����� ������� �� ������ (2.4px ������, 10px ��������) */
+.car-cursor-dot {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  margin-top: -2.5px;
+  border-radius: 50%;
+  background: var(--cover-accent, #00e5ff);
+  box-shadow: 0 0 10px 1px var(--cover-accent, #00e5ff);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+  transition: opacity 0.25s ease, background 0.9s ease, box-shadow 0.9s ease;
+  will-change: transform, opacity;
+}
+
+/* ������ ������ ������� � ������ ������� (�� ���� � �� �����) */
+.car-cover-pulse-ring {
+  position: absolute;
+  inset: -2px;
+  border-radius: 26px;
+  border: 1.5px solid var(--cover-accent, #00e5ff);
+  opacity: 0;
+  pointer-events: none;
+  animation: carCoverSoftPulse 1.15s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes carCoverSoftPulse {
+  0% {
+    opacity: 0.24;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+}
+
+@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .car-cursor-dot,
+  .car-cover-pulse-ring {
+    display: none !important;
+  }
+
+  .car-cover {
+    transform: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-orb,
+  .car-cover.is-entering img {
+    animation: none !important;
+    transition: none !important;
+  }
 }

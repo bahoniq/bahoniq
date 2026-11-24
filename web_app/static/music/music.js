@@ -200,6 +200,67 @@
     return `/api/music/cover/${tid}?${fb}v=${ver}`;
   }
 
+  let analyserNode = null;
+  let audioFreqData = null;
+  let isDarkCover = true;
+  let trackChangeCount = 0;
+  let auroraWaveStart = 0;
+  let activeParade = null;
+  let nextParadeAtTrack = 2 + Math.floor(Math.random() * 2); // парад планет каждые 2–3 трека
+
+  function extractBalancedCoverColor(imgEl) {
+    try {
+      const c = document.createElement('canvas');
+      c.width = 12;
+      c.height = 12;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return null;
+      ctx.drawImage(imgEl, 0, 0, 12, 12);
+      const data = ctx.getImageData(0, 0, 12, 12).data;
+      let rSum = 0;
+      let gSum = 0;
+      let bSum = 0;
+      let count = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (lum < 24 || lum > 235) continue;
+        rSum += r;
+        gSum += g;
+        bSum += b;
+        count++;
+      }
+      if (!count) return null;
+      const meanLum = (rSum * 0.299 + gSum * 0.587 + bSum * 0.114) / count;
+      isDarkCover = meanLum < 128;
+      let r = Math.round(rSum / count);
+      let g = Math.round(gSum / count);
+      let b = Math.round(bSum / count);
+      // Приглушаем чрезмерную кислотность, сохраняя живой оттенок обложки
+      const avg = (r + g + b) / 3;
+      r = Math.min(220, Math.max(35, Math.round(avg + (r - avg) * 0.78)));
+      g = Math.min(220, Math.max(35, Math.round(avg + (g - avg) * 0.78)));
+      b = Math.min(220, Math.max(35, Math.round(avg + (b - avg) * 0.78)));
+      return {
+        primary: `rgb(${r}, ${g}, ${b})`,
+        secondary: `rgb(${Math.max(20, Math.round(r * 0.65))}, ${Math.max(20, Math.round(g * 0.72))}, ${Math.min(230, Math.round(b * 1.15))})`,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function triggerCoverEntrance() {
+    const box = coverImg?.parentElement;
+    if (!box) return;
+    box.classList.remove('is-entering');
+    void box.offsetWidth;
+    box.classList.add('is-entering');
+    setTimeout(() => box.classList.remove('is-entering'), 460);
+  }
+
   function applyTrackAmbientAndCover(track) {
     if (!track) return;
     const tid = Number(track.id);
@@ -208,6 +269,40 @@
     document.documentElement.style.setProperty('--amb-1', pal.amb[0]);
     document.documentElement.style.setProperty('--amb-2', pal.amb[1]);
     document.documentElement.style.setProperty('--amb-3', pal.amb[2]);
+    document.documentElement.style.setProperty('--cover-accent', pal.accent);
+    isDarkCover = true;
+    auroraWaveStart = performance.now();
+    trackChangeCount += 1;
+
+    // Меняем форму фоновых облаков при смене трека
+    const orbL = document.getElementById('carOrbLeft');
+    const orbR = document.getElementById('carOrbRight');
+    if (orbL && orbR) {
+      const r1 = 38 + (h % 24);
+      const r2 = 42 + ((h >> 3) % 24);
+      orbL.style.borderRadius = `${r1}% ${100 - r1}% ${r2}% ${100 - r2}% / ${r2}% ${r1}% ${100 - r1}% ${100 - r2}%`;
+      orbR.style.borderRadius = `${r2}% ${100 - r2}% ${r1}% ${100 - r1}% / ${r1}% ${r2}% ${100 - r2}% ${100 - r1}%`;
+    }
+
+    // Парад планет каждые 2–3 трека
+    if (trackChangeCount >= nextParadeAtTrack && !activeParade) {
+      nextParadeAtTrack = trackChangeCount + 2 + Math.floor(Math.random() * 2);
+      const vw = window.innerWidth || 1280;
+      const vh = window.innerHeight || 800;
+      activeParade = {
+        born: performance.now(),
+        duration: 18000,
+        planets: [
+          { offset: 0.0, y: vh * 0.18, r: 22, ring: true, speed: 1.0 },
+          { offset: -0.14, y: vh * 0.25, r: 14, ring: false, speed: 1.08 },
+          { offset: -0.26, y: vh * 0.14, r: 10, ring: false, speed: 1.15 },
+        ],
+        startX: -60,
+        endX: vw + 120,
+      };
+    }
+
+    triggerCoverEntrance();
 
     const generatedCover = makeTrackArtworkSvgDataUri(track);
     delete coverImg.dataset.fallbackApplied;
@@ -226,6 +321,12 @@
     coverImg.onload = () => {
       if (coverImg.dataset.fallbackApplied === 'true') return;
       track.has_cover = true;
+      const extracted = extractBalancedCoverColor(coverImg);
+      if (extracted) {
+        document.documentElement.style.setProperty('--amb-1', extracted.primary);
+        document.documentElement.style.setProperty('--amb-2', extracted.secondary);
+        document.documentElement.style.setProperty('--cover-accent', extracted.primary);
+      }
       const thumbImg = tracksListEl
         ? tracksListEl.querySelector(`.car-track-thumb img[data-track-id="${tid}"]`)
         : null;
@@ -2192,11 +2293,17 @@
       limiterNode.attack.value = 0.001;
       limiterNode.release.value = 0.15;
 
+      analyserNode = audioCtx.createAnalyser();
+      analyserNode.fftSize = 128;
+      analyserNode.smoothingTimeConstant = 0.82;
+      audioFreqData = new Uint8Array(analyserNode.frequencyBinCount);
+
       audioSourceNode.connect(preampNode);
       preampNode.connect(bassFilter);
       bassFilter.connect(trebleFilter);
       trebleFilter.connect(limiterNode);
-      limiterNode.connect(audioCtx.destination);
+      limiterNode.connect(analyserNode);
+      analyserNode.connect(audioCtx.destination);
 
       isAudioChainInit = true;
       updateDSPHeadroom();
@@ -2973,5 +3080,340 @@
     await fetchCatalog();
   }
 
+  function initMusicVisualRefresh() {
+    const prefersReduced =
+      window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const isFinePointer =
+      window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    if (prefersReduced) return;
+
+    const playerEl = document.querySelector('.car-player');
+    const coverBox = coverImg?.parentElement;
+
+    if (isFinePointer && playerEl) {
+      const dot = document.createElement('div');
+      dot.className = 'car-cursor-dot';
+      document.body.appendChild(dot);
+
+      playerEl.addEventListener('mousemove', (e) => {
+        dot.style.opacity = '0.9';
+        dot.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`;
+      });
+      playerEl.addEventListener('mouseleave', () => {
+        dot.style.opacity = '0';
+      });
+    }
+
+    if (isFinePointer && coverBox) {
+      coverBox.addEventListener('mousemove', (e) => {
+        const rect = coverBox.getBoundingClientRect();
+        const rotY = ((e.clientX - rect.left) / rect.width - 0.5) * 2.0; // макс ±1°
+        const rotX = -((e.clientY - rect.top) / rect.height - 0.5) * 2.0;
+        coverBox.style.transform = `perspective(900px) translateY(-2.5px) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg)`;
+      });
+      coverBox.addEventListener('mouseleave', () => {
+        coverBox.style.transform = '';
+      });
+    }
+
+    // Редкий мягкий импульс в цветах обложки раз в 28-38 секунд
+    function schedulePulse() {
+      const delay = 28000 + Math.random() * 10000;
+      setTimeout(() => {
+        if (!document.hidden && document.body.classList.contains('playing') && coverBox) {
+          const ring = document.createElement('div');
+          ring.className = 'car-cover-pulse-ring';
+          coverBox.appendChild(ring);
+          setTimeout(() => ring.remove(), 1200);
+        }
+        schedulePulse();
+      }, delay);
+    }
+    schedulePulse();
+
+    // Живой аудио-реактивный фон: 90% музыка, 9% атмосфера, 1% пасхалки
+    const bgCanvas = document.createElement('canvas');
+    bgCanvas.id = 'carLiveBackdropCanvas';
+    bgCanvas.style.cssText =
+      'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;';
+    document.body.prepend(bgCanvas);
+    const bgCtx = bgCanvas.getContext('2d');
+    if (!bgCtx) return;
+
+    const orbLeft = document.getElementById('carOrbLeft');
+    const orbRight = document.getElementById('carOrbRight');
+    const orbBottom = document.getElementById('carOrbBottom');
+
+    const isLowPower =
+      (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
+      window.innerWidth < 760;
+    const dpr = isLowPower ? 1 : Math.min(window.devicePixelRatio || 1, 1.5);
+    let w = 1280;
+    let h = 800;
+
+    function resizeBg() {
+      w = window.innerWidth || 1280;
+      h = window.innerHeight || 800;
+      bgCanvas.width = Math.floor(w * dpr);
+      bgCanvas.height = Math.floor(h * dpr);
+      bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', resizeBg);
+    resizeBg();
+
+    const stars = Array.from({ length: isLowPower ? 14 : 28 }, () => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      r: 0.7 + Math.random() * 1.1,
+      vy: 0.08 + Math.random() * 0.14,
+      alpha: 0.12 + Math.random() * 0.25,
+      twinkle: 0,
+    }));
+    const comets = [];
+    const rainDrops = [];
+    const ripples = [];
+    const t0 = performance.now();
+    let nextCometAt = t0 + 2500;
+    let nextRainAt = t0 + 1800;
+
+    let smoothBass = 0;
+    let smoothMid = 0;
+    let smoothHigh = 0;
+
+    function getAccentRgb() {
+      const raw = getComputedStyle(document.documentElement)
+        .getPropertyValue('--cover-accent')
+        .trim();
+      const m = raw.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/i);
+      if (m) return `${m[1]}, ${m[2]}, ${m[3]}`;
+      if (raw.startsWith('#') && raw.length === 7) {
+        const n = parseInt(raw.slice(1), 16);
+        return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+      }
+      return '0, 229, 255';
+    }
+
+    function sampleAudioBands() {
+      if (!analyserNode || !audioFreqData || !document.body.classList.contains('playing')) {
+        smoothBass *= 0.92;
+        smoothMid *= 0.92;
+        smoothHigh *= 0.92;
+        return;
+      }
+      analyserNode.getByteFrequencyData(audioFreqData);
+      let b = 0, m = 0, hi = 0;
+      for (let i = 0; i <= 4; i++) b += audioFreqData[i];
+      for (let i = 5; i <= 18; i++) m += audioFreqData[i];
+      for (let i = 19; i <= 42; i++) hi += audioFreqData[i];
+      smoothBass += ((b / (5 * 255)) - smoothBass) * 0.25;
+      smoothMid += ((m / (14 * 255)) - smoothMid) * 0.16;
+      smoothHigh += ((hi / (24 * 255)) - smoothHigh) * 0.22;
+    }
+
+    function drawLiveBg(now) {
+      if (!document.hidden) {
+        sampleAudioBands();
+        bgCtx.clearRect(0, 0, w, h);
+        const rgb = getAccentRgb();
+
+        // 1. Аудио-реакция: Бас (2–4% дыхание фона и мягкий световой импульс обложки), Средние (движение облаков)
+        if (orbLeft) {
+          const sL = 1 + smoothBass * 0.04;
+          const mx = smoothMid * 14;
+          orbLeft.style.transform = `scale(${sL.toFixed(3)}) translate(${mx.toFixed(1)}px, ${(-mx * 0.5).toFixed(1)}px)`;
+        }
+        if (orbRight) {
+          const sR = 1 + smoothBass * 0.035;
+          const mx = -smoothMid * 16;
+          orbRight.style.transform = `scale(${sR.toFixed(3)}) translate(${mx.toFixed(1)}px, ${(mx * 0.4).toFixed(1)}px)`;
+        }
+        if (orbBottom) {
+          orbBottom.style.transform = `scale(${(1 + smoothBass * 0.025).toFixed(3)})`;
+        }
+        if (coverBox && document.body.classList.contains('playing')) {
+          const glowAlpha = (0.18 + smoothBass * 0.22).toFixed(3);
+          coverBox.style.boxShadow = `0 22px 58px rgba(0,0,0,0.74), 0 0 ${Math.round(38 + smoothBass * 28)}px rgba(${rgb}, ${glowAlpha})`;
+        }
+
+        // Короткая «северная волна» при старте нового трека (1.6с)
+        const waveAge = now - auroraWaveStart;
+        if (auroraWaveStart > 0 && waveAge < 1600) {
+          const wp = waveAge / 1600;
+          const waveY = h * (0.28 + wp * 0.25);
+          const wGrad = bgCtx.createLinearGradient(0, waveY - 50, w, waveY + 50);
+          wGrad.addColorStop(0, 'rgba(0,0,0,0)');
+          wGrad.addColorStop(0.5, `rgba(${rgb}, ${(Math.sin(Math.PI * wp) * 0.14).toFixed(3)})`);
+          wGrad.addColorStop(1, 'rgba(0,0,0,0)');
+          bgCtx.fillStyle = wGrad;
+          bgCtx.fillRect(0, waveY - 50, w, 100);
+        }
+
+        // Высокие частоты + звёзды только на тёмных обложках
+        if (isDarkCover) {
+          for (let i = 0; i < stars.length; i++) {
+            const s = stars[i];
+            s.y -= s.vy;
+            if (s.y < -4) {
+              s.y = h + 4;
+              s.x = Math.random() * w;
+            }
+            if (smoothHigh > 0.32 && Math.random() < 0.025) {
+              s.twinkle = 1;
+            } else {
+              s.twinkle *= 0.94;
+            }
+            const a = Math.min(0.85, s.alpha + s.twinkle * 0.48);
+            bgCtx.beginPath();
+            bgCtx.arc(s.x, s.y, s.r + s.twinkle * 0.9, 0, Math.PI * 2);
+            bgCtx.fillStyle = `rgba(${rgb}, ${a.toFixed(3)})`;
+            bgCtx.fill();
+          }
+        }
+
+        // Регулярный мягкий дождь с рябью (каждые 9–14с)
+        if (now >= nextRainAt) {
+          const count = isLowPower ? 3 : 5 + Math.floor(Math.random() * 3);
+          for (let i = 0; i < count; i++) {
+            rainDrops.push({
+              startX: w * (0.08 + Math.random() * 0.84),
+              targetY: h * (0.18 + Math.random() * 0.66),
+              slant: 10 + Math.random() * 12,
+              born: now + i * (90 + Math.random() * 70),
+              duration: 520 + Math.random() * 180,
+            });
+          }
+          nextRainAt = now + 9000 + Math.random() * 5000;
+        }
+
+        for (let i = rainDrops.length - 1; i >= 0; i--) {
+          const drop = rainDrops[i];
+          const p = Math.min(1, (now - drop.born) / drop.duration);
+          const eased = p * p;
+          const x = drop.startX + drop.slant * eased;
+          const y = -20 + (drop.targetY + 20) * eased;
+          bgCtx.beginPath();
+          bgCtx.moveTo(x - 3.5, y - 14);
+          bgCtx.lineTo(x, y);
+          bgCtx.strokeStyle = `rgba(${rgb}, ${(Math.sin(Math.PI * p) * 0.28).toFixed(3)})`;
+          bgCtx.lineWidth = 1;
+          bgCtx.stroke();
+          if (p >= 1) {
+            ripples.push({ x, y: drop.targetY, born: now, life: 1500 });
+            rainDrops.splice(i, 1);
+          }
+        }
+
+        for (let i = ripples.length - 1; i >= 0; i--) {
+          const rp = ripples[i];
+          const p = (now - rp.born) / rp.life;
+          if (p >= 1) {
+            ripples.splice(i, 1);
+            continue;
+          }
+          const radius = 4 + (1 - Math.pow(1 - p, 3)) * 42;
+          bgCtx.save();
+          bgCtx.translate(rp.x, rp.y);
+          bgCtx.scale(1, 0.5);
+          bgCtx.beginPath();
+          bgCtx.arc(0, 0, radius, 0, Math.PI * 2);
+          bgCtx.strokeStyle = `rgba(${rgb}, ${((1 - p) * 0.28).toFixed(3)})`;
+          bgCtx.lineWidth = 1.1;
+          bgCtx.stroke();
+          bgCtx.restore();
+        }
+
+        // Комета каждые 12–18 секунд
+        if (now >= nextCometAt) {
+          const fromRight = Math.random() > 0.4;
+          comets.push({
+            startX: fromRight ? w * 0.85 : w * 0.15,
+            startY: -16,
+            travelX: (fromRight ? -1 : 1) * 240,
+            travelY: h * 0.44,
+            tailLen: 150,
+            born: now,
+            duration: 1080,
+          });
+          nextCometAt = now + 12000 + Math.random() * 6000;
+        }
+
+        for (let i = comets.length - 1; i >= 0; i--) {
+          const c = comets[i];
+          const p = (now - c.born) / c.duration;
+          if (p >= 1) {
+            comets.splice(i, 1);
+            continue;
+          }
+          const eased = 1 - Math.pow(1 - p, 2);
+          const hx = c.startX + c.travelX * eased;
+          const hy = c.startY + c.travelY * eased;
+          const len = Math.hypot(c.travelX, c.travelY) || 1;
+          const tail = c.tailLen * Math.sin(Math.PI * p);
+          const tx = hx - (c.travelX / len) * tail;
+          const ty = hy - (c.travelY / len) * tail;
+          const alpha = Math.sin(Math.PI * p);
+
+          const grad = bgCtx.createLinearGradient(tx, ty, hx, hy);
+          grad.addColorStop(0, `rgba(${rgb}, 0)`);
+          grad.addColorStop(1, `rgba(255, 255, 255, ${(alpha * 0.65).toFixed(3)})`);
+          bgCtx.strokeStyle = grad;
+          bgCtx.lineWidth = 1.3;
+          bgCtx.beginPath();
+          bgCtx.moveTo(tx, ty);
+          bgCtx.lineTo(hx, hy);
+          bgCtx.stroke();
+        }
+
+        // Пасхалка: парад планет каждые 2–3 трека
+        if (activeParade && w >= 640) {
+          const baseP = (now - activeParade.born) / activeParade.duration;
+          if (baseP >= 1.35) {
+            activeParade = null;
+          } else {
+            activeParade.planets.forEach((pl) => {
+              const pp = baseP * pl.speed + pl.offset;
+              if (pp <= 0 || pp >= 1) return;
+              const px = activeParade.startX + (activeParade.endX - activeParade.startX) * pp;
+              const pa = Math.sin(Math.PI * pp) * 0.24;
+
+              const pg = bgCtx.createRadialGradient(
+                px - pl.r * 0.3,
+                pl.y - pl.r * 0.3,
+                1.5,
+                px,
+                pl.y,
+                pl.r
+              );
+              pg.addColorStop(0, `rgba(240, 248, 255, ${pa.toFixed(3)})`);
+              pg.addColorStop(0.7, `rgba(${rgb}, ${(pa * 0.72).toFixed(3)})`);
+              pg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+              bgCtx.fillStyle = pg;
+              bgCtx.beginPath();
+              bgCtx.arc(px, pl.y, pl.r, 0, Math.PI * 2);
+              bgCtx.fill();
+
+              if (pl.ring) {
+                bgCtx.save();
+                bgCtx.translate(px, pl.y);
+                bgCtx.rotate(-0.26);
+                bgCtx.scale(1, 0.28);
+                bgCtx.beginPath();
+                bgCtx.arc(0, 0, pl.r * 1.65, 0, Math.PI * 2);
+                bgCtx.strokeStyle = `rgba(${rgb}, ${(pa * 0.75).toFixed(3)})`;
+                bgCtx.lineWidth = 1.3;
+                bgCtx.stroke();
+                bgCtx.restore();
+              }
+            });
+          }
+        }
+      }
+      requestAnimationFrame(drawLiveBg);
+    }
+
+    requestAnimationFrame(drawLiveBg);
+  }
+
   init();
+  initMusicVisualRefresh();
 })();
