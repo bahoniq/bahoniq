@@ -429,3 +429,70 @@ body.theme-indigo .ea-accordion summary {
   color: #EFF4FF !important;
   border-color: #293B65 !important;
 }
+
+
+/* ---------- Code Academy (.acad-*) и Design Academy (.das-*) в теме Cobalt ---------- */
+body.theme-indigo .acad-lessons-sidebar,
+body.theme-indigo .acad-trainer-card,
+body.theme-indigo .acad-mentor-chat,
+body.theme-indigo .das-lessons-panel,
+body.theme-indigo .das-studio,
+body.theme-indigo .das-mentor {
+  background: #11172A !important;
+  border-color: #293B65 !important;
+  color: #EFF4FF !important;
+}
+
+body.theme-indigo .acad-msg-trainer {
+  background: rgba(59, 130, 246, 0.10);
+  border-color: rgba(96, 165, 250, 0.35);
+  color: #EFF4FF;
+}
+body.theme-indigo .acad-msg-user {
+  background: rgba(83, 109, 254, 0.14);
+  border-color: #293B65;
+  color: #EFF4FF;
+}
+body.theme-indigo .acad-msg-author { color: #60A5FA; }
+body.theme-indigo .acad-trap-card {
+  background: rgba(245, 184, 75, 0.09);
+  border-color: rgba(245, 184, 75, 0.30);
+  color: #F6DFB0;
+}
+body.theme-indigo .acad-trainer-rule {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(96, 165, 250, 0.35);
+  color: #60A5FA;
+}
+body.theme-indigo .acad-answer-dock {
+  background: #0D1222;
+  border-color: #293B65;
+  color: #EFF4FF;
+}
+
+body.theme-indigo .das-canvas-wrap { background: #070B18; }
+body.theme-indigo .das-canvas-wrap svg {
+  background: #0D1222;
+  box-shadow: 0 12px 35px rgba(3, 7, 18, 0.65);
+}
+body.theme-indigo .das-toolbar,
+body.theme-indigo .das-layers,
+body.theme-indigo .das-properties {
+  background: #0D1222;
+  border-color: #293B65;
+  color: #EFF4FF;
+}
+body.theme-indigo .das-toolbar button {
+  background: #11172A;
+  color: #EFF4FF;
+  border-color: #293B65;
+}
+body.theme-indigo .das-toolbar button:hover,
+body.theme-indigo .das-toolbar button.active {
+  background: rgba(59, 130, 246, 0.20);
+  color: #93C5FD;
+  border-color: #536DFE;
+}
+body.theme-indigo .das-toolbar span,
+body.theme-indigo .das-lesson { color: #A6B5D4; }
+body.theme-indigo .das-lesson.active { color: #EFF4FF; }

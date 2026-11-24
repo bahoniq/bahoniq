@@ -3,13 +3,13 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  background: linear-gradient(135deg, rgba(234, 179, 8, 0.12), rgba(234, 179, 8, 0.04));
-  border: 1px solid rgba(234, 179, 8, 0.45);
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.10), rgba(234, 179, 8, 0.03));
+  border: 1px solid rgba(234, 179, 8, 0.38);
   border-left: 4px solid #facc15;
-  border-radius: 8px;
-  padding: 14px 18px;
-  margin-bottom: 20px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  padding: 11px 16px;
+  margin: 0 auto 16px;
+  max-width: 1020px;
 }
 
 .ig-golden-rule-icon {
@@ -18,8 +18,8 @@
 }
 
 .ig-golden-rule-content {
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13.5px;
+  line-height: 1.45;
   color: #fef08a;
 }
 
@@ -28,25 +28,24 @@
   font-weight: 700;
 }
 
-body:not(.theme-night) .ig-golden-rule {
-  background: linear-gradient(135deg, #fefce8, #fef9c3);
-  border-color: #fde047;
-  border-left-color: #ca8a04;
-}
-
-body:not(.theme-night) .ig-golden-rule-content {
-  color: #713f12;
-}
-
-body:not(.theme-night) .ig-golden-rule-content strong {
-  color: #854d0e;
-}
-
 .ig-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
-  gap: 24px;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  max-width: 1020px;
+  margin: 0 auto;
   align-items: start;
+}
+
+.ig-layout:has(#igResult:not(.hidden)) {
+  max-width: 1480px;
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+}
+
+@media (max-width: 1024px) {
+  .ig-layout:has(#igResult:not(.hidden)) {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ig-meta {

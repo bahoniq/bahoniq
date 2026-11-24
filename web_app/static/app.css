@@ -4148,3 +4148,215 @@ body.theme-day .sidebar.open {
   background: rgba(0, 229, 255, .06);
 }
 .analytics-full-report-note small { color: var(--muted); line-height: 1.4; }
+
+/* ==========================================================================
+   ЕДИНАЯ ДИЗАЙН-СИСТЕМА ВНУТРЕННИХ МОДУЛЕЙ (5 экранов + общие компоненты)
+   ========================================================================== */
+.module-page {
+  width: 100%;
+  max-width: 1480px;
+  margin: 0 auto;
+}
+
+.module-page input,
+.module-page textarea,
+.module-page select {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-main);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.module-page input:focus-visible,
+.module-page textarea:focus-visible,
+.module-page select:focus-visible {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.22);
+}
+
+/* 1. Instruction Generator AI */
+#instructionGenerator .ig-drop .file-drop,
+#instructionGenerator .file-drop {
+  min-height: 88px;
+  padding: 14px 16px;
+}
+
+#instructionGenerator .ig-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* 2. Телефонный справочник */
+#phonebook .toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+#phonebook #phoneSearch {
+  flex: 1 1 280px;
+  min-width: 220px;
+  height: 42px;
+  padding: 0 14px;
+}
+
+#phonebook #phoneCount {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+#phonebook #newContact {
+  flex-shrink: 0;
+  height: 42px;
+}
+
+#phonebook .phone-table {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 62vh;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+#phonebook .phone-table table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+}
+
+#phonebook .phone-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 11px 12px;
+  text-align: left;
+  font-size: 12.5px;
+}
+
+#phonebook .phone-table tbody td {
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+#phonebook .phone-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+#phonebook .phone-table tbody tr:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+/* 3. Excel AI */
+#excel .file-drop.large {
+  min-height: 116px;
+  padding: 18px 20px;
+}
+
+#excel .excel-chat-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+
+#excel .excel-chat-example {
+  padding: 8px 14px;
+  font-size: 13px;
+  white-space: normal;
+  text-align: left;
+}
+
+/* 4. PDF Center */
+#pdf #pdfTools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#pdf #pdfTools .tab,
+#pdf #pdfTools button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+}
+
+#pdf .file-drop.large {
+  min-height: 132px;
+  padding: 20px;
+}
+
+@media (max-width: 768px) {
+  #pdf #pdfTools {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+
+  #pdf #pdfTools .tab,
+  #pdf #pdfTools button {
+    flex-shrink: 0;
+  }
+}
+
+/* 5. Analytics AI */
+#analytics .upload-panel {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+#analytics .upload-panel .file-drop {
+  flex: 1 1 320px;
+  min-height: 92px;
+  padding: 16px 18px;
+}
+
+#analytics .analytics-grid {
+  display: grid;
+  grid-template-columns: minmax(340px, 370px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+#analytics .preview-card .card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+#analytics .table-scroll-btn {
+  height: 34px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+}
+
+#analytics #previewTable .empty {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+}
+
+@media (max-width: 1024px) {
+  #analytics .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+}
