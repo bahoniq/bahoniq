@@ -6,6 +6,29 @@
 (() => {
   const LOCAL_BACKUP_KEY = 'bahoniq_english_academy_backup_v2';
   const OFFLINE_MODE_KEY = 'bahoniq_ea_force_offline';
+  const PROFILE_ID_KEY = 'bahoniq_profile_id';
+
+  function getProfileId() {
+    try {
+      let pid = localStorage.getItem(PROFILE_ID_KEY);
+      if (pid && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pid)) {
+        return pid.toLowerCase();
+      }
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        pid = window.crypto.randomUUID();
+      } else {
+        pid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          const v = c === 'x' ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+        });
+      }
+      localStorage.setItem(PROFILE_ID_KEY, pid);
+      return pid;
+    } catch {
+      return '';
+    }
+  }
 
   const SKILL_LABELS = {
     reading: 'Чтение',
@@ -89,8 +112,13 @@
   }
 
   async function apiCall(path, options = {}) {
+    const pid = getProfileId();
     const res = await fetch(`/api/english-academy${path}`, {
-      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(pid ? { 'X-Profile-Id': pid } : {}),
+        ...(options.headers || {}),
+      },
       ...options,
     });
     if (!res.ok) {
@@ -149,6 +177,26 @@
     } catch {}
   }
 
+  let _eaActiveAudio = null;
+  function playAudioOrSpeech(text, opts = {}) {
+    const { audioUrl = '', slowAudioUrl = '', slow = false } = opts || {};
+    const targetUrl = slow && slowAudioUrl ? slowAudioUrl : (!slow && audioUrl ? audioUrl : (slow && audioUrl ? audioUrl : ''));
+    if (targetUrl) {
+      try {
+        if (_eaActiveAudio) {
+          _eaActiveAudio.pause();
+          _eaActiveAudio = null;
+        }
+        const a = new Audio(targetUrl);
+        if (slow && !slowAudioUrl) a.playbackRate = 0.78;
+        _eaActiveAudio = a;
+        a.play().catch(() => speakEnglish(text, slow ? 0.62 : null));
+        return;
+      } catch {}
+    }
+    speakEnglish(text, slow ? 0.62 : null);
+  }
+
   function findLesson(lessonId) {
     for (const lvl of store.curriculum.levels || []) {
       for (const sec of lvl.sections || []) {
@@ -165,6 +213,9 @@
     const host = el('englishAcademy');
     if (!host) return;
     buildShellIfNeeded(host);
+    if (!store.progress && el('eaCenterBody')) {
+      el('eaCenterBody').innerHTML = `<div class="ea-skeleton-box">Загрузка курса и прогресса...</div>`;
+    }
 
     try {
       const data = await apiCall('/bootstrap');
@@ -209,11 +260,12 @@
 
         <div class="acad-top-right" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
           <div class="ea-view-switch" role="tablist" aria-label="Режим English Academy">
-            <button class="ea-view-btn active" data-ea-view="studio" type="button">📚 Обучение</button>
+            <button class="ea-view-btn active" data-ea-view="studio" type="button">Обучение</button>
             <button class="ea-view-btn" data-ea-view="hub" type="button">
-              🗂 Словарь и Ошибки <span id="eaHubBadge" class="ea-badge-count ea-hidden">0</span>
+              Словарь и Ошибки <span id="eaHubBadge" class="ea-badge-count ea-hidden">0</span>
             </button>
-            <button class="ea-view-btn" data-ea-view="settings" type="button">⚙</button>
+            <button id="eaPlacementBtn" class="ea-view-btn" type="button">Определить уровень</button>
+            <button class="ea-view-btn" data-ea-view="settings" type="button">Настройки</button>
           </div>
 
           <div class="acad-progress-widget">
@@ -351,6 +403,8 @@
         renderAll();
       });
     });
+
+    el('eaPlacementBtn')?.addEventListener('click', () => openPlacementTest());
 
     el('eaLessonSearch')?.addEventListener('input', (e) => {
       store.lessonFilter = e.target.value.trim().toLowerCase();
@@ -821,8 +875,8 @@
     `;
 
     el('eaExSpeakPassage')?.addEventListener('click', () => speakEnglish(ex.passage));
-    el('eaExAudioNorm')?.addEventListener('click', () => speakEnglish(ex.audio_text));
-    el('eaExAudioSlow')?.addEventListener('click', () => speakEnglish(ex.audio_text, 0.62));
+    el('eaExAudioNorm')?.addEventListener('click', () => playAudioOrSpeech(ex.audio_text, { audioUrl: ex.audio_url, slowAudioUrl: ex.slow_audio_url, slow: false }));
+    el('eaExAudioSlow')?.addEventListener('click', () => playAudioOrSpeech(ex.audio_text, { audioUrl: ex.audio_url, slowAudioUrl: ex.slow_audio_url, slow: true }));
     el('eaExSpeakLine')?.addEventListener('click', () => speakEnglish(ex.speaker_line));
     el('eaExToggleText')?.addEventListener('click', () => el('eaExHiddenText')?.classList.toggle('ea-hidden'));
 
@@ -906,7 +960,19 @@
         const r = resp.result;
         if (fb) {
           fb.className = `ea-feedback ${r.correct ? 'ok' : 'err'}`;
-          fb.textContent = r.feedback;
+          let rubricHtml = '';
+          if (r.rubric) {
+            const rb = r.rubric;
+            rubricHtml = `<div class="ea-rubric-grid">
+              <span>Задача: <strong>${rb.task_completion}/20</strong></span>
+              <span>Грамматика: <strong>${rb.grammar}/20</strong></span>
+              <span>Словарь: <strong>${rb.vocabulary}/20</strong></span>
+              <span>Структура: <strong>${rb.structure}/20</strong></span>
+              <span>Связность: <strong>${rb.coherence}/20</strong></span>
+              <span>Итого: <strong>${rb.total_score}/100</strong></span>
+            </div>`;
+          }
+          fb.innerHTML = `<div>${esc(r.feedback)}</div>${rubricHtml}`;
           fb.classList.remove('ea-hidden');
         }
         if (r.correct) {
@@ -1206,8 +1272,82 @@
     if (!store.activeDialogueId && dlgs.length) store.activeDialogueId = dlgs[0].id;
     const active = dlgs.find((d) => d.id === store.activeDialogueId) || dlgs[0];
     const turn = active?.turns?.[store.dlgTurnIdx];
+    const dlgMode = store.dlgMode || 'guided'; // 'guided' | 'free'
+
+    const freeTopics = [
+      { id: 'intro', level: 'A0', title: 'Знакомство и работа', prompt: 'Hello! Nice to meet you. What is your name and what do you do?' },
+      { id: 'shop', level: 'A1', title: 'В магазине', prompt: 'Good afternoon! Can I help you find something?' },
+      { id: 'travel', level: 'A1', title: 'Поездка и отель', prompt: 'Welcome to the hotel! Do you have a reservation?' },
+      { id: 'office', level: 'A2', title: 'Офис и задачи', prompt: 'Hi! Are we ready for the morning update? What are you working on today?' },
+      { id: 'call', level: 'A2', title: 'Рабочий звонок', prompt: 'Hello, this is Dana from support speaking. How can I assist you?' },
+      { id: 'meeting', level: 'B1', title: 'Созвон / Встреча', prompt: "Let's start the meeting. What is your opinion on the new timeline?" },
+      { id: 'negotiation', level: 'B2', title: 'Переговоры', prompt: 'We would like a 15% discount on the annual plan. What can you offer?' },
+    ];
+    if (!store.freeTopicId) store.freeTopicId = 'intro';
+    const activeFree = freeTopics.find((t) => t.id === store.freeTopicId) || freeTopics[0];
+
+    const modeTabs = `
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button type="button" class="button ${dlgMode === 'guided' ? 'primary' : 'secondary'}" data-ea-dmode="guided">Сценарии (выбор реплики)</button>
+        <button type="button" class="button ${dlgMode === 'free' ? 'primary' : 'secondary'}" data-ea-dmode="free">Свободный диалог (текстом)</button>
+      </div>
+    `;
+
+    if (dlgMode === 'free') {
+      box.innerHTML = `
+        ${modeTabs}
+        <div class="ea-two-col">
+          <div>
+            ${freeTopics.map((t) => `<button class="ea-lesson-btn ${t.id === activeFree.id ? 'active' : ''}" data-ftid="${t.id}" type="button"><span><strong>${esc(t.level)}</strong> · ${esc(t.title)}</span><span>💬</span></button>`).join('')}
+          </div>
+          <div class="ea-sub-card">
+            <div style="font-size:12px;color:var(--ea-accent);">${esc(activeFree.level)} · Свободный диалог: ${esc(activeFree.title)}</div>
+            <div class="ea-theory-card" style="display:flex;justify-content:space-between;align-items:center;">
+              <div><strong>${esc(store.freeNextPrompt || activeFree.prompt)}</strong></div>
+              <button class="ea-speak-btn" id="eaFreeSpk" type="button">🔊</button>
+            </div>
+            <textarea id="eaFreeInput" class="ea-textarea" rows="3" placeholder="Напишите свой ответ на английском..."></textarea>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+              <button id="eaFreeSend" class="button primary" type="button">Ответить</button>
+              <button id="eaFreeReset" class="button secondary" type="button">Сначала</button>
+            </div>
+            <div id="eaFreeFb" class="ea-feedback ea-hidden"></div>
+          </div>
+        </div>
+      `;
+      box.querySelectorAll('[data-ea-dmode]').forEach((b) => b.addEventListener('click', () => { store.dlgMode = b.dataset.eaDmode; renderDialoguesSection(box); }));
+      box.querySelectorAll('[data-ftid]').forEach((b) => b.addEventListener('click', () => { store.freeTopicId = b.dataset.ftid; store.freeNextPrompt = ''; renderDialoguesSection(box); }));
+      el('eaFreeSpk')?.addEventListener('click', () => speakEnglish(store.freeNextPrompt || activeFree.prompt));
+      el('eaFreeReset')?.addEventListener('click', () => { store.freeNextPrompt = ''; renderDialoguesSection(box); });
+      el('eaFreeSend')?.addEventListener('click', async () => {
+        const text = el('eaFreeInput')?.value || '';
+        const fb = el('eaFreeFb');
+        try {
+          const r = await apiCall('/free-dialogue/turn', { method: 'POST', body: JSON.stringify({ topic_id: activeFree.id, user_text: text }) });
+          if (store.state) store.state.mistakes = r.mistakes;
+          store.progress = r.progress;
+          renderTopProgress();
+          if (fb) {
+            fb.className = `ea-feedback ${r.result.passed ? 'ok' : 'err'}`;
+            fb.textContent = r.result.feedback;
+            fb.classList.remove('ea-hidden');
+          }
+          if (r.result.passed && r.result.next_prompt) {
+            store.freeNextPrompt = r.result.next_prompt;
+          }
+        } catch {
+          if (fb) {
+            fb.className = 'ea-feedback err';
+            fb.textContent = 'Не удалось проверить ответ — проверьте соединение.';
+            fb.classList.remove('ea-hidden');
+          }
+        }
+      });
+      return;
+    }
 
     box.innerHTML = `
+      ${modeTabs}
       <div class="ea-two-col">
         <div>
           ${dlgs
@@ -1235,6 +1375,7 @@
         </div>
       </div>
     `;
+    box.querySelectorAll('[data-ea-dmode]').forEach((b) => b.addEventListener('click', () => { store.dlgMode = b.dataset.eaDmode; renderDialoguesSection(box); }));
 
     box.querySelectorAll('[data-did]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -1310,9 +1451,22 @@
           const r = new SR();
           r.lang = 'en-US';
           st.textContent = '🎙 Говорите...';
-          r.onresult = (ev) => {
+          r.onresult = async (ev) => {
             const heard = ev.results?.[0]?.[0]?.transcript || '';
-            st.textContent = `Распознано: «${heard}». Сверьте с фразой выше.`;
+            try {
+              const cmp = await apiCall('/pronunciation/compare', {
+                method: 'POST',
+                body: JSON.stringify({ reference: sel.value, recognized: heard }),
+              });
+              const miss = (cmp.missing_words || []).length
+                ? ` · Пропущено: ${cmp.missing_words.join(', ')}`
+                : '';
+              st.innerHTML = `<div>Распознано: «${esc(heard)}»</div>
+                <div>Совпадение по словам: <strong>${cmp.match_percent}%</strong>${esc(miss)}</div>
+                <small style="color:var(--ea-muted);">${esc(cmp.disclaimer)}</small>`;
+            } catch {
+              st.textContent = `Распознано: «${heard}». Сверьте с фразой выше.`;
+            }
           };
           r.onerror = () => {
             st.textContent = 'Не удалось распознать речь — используйте сравнение на слух.';
@@ -1335,7 +1489,12 @@
           mr.ondataavailable = (e) => ch.push(e.data);
           mr.onstop = () => {
             stream.getTracks().forEach((t) => t.stop());
+            if (store.recordedUrl) {
+              try { URL.revokeObjectURL(store.recordedUrl); } catch {}
+              store.recordedUrl = null;
+            }
             const url = URL.createObjectURL(new Blob(ch, { type: 'audio/webm' }));
+            store.recordedUrl = url;
             const a = el('eaPAudio');
             if (a) {
               a.src = url;
@@ -1414,6 +1573,7 @@
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
             <button id="eaExp" class="button primary" type="button">⬇ Экспорт (.json)</button>
             <label class="button secondary" style="cursor:pointer;">⬆ Импорт (.json)<input id="eaImp" type="file" accept=".json" style="display:none;"></label>
+            <button id="eaSettingsPlacementBtn" class="button secondary" type="button">Пройти тест уровня заново</button>
             <button id="eaRst" class="button secondary" type="button">Сбросить</button>
           </div>
         </div>
@@ -1421,6 +1581,7 @@
     `;
 
     el('eaSetBackBtn')?.addEventListener('click', () => document.querySelector('[data-ea-view="studio"]')?.click());
+    el('eaSettingsPlacementBtn')?.addEventListener('click', () => openPlacementTest());
     el('eaSettingsOfflineToggle')?.addEventListener('change', (e) => {
       const checked = Boolean(e.target.checked);
       store.forceOffline = checked;
@@ -1473,6 +1634,103 @@
       store.lessonStep = 'theory';
       renderAll();
     });
+  }
+
+  async function openPlacementTest() {
+    store.view = 'hub';
+    el('eaStudioView')?.classList.add('ea-hidden');
+    el('eaSettingsView')?.classList.add('ea-hidden');
+    const box = el('eaHubView');
+    if (!box) return;
+    box.classList.remove('ea-hidden');
+    box.innerHTML = `<div class="ea-skeleton-box">Загрузка входного теста...</div>`;
+
+    try {
+      const data = await apiCall('/placement');
+      const qs = data.questions || [];
+      const answers = {};
+      box.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+          <div>
+            <h3 style="margin:0;">Входное тестирование (A0–B2)</h3>
+            <small style="color:var(--ea-muted);">Ответьте на вопросы, чтобы определить комфортный старт. Можно отказаться и начать с A0.</small>
+          </div>
+          <button id="eaPlCancel" class="button secondary" type="button">Отказаться и начать с A0</button>
+        </div>
+        <div id="eaPlBody" style="display:flex;flex-direction:column;gap:12px;">
+          ${qs
+            .map(
+              (q, i) => `
+            <div class="ea-sub-card">
+              <div style="font-size:12px;color:var(--ea-accent);">${esc(q.level)} · Вопрос ${i + 1} из ${qs.length}</div>
+              ${q.passage ? `<div class="ea-theory-card" style="font-size:14px;">${esc(q.passage)}</div>` : ''}
+              ${q.audio_text ? `<button type="button" class="button secondary" style="align-self:flex-start;" data-pl-audio="${esc(q.audio_text)}">🔊 Прослушать фразу</button>` : ''}
+              <strong>${esc(q.prompt)}</strong>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px;margin-top:4px;">
+                ${(q.options || [])
+                  .map(
+                    (o) => `<button type="button" class="ea-choice-btn" style="margin:0;" data-pl-q="${esc(q.id)}" data-pl-val="${esc(o)}">${esc(o)}</button>`
+                  )
+                  .join('')}
+              </div>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
+          <button id="eaPlSubmit" class="button primary" type="button">Завершить и определить уровень</button>
+        </div>
+        <div id="eaPlResult" class="ea-hidden" style="margin-top:14px;"></div>
+      `;
+
+      box.querySelectorAll('[data-pl-audio]').forEach((b) => b.addEventListener('click', () => speakEnglish(b.dataset.plAudio)));
+      box.querySelectorAll('[data-pl-q]').forEach((b) => {
+        b.addEventListener('click', () => {
+          const qid = b.dataset.plQ;
+          answers[qid] = b.dataset.plVal;
+          box.querySelectorAll(`[data-pl-q="${CSS.escape(qid)}"]`).forEach((x) => x.classList.toggle('selected', x === b));
+        });
+      });
+
+      el('eaPlCancel')?.addEventListener('click', async () => {
+        await apiCall('/placement/apply', { method: 'POST', body: JSON.stringify({ level: 'A0' }) });
+        document.querySelector('[data-ea-view="studio"]')?.click();
+        await loadEnglishAcademy();
+      });
+
+      el('eaPlSubmit')?.addEventListener('click', async () => {
+        const res = await apiCall('/placement/submit', { method: 'POST', body: JSON.stringify({ answers }) });
+        const r = res.result;
+        const rBox = el('eaPlResult');
+        if (!rBox) return;
+        rBox.classList.remove('ea-hidden');
+        rBox.innerHTML = `
+          <div class="ea-theory-card">
+            <div style="font-size:15px;margin-bottom:6px;">Рекомендуемый уровень: <strong>${esc(r.recommended_level)}</strong> (${r.score} из ${r.total})</div>
+            <div style="color:var(--ea-muted);margin-bottom:10px;">${esc(r.explanation)}</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button id="eaPlUseRec" class="button primary" type="button">Начать с уровня ${esc(r.recommended_level)}</button>
+              <button id="eaPlUseA0" class="button secondary" type="button">Пройти всё с A0</button>
+            </div>
+          </div>
+        `;
+        el('eaPlUseRec')?.addEventListener('click', async () => {
+          await apiCall('/placement/apply', { method: 'POST', body: JSON.stringify({ level: r.recommended_level }) });
+          store.currentLesson = null;
+          document.querySelector('[data-ea-view="studio"]')?.click();
+          await loadEnglishAcademy();
+        });
+        el('eaPlUseA0')?.addEventListener('click', async () => {
+          await apiCall('/placement/apply', { method: 'POST', body: JSON.stringify({ level: 'A0' }) });
+          store.currentLesson = null;
+          document.querySelector('[data-ea-view="studio"]')?.click();
+          await loadEnglishAcademy();
+        });
+      });
+    } catch {
+      box.innerHTML = `<div class="ea-feedback err">Не удалось загрузить входной тест. Попробуйте позже.</div>`;
+    }
   }
 
   window.loadEnglishAcademy = loadEnglishAcademy;

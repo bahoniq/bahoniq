@@ -11,6 +11,7 @@ import datetime as dt
 import json
 import os
 import re
+import shutil
 import threading
 from pathlib import Path
 from typing import Any
@@ -27,8 +28,32 @@ from .curriculum import (
 SCHEMA_VERSION = 2
 SKILLS = ("reading", "writing", "listening", "vocabulary", "grammar", "speaking")
 SRS_INTERVAL_DAYS = [0, 1, 3, 7, 14, 30]
+DEFAULT_PROFILE_ID = "default"
+_UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
 _STATE_LOCK = threading.RLock()
+_PROFILE_LOCKS: dict[str, threading.RLock] = {}
+
+
+def validate_profile_id(profile_id: str | None) -> str:
+    """Строгая проверка profile_id: только 'default' или UUID (защита от path traversal)."""
+    if profile_id is None:
+        return DEFAULT_PROFILE_ID
+    raw = str(profile_id).strip()
+    if not raw or raw == DEFAULT_PROFILE_ID:
+        return DEFAULT_PROFILE_ID
+    if not _UUID_RE.fullmatch(raw):
+        raise ValueError("Некорректный формат profile_id (ожидается UUID).")
+    return raw.lower()
+
+
+def _get_profile_lock(profile_id: str) -> threading.RLock:
+    with _STATE_LOCK:
+        lock = _PROFILE_LOCKS.get(profile_id)
+        if lock is None:
+            lock = threading.RLock()
+            _PROFILE_LOCKS[profile_id] = lock
+        return lock
 
 
 def default_storage_path() -> Path:
@@ -39,6 +64,24 @@ def default_storage_path() -> Path:
     web_data = Path(__file__).resolve().parents[2] / "data"
     web_data.mkdir(parents=True, exist_ok=True)
     return web_data / "english_academy_state.json"
+
+
+def get_profile_storage_path(profile_id: str | None = None, base_dir: Path | None = None) -> Path:
+    """Возвращает изолированный путь JSON-состояния профиля с защитой от path traversal."""
+    pid = validate_profile_id(profile_id)
+    legacy_path = default_storage_path() if base_dir is None else (base_dir / "english_academy_state.json")
+    profiles_dir = (legacy_path.parent / "english_academy_profiles").resolve()
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    target = (profiles_dir / f"{pid}.json").resolve()
+    if target.parent != profiles_dir:
+        raise ValueError("Недопустимый путь профиля.")
+    # Миграция старого одиночного файла в профиль default без удаления оригинала
+    if pid == DEFAULT_PROFILE_ID and not target.exists() and legacy_path.exists():
+        try:
+            shutil.copy2(legacy_path, target)
+        except Exception:
+            pass
+    return target
 
 
 def _utc_today_str() -> str:
@@ -56,6 +99,7 @@ def create_default_state() -> dict[str, Any]:
         "updated_at": _now_iso(),
         "current_level": "A0",
         "current_lesson_id": "a0-l1",
+        "placement_result": None,
         "streak_days": 0,
         "last_study_date": "",
         "study_seconds": 0,
@@ -211,12 +255,14 @@ def migrate_state(raw: Any) -> dict[str, Any]:
     return base
 
 
-def load_state(path: Path | None = None) -> dict[str, Any]:
-    target = path or default_storage_path()
-    with _STATE_LOCK:
+def load_state(path: Path | None = None, profile_id: str | None = None) -> dict[str, Any]:
+    pid = validate_profile_id(profile_id)
+    target = path or get_profile_storage_path(pid)
+    lock = _get_profile_lock(str(target))
+    with lock:
         if not target.exists():
             state = create_default_state()
-            save_state(state, target)
+            save_state(state, target, profile_id=pid)
             return state
         try:
             raw_text = target.read_text(encoding="utf-8")
@@ -230,13 +276,15 @@ def load_state(path: Path | None = None) -> dict[str, Any]:
             except Exception:
                 pass
             state = create_default_state()
-            save_state(state, target)
+            save_state(state, target, profile_id=pid)
             return state
 
 
-def save_state(state: dict[str, Any], path: Path | None = None) -> dict[str, Any]:
-    target = path or default_storage_path()
-    with _STATE_LOCK:
+def save_state(state: dict[str, Any], path: Path | None = None, profile_id: str | None = None) -> dict[str, Any]:
+    pid = validate_profile_id(profile_id)
+    target = path or get_profile_storage_path(pid)
+    lock = _get_profile_lock(str(target))
+    with lock:
         clean = migrate_state(state)
         target.parent.mkdir(parents=True, exist_ok=True)
         tmp = target.with_suffix(".tmp")
@@ -403,7 +451,7 @@ def check_exercise_answer(exercise: dict[str, Any], user_answer: Any, attempt: i
     else:
         feedback = f"Правильный ответ: «{expected_display}». {explanation}".strip()
 
-    return {
+    out = {
         "correct": is_correct,
         "attempt": attempt,
         "revealed": can_reveal,
@@ -412,6 +460,9 @@ def check_exercise_answer(exercise: dict[str, Any], user_answer: Any, attempt: i
         "expected": expected_display if can_reveal else None,
         "explanation": explanation if can_reveal else None,
     }
+    if ex_type in ("guided_writing", "free_writing"):
+        out["rubric"] = evaluate_writing_rubric(exercise, str(user_answer or ""))
+    return out
 
 
 def record_exercise_attempt(
@@ -794,6 +845,7 @@ def build_progress_report(state: dict[str, Any]) -> dict[str, Any]:
             "estimated_minutes": next_lesson.get("estimated_minutes", 15),
         },
         "recommendation": recommendation,
+        "placement_result": state.get("placement_result"),
         "history": list(reversed(state.get("history", [])[-20:])),
     }
 
@@ -812,3 +864,311 @@ def import_progress_bundle(payload: Any) -> dict[str, Any]:
         raise ValueError("Некорректный формат файла прогресса.")
     inner = payload.get("state") if isinstance(payload.get("state"), dict) else payload
     return migrate_state(inner)
+
+
+# ============================================================================
+# БЛОК 5. ВХОДНОЙ PLACEMENT TEST (ДЕТЕРМИНИРОВАННЫЙ, ОФЛАЙН)
+# ============================================================================
+
+PLACEMENT_QUESTIONS: list[dict[str, Any]] = [
+    {"id": "pl-1", "level": "A0", "skill": "vocabulary", "prompt": "Как переводится слово «book»?", "options": ["книга", "стол", "телефон", "улица"], "answer": "книга"},
+    {"id": "pl-2", "level": "A0", "skill": "grammar", "prompt": "Выберите верную связку: «She ___ a student.»", "options": ["is", "am", "are", "be"], "answer": "is"},
+    {"id": "pl-3", "level": "A0", "skill": "listening", "audio_text": "Hello! My name is Timur.", "prompt": "Прослушайте фразу. Как зовут говорящего?", "options": ["Тимур", "Айдар", "Дана", "Аскар"], "answer": "Тимур"},
+
+    {"id": "pl-4", "level": "A1", "skill": "grammar", "prompt": "Выберите верное отрицание: «He ___ drink coffee.»", "options": ["doesn't", "don't", "isn't", "not"], "answer": "doesn't"},
+    {"id": "pl-5", "level": "A1", "skill": "reading", "passage": "Every Monday Aidar has a meeting at 10 o'clock.", "prompt": "Во сколько у Айдара встреча по понедельникам?", "options": ["В 10 часов", "В 1 час дня", "В 9 часов", "Вечером"], "answer": "В 10 часов"},
+    {"id": "pl-6", "level": "A1", "skill": "vocabulary", "prompt": "Как спросить цену в магазине?", "options": ["How much is this?", "Where is money?", "What time is it?", "Who is this?"], "answer": "How much is this?"},
+
+    {"id": "pl-7", "level": "A2", "skill": "grammar", "prompt": "Исправьте вопрос в прошлом: «Did you ___ to the office yesterday?»", "options": ["go", "went", "going", "gone"], "answer": "go"},
+    {"id": "pl-8", "level": "A2", "skill": "grammar", "prompt": "Выберите правильный вежливый вопрос:", "options": ["Could you tell me where the bank is?", "Could you tell me where is the bank?", "Where bank is?", "Tell me where does bank?"], "answer": "Could you tell me where the bank is?"},
+    {"id": "pl-9", "level": "A2", "skill": "listening", "audio_text": "Tomorrow I am going to visit the clinic at nine AM.", "prompt": "Куда говорящий планирует пойти завтра в 9 утра?", "options": ["В клинику", "В аэропорт", "В магазин", "В банк"], "answer": "В клинику"},
+
+    {"id": "pl-10", "level": "B1", "skill": "grammar", "prompt": "Выберите 1-й тип условного предложения: «If it ___ tomorrow, we will stay inside.»", "options": ["rains", "will rain", "rained", "raining"], "answer": "rains"},
+    {"id": "pl-11", "level": "B2", "skill": "grammar", "prompt": "Выберите правильную инверсию: «Never ___ such a clear report.»", "options": ["have I read", "I have read", "did I readed", "had read I"], "answer": "have I read"},
+    {"id": "pl-12", "level": "B2", "skill": "reading", "passage": "Despite initial costs, automated checks account for a 40% drop in manual errors.", "prompt": "Какой эффект дали автоматические проверки?", "options": ["Снижение ручных ошибок на 40%", "Рост затрат на 40%", "Остановку проверок", "Замедление отчёта"], "answer": "Снижение ручных ошибок на 40%"},
+]
+
+
+def get_placement_test() -> list[dict[str, Any]]:
+    return [copy.deepcopy(q) for q in PLACEMENT_QUESTIONS]
+
+
+def evaluate_placement_test(answers: dict[str, Any], state: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Детерминированная адаптивная оценка уровня (A0–B2) без зависимости от ИИ."""
+    by_level: dict[str, dict[str, int]] = {
+        "A0": {"correct": 0, "total": 0},
+        "A1": {"correct": 0, "total": 0},
+        "A2": {"correct": 0, "total": 0},
+        "B1": {"correct": 0, "total": 0},
+        "B2": {"correct": 0, "total": 0},
+    }
+    total_correct = 0
+    for q in PLACEMENT_QUESTIONS:
+        lvl = q["level"]
+        by_level[lvl]["total"] += 1
+        ans = answers.get(q["id"])
+        if ans is not None and str(ans).strip().lower() == str(q["answer"]).strip().lower():
+            by_level[lvl]["correct"] += 1
+            total_correct += 1
+
+    recommended = "A0"
+    if by_level["A0"]["correct"] >= 2:
+        recommended = "A1"
+        if by_level["A1"]["correct"] >= 2:
+            recommended = "A2"
+            if by_level["A2"]["correct"] >= 2:
+                recommended = "B1"
+                if by_level["B1"]["correct"] >= 1 and by_level["B2"]["correct"] >= 2:
+                    recommended = "B2"
+
+    reasons = {
+        "A0": "Рекомендуем начать с самого старта A0: закрепим чтение, базовые звуки, местоимения и первые конструкции.",
+        "A1": "У вас уже есть базовое понимание слов и глагола be (A0 освоен). Оптимально начать с уровня A1.",
+        "A2": "Вы уверенно справляетесь с базой A0–A1. На уровне A2 перейдём к прошлым и будущим событиям, сравнениям и живому общению.",
+        "B1": "Базовая грамматика A0–A2 даётся вам легко. На уровне B1 сфокусируемся на сложных временах, переписке, отчётах и аргументации.",
+        "B2": "Отличный результат! У вас сильная база A0–B1. Можно переходить сразу к уровню B2: нюансы стиля, переговоры и аналитика.",
+    }
+    result = {
+        "recommended_level": recommended,
+        "score": total_correct,
+        "total": len(PLACEMENT_QUESTIONS),
+        "breakdown": by_level,
+        "explanation": reasons[recommended],
+        "completed_at": _now_iso(),
+    }
+    if state is not None:
+        state["placement_result"] = result
+    return result
+
+
+def apply_placement_level(state: dict[str, Any], chosen_level: str) -> dict[str, Any]:
+    """Открывает выбранный пользователем стартовый уровень (только после явного подтверждения)."""
+    lvl = str(chosen_level or "A0").upper()
+    if lvl not in LEVEL_ORDER:
+        lvl = "A0"
+    all_lessons = get_all_lessons_flat()
+    if lvl == "A0":
+        state["current_level"] = "A0"
+        state["current_lesson_id"] = "a0-l1"
+        return state
+
+    target_idx = LEVEL_ORDER.index(lvl)
+    first_target_id = next((l["id"] for l in all_lessons if l["level"] == lvl), "a0-l1")
+    for item in all_lessons:
+        if LEVEL_ORDER.index(item["level"]) < target_idx:
+            rec = state["lessons"].get(item["id"])
+            if not rec or not rec.get("passed"):
+                state["lessons"][item["id"]] = {
+                    "passed": True,
+                    "score": 80,
+                    "best_score": 80,
+                    "attempts": 1,
+                    "placement_skipped": True,
+                    "completed_at": _now_iso(),
+                }
+    state["current_level"] = lvl
+    state["current_lesson_id"] = first_target_id
+    return state
+
+
+# ============================================================================
+# БЛОК 6. СРАВНЕНИЕ ПРОИЗНОШЕНИЯ (SPEECH RECOGNITION)
+# ============================================================================
+
+def _norm_words(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9']+", (text or "").lower())
+
+
+def compare_pronunciation(reference_text: str, recognized_text: str) -> dict[str, Any]:
+    """Сравнивает распознанные слова с эталоном (не является фонетической экспертизой)."""
+    ref_words = _norm_words(reference_text)
+    rec_words = _norm_words(recognized_text)
+    if not ref_words:
+        return {
+            "match_percent": 0,
+            "matched_words": [],
+            "missing_words": [],
+            "extra_words": rec_words,
+            "disclaimer": "Автоматическое сравнение распознанных слов (не является профессиональной фонетической оценкой).",
+        }
+    rec_pool = list(rec_words)
+    matched: list[str] = []
+    missing: list[str] = []
+    for w in ref_words:
+        if w in rec_pool:
+            matched.append(w)
+            rec_pool.remove(w)
+        else:
+            missing.append(w)
+    pct = round((len(matched) / len(ref_words)) * 100)
+    return {
+        "match_percent": pct,
+        "matched_words": matched,
+        "missing_words": missing,
+        "extra_words": rec_pool,
+        "disclaimer": "Автоматическое сравнение распознанных слов (не является профессиональной фонетической оценкой).",
+    }
+
+
+# ============================================================================
+# БЛОК 7. СВОБОДНЫЙ ДИАЛОГ И ДЕТАЛЬНАЯ ПРОВЕРКА ПИСЬМА B1–B2
+# ============================================================================
+
+FREE_DIALOGUE_SCENARIOS: dict[str, dict[str, Any]] = {
+    "intro": {"title": "Знакомство и работа", "level": "A0", "prompt": "Hello! Nice to meet you. What is your name and what do you do?", "keywords": ["name", "i", "am", "work", "student", "manager", "engineer", "doctor"]},
+    "shop": {"title": "В магазине", "level": "A1", "prompt": "Good afternoon! Can I help you find something?", "keywords": ["how", "much", "card", "cash", "buy", "like", "please", "price"]},
+    "travel": {"title": "Поездка и отель", "level": "A1", "prompt": "Welcome to the hotel! Do you have a reservation?", "keywords": ["reservation", "yes", "name", "room", "night", "passport", "have"]},
+    "office": {"title": "Офис и задачи", "level": "A2", "prompt": "Hi! Are we ready for the morning update? What are you working on today?", "keywords": ["working", "report", "email", "meeting", "today", "finish", "project"]},
+    "call": {"title": "Рабочий звонок", "level": "A2", "prompt": "Hello, this is Dana from support speaking. How can I assist you?", "keywords": ["speaking", "call", "help", "problem", "issue", "please", "repeat", "when"]},
+    "meeting": {"title": "Созвон / Встреча", "level": "B1", "prompt": "Let's start the meeting. What is your opinion on the new timeline?", "keywords": ["opinion", "think", "agree", "however", "deadline", "week", "schedule", "suggest"]},
+    "negotiation": {"title": "Переговоры", "level": "B2", "prompt": "We would like a 15% discount on the annual plan. What can you offer?", "keywords": ["provided", "offer", "discount", "unless", "compromise", "contract", "annual", "terms"]},
+}
+
+
+def _record_dialogue_mistake(
+    state: dict[str, Any],
+    topic_id: str,
+    title: str,
+    user_answer: str,
+    expected_hint: str,
+    explanation: str,
+) -> None:
+    mistakes = state.setdefault("mistakes", [])
+    mid = f"free-dlg-{topic_id}"
+    existing = next((m for m in mistakes if m.get("id") == mid), None)
+    if existing:
+        existing["count"] = int(existing.get("count", 1)) + 1
+        existing["user_answer"] = str(user_answer or "")[:300]
+        existing["resolved"] = False
+        existing["updated_at"] = _now_iso()
+    else:
+        mistakes.append(
+            {
+                "id": mid,
+                "lesson_id": f"dlg-{topic_id}",
+                "exercise_id": mid,
+                "skill": "speaking",
+                "prompt": f"Свободный диалог: {title}",
+                "user_answer": str(user_answer or "")[:300],
+                "expected": expected_hint,
+                "explanation": explanation,
+                "count": 1,
+                "clean_streak": 0,
+                "resolved": False,
+                "updated_at": _now_iso(),
+            }
+        )
+
+
+def evaluate_free_dialogue_turn(
+    topic_id: str,
+    user_text: str,
+    state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Детерминированная офлайн-проверка свободной реплики в диалоге."""
+    scenario = FREE_DIALOGUE_SCENARIOS.get(topic_id, FREE_DIALOGUE_SCENARIOS["intro"])
+    clean = (user_text or "").strip()
+    words = _norm_words(clean)
+    has_cyr = bool(re.search(r"[а-яёА-ЯЁ]", clean))
+
+    if len(words) < 3 or has_cyr:
+        feedback = "Напишите полноценную реплику на английском (минимум 3 слова, без кириллицы)."
+        if state is not None:
+            _record_dialogue_mistake(
+                state,
+                topic_id,
+                scenario["title"],
+                user_text,
+                "Минимум 3 слова на английском по теме сценария",
+                feedback,
+            )
+            st = state.setdefault("skill_stats", {}).setdefault("speaking", {"correct": 0, "total": 0})
+            st["total"] += 1
+        return {"passed": False, "feedback": feedback, "next_prompt": scenario["prompt"]}
+
+    hits = [kw for kw in scenario["keywords"] if kw in words]
+    passed = len(hits) >= 1 or len(words) >= 6
+    if state is not None:
+        st = state.setdefault("skill_stats", {}).setdefault("speaking", {"correct": 0, "total": 0})
+        st["total"] += 1
+        if passed:
+            st["correct"] += 1
+            touch_study_activity(state, add_seconds=30)
+        else:
+            _record_dialogue_mistake(
+                state,
+                topic_id,
+                scenario["title"],
+                user_text,
+                f"Используйте лексику по теме ({', '.join(scenario['keywords'][:4])})",
+                "Реплика понятна, но не хватает слов по теме ситуации.",
+            )
+
+    feedback = (
+        f"Отлично! Естественная реплика по теме «{scenario['title']}» ({len(words)} сл.)."
+        if passed
+        else f"Попробуйте добавить ключевые слова по теме «{scenario['title']}» (например: {', '.join(scenario['keywords'][:4])})."
+    )
+    return {
+        "passed": passed,
+        "feedback": feedback,
+        "matched_keywords": hits,
+        "next_prompt": "Great! Can you add one more detail or question to continue the conversation?" if passed else scenario["prompt"],
+    }
+
+
+def evaluate_writing_rubric(exercise: dict[str, Any], user_text: str) -> dict[str, Any]:
+    """Детерминированная оценка письма по 5 критериям (0–20 каждый, итого 0–100)."""
+    clean = (user_text or "").strip()
+    words = _norm_words(clean)
+    has_cyr = bool(re.search(r"[а-яёА-ЯЁ]", clean))
+    min_words = int(exercise.get("min_words", 6))
+
+    if has_cyr or not words:
+        return {
+            "total_score": 0,
+            "task_completion": 0,
+            "grammar": 0,
+            "vocabulary": 0,
+            "structure": 0,
+            "coherence": 0,
+        }
+
+    req = [t.lower() for t in exercise.get("required_tokens", [])]
+    req_any = [t.lower() for t in exercise.get("required_any", [])]
+    len_ratio = min(1.0, len(words) / max(1, min_words))
+    token_ok = True
+    if req and not all(t in clean.lower() for t in req):
+        token_ok = False
+    if req_any and not any(t in clean.lower() for t in req_any):
+        token_ok = False
+    task_score = round(20 * len_ratio * (1.0 if token_ok else 0.55))
+
+    grammar_score = 12
+    if clean[0].isupper():
+        grammar_score += 4
+    if clean[-1] in ".!?":
+        grammar_score += 4
+
+    uniq_ratio = len(set(words)) / max(1, len(words))
+    vocab_score = min(20, round(10 + 10 * uniq_ratio))
+
+    sentences = [s for s in re.split(r"[.!?]+", clean) if s.strip()]
+    structure_score = 20 if len(sentences) >= 2 else 14
+
+    connectors = {
+        "because", "however", "therefore", "although", "despite", "first", "then",
+        "finally", "moreover", "furthermore", "result", "example", "provided", "while", "since",
+    }
+    conn_hits = sum(1 for c in connectors if c in words)
+    coherence_score = min(20, 12 + conn_hits * 4)
+
+    total = task_score + grammar_score + vocab_score + structure_score + coherence_score
+    return {
+        "total_score": total,
+        "task_completion": task_score,
+        "grammar": grammar_score,
+        "vocabulary": vocab_score,
+        "structure": structure_score,
+        "coherence": coherence_score,
+    }

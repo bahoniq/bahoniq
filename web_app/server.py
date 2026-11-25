@@ -545,8 +545,16 @@ async def academy_run(
     code: str = Form(...),
     stdin: str = Form(""),
 ):
-    if len(code) > 100_000:
+    is_public_render = bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"))
+    if is_public_render and not AUTH_PASSWORD:
+        raise HTTPException(
+            403,
+            "Выполнение кода отключено на публичном сервере, пока не задан BAHONIQ_PASSWORD.",
+        )
+    if len(code.encode("utf-8")) > 100_000:
         raise HTTPException(413, "Код превышает 100 КБ.")
+    if len(stdin.encode("utf-8")) > 20_000:
+        raise HTTPException(413, "Входные данные (stdin) превышают 20 КБ.")
     try:
         if language == "python":
             result = await run_in_threadpool(execute_python, code, stdin, 3, 50_000)

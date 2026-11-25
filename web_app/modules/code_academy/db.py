@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 import threading
 from datetime import datetime
@@ -19,8 +20,22 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 WEB_APP_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = WEB_APP_DIR / "data"
 DB_PATH = DATA_DIR / "academy.db"
+DEFAULT_PROFILE_ID = "default"
+_UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
 _db_lock = threading.Lock()
+
+
+def validate_profile_id(profile_id: str | None) -> str:
+    """Проверяет profile_id: допускает только 'default' (внутр.) или строгий UUID."""
+    if profile_id is None:
+        return DEFAULT_PROFILE_ID
+    raw = str(profile_id).strip()
+    if not raw or raw == DEFAULT_PROFILE_ID:
+        return DEFAULT_PROFILE_ID
+    if not _UUID_RE.fullmatch(raw):
+        raise ValueError("Некорректный идентификатор профиля (ожидается UUID).")
+    return raw.lower()
 
 
 def _get_conn() -> sqlite3.Connection:
@@ -231,14 +246,76 @@ def init_academy_db() -> None:
                 """
             )
 
+            # 3.1. Мультипрофильная таблица прогресса (profile_id + lesson_id)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS academy_profile_progress (
+                    profile_id TEXT NOT NULL,
+                    lesson_id INTEGER NOT NULL,
+                    completed INTEGER DEFAULT 0,
+                    current_step INTEGER DEFAULT 1,
+                    step1_answer TEXT DEFAULT '',
+                    step1_feedback TEXT DEFAULT '',
+                    step1_passed INTEGER DEFAULT 0,
+                    step2_code TEXT DEFAULT '',
+                    step2_passed INTEGER DEFAULT 0,
+                    user_code TEXT DEFAULT '',
+                    mentor_feedback TEXT DEFAULT '',
+                    quiz_score INTEGER DEFAULT 0,
+                    completed_at TEXT DEFAULT '',
+                    PRIMARY KEY (profile_id, lesson_id),
+                    FOREIGN KEY(lesson_id) REFERENCES academy_lessons(id)
+                );
+                """
+            )
+
+            # Миграция старого прогресса в профиль 'default' без удаления старой таблицы
+            has_default = conn.execute(
+                "SELECT 1 FROM academy_profile_progress WHERE profile_id = ? LIMIT 1",
+                (DEFAULT_PROFILE_ID,),
+            ).fetchone()
+            if not has_default:
+                legacy_cols = {
+                    row[1]
+                    for row in conn.execute("PRAGMA table_info(academy_progress)").fetchall()
+                }
+                if "lesson_id" in legacy_cols:
+                    def _col_expr(col: str, default_sql: str) -> str:
+                        return f"COALESCE({col}, {default_sql})" if col in legacy_cols else default_sql
+
+                    conn.execute(
+                        f"""
+                        INSERT OR IGNORE INTO academy_profile_progress (
+                            profile_id, lesson_id, completed, current_step, step1_answer,
+                            step1_feedback, step1_passed, step2_code, step2_passed,
+                            user_code, mentor_feedback, quiz_score, completed_at
+                        )
+                        SELECT ?, lesson_id,
+                               {_col_expr('completed', '0')},
+                               {_col_expr('current_step', '1')},
+                               {_col_expr('step1_answer', "''")},
+                               {_col_expr('step1_feedback', "''")},
+                               {_col_expr('step1_passed', '0')},
+                               {_col_expr('step2_code', "''")},
+                               {_col_expr('step2_passed', '0')},
+                               {_col_expr('user_code', "''")},
+                               {_col_expr('mentor_feedback', "''")},
+                               {_col_expr('quiz_score', '0')},
+                               {_col_expr('completed_at', "''")}
+                        FROM academy_progress;
+                        """,
+                        (DEFAULT_PROFILE_ID,),
+                    )
+
             conn.commit()
             LOGGER.info("База данных Academy успешно синхронизирована (60 уроков, 4 этапа).")
         finally:
             conn.close()
 
 
-def get_roadmap_data() -> dict[str, Any]:
-    """Возвращает общую структуру роадмапа: 4 этапа, 60 уроков и прогресс пользователя."""
+def get_roadmap_data(profile_id: str | None = None) -> dict[str, Any]:
+    """Возвращает общую структуру роадмапа: 4 этапа, 60 уроков и прогресс профиля."""
+    pid = validate_profile_id(profile_id)
     init_academy_db()
     conn = _get_conn()
     try:
@@ -255,9 +332,10 @@ def get_roadmap_data() -> dict[str, Any]:
                    COALESCE(p.step2_passed, 0) AS step2_passed,
                    COALESCE(p.quiz_score, 0) AS quiz_score
             FROM academy_lessons l
-            LEFT JOIN academy_progress p ON p.lesson_id = l.id
+            LEFT JOIN academy_profile_progress p ON p.lesson_id = l.id AND p.profile_id = ?
             ORDER BY l.stage_id ASC, l.order_index ASC
-            """
+            """,
+            (pid,),
         ).fetchall()
     finally:
         conn.close()
@@ -299,8 +377,9 @@ def get_roadmap_data() -> dict[str, Any]:
     }
 
 
-def get_lesson_by_id(lesson_id: int) -> dict[str, Any] | None:
-    """Возвращает урок со всеми микрошагами, вопросами теста и прогрессом."""
+def get_lesson_by_id(lesson_id: int, profile_id: str | None = None) -> dict[str, Any] | None:
+    """Возвращает урок со всеми микрошагами, вопросами теста и прогрессом профиля."""
+    pid = validate_profile_id(profile_id)
     init_academy_db()
     conn = _get_conn()
     try:
@@ -318,10 +397,10 @@ def get_lesson_by_id(lesson_id: int) -> dict[str, Any] | None:
                    COALESCE(p.mentor_feedback, '') AS mentor_feedback
             FROM academy_lessons l
             JOIN academy_stages s ON s.id = l.stage_id
-            LEFT JOIN academy_progress p ON p.lesson_id = l.id
+            LEFT JOIN academy_profile_progress p ON p.lesson_id = l.id AND p.profile_id = ?
             WHERE l.id = ?
             """,
-            (lesson_id,),
+            (pid, lesson_id),
         ).fetchone()
         if not row:
             return None
@@ -398,55 +477,58 @@ def update_lesson_ai_content(lesson_id: int, ai_data: dict[str, Any]) -> None:
             conn.close()
 
 
-def save_step1_result(lesson_id: int, answer: str, feedback: str, passed: bool) -> None:
+def save_step1_result(lesson_id: int, answer: str, feedback: str, passed: bool, profile_id: str | None = None) -> None:
     """Сохраняет ответ на Шаг 1 (чтение кода / ловушка) и переводит на Шаг 2 при успехе."""
+    pid = validate_profile_id(profile_id)
     init_academy_db()
     with _db_lock:
         conn = _get_conn()
         try:
             conn.execute(
                 """
-                INSERT INTO academy_progress (lesson_id, current_step, step1_answer, step1_passed, mentor_feedback)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(lesson_id) DO UPDATE SET
+                INSERT INTO academy_profile_progress (profile_id, lesson_id, current_step, step1_answer, step1_passed, mentor_feedback)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(profile_id, lesson_id) DO UPDATE SET
                     step1_answer = excluded.step1_answer,
-                    step1_passed = CASE WHEN ? = 1 THEN 1 ELSE academy_progress.step1_passed END,
-                    current_step = CASE WHEN ? = 1 THEN MAX(2, academy_progress.current_step) ELSE academy_progress.current_step END,
+                    step1_passed = CASE WHEN ? = 1 THEN 1 ELSE academy_profile_progress.step1_passed END,
+                    current_step = CASE WHEN ? = 1 THEN MAX(2, academy_profile_progress.current_step) ELSE academy_profile_progress.current_step END,
                     mentor_feedback = excluded.mentor_feedback;
                 """,
-                (lesson_id, 2 if passed else 1, answer, 1 if passed else 0, feedback, 1 if passed else 0, 1 if passed else 0),
+                (pid, lesson_id, 2 if passed else 1, answer, 1 if passed else 0, feedback, 1 if passed else 0, 1 if passed else 0),
             )
             conn.commit()
         finally:
             conn.close()
 
 
-def save_step2_result(lesson_id: int, code: str, feedback: str, passed: bool) -> None:
+def save_step2_result(lesson_id: int, code: str, feedback: str, passed: bool, profile_id: str | None = None) -> None:
     """Сохраняет код на Шаг 2 (практика) и открывает Финальный тест при успехе."""
+    pid = validate_profile_id(profile_id)
     init_academy_db()
     with _db_lock:
         conn = _get_conn()
         try:
             conn.execute(
                 """
-                INSERT INTO academy_progress (lesson_id, current_step, step2_code, step2_passed, user_code, mentor_feedback)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(lesson_id) DO UPDATE SET
+                INSERT INTO academy_profile_progress (profile_id, lesson_id, current_step, step2_code, step2_passed, user_code, mentor_feedback)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(profile_id, lesson_id) DO UPDATE SET
                     step2_code = excluded.step2_code,
                     user_code = excluded.user_code,
-                    step2_passed = CASE WHEN ? = 1 THEN 1 ELSE academy_progress.step2_passed END,
-                    current_step = CASE WHEN ? = 1 THEN MAX(3, academy_progress.current_step) ELSE academy_progress.current_step END,
+                    step2_passed = CASE WHEN ? = 1 THEN 1 ELSE academy_profile_progress.step2_passed END,
+                    current_step = CASE WHEN ? = 1 THEN MAX(3, academy_profile_progress.current_step) ELSE academy_profile_progress.current_step END,
                     mentor_feedback = excluded.mentor_feedback;
                 """,
-                (lesson_id, 3 if passed else 2, code, 1 if passed else 0, code, feedback, 1 if passed else 0, 1 if passed else 0),
+                (pid, lesson_id, 3 if passed else 2, code, 1 if passed else 0, code, feedback, 1 if passed else 0, 1 if passed else 0),
             )
             conn.commit()
         finally:
             conn.close()
 
 
-def save_quiz_result(lesson_id: int, score: int, passed: bool) -> None:
+def save_quiz_result(lesson_id: int, score: int, passed: bool, profile_id: str | None = None) -> None:
     """Сохраняет результат теста и отмечает весь урок пройденным."""
+    pid = validate_profile_id(profile_id)
     init_academy_db()
     now_iso = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with _db_lock:
@@ -454,14 +536,14 @@ def save_quiz_result(lesson_id: int, score: int, passed: bool) -> None:
         try:
             conn.execute(
                 """
-                INSERT INTO academy_progress (lesson_id, completed, current_step, quiz_score, completed_at)
-                VALUES (?, ?, 3, ?, ?)
-                ON CONFLICT(lesson_id) DO UPDATE SET
-                    quiz_score = MAX(excluded.quiz_score, academy_progress.quiz_score),
-                    completed = CASE WHEN ? = 1 THEN 1 ELSE academy_progress.completed END,
-                    completed_at = CASE WHEN ? = 1 THEN excluded.completed_at ELSE academy_progress.completed_at END;
+                INSERT INTO academy_profile_progress (profile_id, lesson_id, completed, current_step, quiz_score, completed_at)
+                VALUES (?, ?, ?, 3, ?, ?)
+                ON CONFLICT(profile_id, lesson_id) DO UPDATE SET
+                    quiz_score = MAX(excluded.quiz_score, academy_profile_progress.quiz_score),
+                    completed = CASE WHEN ? = 1 THEN 1 ELSE academy_profile_progress.completed END,
+                    completed_at = CASE WHEN ? = 1 THEN excluded.completed_at ELSE academy_profile_progress.completed_at END;
                 """,
-                (lesson_id, 1 if passed else 0, score, now_iso if passed else "", 1 if passed else 0, 1 if passed else 0),
+                (pid, lesson_id, 1 if passed else 0, score, now_iso if passed else "", 1 if passed else 0, 1 if passed else 0),
             )
             conn.commit()
         finally:
@@ -483,13 +565,14 @@ def save_lesson_theory(lesson_id: int, ai_theory: str) -> None:
             conn.close()
 
 
-def save_user_attempt(lesson_id: int, user_code: str, mentor_feedback: str, passed: bool) -> None:
+def save_user_attempt(lesson_id: int, user_code: str, mentor_feedback: str, passed: bool, profile_id: str | None = None) -> None:
     """Сохраняет классическую попытку кода (обратная совместимость)."""
-    save_step2_result(lesson_id, user_code, mentor_feedback, passed)
+    save_step2_result(lesson_id, user_code, mentor_feedback, passed, profile_id=profile_id)
 
 
-def get_conn_lessons_all() -> list[dict[str, Any]]:
+def get_conn_lessons_all(profile_id: str | None = None) -> list[dict[str, Any]]:
     """Возвращает полный список всех 60 уроков со всеми полями для PDF-книги."""
+    pid = validate_profile_id(profile_id)
     init_academy_db()
     conn = _get_conn()
     try:
@@ -501,17 +584,19 @@ def get_conn_lessons_all() -> list[dict[str, Any]]:
                    COALESCE(p.quiz_score, 0) AS quiz_score
             FROM academy_lessons l
             JOIN academy_stages s ON s.id = l.stage_id
-            LEFT JOIN academy_progress p ON p.lesson_id = l.id
+            LEFT JOIN academy_profile_progress p ON p.lesson_id = l.id AND p.profile_id = ?
             ORDER BY l.id ASC
-            """
+            """,
+            (pid,),
         ).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
 
 
-def mark_lesson_completed(lesson_id_or_stable: int | str, score: int = 5) -> dict[str, Any]:
+def mark_lesson_completed(lesson_id_or_stable: int | str, score: int = 5, profile_id: str | None = None) -> dict[str, Any]:
     """Отмечает урок пройденным по ID, stable_id или slug с сохранением в SQLite."""
+    pid = validate_profile_id(profile_id)
     init_academy_db()
     conn = _get_conn()
     now_iso = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -530,31 +615,32 @@ def mark_lesson_completed(lesson_id_or_stable: int | str, score: int = 5) -> dic
         with _db_lock:
             conn.execute(
                 """
-                INSERT INTO academy_progress (
-                    lesson_id, completed, current_step, quiz_score, completed_at, step1_passed, step2_passed
-                ) VALUES (?, 1, 3, ?, ?, 1, 1)
-                ON CONFLICT(lesson_id) DO UPDATE SET
+                INSERT INTO academy_profile_progress (
+                    profile_id, lesson_id, completed, current_step, quiz_score, completed_at, step1_passed, step2_passed
+                ) VALUES (?, ?, 1, 3, ?, ?, 1, 1)
+                ON CONFLICT(profile_id, lesson_id) DO UPDATE SET
                     completed = 1,
                     current_step = 3,
-                    quiz_score = MAX(excluded.quiz_score, academy_progress.quiz_score),
+                    quiz_score = MAX(excluded.quiz_score, academy_profile_progress.quiz_score),
                     step1_passed = 1,
                     step2_passed = 1,
-                    completed_at = CASE WHEN academy_progress.completed_at != '' THEN academy_progress.completed_at ELSE excluded.completed_at END;
+                    completed_at = CASE WHEN academy_profile_progress.completed_at != '' THEN academy_profile_progress.completed_at ELSE excluded.completed_at END;
                 """,
-                (lid, score, now_iso),
+                (pid, lid, score, now_iso),
             )
             conn.commit()
     finally:
         conn.close()
 
-    return {"success": True, "lesson_id": lid, "roadmap": get_roadmap_data()}
+    return {"success": True, "lesson_id": lid, "roadmap": get_roadmap_data(profile_id=pid)}
 
 
-def sync_completed_lessons(completed_ids: list[int | str]) -> dict[str, Any]:
+def sync_completed_lessons(completed_ids: list[int | str], profile_id: str | None = None) -> dict[str, Any]:
     """Синхронизирует набор пройденных уроков из localStorage клиента в SQLite."""
+    pid = validate_profile_id(profile_id)
     init_academy_db()
     if not completed_ids:
-        return {"success": True, "synced_count": 0, "roadmap": get_roadmap_data()}
+        return {"success": True, "synced_count": 0, "roadmap": get_roadmap_data(profile_id=pid)}
 
     conn = _get_conn()
     now_iso = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -575,21 +661,21 @@ def sync_completed_lessons(completed_ids: list[int | str]) -> dict[str, Any]:
 
                 conn.execute(
                     """
-                    INSERT INTO academy_progress (
-                        lesson_id, completed, current_step, quiz_score, completed_at, step1_passed, step2_passed
-                    ) VALUES (?, 1, 3, 5, ?, 1, 1)
-                    ON CONFLICT(lesson_id) DO UPDATE SET
+                    INSERT INTO academy_profile_progress (
+                        profile_id, lesson_id, completed, current_step, quiz_score, completed_at, step1_passed, step2_passed
+                    ) VALUES (?, ?, 1, 3, 5, ?, 1, 1)
+                    ON CONFLICT(profile_id, lesson_id) DO UPDATE SET
                         completed = 1,
                         current_step = 3,
                         step1_passed = 1,
                         step2_passed = 1,
-                        completed_at = CASE WHEN academy_progress.completed_at != '' THEN academy_progress.completed_at ELSE excluded.completed_at END;
+                        completed_at = CASE WHEN academy_profile_progress.completed_at != '' THEN academy_profile_progress.completed_at ELSE excluded.completed_at END;
                     """,
-                    (lid, now_iso),
+                    (pid, lid, now_iso),
                 )
                 synced += 1
             conn.commit()
     finally:
         conn.close()
 
-    return {"success": True, "synced_count": synced, "roadmap": get_roadmap_data()}
+    return {"success": True, "synced_count": synced, "roadmap": get_roadmap_data(profile_id=pid)}

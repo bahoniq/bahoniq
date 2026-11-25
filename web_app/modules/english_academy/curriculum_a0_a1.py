@@ -1089,3 +1089,35 @@ LEVEL_A1 = {
         }
     ]
 }
+
+
+def _attach_extra_sections(level_dict: dict, extra_lessons: list[dict], sec_id: str, sec_title: str, sec_desc: str) -> None:
+    last_sec = level_dict["sections"][-1]
+    exam_item = last_sec["lessons"].pop()
+    level_dict["sections"].append(
+        {
+            "id": sec_id,
+            "title": sec_title,
+            "description": sec_desc,
+            "lessons": [*extra_lessons, exam_item],
+        }
+    )
+
+
+from .curriculum_a0_extra import A0_EXTRA_LESSONS as _A0_EXTRA
+from .curriculum_a1_extra import A1_EXTRA_LESSONS as _A1_EXTRA
+
+_attach_extra_sections(
+    LEVEL_A0,
+    _A0_EXTRA,
+    "a0-sec-3",
+    "Раздел 3. Числа, время, семья, цвета и базовое общение",
+    "Уверенная база для повседневных ситуаций и итогового экзамена A0.",
+)
+_attach_extra_sections(
+    LEVEL_A1,
+    _A1_EXTRA,
+    "a1-sec-2",
+    "Раздел 2. Времена A1, модальные глаголы и жизненные ситуации",
+    "Покупки, поездки, здоровье, работа и короткие письма.",
+)

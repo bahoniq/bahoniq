@@ -1,3 +1,4 @@
+# [LEGACY MODULE] Не используется в веб-версии BahonIQ Work Center (сохранено для обратной совместимости).
 """Deep project-based course embedded in each studio, no arbitrary Python execution."""
 import json
 from pathlib import Path

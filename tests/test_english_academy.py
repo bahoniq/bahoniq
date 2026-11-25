@@ -218,6 +218,77 @@ class EnglishAcademyTests(unittest.TestCase):
         self.assertIn("progress", payload)
         self.assertEqual(len(payload["curriculum"]["levels"]), 5)
 
+        # Защита от невалидного profile_id
+        r_bad = client.get("/api/english-academy/bootstrap", headers={"X-Profile-Id": "../bad"})
+        self.assertEqual(r_bad.status_code, 400)
+
+    def test_expanded_curriculum_counts_and_min_exercises(self):
+        """Проверка минимального количества уроков по уровням и >=5 упражнений в новых уроках."""
+        from web_app.modules.english_academy.curriculum import LEVELS
+        expected_mins = {"A0": 15, "A1": 18, "A2": 20, "B1": 20, "B2": 20}
+        for lv in LEVELS:
+            items = [l for s in lv["sections"] for l in s["lessons"]]
+            lessons = [l for l in items if l["kind"] == "lesson"]
+            exams = [l for l in items if l["kind"] == "exam"]
+            self.assertGreaterEqual(len(lessons), expected_mins[lv["code"]])
+            self.assertGreaterEqual(len(exams), 1)
+            for les in lessons:
+                if les["id"].startswith(("a0-l6", "a0-l7", "a0-l8", "a0-l9", "a0-l1", "a1-l4", "a1-l5", "a1-l6", "a2-l4", "b1-l3", "b2-l3")):
+                    self.assertGreaterEqual(len(les["exercises"]), 5, f"Мало упражнений в {les['id']}")
+
+    def test_placement_pronunciation_free_dialogue_writing_and_profiles(self):
+        from web_app.modules.english_academy.engine import (
+            apply_placement_level,
+            compare_pronunciation,
+            evaluate_free_dialogue_turn,
+            evaluate_placement_test,
+            evaluate_writing_rubric,
+            get_placement_test,
+            get_profile_storage_path,
+            validate_profile_id,
+        )
+
+        # 1. Placement test
+        qs = get_placement_test()
+        self.assertGreaterEqual(len(qs), 10)
+        st = create_default_state()
+        ans = {q["id"]: q["answer"] for q in qs if q["level"] in ("A0", "A1")}
+        pl_res = evaluate_placement_test(ans, state=st)
+        self.assertEqual(pl_res["recommended_level"], "A2")
+        self.assertFalse(build_progress_report(st)["unlock_map"].get("a2-l1", False))
+        apply_placement_level(st, "A2")
+        self.assertTrue(build_progress_report(st)["unlock_map"].get("a2-l1", False))
+
+        # 2. Сравнение произношения
+        cmp = compare_pronunciation("Hello my name is Anna", "hello name is")
+        self.assertEqual(cmp["match_percent"], 60)
+        self.assertIn("my", cmp["missing_words"])
+
+        # 3. Свободный диалог
+        dlg_ok = evaluate_free_dialogue_turn("office", "Today I am working on the project report.", state=st)
+        self.assertTrue(dlg_ok["passed"])
+        dlg_bad = evaluate_free_dialogue_turn("office", "Привет", state=st)
+        self.assertFalse(dlg_bad["passed"])
+
+        # 4. 5-критериальная оценка письма
+        rb = evaluate_writing_rubric(
+            {"min_words": 8, "required_any": ["however", "recommend"]},
+            "Sales grew by 10%. However, we need more tests. Therefore, I recommend waiting.",
+        )
+        for key in ("task_completion", "grammar", "vocabulary", "structure", "coherence", "total_score"):
+            self.assertIn(key, rb)
+            self.assertGreater(rb[key], 0)
+
+        # 5. Раздельный профиль и защита от path traversal
+        p1 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        p2 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        with tempfile.TemporaryDirectory() as tmp:
+            path1 = get_profile_storage_path(p1, base_dir=Path(tmp))
+            path2 = get_profile_storage_path(p2, base_dir=Path(tmp))
+            self.assertNotEqual(path1, path2)
+        with self.assertRaises(ValueError):
+            validate_profile_id("../secret")
+
 
 if __name__ == "__main__":
     unittest.main()

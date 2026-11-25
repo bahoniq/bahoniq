@@ -11,7 +11,9 @@
   --ea-bg-soft: rgba(0, 229, 255, 0.08);
   --ea-bg-card: rgba(13, 25, 43, 0.72);
   --ea-text: #f1f5f9;
-  --ea-muted: #94a3b8;
+  --ea-muted: #a3b3c9;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 body.theme-day .english-academy {
@@ -465,6 +467,32 @@ body.theme-indigo .english-academy {
   background: rgba(148, 163, 184, 0.14);
   border-color: rgba(148, 163, 184, 0.32);
   color: #cbd5e1;
+}
+
+.english-academy .acad-lessons-list {
+  max-height: 540px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.ea-skeleton-box {
+  padding: 20px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed var(--ea-border);
+  color: var(--ea-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.ea-rubric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12.5px;
 }
 
 .ea-side-dict-controls {

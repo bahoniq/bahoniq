@@ -1,6 +1,36 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 let analyticsSession=null, excelSession=null, operationHistory=[];
 
+window.bahoniqGetProfileId = function bahoniqGetProfileId() {
+  const key = 'bahoniq_profile_id';
+  try {
+    let pid = localStorage.getItem(key);
+    if (pid && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pid)) {
+      return pid.toLowerCase();
+    }
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      pid = window.crypto.randomUUID();
+    } else {
+      pid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    }
+    localStorage.setItem(key, pid);
+    return pid;
+  } catch {
+    return '';
+  }
+};
+
+function academyFetch(url, options = {}) {
+  const pid = window.bahoniqGetProfileId();
+  const headers = { ...(options.headers || {}) };
+  if (pid) headers['X-Profile-Id'] = pid;
+  return fetch(url, { ...options, headers });
+}
+
 // Web Splash Screen Fade-Out
 window.addEventListener('DOMContentLoaded', () => {
   const splash = $('#webSplash');
@@ -2359,7 +2389,7 @@ convertForm?.addEventListener('submit', async e => {
     } catch {}
 
     // Фоновая синхронизация с сервером
-    fetch('/api/academy/progress/sync', {
+    academyFetch('/api/academy/progress/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ completed_ids: [...completedLessonsSet] }),
@@ -2548,7 +2578,7 @@ convertForm?.addEventListener('submit', async e => {
         force_refresh: Boolean(forceRefresh),
       };
 
-      const res = await fetch('/api/academy/start-lesson', {
+      const res = await academyFetch('/api/academy/start-lesson', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -2567,7 +2597,7 @@ convertForm?.addEventListener('submit', async e => {
     } catch (err) {
       console.error('Ошибка открытия урока:', err);
       try {
-        const fallbackRes = await fetch(`/api/academy/lesson/${lessonId}`);
+        const fallbackRes = await academyFetch(`/api/academy/lesson/${lessonId}`);
         if (fallbackRes.ok) {
           currentLesson = await fallbackRes.json();
           if (isLessonCompleted(currentLesson)) {
@@ -2797,7 +2827,7 @@ convertForm?.addEventListener('submit', async e => {
       submitStep1Btn.innerHTML = '<span>Проверка ИИ...</span>';
 
       try {
-        const res = await fetch('/api/academy/step1/evaluate', {
+        const res = await academyFetch('/api/academy/step1/evaluate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2833,7 +2863,7 @@ convertForm?.addEventListener('submit', async e => {
       runCodeBtn.disabled = true;
       runCodeBtn.textContent = 'Запуск...';
       try {
-        const res = await fetch('/api/academy/step2/evaluate', {
+        const res = await academyFetch('/api/academy/step2/evaluate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2864,7 +2894,7 @@ convertForm?.addEventListener('submit', async e => {
       submitStep2Btn.innerHTML = '<span>ИИ проверяет код...</span>';
 
       try {
-        const res = await fetch('/api/academy/step2/evaluate', {
+        const res = await academyFetch('/api/academy/step2/evaluate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2966,7 +2996,7 @@ convertForm?.addEventListener('submit', async e => {
       submitQuizBtn.textContent = 'Проверка теста...';
 
       try {
-        const res = await fetch('/api/academy/quiz/submit', {
+        const res = await academyFetch('/api/academy/quiz/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3021,7 +3051,7 @@ convertForm?.addEventListener('submit', async e => {
           } catch {}
 
           // Синхронизируем с сервером
-          fetch('/api/academy/progress/sync', {
+          academyFetch('/api/academy/progress/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ completed_ids: [...completedLessonsSet] }),
@@ -3075,7 +3105,7 @@ convertForm?.addEventListener('submit', async e => {
       exportPdfBtn.disabled = true;
       exportPdfBtn.innerHTML = '<span>Сборка книги...</span>';
       try {
-        const res = await fetch('/api/academy/export-pdf', { method: 'POST' });
+        const res = await academyFetch('/api/academy/export-pdf', { method: 'POST' });
         if (!res.ok) throw new Error('Ошибка сборки PDF');
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
@@ -3105,7 +3135,7 @@ convertForm?.addEventListener('submit', async e => {
       }
       try {
         localStorage.setItem(ACADEMY_STORAGE_KEY, JSON.stringify([...completedLessonsSet]));
-        const res = await fetch('/api/academy/progress/sync', {
+        const res = await academyFetch('/api/academy/progress/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ completed_ids: [...completedLessonsSet] }),
@@ -3129,7 +3159,7 @@ convertForm?.addEventListener('submit', async e => {
       if (currentLesson.stable_id) completedLessonsSet.add(currentLesson.stable_id);
       try {
         localStorage.setItem(ACADEMY_STORAGE_KEY, JSON.stringify([...completedLessonsSet]));
-        const res = await fetch('/api/academy/progress/mark', {
+        const res = await academyFetch('/api/academy/progress/mark', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ lesson_id: currentLesson.id }),
@@ -3245,7 +3275,7 @@ convertForm?.addEventListener('submit', async e => {
     }
 
     try {
-      const res = await fetch('/api/academy/mentor-ask', {
+      const res = await academyFetch('/api/academy/mentor-ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3312,7 +3342,7 @@ convertForm?.addEventListener('submit', async e => {
   async function initAcademyPlatform() {
     try {
       migrateAndLoadAcademyProgress();
-      const res = await fetch('/api/academy/roadmap');
+      const res = await academyFetch('/api/academy/roadmap');
       if (!res.ok) throw new Error('Ошибка загрузки карты курса');
       roadmapData = await res.json();
       renderRoadmapUI();

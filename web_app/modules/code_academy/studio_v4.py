@@ -1,3 +1,4 @@
+# [LEGACY MODULE] Не используется в веб-версии BahonIQ Work Center (сохранено для обратной совместимости).
 """Unified progressive course and encyclopedia: one lesson, one editor, one clear path."""
 import tkinter as tk
 from tkinter import ttk

@@ -1,41 +1,73 @@
 """One real-Python process lifecycle for studio runs and lesson tests.
 
-Temporary working directory and policy checks limit accidental effects; these
-are not an OS security sandbox. Only run the learner's own trusted code.
+ВАЖНО: Temporary working directory, минимальный env и AST-проверка ограничивают
+случайные побочные эффекты, но НЕ являются полноценной системной песочницей ОС.
 """
 from pathlib import Path
 import os
 import queue
+import re
 import subprocess
 import sys
 import tempfile
 import threading
 import time
 
+_MAX_CONCURRENT_RUNS = 4
+_CONCURRENCY_SEM = threading.BoundedSemaphore(_MAX_CONCURRENT_RUNS)
+_PROJECT_ROOT = str(Path(__file__).resolve().parents[3])
+
+
+def _sanitize_traceback(text: str, temp_dir: str) -> str:
+    """Убирает абсолютные серверные пути из traceback и stderr."""
+    if not text:
+        return ""
+    cleaned = text.replace(temp_dir, "").replace(temp_dir.replace("\\", "/"), "")
+    cleaned = cleaned.replace(_PROJECT_ROOT, "<workspace>").replace(_PROJECT_ROOT.replace("\\", "/"), "<workspace>")
+    cleaned = re.sub(r'(?i)[a-z]:\\[^\s"\']+[\\/](main\.py)', r'\1', cleaned)
+    cleaned = re.sub(r'(?i)(?:/opt|/app|/home|/tmp|/var)/[^\s"\']+/(main\.py)', r'\1', cleaned)
+    cleaned = re.sub(r'(?i)[a-z]:\\Users\\[^\\/\s"\']+', r'<user>', cleaned)
+    return cleaned
+
 
 class RunningPython:
     def __init__(self, code, stdin='', interactive=False, timeout=10, max_output=50_000):
         from .pro_engine import validate_python_policy
-        validate_python_policy(code)
+        validate_python_policy(code, stdin=stdin)
+        if not _CONCURRENCY_SEM.acquire(timeout=5):
+            raise RuntimeError('Слишком много одновременных запусков Python. Повторите через секунду.')
+        self._sem_released = False
         self.events = queue.Queue()
         self.stdout = ''; self.stderr = ''; self.returncode = None
         self.reason = ''; self.max_output = max_output
         self._lock = threading.Lock(); self._done = threading.Event()
-        self._directory = tempfile.TemporaryDirectory(prefix='bahoniq_python_')
-        path = Path(self._directory.name) / 'main.py'
-        path.write_text(code, encoding='utf-8')
-        env = os.environ.copy()
-        env.update(PYTHONIOENCODING='utf-8', PYTHONUTF8='1')
-        self.started = time.monotonic()
         try:
+            self._directory = tempfile.TemporaryDirectory(prefix='bahoniq_python_')
+            self._temp_dir = self._directory.name
+            path = Path(self._temp_dir) / 'main.py'
+            path.write_text(code, encoding='utf-8')
+            # Минимальное безопасное окружение без секретов (.env / API-ключей)
+            env = {
+                'PYTHONIOENCODING': 'utf-8',
+                'PYTHONUTF8': '1',
+                'PATH': os.environ.get('PATH', ''),
+            }
+            if os.name == 'nt' and 'SYSTEMROOT' in os.environ:
+                env['SYSTEMROOT'] = os.environ['SYSTEMROOT']
+            self.started = time.monotonic()
             # -I ignores PYTHON* environment variables. Force UTF-8 by command
             # line too, so Windows pipes cannot fall back to the ANSI codepage.
             self.process = subprocess.Popen([sys.executable, '-I', '-X', 'utf8', '-u', '-B', str(path)],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                text=True, encoding='utf-8', errors='replace', cwd=self._directory.name,
+                text=True, encoding='utf-8', errors='replace', cwd=self._temp_dir,
                 env=env, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         except Exception:
-            self._directory.cleanup(); raise
+            if hasattr(self, '_directory'):
+                self._directory.cleanup()
+            if not self._sem_released:
+                self._sem_released = True
+                _CONCURRENCY_SEM.release()
+            raise
         self._readers = []
         for stream in ('stdout','stderr'):
             thread = threading.Thread(target=self._read, args=(stream,), daemon=True)
@@ -65,13 +97,21 @@ class RunningPython:
             self.process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             self.stop('Превышен лимит времени выполнения')
-            self.process.wait()
+            try:
+                self.process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
         finally:
             self.close_input()
             for thread in self._readers: thread.join(timeout=2)
+            with self._lock:
+                self.stderr = _sanitize_traceback(self.stderr, self._temp_dir)
             self.returncode = self.process.returncode
             self.duration_ms = int((time.monotonic()-self.started)*1000)
             self._directory.cleanup()
+            if not self._sem_released:
+                self._sem_released = True
+                _CONCURRENCY_SEM.release()
             self._done.set(); self.events.put(('done', self.returncode))
 
     def send_input(self, text):

@@ -1,3 +1,4 @@
+# [LEGACY MODULE] Не используется в веб-версии BahonIQ Work Center (сохранено для обратной совместимости).
 """Structured, independently tracked practice paths for Code Academy 4.0."""
 from dataclasses import dataclass
 

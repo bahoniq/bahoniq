@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from typing import Any
 
@@ -23,6 +24,7 @@ from ..modules.code_academy.db import (
     save_user_attempt,
     sync_completed_lessons,
     update_lesson_ai_content,
+    validate_profile_id,
 )
 from ..modules.code_academy.pathway import run_sql
 from ..modules.code_academy.pdf_book_generator import build_academy_pdf_book
@@ -41,11 +43,35 @@ async def _parse_body(request: Request) -> dict[str, Any]:
     return dict(form)
 
 
+def _extract_profile_id(request: Request, body: dict[str, Any] | None = None) -> str:
+    raw = request.headers.get("X-Profile-Id") or request.query_params.get("profile_id")
+    if not raw and isinstance(body, dict):
+        raw = body.get("profile_id")
+    try:
+        return validate_profile_id(raw)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+def _ensure_code_exec_allowed() -> None:
+    is_public_render = bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"))
+    has_password = bool(os.getenv("BAHONIQ_PASSWORD", "").strip())
+    if is_public_render and not has_password:
+        raise HTTPException(
+            403,
+            "Выполнение кода отключено на публичном сервере, пока не задан BAHONIQ_PASSWORD.",
+        )
+
+
 def _execute_lesson_code(language: str, code: str, stdin: str = "") -> dict[str, Any]:
     """Запускает Python-код или SQL-запрос в изолированной учебной среде."""
     clean_code = (code or "").strip()
     if not clean_code:
         return {"stdout": "", "stderr": "Код пуст. Напишите решение в редакторе.", "returncode": 1}
+    if len(clean_code.encode("utf-8")) > 100_000:
+        return {"stdout": "", "stderr": "Код превышает учебный лимит 100 КБ.", "returncode": 1}
+    if len((stdin or "").encode("utf-8")) > 20_000:
+        return {"stdout": "", "stderr": "Входные данные (stdin) превышают лимит 20 КБ.", "returncode": 1}
 
     try:
         if language == "sql":
@@ -57,9 +83,12 @@ def _execute_lesson_code(language: str, code: str, stdin: str = "") -> dict[str,
                 "returncode": 1 if is_err else 0,
             }
         res = execute_python(clean_code, stdin=stdin, timeout=4, max_output=50_000)
+        stderr_out = (res.stderr or "").strip()
+        if getattr(res, "reason", ""):
+            stderr_out = (stderr_out + "\n" + res.reason).strip() if stderr_out else res.reason
         return {
             "stdout": res.stdout or "",
-            "stderr": res.stderr or "",
+            "stderr": stderr_out,
             "returncode": res.returncode if res.returncode is not None else 0,
         }
     except Exception as exc:
@@ -317,15 +346,17 @@ def _evaluate_step2_sync(
 # ============================================================================
 
 @router.get("/roadmap")
-async def academy_roadmap_get():
-    """Возвращает дорожную карту всех 4 этапов, 60 уроков и общий прогресс."""
-    return await run_in_threadpool(get_roadmap_data)
+async def academy_roadmap_get(request: Request):
+    """Возвращает дорожную карту всех 4 этапов, 60 уроков и общий прогресс профиля."""
+    pid = _extract_profile_id(request)
+    return await run_in_threadpool(get_roadmap_data, pid)
 
 
 @router.get("/lesson/{lesson_id}")
-async def academy_lesson_get(lesson_id: int):
+async def academy_lesson_get(lesson_id: int, request: Request):
     """Возвращает урок с микрошагами 1 и 2, вопросами теста и кодом проекта."""
-    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
+    pid = _extract_profile_id(request)
+    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id, pid)
     if not lesson:
         raise HTTPException(404, "Урок не найден.")
     return lesson
@@ -335,6 +366,7 @@ async def academy_lesson_get(lesson_id: int):
 async def academy_start_lesson_post(request: Request):
     """Старт урока: генерация уникального объяснения и задачи от Gemini Flash в реальном времени с кэшированием в SQLite."""
     body = await _parse_body(request)
+    pid = _extract_profile_id(request, body)
     lesson_id = int(body.get("lesson_id") or 1)
     force_refresh = bool(body.get("force_refresh", False))
     stage_id = int(body.get("stage_id") or 1)
@@ -342,7 +374,7 @@ async def academy_start_lesson_post(request: Request):
     lesson_title = str(body.get("lesson_title") or "").strip()
     lesson_summary = str(body.get("lesson_summary") or "").strip()
 
-    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
+    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id, pid)
     if not lesson:
         raise HTTPException(404, "Урок не найден.")
 
@@ -371,7 +403,7 @@ async def academy_start_lesson_post(request: Request):
 
     if ai_content:
         await run_in_threadpool(update_lesson_ai_content, lesson_id, ai_content)
-        refreshed = await run_in_threadpool(get_lesson_by_id, lesson_id)
+        refreshed = await run_in_threadpool(get_lesson_by_id, lesson_id, pid)
         if refreshed:
             lesson = refreshed
 
@@ -383,10 +415,11 @@ async def academy_start_lesson_post(request: Request):
 async def academy_step1_eval_post(request: Request):
     """Проверка микрошага 1: чтение кода («Поймай ловушку») с живым разбором Gemini Flash."""
     body = await _parse_body(request)
+    pid = _extract_profile_id(request, body)
     lesson_id = int(body.get("lesson_id") or 1)
     answer = str(body.get("answer") or "").strip()
 
-    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
+    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id, pid)
     if not lesson:
         raise HTTPException(404, "Урок не найден.")
 
@@ -397,10 +430,11 @@ async def academy_step1_eval_post(request: Request):
         answer,
         eval_res["feedback"],
         eval_res["passed"],
+        pid,
     )
 
-    roadmap = await run_in_threadpool(get_roadmap_data)
-    updated_lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
+    roadmap = await run_in_threadpool(get_roadmap_data, pid)
+    updated_lesson = await run_in_threadpool(get_lesson_by_id, lesson_id, pid)
 
     return {
         "lesson_id": lesson_id,
@@ -417,12 +451,14 @@ async def academy_step1_eval_post(request: Request):
 @router.post("/check")
 async def academy_step2_eval_post(request: Request):
     """Проверка микрошага 2: написание кода (запуск + разбор ошибок под микроскопом)."""
+    _ensure_code_exec_allowed()
     body = await _parse_body(request)
+    pid = _extract_profile_id(request, body)
     lesson_id = int(body.get("lesson_id") or 1)
     user_code = str(body.get("code") or "")
     stdin_str = str(body.get("stdin") or "")
 
-    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
+    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id, pid)
     if not lesson:
         raise HTTPException(404, "Урок не найден.")
 
@@ -445,10 +481,11 @@ async def academy_step2_eval_post(request: Request):
         user_code,
         eval_res["feedback"],
         eval_res["passed"],
+        pid,
     )
 
-    roadmap = await run_in_threadpool(get_roadmap_data)
-    updated_lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
+    roadmap = await run_in_threadpool(get_roadmap_data, pid)
+    updated_lesson = await run_in_threadpool(get_lesson_by_id, lesson_id, pid)
 
     return {
         "lesson_id": lesson_id,
@@ -468,10 +505,11 @@ async def academy_step2_eval_post(request: Request):
 async def academy_quiz_submit_post(request: Request):
     """Проверка ответов интерактивного теста из 5 вопросов и зачёт урока."""
     body = await _parse_body(request)
+    pid = _extract_profile_id(request, body)
     lesson_id = int(body.get("lesson_id") or 1)
     answers = body.get("answers") or {}  # формат {"0": 1, "1": 0, ...}
 
-    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
+    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id, pid)
     if not lesson:
         raise HTTPException(404, "Урок не найден.")
 
@@ -507,8 +545,8 @@ async def academy_quiz_submit_post(request: Request):
 
         # Тест засчитывается при результате 4 из 5 или 5 из 5 (>= 80%)
         passed = score >= 4
-        await run_in_threadpool(save_quiz_result, lesson_id, score, passed)
-        roadmap = await run_in_threadpool(get_roadmap_data)
+        await run_in_threadpool(save_quiz_result, lesson_id, score, passed, pid)
+        roadmap = await run_in_threadpool(get_roadmap_data, pid)
         stable_id = lesson.get("stable_id") or f"python_{lesson_id:02d}_{lesson.get('slug', '').replace('-', '_')}"
 
         return {
@@ -535,13 +573,14 @@ async def academy_progress_sync_post(request: Request):
     и фиксирует их в SQLite БД, возвращая актуальный роадмап.
     """
     body = await _parse_body(request)
+    pid = _extract_profile_id(request, body)
     completed_ids = body.get("completed_ids") or []
     if isinstance(completed_ids, str):
         try:
             completed_ids = json.loads(completed_ids)
         except Exception:
             completed_ids = [completed_ids]
-    res = await run_in_threadpool(sync_completed_lessons, completed_ids)
+    res = await run_in_threadpool(sync_completed_lessons, completed_ids, pid)
     return res
 
 
@@ -552,10 +591,11 @@ async def academy_progress_mark_post(request: Request):
     (ручное восстановление прогресса по ID или stable_id).
     """
     body = await _parse_body(request)
+    pid = _extract_profile_id(request, body)
     lesson_id = body.get("lesson_id") or body.get("id") or body.get("stable_id")
     if not lesson_id:
         raise HTTPException(400, "Параметр lesson_id обязателен.")
-    res = await run_in_threadpool(mark_lesson_completed, lesson_id)
+    res = await run_in_threadpool(mark_lesson_completed, lesson_id, 5, pid)
     return res
 
 
@@ -563,6 +603,7 @@ async def academy_progress_mark_post(request: Request):
 async def academy_mentor_ask_post(request: Request):
     """Живой диалог со свободным ИИ-тренером Code Academy (любые вопросы по программированию и текущему уроку)."""
     body = await _parse_body(request)
+    pid = _extract_profile_id(request, body)
     lesson_id = int(body.get("lesson_id") or 1)
     question = str(body.get("question") or "").strip()
     current_code = str(body.get("code") or "").strip()
@@ -575,7 +616,7 @@ async def academy_mentor_ask_post(request: Request):
     if not question:
         raise HTTPException(400, "Введите вопрос для ИИ-тренера.")
 
-    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id)
+    lesson = await run_in_threadpool(get_lesson_by_id, lesson_id, pid)
     lesson_ctx = ""
     if lesson:
         stage_title = lesson.get("stage_title") or f"Этап {lesson.get('stage_id', 1)}"

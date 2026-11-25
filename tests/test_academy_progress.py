@@ -93,6 +93,65 @@ class TestAcademyProgress(unittest.TestCase):
         l2 = get_lesson_by_id(2)
         self.assertTrue(l2["completed"])
 
+    def test_profile_isolation_and_uuid_validation(self):
+        """Прогресс разных profile_id полностью изолирован, а невалидные ID отклоняются."""
+        from web_app.modules.code_academy.db import save_quiz_result, validate_profile_id
+        p1 = "11111111-1111-4111-8111-111111111111"
+        p2 = "22222222-2222-4222-8222-222222222222"
+
+        save_quiz_result(1, 5, True, profile_id=p1)
+        r1 = get_roadmap_data(profile_id=p1)
+        r2 = get_roadmap_data(profile_id=p2)
+        self.assertGreaterEqual(r1["completed_lessons"], 1)
+        self.assertEqual(r2["completed_lessons"], 0)
+
+        for bad in ("../etc/passwd", "1; DROP TABLE academy_lessons;", "<script>"):
+            with self.assertRaises(ValueError):
+                validate_profile_id(bad)
+
+    def test_python_policy_blocks_bypasses_and_sanitizes_paths(self):
+        """AST-политика блокирует обходы, а раннер соблюдает timeout, лимит вывода и скрывает пути."""
+        from web_app.modules.code_academy.pro_engine import PythonPolicyError, validate_python_policy
+        from web_app.modules.code_academy.python_runtime import execute_python
+
+        bad_snippets = [
+            "import os",
+            "import pathlib",
+            "import subprocess",
+            "import socket",
+            "import importlib",
+            "__import__('os')",
+            "eval('1+1')",
+            "exec('x=1')",
+            "compile('1', 'a', 'eval')",
+            "open('test.txt', 'w')",
+            "().__class__.__subclasses__()",
+        ]
+        for snippet in bad_snippets:
+            with self.assertRaises(PythonPolicyError):
+                validate_python_policy(snippet)
+
+        # Проверка лимита вывода
+        out_res = execute_python("for i in range(10000):\n    print('A' * 100)", timeout=3, max_output=500)
+        self.assertLessEqual(len(out_res.stdout), 600)
+
+        # Проверка timeout
+        t_res = execute_python("while True:\n    pass", timeout=0.5, max_output=5000)
+        self.assertTrue("времени" in t_res.reason or t_res.returncode != 0)
+
+        # Проверка отсутствия абсолютных серверных путей в traceback
+        err_res = execute_python("print(1 / 0)", timeout=2)
+        self.assertNotIn("C:\\Users\\", err_res.stderr)
+        self.assertNotIn("/opt/", err_res.stderr)
+
+        # Проверка эталонного Python и SQL
+        ok_py = execute_python('x = 10\nprint("x")\nprint(x)', timeout=2)
+        self.assertEqual(ok_py.stdout.strip().splitlines(), ["x", "10"])
+
+        from web_app.modules.code_academy.pathway import run_sql
+        sql_out = run_sql("SELECT name FROM users WHERE id = 1;")
+        self.assertTrue(len(sql_out) > 0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -52,33 +52,104 @@ class PythonPolicyError(ValueError):
 
 
 class _PolicyVisitor(ast.NodeVisitor):
+    """AST-проверка базовых ограничений учебной среды.
+
+    ВАЖНО: AST-фильтрация и запуск во временном каталоге снижают риск
+    случайных ошибок и простых обходов, но НЕ являются полноценной
+    системной песочницей ОС (OS sandbox / container isolation).
+    """
+
     blocked_imports = {
-        "ctypes", "multiprocessing", "resource", "signal", "socket",
-        "subprocess", "sys", "winreg",
+        "asyncio",
+        "builtins",
+        "ctypes",
+        "fcntl",
+        "ftplib",
+        "gc",
+        "http",
+        "importlib",
+        "inspect",
+        "mmap",
+        "multiprocessing",
+        "os",
+        "pathlib",
+        "pty",
+        "requests",
+        "resource",
+        "shutil",
+        "signal",
+        "smtplib",
+        "socket",
+        "ssl",
+        "subprocess",
+        "sys",
+        "telnetlib",
+        "threading",
+        "urllib",
+        "winreg",
     }
-    blocked_calls = {"breakpoint", "compile", "eval", "exec", "__import__"}
+    blocked_calls = {
+        "__import__",
+        "breakpoint",
+        "compile",
+        "delattr",
+        "eval",
+        "exec",
+        "getattr",
+        "globals",
+        "locals",
+        "open",
+        "setattr",
+        "vars",
+    }
+    blocked_attrs = {
+        "__bases__",
+        "__builtins__",
+        "__closure__",
+        "__code__",
+        "__globals__",
+        "__import__",
+        "__loader__",
+        "__mro__",
+        "__spec__",
+        "__subclasses__",
+    }
 
     def visit_Import(self, node: ast.Import) -> None:
         for item in node.names:
             if item.name.split(".", 1)[0] in self.blocked_imports:
-                raise PythonPolicyError(f"Импорт {item.name!r} недоступен в учебной песочнице")
+                raise PythonPolicyError(f"Импорт {item.name!r} недоступен в учебной среде")
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         root = (node.module or "").split(".", 1)[0]
         if node.level or root in self.blocked_imports:
-            raise PythonPolicyError("Относительный или системный импорт недоступен в учебной песочнице")
+            raise PythonPolicyError("Относительный или системный импорт недоступен в учебной среде")
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> None:
         if isinstance(node.func, ast.Name) and node.func.id in self.blocked_calls:
-            raise PythonPolicyError(f"Вызов {node.func.id}() недоступен в учебной песочнице")
+            raise PythonPolicyError(f"Вызов {node.func.id}() недоступен в учебной среде")
+        if isinstance(node.func, ast.Attribute) and node.func.attr in self.blocked_calls:
+            raise PythonPolicyError(f"Вызов .{node.func.attr}() недоступен в учебной среде")
+        self.generic_visit(node)
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        if node.attr in self.blocked_attrs:
+            raise PythonPolicyError(f"Атрибут {node.attr} недоступен в учебной среде")
+        self.generic_visit(node)
+
+    def visit_Name(self, node: ast.Name) -> None:
+        if node.id in {"__builtins__", "__import__"}:
+            raise PythonPolicyError(f"Имя {node.id} недоступно в учебной среде")
         self.generic_visit(node)
 
 
-def validate_python_policy(code: str) -> ast.Module:
+def validate_python_policy(code: str, stdin: str = "") -> ast.Module:
     if len(code.encode("utf-8")) > 100_000:
         raise PythonPolicyError("Код превышает учебный лимит 100 КБ")
+    if len((stdin or "").encode("utf-8")) > 20_000:
+        raise PythonPolicyError("Входные данные (stdin) превышают учебный лимит 20 КБ")
     tree = ast.parse(code, filename="main.py")
     _PolicyVisitor().visit(tree)
     return tree

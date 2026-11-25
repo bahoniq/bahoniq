@@ -915,3 +915,43 @@ LEVEL_B2 = {
         }
     ]
 }
+
+
+def _attach_extra_section(level_dict: dict, extra_lessons: list[dict], sec_id: str, sec_title: str, sec_desc: str) -> None:
+    last_sec = level_dict["sections"][-1]
+    exam_item = last_sec["lessons"].pop()
+    level_dict["sections"].append(
+        {
+            "id": sec_id,
+            "title": sec_title,
+            "description": sec_desc,
+            "lessons": [*extra_lessons, exam_item],
+        }
+    )
+
+
+from .curriculum_a2_extra import A2_EXTRA_LESSONS as _A2_EXTRA
+from .curriculum_b1_extra import B1_EXTRA_LESSONS as _B1_EXTRA
+from .curriculum_b2_extra import B2_EXTRA_LESSONS as _B2_EXTRA
+
+_attach_extra_section(
+    LEVEL_A2,
+    _A2_EXTRA,
+    "a2-sec-2",
+    "Раздел 2. Практика общения, переписка, поездки и здоровье",
+    "Закрепление грамматики A2 и реальные бытовые/рабочие сценарии.",
+)
+_attach_extra_section(
+    LEVEL_B1,
+    _B1_EXTRA,
+    "b1-sec-2",
+    "Раздел 2. Рабочая коммуникация, отчёты, презентации и дискуссии",
+    "Развитие связной речи, письма и чтения на уровне B1.",
+)
+_attach_extra_section(
+    LEVEL_B2,
+    _B2_EXTRA,
+    "b2-sec-2",
+    "Раздел 2. Профессиональный стиль, переговоры, отчёты и эссе",
+    "Продвинутая грамматика, регистр, аналитическое письмо и презентации B2.",
+)
