@@ -5,6 +5,7 @@
    ========================================================================== */
 (() => {
   const LOCAL_BACKUP_KEY = 'bahoniq_english_academy_backup_v2';
+  const OFFLINE_MODE_KEY = 'bahoniq_ea_force_offline';
 
   const SKILL_LABELS = {
     reading: 'Чтение',
@@ -29,6 +30,13 @@
     sideTab: 'tutor', // 'tutor' | 'dict'
     sideDictQuery: '',
     sideDictLetter: '',
+    forceOffline: (() => {
+      try {
+        return localStorage.getItem(OFFLINE_MODE_KEY) === '1';
+      } catch {
+        return false;
+      }
+    })(),
     selectedLevel: 'A0',
     lessonFilter: '',
     curriculum: { levels: [], dialogues: [] },
@@ -57,6 +65,27 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  function renderTutorMarkdown(text) {
+    const safe = esc(text || '');
+    return safe
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[^\*])\*([^\*\n]+?)\*/g, '$1<em>$2</em>')
+      .replace(/`([^`\n]+?)`/g, '<code>$1</code>')
+      .replace(/\n/g, '<br>');
+  }
+
+  function updateTutorModeBadge() {
+    const badge = el('eaTutorModeBadge');
+    if (!badge) return;
+    if (store.forceOffline) {
+      badge.textContent = '⚪ Автономный наставник';
+      badge.classList.add('offline');
+    } else {
+      badge.textContent = '🟢 ИИ подключён';
+      badge.classList.remove('offline');
+    }
   }
 
   async function apiCall(path, options = {}) {
@@ -254,21 +283,17 @@
           <aside class="card acad-mentor-chat">
             <div class="acad-chat-header">
               <div class="ea-side-tabs" role="tablist" aria-label="Панель помощника">
-                <button type="button" class="ea-side-tab active" data-ea-side-tab="tutor" role="tab" aria-selected="true">🤖 Наставник</button>
-                <button type="button" class="ea-side-tab" data-ea-side-tab="dict" role="tab" aria-selected="false">📖 Словарь A–Z</button>
+                <button type="button" class="ea-side-tab active" data-ea-side-tab="tutor" role="tab" aria-selected="true">Наставник</button>
+                <button type="button" class="ea-side-tab" data-ea-side-tab="dict" role="tab" aria-selected="false">Словарь A–Z</button>
               </div>
               <div id="eaTutorHeaderMeta" class="acad-chat-title-group">
                 <div class="acad-chat-title">
-                  <span class="acad-chat-avatar">🤖</span>
                   <div>
                     <h3>ИИ-наставник</h3>
-                    <small id="eaTutorHint">Контекст: Текущий урок</small>
+                    <small id="eaTutorHint">Контекст урока подключён</small>
                   </div>
                 </div>
-                <label style="font-size:11px;color:var(--ea-muted);display:flex;align-items:center;gap:4px;cursor:pointer;">
-                  <input type="checkbox" id="eaForceOfflineToggle" />
-                  Без ИИ
-                </label>
+                <span id="eaTutorModeBadge" class="ea-tutor-status-pill">${store.forceOffline ? '⚪ Автономный наставник' : '🟢 ИИ подключён'}</span>
               </div>
             </div>
 
@@ -282,7 +307,7 @@
 
               <div id="eaChatMessages" class="acad-chat-messages">
                 <div class="acad-msg acad-msg-ai">
-                  Здравствуйте! Я знаю ваш текущий уровень и ошибки. Задайте вопрос по-русски или напишите английскую фразу для проверки.
+                  Этот диалог относится к текущему уроку. Спросите правило или напишите фразу на английском для проверки.
                 </div>
               </div>
 
@@ -376,10 +401,10 @@
             mode,
             message: text,
             lesson_id: store.currentLesson?.id || 'a0-l1',
-            force_offline: Boolean(el('eaForceOfflineToggle')?.checked),
+            force_offline: Boolean(store.forceOffline),
           }),
         });
-        aiMsg.textContent = res.answer;
+        aiMsg.innerHTML = renderTutorMarkdown(res.answer);
         if (res.notice) showNotice(res.notice);
       } catch {
         aiMsg.textContent = 'Автономная подсказка: сверьтесь с правилом текущего урока и порядком слов.';
@@ -1372,7 +1397,16 @@
           <label style="display:flex;gap:8px;align-items:center;margin-top:8px;">
             <input type="checkbox" id="eaSRu" ${s.show_ru_hint ? 'checked' : ''} /> Показывать русскую фонетическую подсказку
           </label>
-          <button id="eaSSave" class="button primary" style="align-self:flex-start;margin-top:8px;" type="button">Сохранить</button>
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--ea-border);">
+            <label style="display:flex;gap:8px;align-items:center;cursor:pointer;">
+              <input type="checkbox" id="eaSettingsOfflineToggle" ${store.forceOffline ? 'checked' : ''} />
+              <span>Автономный режим наставника (без облачного ИИ)</span>
+            </label>
+            <div id="eaSettingsOfflineHint" style="font-size:12px;color:var(--ea-muted);margin-top:6px;${store.forceOffline ? '' : 'display:none;'}">
+              Облачный ИИ будет отключён. Наставник продолжит работать по материалам текущего урока.
+            </div>
+          </div>
+          <button id="eaSSave" class="button primary" style="align-self:flex-start;margin-top:10px;" type="button">Сохранить</button>
         </div>
 
         <div class="ea-sub-card">
@@ -1387,6 +1421,21 @@
     `;
 
     el('eaSetBackBtn')?.addEventListener('click', () => document.querySelector('[data-ea-view="studio"]')?.click());
+    el('eaSettingsOfflineToggle')?.addEventListener('change', (e) => {
+      const checked = Boolean(e.target.checked);
+      store.forceOffline = checked;
+      try {
+        localStorage.setItem(OFFLINE_MODE_KEY, checked ? '1' : '0');
+      } catch {}
+      const hintEl = el('eaSettingsOfflineHint');
+      if (hintEl) hintEl.style.display = checked ? 'block' : 'none';
+      updateTutorModeBadge();
+      if (checked) {
+        showNotice('Облачный ИИ будет отключён. Наставник продолжит работать по материалам текущего урока.');
+      } else {
+        showNotice('Облачный ИИ-наставник снова подключён.');
+      }
+    });
     el('eaSSave')?.addEventListener('click', async () => {
       const r = await apiCall('/settings', {
         method: 'POST',
