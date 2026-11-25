@@ -86,6 +86,7 @@
   const downloadAbortControllers = new Map();
   const favorites = new Set();
   const recentTrackIds = [];
+  let recentQueueSnapshot = [];
   const playbackHistory = [];
   let shuffleBag = [];
   let playbackContextTab = 'all'; // 'all' | 'downloaded' | 'recent' | 'favorites'
@@ -1248,7 +1249,8 @@
         if (favorites.has(Number(t.id))) indices.push(idx);
       });
     } else if (playbackContextTab === 'recent') {
-      recentTrackIds.forEach(tid => {
+      const sourceIds = recentQueueSnapshot.length > 0 ? recentQueueSnapshot : recentTrackIds;
+      sourceIds.forEach(tid => {
         const idx = playlist.findIndex(t => Number(t.id) === Number(tid));
         if (idx >= 0) indices.push(idx);
       });
@@ -1365,11 +1367,13 @@
 
       if ('mediaSession' in navigator && navigator.mediaSession.setPositionState) {
         try {
-          navigator.mediaSession.setPositionState({
-            duration: audio.duration,
-            playbackRate: audio.playbackRate,
-            position: audio.currentTime
-          });
+          if (audio.currentTime <= audio.duration) {
+            navigator.mediaSession.setPositionState({
+              duration: audio.duration,
+              playbackRate: audio.playbackRate || 1,
+              position: audio.currentTime
+            });
+          }
         } catch {}
       }
       if (typeof syncStateToAndroid === 'function') {
@@ -1652,7 +1656,7 @@
 
   let lastAndroidSyncAt = 0;
   let lastAndroidSyncKey = '';
-  const MEDIA_CMD_DEBOUNCE_MS = 350;
+  const MEDIA_CMD_DEBOUNCE_MS = 450;
   const lastMediaCmdAt = Object.create(null);
 
   function buildPlaybackStatePayload() {
@@ -1827,6 +1831,15 @@
         ]
       });
       navigator.mediaSession.playbackState = 'playing';
+      if (navigator.mediaSession.setPositionState) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: Math.max(1, Number(track.duration) || 1),
+            playbackRate: 1,
+            position: 0
+          });
+        } catch {}
+      }
     }
     syncStateToAndroid(true);
   }
@@ -2150,6 +2163,7 @@
         const targetIdx = playlist.findIndex(t => Number(t.id) === tid);
         if (targetIdx >= 0) {
           playbackContextTab = activeTab;
+          recentQueueSnapshot = activeTab === 'recent' ? [...recentTrackIds] : [];
           shuffleBag = [];
           playTrack(targetIdx);
           catalogDrawer.classList.remove('open');
@@ -3163,13 +3177,13 @@
     let nextCometAt = t0 + 2500;
     let nextRainAt = t0 + 1800;
 
-    // Редкая луна за правой горной вершиной (интервал: 4–7 минут)
+    // Редкая луна за левой горной вершиной (первый показ: 20–30с, далее каждые 2–3 минуты)
     const MOON_TEST_MODE = false;
     const moonEl = document.querySelector('.ambient-moon');
     const prefersReducedMotion =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let activeMoon = null;
-    let nextMoonAt = t0 + (MOON_TEST_MODE ? 5000 : 240000 + Math.random() * 180000);
+    let nextMoonAt = t0 + (MOON_TEST_MODE ? 5000 : 20000 + Math.random() * 10000);
     let lastMoonTick = t0;
 
     function easeInOutSine(t) {
@@ -3211,7 +3225,7 @@
         moonEl.style.transform = `translate3d(-50%, calc(-50% + ${risePx.toFixed(1)}px), 0)`;
         nextMoonAt = MOON_TEST_MODE
           ? now + 20000 + Math.random() * 10000
-          : now + 240000 + Math.random() * 180000; // 4–7 минут
+          : now + 120000 + Math.random() * 60000; // 2–3 минуты
         return;
       }
 

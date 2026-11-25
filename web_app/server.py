@@ -84,6 +84,9 @@ app.include_router(academy_router)
 from .routers.design_academy import router as design_academy_router
 app.include_router(design_academy_router)
 
+from .routers.english_academy import router as english_academy_router
+app.include_router(english_academy_router)
+
 # Excel Academy Studio disabled / hidden by request
 # from .routers.excel_academy import router as excel_academy_router
 # app.include_router(excel_academy_router)
@@ -283,7 +286,12 @@ _sessions: dict[str, dict] = {}
 _lock = threading.RLock()
 DATA = ROOT / "data"
 DATA.mkdir(parents=True, exist_ok=True)
-NOTES_PATH = DATA / "notes.txt"
+_LOCAL_BAHONIQ_DIR = Path.home() / "AppData" / "Local" / "BahonIQ"
+NOTES_PATH = (
+    _LOCAL_BAHONIQ_DIR / "notes.txt"
+    if (os.name == "nt" and _LOCAL_BAHONIQ_DIR.is_dir())
+    else DATA / "notes.txt"
+)
 PHONEBOOK_PATH = DATA / "phonebook.db"
 
 

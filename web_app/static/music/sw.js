@@ -1,5 +1,5 @@
 ﻿/* BahonIQ Музыка в авто - Изолированный Service Worker (Scope: /music/) — 100% Offline Ready */
-const CACHE_NAME = 'bahoniq-music-shell-v55-moon-motion';
+const CACHE_NAME = 'bahoniq-music-shell-v57-xiaomi-moon';
 const COVERS_CACHE_NAME = 'bahoniq-music-covers-v1';
 const SHELL_ASSETS = [
   '/music/',

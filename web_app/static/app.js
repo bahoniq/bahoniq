@@ -101,6 +101,19 @@ function openModule(modId, label) {
       setTimeout(() => clearInterval(dasTimer), 4000);
     }
   }
+  if (modId === 'englishAcademy') {
+    if (typeof window.loadEnglishAcademy === 'function') {
+      window.loadEnglishAcademy();
+    } else {
+      const eaTimer = setInterval(() => {
+        if (typeof window.loadEnglishAcademy === 'function') {
+          clearInterval(eaTimer);
+          window.loadEnglishAcademy();
+        }
+      }, 50);
+      setTimeout(() => clearInterval(eaTimer), 4000);
+    }
+  }
   if (modId === 'platonus' && typeof window.loadPlatonusWiki === 'function') window.loadPlatonusWiki();
   if (dashView) {
     dashView.dataset.motionActive = 'false';
@@ -164,6 +177,7 @@ const TOOL_CATEGORIES = {
   pdf: 'ДОКУМЕНТЫ',
   analytics: 'ДАННЫЕ И ВЫВОДЫ',
   phonebook: 'КОНТАКТЫ',
+  englishAcademy: 'АНГЛИЙСКИЙ A0–B2',
   academy: 'ОБУЧЕНИЕ',
   designAcademy: 'ДИЗАЙН И ПРАКТИКА',
   systemsDrawer: 'БЫСТРЫЙ ДОСТУП'

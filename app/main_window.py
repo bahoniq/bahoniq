@@ -777,14 +777,14 @@ class MainWindow:
         tools = [
             ("✦", "Ticket Writer AI", "Название и описание обращения", ITALY_GREEN),
             ("▤", "Instruction Generator AI", "Инструкции из текста и скриншотов", ITALY_GREEN),
-            ("✎", "Заметки", "Быстрые записи и идеи", "#597A91"),
+            ("☎", "Телефонный справочник", "Внутренние номера и контакты", "#3A8D7C"),
             ("▤", "Excel AI", "Умная обработка таблиц", ITALY_RED),
             ("📖", "Platonus Wiki AI", "База инструкций и умный поиск Platonus", "#0284C7"),
             ("⌕", "Дубликаты", "Поиск повторяющихся файлов", "#6F63A8"),
             ("◉", "AnyDesk", "Удалённая техническая поддержка", "#D14B56"),
             ("▧", "PDF Center", "Объединение и обработка PDF", "#2D7F79"),
             ("▥", "ANALYTICS AI", "Отчёты, аналитика и презентации", "#245E8A"),
-            ("☎", "Телефонный справочник", "Внутренние номера и контакты", "#3A8D7C"),
+            ("A↔Z", "English Academy", "Английский с нуля A0 до B2 с ИИ-наставником", "#0EA5E9"),
             ("⌘", "Code Academy", "Python, SQL и архитектура BahonIQ", "#7354A5"),
             ("🎨", "Design Academy Studio", "UI/UX дизайн и векторная графика", "#E879F9"),
             ("⊞", "Excel Academy Studio", "Офисные и IT-задачи, формулы и анализ", "#10B981"),
@@ -1482,6 +1482,14 @@ class MainWindow:
                 open_excel_academy(self.root)
             except Exception:
                 self.open_url("https://bahoniq.onrender.com/#excelAcademy")
+            return
+
+        if name in ("English Academy Studio", "English Academy Lab", "English Academy"):
+            try:
+                from modules.english_academy_studio import open_english_academy
+                open_english_academy(self.root)
+            except Exception:
+                self.open_url("http://127.0.0.1:8000/#englishAcademy")
             return
 
         if name == "Телефонный справочник":
