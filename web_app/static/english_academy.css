@@ -379,3 +379,133 @@ body.theme-indigo .english-academy {
     grid-template-columns: 1fr;
   }
 }
+
+/* Закреплённый словарь A–Z в правой панели рядом с ИИ-наставником */
+.ea-side-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.ea-side-tab {
+  appearance: none;
+  border: 1px solid var(--ea-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--ea-muted);
+  border-radius: 9px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+.ea-side-tab:hover {
+  border-color: var(--ea-border-strong);
+  color: var(--ea-text);
+}
+
+.ea-side-tab.active {
+  background: var(--ea-bg-soft);
+  border-color: var(--ea-accent);
+  color: var(--ea-accent);
+}
+
+.ea-side-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.ea-side-dict-controls {
+  padding: 10px 14px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ea-side-dict-input {
+  padding: 8px 10px;
+  font-size: 12.5px;
+}
+
+.ea-side-az {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.ea-az-btn {
+  appearance: none;
+  border: 1px solid var(--ea-border);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--ea-muted);
+  border-radius: 5px;
+  padding: 2px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ea-az-btn.active {
+  background: var(--ea-bg-soft);
+  border-color: var(--ea-accent);
+  color: var(--ea-accent);
+}
+
+.ea-side-dict-count {
+  padding: 0 14px 6px;
+  font-size: 11px;
+  color: var(--ea-muted);
+}
+
+.ea-side-dict-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 520px;
+}
+
+.ea-side-dict-card {
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--ea-border);
+}
+
+.ea-side-dict-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.ea-side-dict-word {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--ea-text);
+}
+
+.ea-side-dict-ipa {
+  font-size: 11.5px;
+  color: var(--ea-muted);
+  margin-top: 2px;
+}
+
+.ea-side-dict-ru {
+  font-size: 12.5px;
+  color: #cbd5e1;
+  margin-top: 3px;
+}
+
+.ea-side-dict-ex {
+  font-size: 11.5px;
+  color: var(--ea-muted);
+  margin-top: 4px;
+  font-style: italic;
+}

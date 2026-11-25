@@ -186,59 +186,43 @@ LEVEL_A0 = {
                 {
                     "id": "a0-l3",
                     "kind": "lesson",
-                    "title": "Буквосочетания sh, ch, th, ph и гласные ee, oo, ai/ay, oa, ou",
+                    "title": "Сочетания согласных: sh, ch, th, ph",
                     "skill_focus": ["reading", "listening"],
-                    "estimated_minutes": 15,
+                    "estimated_minutes": 10,
                     "showcase": [
-                        {"en": "sh → [ʃ] shop, fish | ch → [tʃ] chat, check", "ru": "Две буквы вместе рождают один привычный звук: sh — мягкое «ш», ch — «ч».", "speak": "shop, fish, chat, check"},
+                        {"en": "sh → [ʃ] shop, fish | ch → [tʃ] chat, check", "ru": "Две буквы вместе дают один привычный звук: sh — мягкое «ш», ch — «ч».", "speak": "shop, fish, chat, check"},
                         {"en": "th → [θ] thank / [ð] this | ph → [f] phone", "ru": "В th кончик языка слегка между зубами! А ph всегда читается как обычный «ф».", "speak": "thank, this, phone"},
-                        {"en": "ee → [iː] see | oo → [uː]/[ʊ] book | ai/ay → [eɪ] day | oa → [əʊ] road | ou → [aʊ] house", "ru": "Пары гласных читаются устойчиво и помогают сразу узнавать сотни слов.", "speak": "see, book, day, road, house"},
                     ],
-                    "simple_explanation": "В английском языке звуков больше, чем букв, поэтому две буквы часто объединяются в одну команду и дают один звук. Самые частые команды согласных: sh (ш — shop), ch (ч — check), ph (ф — phone) и знаменитое th (кончик языка ставим между передними зубами: глухо в thank «спасибо» и звонко в this «это»). А пары гласных работают ещё проще: ee — долгое «и» (see — видеть), oo — «у» (book — книга, room — комната), ai и ay — «эй» (rain — дождь, day — день), oa — «оу» (road — дорога), ou — «ау» (house — здание дома).",
-                    "rule_name": "Диграфы согласных (sh, ch, th, ph) и гласных (ee, oo, ai/ay, oa, ou)",
+                    "simple_explanation": "В английском языке звуков больше, чем букв, поэтому две согласные часто объединяются в одну команду и дают один звук: sh (ш — shop), ch (ч — check), ph (ф — phone). А знаменитое сочетание th произносится с кончиком языка между передними зубами: глухо в слове thank («спасибо») и звонко в слове this («это»).",
+                    "rule_name": "Диграфы согласных: sh, ch, th, ph",
                     "examples": [
                         {"en": "shop", "ipa": "/ʃɒp/", "ru_hint": "шоп", "ru": "магазин"},
+                        {"en": "check", "ipa": "/tʃek/", "ru_hint": "чек", "ru": "проверять, чек"},
                         {"en": "phone", "ipa": "/fəʊn/", "ru_hint": "фоун", "ru": "телефон"},
                         {"en": "this", "ipa": "/ðɪs/", "ru_hint": "з(межзубн.)ис", "ru": "это, этот"},
-                        {"en": "book", "ipa": "/bʊk/", "ru_hint": "бук", "ru": "книга"},
-                        {"en": "day", "ipa": "/deɪ/", "ru_hint": "дэй", "ru": "день"},
-                        {"en": "house", "ipa": "/haʊs/", "ru_hint": "хаус", "ru": "дом (здание)"},
                     ],
                     "vocab": [
                         {"word": "shop", "ipa": "/ʃɒp/", "ru_hint": "шоп", "ru": "магазин", "example": "Open shop.", "topic": "Город"},
                         {"word": "phone", "ipa": "/fəʊn/", "ru_hint": "фоун", "ru": "телефон", "example": "My phone.", "topic": "Повседневное"},
                         {"word": "this", "ipa": "/ðɪs/", "ru_hint": "зис (межзубный)", "ru": "это, этот", "example": "This is a book.", "topic": "Базовые слова"},
-                        {"word": "book", "ipa": "/bʊk/", "ru_hint": "бук", "ru": "книга", "example": "Read a book.", "topic": "Работа и учёба"},
-                        {"word": "day", "ipa": "/deɪ/", "ru_hint": "дэй", "ru": "день", "example": "Good day!", "topic": "Время"},
-                        {"word": "house", "ipa": "/haʊs/", "ru_hint": "хаус", "ru": "дом (здание)", "example": "A big house.", "topic": "Дом"},
-                        {"word": "road", "ipa": "/rəʊd/", "ru_hint": "роуд", "ru": "дорога", "example": "Long road.", "topic": "Город"},
-                        {"word": "see", "ipa": "/siː/", "ru_hint": "сии", "ru": "видеть", "example": "I see you.", "topic": "Действия"},
+                        {"word": "thank", "ipa": "/θæŋk/", "ru_hint": "сэнк (межзубный)", "ru": "благодарить", "example": "Thank you!", "topic": "Общение"},
                     ],
                     "exercises": [
                         {
                             "id": "a0-l3-ex1",
                             "type": "match",
                             "skill": "reading",
-                            "prompt": "Сопоставьте буквосочетание со словом и переводом:",
+                            "prompt": "Сопоставьте буквосочетание согласных со словом и переводом:",
                             "pairs": [
                                 {"left": "ph → [f]", "right": "phone (телефон)"},
                                 {"left": "sh → [ʃ]", "right": "shop (магазин)"},
-                                {"left": "oa → [əʊ]", "right": "road (дорога)"},
-                                {"left": "ou → [aʊ]", "right": "house (дом)"},
+                                {"left": "ch → [tʃ]", "right": "check (проверять)"},
+                                {"left": "th → [ð]", "right": "this (это)"},
                             ],
-                            "explanation": "ph даёт [f], sh даёт [ʃ], oa даёт [əʊ], ou даёт [aʊ]."
+                            "explanation": "ph даёт [f], sh даёт [ʃ], ch даёт [tʃ], th даёт межзубный звук."
                         },
                         {
                             "id": "a0-l3-ex2",
-                            "type": "choice",
-                            "skill": "reading",
-                            "prompt": "Как читается слово «see» (видеть)?",
-                            "options": ["[siː] — долгий звук «и»", "[se] — короткий звук «э»", "[saɪ] — звук «ай»"],
-                            "answer": "[siː] — долгий звук «и»",
-                            "explanation": "Двойное ee всегда даёт долгий чистый звук [iː]: see, tree, week."
-                        },
-                        {
-                            "id": "a0-l3-ex3",
                             "type": "fill_blank",
                             "skill": "writing",
                             "prompt": "Вставьте буквосочетание из двух букв в слово «телефон»: ___one",
@@ -248,7 +232,67 @@ LEVEL_A0 = {
                             "explanation": "Телефон пишется phone (ph = [f])."
                         },
                         {
-                            "id": "a0-l3-ex4",
+                            "id": "a0-l3-ex3",
+                            "type": "choice",
+                            "skill": "reading",
+                            "prompt": "Какой звук даёт сочетание «sh» в слове «shop»?",
+                            "options": ["[ʃ] — мягкий звук «ш»", "[s] — звук «с»", "[tʃ] — звук «ч»"],
+                            "answer": "[ʃ] — мягкий звук «ш»",
+                            "explanation": "Буквосочетание sh всегда читается как [ʃ] (shop, fish, she)."
+                        }
+                    ]
+                },
+                {
+                    "id": "a0-l3b",
+                    "kind": "lesson",
+                    "title": "Пары гласных: ee, oo, ai/ay, oa, ou",
+                    "skill_focus": ["reading", "listening"],
+                    "estimated_minutes": 10,
+                    "showcase": [
+                        {"en": "ee → [iː] see, tree | oo → [uː]/[ʊ] book, room", "ru": "Двойное ee даёт долгое «и», а двойное oo — звук «у» (короткий в book, долгий в room).", "speak": "see, tree, book, room"},
+                        {"en": "ai / ay → [eɪ] rain, day | oa → [əʊ] road | ou → [aʊ] house", "ru": "Пары гласных читаются устойчиво и помогают сразу узнавать сотни слов.", "speak": "rain, day, road, house"},
+                    ],
+                    "simple_explanation": "Когда две гласные встают рядом, они обычно образуют предсказуемую пару: ee — долгое «и» (see — видеть), oo — «у» (book — книга, room — комната), ai в середине и ay в конце слова — «эй» (rain — дождь, day — день), oa — «оу» (road — дорога), ou — «ау» (house — здание дома).",
+                    "rule_name": "Диграфы гласных: ee, oo, ai/ay, oa, ou",
+                    "examples": [
+                        {"en": "see", "ipa": "/siː/", "ru_hint": "сии", "ru": "видеть"},
+                        {"en": "book", "ipa": "/bʊk/", "ru_hint": "бук", "ru": "книга"},
+                        {"en": "day", "ipa": "/deɪ/", "ru_hint": "дэй", "ru": "день"},
+                        {"en": "road", "ipa": "/rəʊd/", "ru_hint": "роуд", "ru": "дорога"},
+                        {"en": "house", "ipa": "/haʊs/", "ru_hint": "хаус", "ru": "дом (здание)"},
+                    ],
+                    "vocab": [
+                        {"word": "book", "ipa": "/bʊk/", "ru_hint": "бук", "ru": "книга", "example": "Read a book.", "topic": "Работа и учёба"},
+                        {"word": "day", "ipa": "/deɪ/", "ru_hint": "дэй", "ru": "день", "example": "Good day!", "topic": "Время"},
+                        {"word": "house", "ipa": "/haʊs/", "ru_hint": "хаус", "ru": "дом (здание)", "example": "A big house.", "topic": "Дом"},
+                        {"word": "road", "ipa": "/rəʊd/", "ru_hint": "роуд", "ru": "дорога", "example": "Long road.", "topic": "Город"},
+                        {"word": "see", "ipa": "/siː/", "ru_hint": "сии", "ru": "видеть", "example": "I see you.", "topic": "Действия"},
+                    ],
+                    "exercises": [
+                        {
+                            "id": "a0-l3b-ex1",
+                            "type": "choice",
+                            "skill": "reading",
+                            "prompt": "Как читается слово «see» (видеть)?",
+                            "options": ["[siː] — долгий звук «и»", "[se] — короткий звук «э»", "[saɪ] — звук «ай»"],
+                            "answer": "[siː] — долгий звук «и»",
+                            "explanation": "Двойное ee всегда даёт долгий чистый звук [iː]: see, tree, week."
+                        },
+                        {
+                            "id": "a0-l3b-ex2",
+                            "type": "match",
+                            "skill": "reading",
+                            "prompt": "Сопоставьте пару гласных со словом и его переводом:",
+                            "pairs": [
+                                {"left": "oo → [ʊ]", "right": "book (книга)"},
+                                {"left": "ay → [eɪ]", "right": "day (день)"},
+                                {"left": "oa → [əʊ]", "right": "road (дорога)"},
+                                {"left": "ou → [aʊ]", "right": "house (дом)"},
+                            ],
+                            "explanation": "Эти пять сочетаний гласных встречаются в самых частых бытовых словах."
+                        },
+                        {
+                            "id": "a0-l3b-ex3",
                             "type": "translate_en_ru",
                             "skill": "reading",
                             "prompt": "Переведите словосочетание на русский язык: «good day»",
@@ -349,48 +393,45 @@ LEVEL_A0 = {
                 {
                     "id": "a0-l5",
                     "kind": "lesson",
-                    "title": "Порядок слов: утверждения, отрицания и вопросы",
-                    "skill_focus": ["grammar", "writing", "listening"],
-                    "estimated_minutes": 16,
+                    "title": "Порядок слов: утверждения и отрицания с not",
+                    "skill_focus": ["grammar", "writing"],
+                    "estimated_minutes": 10,
                     "showcase": [
-                        {"en": "[+] He is busy.", "ru": "Утверждение: Подлежащее (He) + глагол (is) + остальное.", "speak": "He is busy."},
-                        {"en": "[-] He is not busy.", "ru": "Отрицание: просто ставим частицу not сразу ПОСЛЕ am / is / are.", "speak": "He is not busy."},
-                        {"en": "[?] Is he busy? — Yes, he is. / No, he is not.", "ru": "Вопрос: выносим am / is / are ВПЕРЁД перед подлежащим!", "speak": "Is he busy? Yes, he is."},
+                        {"en": "[+] He is busy. / You are ready.", "ru": "Утверждение: сначала КТО (подлежащее), затем ГЛАГОЛ (am / is / are), потом остальное.", "speak": "He is busy. You are ready."},
+                        {"en": "[-] He is not busy. / I am not tired.", "ru": "Отрицание: просто ставим частицу not сразу ПОСЛЕ am / is / are.", "speak": "He is not busy. I am not tired."},
                     ],
-                    "simple_explanation": "В русском языке можно менять слова местами и задавать вопрос одной интонацией («Он занят?»). В английском порядок слов — как конструктор с чёткими пазами. 1) В утверждении всегда сначала КТО, потом ГЛАГОЛ: You are ready. 2) Чтобы сказать «не», ставим not сразу после am/is/are: You are not ready. 3) Чтобы задать вопрос, берём am/is/are и переставляем на первое место перед человеком: Are you ready?",
-                    "rule_name": "Строгий порядок слов и вопросы/отрицания с am / is / are",
+                    "simple_explanation": "В русском языке слова можно менять местами. В английском порядок слов — как конструктор с чёткими пазами: 1) В утверждении всегда сначала КТО, потом ГЛАГОЛ: You are ready. 2) Чтобы сделать отрицание («не»), ничего не переставляем — просто ставим частицу not сразу после am / is / are: You are not ready, He is not busy.",
+                    "rule_name": "Прямой порядок слов и отрицание с not",
                     "examples": [
                         {"en": "I am not tired.", "ipa": "/aɪ æm nɒt ˈtaɪəd/", "ru_hint": "ай эм нот тайэд", "ru": "Я не устал."},
-                        {"en": "Are you ready?", "ipa": "/ɑːr juː ˈredi/", "ru_hint": "ар ю рэди", "ru": "Ты готов? / Вы готовы?"},
-                        {"en": "Is it your phone?", "ipa": "/ɪz ɪt jɔː fəʊn/", "ru_hint": "из ит ё фоун", "ru": "Это твой телефон?"},
+                        {"en": "He is busy today.", "ipa": "/hiː ɪz ˈbɪzi təˈdeɪ/", "ru_hint": "хи из бизи тудэй", "ru": "Он сегодня занят."},
                         {"en": "They are not at work.", "ipa": "/ðeɪ ɑː nɒt æt wɜːk/", "ru_hint": "зэй ар нот эт уёрк", "ru": "Они не на работе."},
                     ],
                     "vocab": [
                         {"word": "not", "ipa": "/nɒt/", "ru_hint": "нот", "ru": "не", "example": "It is not big.", "topic": "Грамматика"},
                         {"word": "busy", "ipa": "/ˈbɪzi/", "ru_hint": "бизи", "ru": "занятой", "example": "He is busy.", "topic": "Работа и учёба"},
                         {"word": "tired", "ipa": "/ˈtaɪəd/", "ru_hint": "тайэд", "ru": "уставший", "example": "I am not tired.", "topic": "Состояния"},
-                        {"word": "your", "ipa": "/jɔː/", "ru_hint": "ё / юр", "ru": "твой, ваш", "example": "Your book.", "topic": "Местоимения"},
                         {"word": "work", "ipa": "/wɜːk/", "ru_hint": "уёрк", "ru": "работа", "example": "At work.", "topic": "Работа и учёба"},
                     ],
                     "exercises": [
                         {
                             "id": "a0-l5-ex1",
-                            "type": "word_order",
-                            "skill": "grammar",
-                            "prompt": "Соберите вопросительное предложение «Ты готов?»:",
-                            "words": ["ready?", "you", "Are"],
-                            "answer": "Are you ready?",
-                            "accepted": ["Are you ready?", "Are you ready"],
-                            "explanation": "В вопросе глагол Are выносится перед подлежащим you: Are you ready?"
-                        },
-                        {
-                            "id": "a0-l5-ex2",
                             "type": "fill_blank",
                             "skill": "grammar",
                             "prompt": "Сделайте предложение отрицательным («Он не занят»): He is ___ busy.",
                             "answer": "not",
                             "accepted": ["not"],
                             "explanation": "Частица not ставится сразу после am / is / are: He is not busy."
+                        },
+                        {
+                            "id": "a0-l5-ex2",
+                            "type": "word_order",
+                            "skill": "grammar",
+                            "prompt": "Соберите отрицательное предложение «Я не устал»:",
+                            "words": ["not", "am", "tired.", "I"],
+                            "answer": "I am not tired.",
+                            "accepted": ["I am not tired.", "I am not tired"],
+                            "explanation": "Прямой порядок: I + am + not + tired."
                         },
                         {
                             "id": "a0-l5-ex3",
@@ -401,9 +442,43 @@ LEVEL_A0 = {
                             "options": ["Тимур дома (at home)", "Тимур на работе (at work)", "Тимур в магазине (at the shop)"],
                             "answer": "Тимур дома (at home)",
                             "explanation": "В тексте сказано: «Timur is not at work — he is at home» (Тимур не на работе — он дома)."
+                        }
+                    ]
+                },
+                {
+                    "id": "a0-l5b",
+                    "kind": "lesson",
+                    "title": "Вопросы с am / is / are и краткие ответы",
+                    "skill_focus": ["grammar", "speaking", "writing"],
+                    "estimated_minutes": 10,
+                    "showcase": [
+                        {"en": "You are ready. → Are you ready?", "ru": "Чтобы задать вопрос, берём am / is / are и выносим ВПЕРЁД перед подлежащим!", "speak": "Are you ready?"},
+                        {"en": "Is he busy? — Yes, he is. / No, he is not.", "ru": "В кратком ответе повторяем то же местоимение и связку am / is / are.", "speak": "Is he busy? Yes, he is."},
+                    ],
+                    "simple_explanation": "По-русски мы задаём вопрос одной интонацией («Ты готов?»). В английском одной интонации недостаточно: нужно переставить связку am, is или are на самое первое место перед человеком. Было «You are ready» -> стало «Are you ready?». Было «It is your phone» -> стало «Is it your phone?».",
+                    "rule_name": "Вопросы с am / is / are (инверсия)",
+                    "examples": [
+                        {"en": "Are you ready?", "ipa": "/ɑːr juː ˈredi/", "ru_hint": "ар ю рэди", "ru": "Ты готов? / Вы готовы?"},
+                        {"en": "Is it your phone?", "ipa": "/ɪz ɪt jɔː fəʊn/", "ru_hint": "из ит ё фоун", "ru": "Это твой телефон?"},
+                        {"en": "Yes, I am.", "ipa": "/jes aɪ æm/", "ru_hint": "ес ай эм", "ru": "Да (я готов)."},
+                    ],
+                    "vocab": [
+                        {"word": "ready", "ipa": "/ˈredi/", "ru_hint": "рэди", "ru": "готов, готовый", "example": "Are you ready?", "topic": "Общение"},
+                        {"word": "your", "ipa": "/jɔː/", "ru_hint": "ё / юр", "ru": "твой, ваш", "example": "Your book.", "topic": "Местоимения"},
+                    ],
+                    "exercises": [
+                        {
+                            "id": "a0-l5b-ex1",
+                            "type": "word_order",
+                            "skill": "grammar",
+                            "prompt": "Соберите вопросительное предложение «Ты готов?»:",
+                            "words": ["ready?", "you", "Are"],
+                            "answer": "Are you ready?",
+                            "accepted": ["Are you ready?", "Are you ready"],
+                            "explanation": "В вопросе глагол Are выносится перед подлежащим you: Are you ready?"
                         },
                         {
-                            "id": "a0-l5-ex4",
+                            "id": "a0-l5b-ex2",
                             "type": "mini_dialogue",
                             "skill": "speaking",
                             "context": "Коллега спрашивает вас перед началом встречи.",
@@ -415,7 +490,7 @@ LEVEL_A0 = {
                             "explanation": "В утвердительном ответе сохраняется прямой порядок и связка am: Yes, I am ready."
                         },
                         {
-                            "id": "a0-l5-ex5",
+                            "id": "a0-l5b-ex3",
                             "type": "translate_ru_en",
                             "skill": "writing",
                             "prompt": "Переведите вопрос на английский: «Это твой телефон?»",
@@ -634,29 +709,23 @@ LEVEL_A1 = {
                 {
                     "id": "a1-l2",
                     "kind": "lesson",
-                    "title": "Конструкции have / has, can / cannot и there is / there are",
-                    "skill_focus": ["grammar", "vocabulary", "speaking"],
-                    "estimated_minutes": 16,
+                    "title": "Глагол have / has (у меня есть)",
+                    "skill_focus": ["grammar", "vocabulary"],
+                    "estimated_minutes": 10,
                     "showcase": [
-                        {"en": "I have a car. She has a new laptop.", "ru": "У меня есть -> I have; у него/неё есть -> he/she has.", "speak": "I have a car. She has a new laptop."},
-                        {"en": "I can swim. He cannot (can't) drive.", "ru": "Умею / могу -> can (не меняется по лицам!), не могу -> cannot / can't.", "speak": "I can swim. He cannot drive."},
-                        {"en": "There is a bank on this street. There are two parks near my house.", "ru": "Когда говорим, что ГДЕ-ТО что-то находится, начинаем с There is (одно) / There are (много).", "speak": "There is a bank on this street."},
+                        {"en": "I / you / we / they have a car.", "ru": "У меня, тебя, нас, них есть -> используем форму have.", "speak": "I have a car. We have time."},
+                        {"en": "He / she / it has a new laptop.", "ru": "Для он / она / оно (he, she, it) берём форму has!", "speak": "She has a new laptop."},
                     ],
-                    "simple_explanation": "Три золотые конструкции для повседневной речи: 1) Владение: I/you/we/they have («имею»), но he/she/it has («имеет»). 2) Умение и возможность: can («могу, умею») — самый удобный глагол, он одинаковый для всех лиц, и частица to после него не нужна (I can read, she can help). Отрицание пишется слитно cannot или кратко can't. 3) Описание места: если по-русски мы начинаем с места («На столе лежит книга»), то по-английски начинаем с There is (для 1 предмета) или There are (для нескольких): There is a book on the table.",
-                    "rule_name": "Глаголы have/has, модальный can/cannot и оборот there is / there are",
+                    "simple_explanation": "В русском языке мы говорим «У меня есть...». По-английски это дословно «Я имею...»: I have. Правило простое: с местоимениями I, you, we, they используется have, а с he, she, it (он, она, оно) — особая форма has.",
+                    "rule_name": "Глагол обладания have / has",
                     "examples": [
+                        {"en": "I have a question.", "ipa": "/aɪ hæv ə ˈkwestʃən/", "ru_hint": "ай хэв э куэсчэн", "ru": "У меня есть вопрос."},
                         {"en": "She has two brothers.", "ipa": "/ʃiː hæz tuː ˈbrʌðəz/", "ru_hint": "ши хэз ту бразэз", "ru": "У неё два брата."},
-                        {"en": "Can you help me?", "ipa": "/kæn juː help miː/", "ru_hint": "кэн ю хэлп ми", "ru": "Ты можешь мне помочь?"},
-                        {"en": "There is a cafe near the office.", "ipa": "/ðeər ɪz ə ˈkæfeɪ nɪə ðə ˈɒfɪs/", "ru_hint": "зэар из э кэфэй ниа зи офис", "ru": "Рядом с офисом есть кафе."},
-                        {"en": "There are ten rooms on this floor.", "ipa": "/ðeər ɑː ten ruːmz ɒn ðɪs flɔː/", "ru_hint": "зэар ар тэн румз он зис фло", "ru": "На этом этаже десять комнат."},
                     ],
                     "vocab": [
                         {"word": "have", "ipa": "/hæv/", "ru_hint": "хэв", "ru": "иметь (у меня есть)", "example": "I have time.", "topic": "Базовые глаголы"},
-                        {"word": "help", "ipa": "/help/", "ru_hint": "хэлп", "ru": "помогать, помощь", "example": "Can you help me?", "topic": "Общение"},
-                        {"word": "office", "ipa": "/ˈɒfɪs/", "ru_hint": "офис", "ru": "офис", "example": "Near the office.", "topic": "Работа и учёба"},
-                        {"word": "street", "ipa": "/striːt/", "ru_hint": "стрит", "ru": "улица", "example": "A quiet street.", "topic": "Город"},
                         {"word": "brother", "ipa": "/ˈbrʌðə/", "ru_hint": "бразэ", "ru": "брат", "example": "My brother.", "topic": "Жизнь и семья"},
-                        {"word": "near", "ipa": "/nɪə/", "ru_hint": "ниа", "ru": "рядом с, около", "example": "Near my house.", "topic": "Город"},
+                        {"word": "question", "ipa": "/ˈkwestʃən/", "ru_hint": "куэсчэн", "ru": "вопрос", "example": "I have a question.", "topic": "Общение"},
                     ],
                     "exercises": [
                         {
@@ -672,17 +741,45 @@ LEVEL_A1 = {
                             "id": "a1-l2-ex2",
                             "type": "choice",
                             "skill": "grammar",
-                            "prompt": "Как правильно сказать «Рядом с моим домом есть магазин»?",
-                            "options": [
-                                "There is a shop near my house.",
-                                "There are a shop near my house.",
-                                "Near my house have a shop."
-                            ],
-                            "answer": "There is a shop near my house.",
-                            "explanation": "Магазин один (a shop), поэтому выбираем оборот в единственном числе: There is a shop..."
+                            "prompt": "Выберите правильное предложение «У нас есть время»:",
+                            "options": ["We have time.", "We has time.", "We are have time."],
+                            "answer": "We have time.",
+                            "explanation": "После we (мы) всегда используется форма have."
                         },
                         {
                             "id": "a1-l2-ex3",
+                            "type": "translate_ru_en",
+                            "skill": "writing",
+                            "prompt": "Переведите на английский: «У меня есть книга.»",
+                            "answer": "I have a book.",
+                            "accepted": ["I have a book.", "I have a book"],
+                            "explanation": "I have a book."
+                        }
+                    ]
+                },
+                {
+                    "id": "a1-l2b",
+                    "kind": "lesson",
+                    "title": "Модальный глагол can / cannot (могу, умею)",
+                    "skill_focus": ["grammar", "speaking", "writing"],
+                    "estimated_minutes": 10,
+                    "showcase": [
+                        {"en": "I can swim. She can read English.", "ru": "can («могу, умею») НЕ меняется по лицам (даже с he/she) и используется без частицы to!", "speak": "I can swim. She can read English."},
+                        {"en": "He cannot (can't) drive. / Can you help me?", "ru": "Отрицание — cannot / can't. В вопросе Can выносится в начало.", "speak": "He cannot drive. Can you help me?"},
+                    ],
+                    "simple_explanation": "Can — самый дружелюбный глагол в английском языке! Он никогда не меняет форму: I can, she can, they can. Сразу после него ставим обычный глагол без частицы to: I can help (я могу помочь). Отрицание пишется слитно cannot (или кратко can't). Чтобы попросить о помощи, выносим Can вперёд: Can you help me?",
+                    "rule_name": "Модальный глагол can / cannot",
+                    "examples": [
+                        {"en": "Can you help me?", "ipa": "/kæn juː help miː/", "ru_hint": "кэн ю хэлп ми", "ru": "Ты можешь мне помочь?"},
+                        {"en": "I cannot drive a car.", "ipa": "/aɪ ˈkænɒt draɪv ə kɑː/", "ru_hint": "ай кэнот драйв э ка", "ru": "Я не умею водить машину."},
+                    ],
+                    "vocab": [
+                        {"word": "help", "ipa": "/help/", "ru_hint": "хэлп", "ru": "помогать, помощь", "example": "Can you help me?", "topic": "Общение"},
+                        {"word": "drive", "ipa": "/draɪv/", "ru_hint": "драйв", "ru": "водить машину", "example": "I can drive.", "topic": "Транспорт"},
+                    ],
+                    "exercises": [
+                        {
+                            "id": "a1-l2b-ex1",
                             "type": "word_order",
                             "skill": "grammar",
                             "prompt": "Соберите вежливую просьбу «Ты можешь мне помочь?»:",
@@ -692,7 +789,16 @@ LEVEL_A1 = {
                             "explanation": "В вопросе модальный глагол Can ставится перед подлежащим: Can you help me?"
                         },
                         {
-                            "id": "a1-l2-ex4",
+                            "id": "a1-l2b-ex2",
+                            "type": "fix_error",
+                            "skill": "grammar",
+                            "prompt": "Исправьте ошибку (после can не нужна частица to): «She can to speak English.»",
+                            "answer": "She can speak English.",
+                            "accepted": ["She can speak English.", "She can speak English"],
+                            "explanation": "После модального глагола can сразу идёт глагол без to: She can speak English."
+                        },
+                        {
+                            "id": "a1-l2b-ex3",
                             "type": "translate_ru_en",
                             "skill": "writing",
                             "prompt": "Переведите на английский: «Я не могу водить.» (используйте drive и cannot)",
@@ -703,27 +809,178 @@ LEVEL_A1 = {
                     ]
                 },
                 {
+                    "id": "a1-l2c",
+                    "kind": "lesson",
+                    "title": "Оборот there is / there are (где что находится)",
+                    "skill_focus": ["grammar", "vocabulary", "reading"],
+                    "estimated_minutes": 10,
+                    "showcase": [
+                        {"en": "There is a bank on this street.", "ru": "Когда предмет ОДИН — начинаем с There is...", "speak": "There is a bank on this street."},
+                        {"en": "There are two parks near my house.", "ru": "Когда предметов МНОГО — начинаем с There are...", "speak": "There are two parks near my house."},
+                    ],
+                    "simple_explanation": "Если по-русски мы часто начинаем с места («Рядом с домом есть магазин»), то в английском языке такое предложение начинается со специальной связки There is (если предмет один) или There are (если их несколько), а место ставится в конец: There is a shop near my house.",
+                    "rule_name": "Конструкция наличия there is / there are",
+                    "examples": [
+                        {"en": "There is a cafe near the office.", "ipa": "/ðeər ɪz ə ˈkæfeɪ nɪə ðə ˈɒfɪs/", "ru_hint": "зэар из э кэфэй ниа зи офис", "ru": "Рядом с офисом есть кафе."},
+                        {"en": "There are ten rooms on this floor.", "ipa": "/ðeər ɑː ten ruːmz ɒn ðɪs flɔː/", "ru_hint": "зэар ар тэн румз он зис фло", "ru": "На этом этаже десять комнат."},
+                    ],
+                    "vocab": [
+                        {"word": "office", "ipa": "/ˈɒfɪs/", "ru_hint": "офис", "ru": "офис", "example": "Near the office.", "topic": "Работа и учёба"},
+                        {"word": "street", "ipa": "/striːt/", "ru_hint": "стрит", "ru": "улица", "example": "A quiet street.", "topic": "Город"},
+                        {"word": "near", "ipa": "/nɪə/", "ru_hint": "ниа", "ru": "рядом с, около", "example": "Near my house.", "topic": "Город"},
+                    ],
+                    "exercises": [
+                        {
+                            "id": "a1-l2c-ex1",
+                            "type": "choice",
+                            "skill": "grammar",
+                            "prompt": "Как правильно сказать «Рядом с моим домом есть магазин»?",
+                            "options": [
+                                "There is a shop near my house.",
+                                "There are a shop near my house.",
+                                "Near my house have a shop."
+                            ],
+                            "answer": "There is a shop near my house.",
+                            "explanation": "Магазин один (a shop), поэтому выбираем оборот в единственном числе: There is a shop..."
+                        },
+                        {
+                            "id": "a1-l2c-ex2",
+                            "type": "fill_blank",
+                            "skill": "grammar",
+                            "prompt": "Вставьте is или are: There ___ two parks in our city.",
+                            "answer": "are",
+                            "accepted": ["are"],
+                            "explanation": "Парков два (two parks — множественное число), поэтому нужно There are."
+                        },
+                        {
+                            "id": "a1-l2c-ex3",
+                            "type": "word_order",
+                            "skill": "grammar",
+                            "prompt": "Соберите предложение «Рядом с офисом есть кафе»:",
+                            "words": ["cafe", "There", "is", "near", "a", "the office."],
+                            "answer": "There is a cafe near the office.",
+                            "accepted": ["There is a cafe near the office.", "There is a cafe near the office"],
+                            "explanation": "Сначала There is + предмет (a cafe) + место (near the office)."
+                        }
+                    ]
+                },
+                {
                     "id": "a1-l3",
                     "kind": "lesson",
-                    "title": "Артикли a/an/the, множественное число, притяжательность и вопросительные слова",
-                    "skill_focus": ["grammar", "reading", "writing"],
-                    "estimated_minutes": 17,
+                    "title": "Артикли a / an / the и множественное число",
+                    "skill_focus": ["grammar", "vocabulary"],
+                    "estimated_minutes": 10,
                     "showcase": [
                         {"en": "a book, an apple → the book on my desk", "ru": "a/an — «один какой-то» (an перед гласным звуком!); the — «тот самый, конкретный».", "speak": "a book, an apple, the book on my desk"},
-                        {"en": "one city → two cities | my sister's bag", "ru": "Множественное число: -s/-es (y -> ies). Чьё? — добавляем 's к владельцу: sister's bag.", "speak": "one city, two cities, my sister's bag"},
-                        {"en": "What, Where, When, Why, How, What time", "ru": "Вопросительные слова всегда стоят в самом начале вопроса перед do/does/is/are.", "speak": "Where do you work? What time is it?"},
+                        {"en": "one book → two books | one city → two cities", "ru": "Множественное число: обычно добавляем -s; после шипящих -es; -y после согласной меняется на -ies.", "speak": "one book, two books, one city, two cities"},
                     ],
-                    "simple_explanation": "1) Перед каждым исчисляемым предметом в единственном числе в английском нужен определитель. Если называем предмет впервые («какая-то чашка») — ставим a (перед согласным звуком: a cup) или an (перед гласным звуком, чтобы было удобно произносить: an apple, an office). Если собеседник уже понимает, о каком именно предмете речь — ставим the. 2) Когда предметов много, добавляем -s (books), а после шипящих и -y после согласной — -es/-ies (buses, cities). 3) Чтобы спросить «Где? Когда? Почему?», ставим вопросительное слово в самое начало: Where do you live? (Где ты живёшь?), What time is it? (Который час?).",
-                    "rule_name": "Артикли (a/an/the), Plural (-s/-es), Possessive ('s) и Wh-questions",
+                    "simple_explanation": "Перед каждым исчисляемым предметом в единственном числе в английском нужен артикль. Если называем предмет впервые («какая-то чашка») — ставим a (перед согласным звуком: a cup) или an (перед гласным звуком: an apple, an office). Если собеседник уже понимает, о каком именно предмете речь — ставим the. А когда предметов много, артикль a/an убираем и добавляем окончание -s (books) или -es/-ies (buses, cities).",
+                    "rule_name": "Артикли (a / an / the) и множественное число (-s / -es)",
                     "examples": [
                         {"en": "I work in an office.", "ipa": "/aɪ wɜːk ɪn ən ˈɒfɪs/", "ru_hint": "ай уёрк ин эн офис", "ru": "Я работаю в офисе."},
-                        {"en": "Where do you live?", "ipa": "/weə duː juː lɪv/", "ru_hint": "уэа ду ю лив", "ru": "Где ты живёшь?"},
-                        {"en": "This is my sister's phone.", "ipa": "/ðɪs ɪz maɪ ˈsɪstəz fəʊn/", "ru_hint": "зис из май систэз фоун", "ru": "Это телефон моей сестры."},
-                        {"en": "Our meeting is at nine o'clock on Monday.", "ipa": "/ˈaʊə ˈmiːtɪŋ ɪz æt naɪn əˈklɒk ɒn ˈmʌndeɪ/", "ru_hint": "ауа митинг из эт найн оклок он мандэй", "ru": "Наша встреча в 9 часов в понедельник."},
+                        {"en": "Open the window, please.", "ipa": "/ˈəʊpən ðə ˈwɪndəʊ pliːz/", "ru_hint": "оупэн зэ уиндоу плиз", "ru": "Открой, пожалуйста, окно (то самое, в комнате)."},
                     ],
                     "vocab": [
                         {"word": "apple", "ipa": "/ˈæpl/", "ru_hint": "эпл", "ru": "яблоко", "example": "An apple a day.", "topic": "Еда и напитки"},
+                        {"word": "city", "ipa": "/ˈsɪti/", "ru_hint": "сити", "ru": "город", "example": "Two big cities.", "topic": "Город"},
+                    ],
+                    "exercises": [
+                        {
+                            "id": "a1-l3-ex1",
+                            "type": "fill_blank",
+                            "skill": "grammar",
+                            "prompt": "Вставьте правильный неопределённый артикль (a или an) перед словом с гласного звука: ___ apple",
+                            "answer": "an",
+                            "accepted": ["an"],
+                            "explanation": "Перед словами, которые начинаются с гласного звука (apple, office, hour), используется артикль an."
+                        },
+                        {
+                            "id": "a1-l3-ex2",
+                            "type": "choice",
+                            "skill": "grammar",
+                            "prompt": "Выберите правильное множественное число от слова city (город):",
+                            "options": ["cities", "citys", "cityes"],
+                            "answer": "cities",
+                            "explanation": "Согласная + y на конце во множественном числе меняется на -ies: city -> cities."
+                        },
+                        {
+                            "id": "a1-l3-ex3",
+                            "type": "choice",
+                            "skill": "grammar",
+                            "prompt": "Выберите правильный артикль: «Open ___ window, please.» (Открой, пожалуйста, окно в этой комнате)",
+                            "options": ["the", "a", "an"],
+                            "answer": "the",
+                            "explanation": "Мы имеем в виду конкретное окно в комнате, о котором знают оба собеседника -> the."
+                        }
+                    ]
+                },
+                {
+                    "id": "a1-l3b",
+                    "kind": "lesson",
+                    "title": "Притяжательные формы: my / your / his / her и 's",
+                    "skill_focus": ["grammar", "writing"],
+                    "estimated_minutes": 9,
+                    "showcase": [
+                        {"en": "my phone, your bag, his car, her laptop", "ru": "Слова-владельцы (my, your, his, her, our, their) заменяют артикль — вместе с a/the они не ставятся!", "speak": "my phone, your bag, her laptop"},
+                        {"en": "my sister's phone / Aidar's office", "ru": "Чтобы сказать «чей-то» по имени или родству, добавляем 's к владельцу.", "speak": "my sister's phone, Aidar's office"},
+                    ],
+                    "simple_explanation": "Чтобы сказать, кому принадлежит вещь, в английском используют притяжательные местоимения (my — мой, your — твой/ваш, his — его, her — её, our — наш, their — их). А если владелец — конкретный человек, к нему просто добавляют апостроф и s ('s): my sister's phone (телефон моей сестры). После my/'s артикль уже не нужен!",
+                    "rule_name": "Притяжательные местоимения и притяжательный падеж ('s)",
+                    "examples": [
+                        {"en": "This is my sister's phone.", "ipa": "/ðɪs ɪz maɪ ˈsɪstəz fəʊn/", "ru_hint": "зис из май систэз фоун", "ru": "Это телефон моей сестры."},
+                        {"en": "Our meeting is today.", "ipa": "/ˈaʊə ˈmiːtɪŋ ɪz təˈdeɪ/", "ru_hint": "ауа митинг из тудэй", "ru": "Наша встреча сегодня."},
+                    ],
+                    "vocab": [
                         {"word": "sister", "ipa": "/ˈsɪstə/", "ru_hint": "систэ", "ru": "сестра", "example": "My sister.", "topic": "Жизнь и семья"},
+                        {"word": "our", "ipa": "/ˈaʊə/", "ru_hint": "ауа", "ru": "наш, наша", "example": "Our team.", "topic": "Местоимения"},
+                    ],
+                    "exercises": [
+                        {
+                            "id": "a1-l3b-ex1",
+                            "type": "choice",
+                            "skill": "grammar",
+                            "prompt": "Как правильно сказать «телефон моей сестры»?",
+                            "options": ["my sister's phone", "the phone my sister", "my sister phone"],
+                            "answer": "my sister's phone",
+                            "explanation": "Владелец + 's + предмет: my sister's phone."
+                        },
+                        {
+                            "id": "a1-l3b-ex2",
+                            "type": "translate_ru_en",
+                            "skill": "writing",
+                            "prompt": "Переведите на английский: «Это наша книга.»",
+                            "answer": "This is our book.",
+                            "accepted": ["This is our book.", "This is our book"],
+                            "explanation": "Наш — our: This is our book."
+                        },
+                        {
+                            "id": "a1-l3b-ex3",
+                            "type": "fix_error",
+                            "skill": "grammar",
+                            "prompt": "Исправьте ошибку (после my артикль a не нужен): «This is a my phone.»",
+                            "answer": "This is my phone.",
+                            "accepted": ["This is my phone.", "This is my phone"],
+                            "explanation": "Притяжательное местоимение my само определяет предмет — артикль a убираем."
+                        }
+                    ]
+                },
+                {
+                    "id": "a1-l3c",
+                    "kind": "lesson",
+                    "title": "Вопросительные слова (Where, When, What) и время",
+                    "skill_focus": ["grammar", "reading", "writing"],
+                    "estimated_minutes": 10,
+                    "showcase": [
+                        {"en": "What, Where, When, Why, How, What time", "ru": "Вопросительные слова всегда стоят в самом начале вопроса перед do / does / is / are.", "speak": "Where do you work? What time is it?"},
+                        {"en": "at 9 o'clock | on Monday | in May", "ru": "Предлоги времени: at — точный час, on — день недели, in — месяц или год.", "speak": "at nine o'clock, on Monday, in May"},
+                    ],
+                    "simple_explanation": "Чтобы спросить «Где? Когда? Что? Почему?», ставим вопросительное слово в самое начало предложения, а сразу за ним — помощника (do/does или am/is/are): Where do you live? (Где ты живёшь?), What time is the meeting? (Во сколько встреча?). Для времени запомните удобную тройку предлогов: at — часы (at 10 o'clock), on — дни недели (on Monday), in — месяцы (in May).",
+                    "rule_name": "Вопросительные слова (Wh-questions) и предлоги времени (at / on / in)",
+                    "examples": [
+                        {"en": "Where do you live?", "ipa": "/weə duː juː lɪv/", "ru_hint": "уэа ду ю лив", "ru": "Где ты живёшь?"},
+                        {"en": "Our meeting is at nine o'clock on Monday.", "ipa": "/ˈaʊə ˈmiːtɪŋ ɪz æt naɪn əˈklɒk ɒn ˈmʌndeɪ/", "ru_hint": "ауа митинг из эт найн оклок он мандэй", "ru": "Наша встреча в 9 часов в понедельник."},
+                    ],
+                    "vocab": [
                         {"word": "where", "ipa": "/weə/", "ru_hint": "уэа", "ru": "где, куда", "example": "Where is the bus?", "topic": "Вопросы"},
                         {"word": "when", "ipa": "/wen/", "ru_hint": "уэн", "ru": "когда", "example": "When is the train?", "topic": "Вопросы"},
                         {"word": "meeting", "ipa": "/ˈmiːtɪŋ/", "ru_hint": "митинг", "ru": "встреча, совещание", "example": "Morning meeting.", "topic": "Работа и учёба"},
@@ -731,16 +988,7 @@ LEVEL_A1 = {
                     ],
                     "exercises": [
                         {
-                            "id": "a1-l3-ex1",
-                            "type": "fill_blank",
-                            "skill": "grammar",
-                            "prompt": "Вставьте правильный неопределённый артикль (a или an) перед словом, начинающимся с гласного звука: ___ apple",
-                            "answer": "an",
-                            "accepted": ["an"],
-                            "explanation": "Перед словами, которые начинаются с гласного звука (apple, office, hour), используется артикль an."
-                        },
-                        {
-                            "id": "a1-l3-ex2",
+                            "id": "a1-l3c-ex1",
                             "type": "word_order",
                             "skill": "grammar",
                             "prompt": "Соберите вопрос «Где ты работаешь?»:",
@@ -750,7 +998,7 @@ LEVEL_A1 = {
                             "explanation": "Схема вопроса: Вопросительное слово (Where) + помощник (do) + кто (you) + глагол (work)."
                         },
                         {
-                            "id": "a1-l3-ex3",
+                            "id": "a1-l3c-ex2",
                             "type": "reading_qa",
                             "skill": "reading",
                             "passage": "Aidar works in an IT company in Almaty. Every Monday he has a team meeting at 10 o'clock. Near his office there is a small cafe. He drinks tea and eats a sandwich there at 1 o'clock.",
@@ -760,7 +1008,7 @@ LEVEL_A1 = {
                             "explanation": "В тексте указано: «Every Monday he has a team meeting at 10 o'clock»."
                         },
                         {
-                            "id": "a1-l3-ex4",
+                            "id": "a1-l3c-ex3",
                             "type": "guided_writing",
                             "skill": "writing",
                             "prompt": "Напишите по образцу 1 короткое предложение о себе на английском: где вы живёте (например: I live in Almaty.)",

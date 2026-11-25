@@ -82,28 +82,23 @@ LEVEL_A2 = {
                 {
                     "id": "a2-l2",
                     "kind": "lesson",
-                    "title": "Past Simple и планы: Future Simple vs be going to",
+                    "title": "Past Simple: завершённое прошлое и помощник did",
                     "skill_focus": ["grammar", "reading", "writing"],
-                    "estimated_minutes": 18,
+                    "estimated_minutes": 11,
                     "showcase": [
                         {"en": "Yesterday I worked late and went home at 9 PM.", "ru": "В прошлом: правильные глаголы получают -ed (worked), неправильные — 2-ю форму (go -> went).", "speak": "Yesterday I worked late and went home at nine PM."},
                         {"en": "Did you call him? — I did not (didn't) see the message.", "ru": "В вопросе и отрицании в прошлом работает помощник did, а глагол возвращается в 1-ю форму!", "speak": "Did you call him? I did not see the message."},
-                        {"en": "I will send the file now. / We are going to travel in July.", "ru": "Спонтанное решение сейчас -> will; заранее задуманный план -> am/is/are going to.", "speak": "I will send the file now. We are going to travel in July."},
                     ],
-                    "simple_explanation": "Чтобы рассказать о завершённом событии в прошлом (yesterday — вчера, last week — на прошлой неделе), в утверждении добавляем к правильным глаголам -ed (worked, visited), а у частых неправильных берём вторую форму (go — went, buy — bought, see — saw). В вопросах и отрицаниях приходит помощник did — и забирает прошедшее время на себя: Did you go? I didn't go. Для будущего времени есть два удобных инструмента: will + глагол (обещание, прогноз или решение прямо в разговоре: I will help you!) и оборот be going to («собираюсь» — когда вы уже запланировали дело заранее: I am going to visit the doctor tomorrow).",
-                    "rule_name": "Past Simple (V-ed / V2, did) и будущее (will vs be going to)",
+                    "simple_explanation": "Чтобы рассказать о завершённом событии в прошлом (yesterday — вчера, last week — на прошлой неделе), в утверждении добавляем к правильным глаголам окончание -ed (worked, visited), а у частых неправильных берём вторую форму (go — went, buy — bought, see — saw). В вопросах и отрицаниях приходит помощник did — и забирает прошедшее время на себя, поэтому сам глагол остаётся в 1-й форме: Did you go? I didn't go.",
+                    "rule_name": "Past Simple (V-ed / V2, did / didn't)",
                     "examples": [
                         {"en": "Yesterday we bought tickets.", "ipa": "/ˈjestədeɪ wiː bɔːt ˈtɪkɪts/", "ru_hint": "естэдэй уи бот тикетс", "ru": "Вчера мы купили билеты."},
                         {"en": "Did you finish the task?", "ipa": "/dɪd juː ˈfɪnɪʃ ðə tɑːsk/", "ru_hint": "дид ю финиш зэ таск", "ru": "Ты закончил задачу?"},
-                        {"en": "I am going to see a doctor tomorrow.", "ipa": "/aɪ æm ˈɡəʊɪŋ tuː siː ə ˈdɒktə təˈmɒrəʊ/", "ru_hint": "ай эм гоуинг ту си э доктэ тэмороу", "ru": "Я собираюсь пойти к врачу завтра."},
-                        {"en": "Don't worry, I will call you.", "ipa": "/dəʊnt ˈwʌri aɪ wɪl kɔːl juː/", "ru_hint": "донт уори ай уил кол ю", "ru": "Не переживай, я тебе позвоню."},
                     ],
                     "vocab": [
                         {"word": "yesterday", "ipa": "/ˈjestədeɪ/", "ru_hint": "естэдэй", "ru": "вчера", "example": "I called you yesterday.", "topic": "Время"},
-                        {"word": "tomorrow", "ipa": "/təˈmɒrəʊ/", "ru_hint": "тэмороу", "ru": "завтра", "example": "See you tomorrow.", "topic": "Время"},
-                        {"word": "ticket", "ipa": "/ˈtɪkɪt/", "ru_hint": "тикет", "ru": "билет, заявка", "example": "Train ticket.", "topic": "Поездки"},
                         {"word": "bought", "ipa": "/bɔːt/", "ru_hint": "бот", "ru": "купил (2-я форма от buy)", "example": "She bought a coat.", "topic": "Покупки"},
-                        {"word": "doctor", "ipa": "/ˈdɒktə/", "ru_hint": "доктэ", "ru": "врач", "example": "See a doctor.", "topic": "Здоровье"},
+                        {"word": "ticket", "ipa": "/ˈtɪkɪt/", "ru_hint": "тикет", "ru": "билет, заявка", "example": "Train ticket.", "topic": "Поездки"},
                     ],
                     "exercises": [
                         {
@@ -117,6 +112,47 @@ LEVEL_A2 = {
                         },
                         {
                             "id": "a2-l2-ex2",
+                            "type": "fill_blank",
+                            "skill": "grammar",
+                            "prompt": "Поставьте глагол work в Past Simple: Last Friday I ___ from home.",
+                            "answer": "worked",
+                            "accepted": ["worked"],
+                            "explanation": "Work — правильный глагол, в Past Simple добавляется окончание -ed: worked."
+                        },
+                        {
+                            "id": "a2-l2-ex3",
+                            "type": "translate_ru_en",
+                            "skill": "writing",
+                            "prompt": "Переведите: «Вчера мы купили билеты.»",
+                            "answer": "Yesterday we bought tickets.",
+                            "accepted": ["Yesterday we bought tickets.", "Yesterday we bought tickets", "We bought tickets yesterday.", "We bought tickets yesterday"],
+                            "explanation": "Buy во 2-й форме — bought: Yesterday we bought tickets."
+                        }
+                    ]
+                },
+                {
+                    "id": "a2-l2b",
+                    "kind": "lesson",
+                    "title": "Будущее время: will vs be going to",
+                    "skill_focus": ["grammar", "listening", "speaking"],
+                    "estimated_minutes": 10,
+                    "showcase": [
+                        {"en": "I will send the file now. (решение в момент речи)", "ru": "Спонтанное решение прямо сейчас, обещание или прогноз -> will + глагол.", "speak": "I will send the file now."},
+                        {"en": "We are going to travel in July. (заранее задуманный план)", "ru": "Когда вы уже решили и запланировали действие заранее -> am/is/are going to.", "speak": "We are going to travel in July."},
+                    ],
+                    "simple_explanation": "Для будущего времени в английском есть два удобных инструмента: 1) will + глагол — когда вы принимаете решение прямо в секунду разговора, даёте обещание или делаете прогноз («Не переживай, я помогу» — I will help you!). 2) оборот be going to («собираюсь») — когда план уже продуман заранее («Завтра я собираюсь пойти к врачу» — I am going to see a doctor tomorrow).",
+                    "rule_name": "Future Simple (will) vs Планы (be going to)",
+                    "examples": [
+                        {"en": "I am going to see a doctor tomorrow.", "ipa": "/aɪ æm ˈɡəʊɪŋ tuː siː ə ˈdɒktə təˈmɒrəʊ/", "ru_hint": "ай эм гоуинг ту си э доктэ тэмороу", "ru": "Я собираюсь пойти к врачу завтра."},
+                        {"en": "Don't worry, I will call you.", "ipa": "/dəʊnt ˈwʌri aɪ wɪl kɔːl juː/", "ru_hint": "донт уори ай уил кол ю", "ru": "Не переживай, я тебе позвоню."},
+                    ],
+                    "vocab": [
+                        {"word": "tomorrow", "ipa": "/təˈmɒrəʊ/", "ru_hint": "тэмороу", "ru": "завтра", "example": "See you tomorrow.", "topic": "Время"},
+                        {"word": "doctor", "ipa": "/ˈdɒktə/", "ru_hint": "доктэ", "ru": "врач", "example": "See a doctor.", "topic": "Здоровье"},
+                    ],
+                    "exercises": [
+                        {
+                            "id": "a2-l2b-ex1",
                             "type": "choice",
                             "skill": "grammar",
                             "prompt": "У вас уже куплены чемоданы и запланирован отпуск. Как естественнее сказать «Мы собираемся поехать в Рим в мае»?",
@@ -129,16 +165,7 @@ LEVEL_A2 = {
                             "explanation": "Для заранее намеченных планов используется конструкция am/is/are going to + глагол."
                         },
                         {
-                            "id": "a2-l2-ex3",
-                            "type": "fill_blank",
-                            "skill": "grammar",
-                            "prompt": "Поставьте глагол work в Past Simple: Last Friday I ___ from home.",
-                            "answer": "worked",
-                            "accepted": ["worked"],
-                            "explanation": "Work — правильный глагол, в Past Simple добавляется окончание -ed: worked."
-                        },
-                        {
-                            "id": "a2-l2-ex4",
+                            "id": "a2-l2b-ex2",
                             "type": "listening_qa",
                             "skill": "listening",
                             "audio_text": "Hi Dana! Yesterday I felt a bit sick, so I stayed at home. Tomorrow I am going to visit the clinic at nine AM.",
@@ -146,33 +173,37 @@ LEVEL_A2 = {
                             "options": ["Пойти в клинику в 9 утра", "Поехать в аэропорт за билетами", "Работать в офисе допоздна"],
                             "answer": "Пойти в клинику в 9 утра",
                             "explanation": "Прозвучало: «Tomorrow I am going to visit the clinic at nine AM»."
+                        },
+                        {
+                            "id": "a2-l2b-ex3",
+                            "type": "translate_ru_en",
+                            "skill": "writing",
+                            "prompt": "Переведите спонтанное обещание: «Не переживай, я тебе позвоню.» (используйте will)",
+                            "answer": "Don't worry, I will call you.",
+                            "accepted": ["Don't worry, I will call you.", "Don't worry, I will call you", "Do not worry, I will call you.", "I will call you."],
+                            "explanation": "Спонтанное обещание в момент разговора передаётся через will: I will call you."
                         }
                     ]
                 },
                 {
                     "id": "a2-l3",
                     "kind": "lesson",
-                    "title": "Сравнения, модальные советы (should/must/have to), предлоги и количество",
-                    "skill_focus": ["grammar", "vocabulary", "reading"],
-                    "estimated_minutes": 18,
+                    "title": "Степени сравнения прилагательных (faster, better, more comfortable)",
+                    "skill_focus": ["grammar", "vocabulary"],
+                    "estimated_minutes": 10,
                     "showcase": [
                         {"en": "faster → the fastest | more comfortable → the most comfortable", "ru": "Короткие прилагательные: -er / the -est; длинные: more / the most.", "speak": "faster, the fastest, more comfortable"},
-                        {"en": "You should rest. I have to wear a badge at work.", "ru": "should — мягкий совет («следует»); have to / must — обязанность («нужно, обязан»).", "speak": "You should rest. I have to wear a badge at work."},
-                        {"en": "How much time / water? vs How many tickets / messages?", "ru": "Неисчисляемое (вода, время, деньги) -> much / a little; штучное -> many / a few.", "speak": "How much time? How many tickets?"},
+                        {"en": "good → better → the best | bad → worse → the worst", "ru": "Два главных исключения: good (лучше — better) и bad (хуже — worse).", "speak": "good, better, the best"},
                     ],
-                    "simple_explanation": "1) Сравнение: к коротким словам в 1 слог добавляем -er (cheaper — дешевле) и the -est (the cheapest — самый дешёвый), а перед длинными ставим more / the most (more important). Запомните два важных исключения: good -> better -> the best (лучший) и bad -> worse -> the worst. 2) Модальные оттенки: should даёт дружеский совет («Тебе стоит отдохнуть» — You should rest), а have to говорит о правилах и необходимости («Мне приходится вставать в 7» — I have to get up at 7). 3) Исчисляемые и неисчисляемые: то, что можно посчитать штуками (apples, emails) — many; то, что нельзя посчитать поштучно (water, money, information, time) — much (и всегда с глаголом в единственном числе: Information is important!).",
-                    "rule_name": "Degrees of Comparison, Modals (should / have to / must) & Countable/Uncountable",
+                    "simple_explanation": "Чтобы сравнить два предмета: к коротким словам в 1 слог добавляем -er (cheaper — дешевле, faster — быстрее) и the -est для превосходной степени (the cheapest — самый дешёвый). Перед длинными словами (2+ слога) ставим more / the most (more important — важнее). Обязательно запомните два исключения: good -> better -> the best (лучший) и bad -> worse -> the worst (худший).",
+                    "rule_name": "Степени сравнения прилагательных",
                     "examples": [
                         {"en": "This train is faster than the bus.", "ipa": "/ðɪs treɪn ɪz ˈfɑːstə ðæn ðə bʌs/", "ru_hint": "зис трэйн из фастэ зэн зэ бас", "ru": "Этот поезд быстрее, чем автобус."},
-                        {"en": "You should drink more water.", "ipa": "/juː ʃʊd drɪŋk mɔː ˈwɔːtə/", "ru_hint": "ю шуд дринк мо уотэ", "ru": "Тебе стоит пить больше воды."},
-                        {"en": "How much does this jacket cost?", "ipa": "/haʊ mʌtʃ dʌz ðɪs ˈdʒækɪt kɒst/", "ru_hint": "хау мач даз зис джэкит кост", "ru": "Сколько стоит эта куртка?"},
+                        {"en": "Today I feel better.", "ipa": "/təˈdeɪ aɪ fiːl ˈbetə/", "ru_hint": "тудэй ай фил бэтэ", "ru": "Сегодня я чувствую себя лучше."},
                     ],
                     "vocab": [
                         {"word": "faster", "ipa": "/ˈfɑːstə/", "ru_hint": "фастэ", "ru": "быстрее", "example": "A faster route.", "topic": "Описание"},
                         {"word": "better", "ipa": "/ˈbetə/", "ru_hint": "бэтэ", "ru": "лучше", "example": "I feel better today.", "topic": "Здоровье"},
-                        {"word": "should", "ipa": "/ʃʊd/", "ru_hint": "шуд", "ru": "следует, стоит (совет)", "example": "You should sleep.", "topic": "Модальные глаголы"},
-                        {"word": "price", "ipa": "/praɪs/", "ru_hint": "прайс", "ru": "цена", "example": "Good price.", "topic": "Покупки"},
-                        {"word": "medicine", "ipa": "/ˈmedsn/", "ru_hint": "мэдсн", "ru": "лекарство", "example": "Take this medicine.", "topic": "Здоровье"},
                     ],
                     "exercises": [
                         {
@@ -188,13 +219,55 @@ LEVEL_A2 = {
                             "id": "a2-l3-ex2",
                             "type": "fill_blank",
                             "skill": "grammar",
+                            "prompt": "Образуйте сравнительную степень от fast: This train is ___ than the bus.",
+                            "answer": "faster",
+                            "accepted": ["faster"],
+                            "explanation": "Короткое прилагательное fast получает суффикс -er: faster."
+                        },
+                        {
+                            "id": "a2-l3-ex3",
+                            "type": "choice",
+                            "skill": "grammar",
+                            "prompt": "Выберите правильную форму для длинного прилагательного comfortable (удобный):",
+                            "options": ["more comfortable", "comfortabler", "most comfortable than"],
+                            "answer": "more comfortable",
+                            "explanation": "Длинные прилагательные образуют сравнительную степень с помощью слова more: more comfortable."
+                        }
+                    ]
+                },
+                {
+                    "id": "a2-l3b",
+                    "kind": "lesson",
+                    "title": "Советы (should / have to) и количество (much / many)",
+                    "skill_focus": ["grammar", "speaking", "writing"],
+                    "estimated_minutes": 11,
+                    "showcase": [
+                        {"en": "You should rest. / I have to wear a badge at work.", "ru": "should — мягкий совет («стоит, следует»); have to / must — обязанность («нужно, приходится»).", "speak": "You should rest. I have to wear a badge at work."},
+                        {"en": "How much time / water? vs How many tickets / messages?", "ru": "Неисчисляемое (вода, время, деньги) -> much; штучное -> many.", "speak": "How much time? How many tickets?"},
+                    ],
+                    "simple_explanation": "1) Модальные оттенки: should даёт дружеский совет («Тебе стоит отдохнуть» — You should rest), а have to говорит о правилах и необходимости («Мне приходится вставать в 7» — I have to get up at 7). 2) Исчисляемые и неисчисляемые: то, что можно посчитать штуками (apples, emails, tickets) — это many; то, что нельзя посчитать поштучно (water, money, information, time) — это much.",
+                    "rule_name": "Модальные (should / have to / must) и much / many",
+                    "examples": [
+                        {"en": "You should drink more water.", "ipa": "/juː ʃʊd drɪŋk mɔː ˈwɔːtə/", "ru_hint": "ю шуд дринк мо уотэ", "ru": "Тебе стоит пить больше воды."},
+                        {"en": "How much does this jacket cost?", "ipa": "/haʊ mʌtʃ dʌz ðɪs ˈdʒækɪt kɒst/", "ru_hint": "хау мач даз зис джэкит кост", "ru": "Сколько стоит эта куртка?"},
+                    ],
+                    "vocab": [
+                        {"word": "should", "ipa": "/ʃʊd/", "ru_hint": "шуд", "ru": "следует, стоит (совет)", "example": "You should sleep.", "topic": "Модальные глаголы"},
+                        {"word": "price", "ipa": "/praɪs/", "ru_hint": "прайс", "ru": "цена", "example": "Good price.", "topic": "Покупки"},
+                        {"word": "medicine", "ipa": "/ˈmedsn/", "ru_hint": "мэдсн", "ru": "лекарство", "example": "Take this medicine.", "topic": "Здоровье"},
+                    ],
+                    "exercises": [
+                        {
+                            "id": "a2-l3b-ex1",
+                            "type": "fill_blank",
+                            "skill": "grammar",
                             "prompt": "Вставьте much или many: How ___ time do we have before the flight?",
                             "answer": "much",
                             "accepted": ["much"],
                             "explanation": "Time (время) — неисчисляемое существительное, поэтому используется much."
                         },
                         {
-                            "id": "a2-l3-ex3",
+                            "id": "a2-l3b-ex2",
                             "type": "mini_dialogue",
                             "skill": "speaking",
                             "context": "Вы в аптеке, у вас болит горло.",
@@ -210,7 +283,7 @@ LEVEL_A2 = {
                             "explanation": "Корректная бытовая реплика уровня A2: называем симптом и спрашиваем совет с модальным глаголом should."
                         },
                         {
-                            "id": "a2-l3-ex4",
+                            "id": "a2-l3b-ex3",
                             "type": "guided_writing",
                             "skill": "writing",
                             "prompt": "Напишите короткое сообщение коллеге (1–2 предложения) о том, что завтра вы собираетесь работать из дома (используйте tomorrow и going to).",
@@ -370,25 +443,21 @@ LEVEL_B1 = {
                 {
                     "id": "b1-l2",
                     "kind": "lesson",
-                    "title": "Условные предложения (1st & 2nd Conditionals), Passive Voice и Reported Speech",
-                    "skill_focus": ["grammar", "speaking", "reading"],
-                    "estimated_minutes": 20,
+                    "title": "Условные предложения: 1st & 2nd Conditionals",
+                    "skill_focus": ["grammar", "speaking"],
+                    "estimated_minutes": 11,
                     "showcase": [
-                        {"en": "1st: If we finish early, we will call you. (реальное будущее, без will после if!)", "ru": "В части с If для реального будущего пишем настоящее время, а will — только в главной части.", "speak": "If we finish early, we will call you."},
+                        {"en": "1st: If we finish early, we will call you. (реальное будущее, без will после if!)", "ru": "В части с If для реального будущего пишем настоящее время (Present Simple), а will — только в главной части.", "speak": "If we finish early, we will call you."},
                         {"en": "2nd: If I had more time, I would learn Spanish. (воображаемая ситуация сейчас)", "ru": "Воображаемое «если бы»: If + Past Simple, ... would + глагол.", "speak": "If I had more time, I would learn Spanish."},
-                        {"en": "Passive: The system was updated at night. | Reported: He said that he was busy.", "ru": "Пассив: be + V3. Косвенная речь после said: шаг на одно время назад (is -> was).", "speak": "The system was updated at night. He said that he was busy."},
                     ],
-                    "simple_explanation": "Три конструкции, которые сразу делают вашу речь взрослой и гибкой: 1) Условия: в реальном условии (First Conditional: «Если пойдёт дождь, мы останемся дома») после слова if НЕ ставится will — там работает обычный Present Simple: If it rains, we will stay at home. А для мечты или нереального условия сейчас («Если бы я был на твоём месте...») берём Second Conditional: If I were you, I would accept the offer. 2) Пассивный залог (когда важнее сам объект, а не кто сделал): нужная форма be + 3-я форма глагола (The tickets were booked online — Билеты были забронированы онлайн). 3) Косвенная речь: когда вы пересказываете чужие слова в прошлом (He said that...), настоящее время сдвигается на шаг в прошлое: «I am ready» -> He said that he was ready.",
-                    "rule_name": "Conditionals (Type 1 & 2), Passive Voice (be + V3) & Reported Speech",
+                    "simple_explanation": "В реальном условии (First Conditional: «Если пойдёт дождь, мы останемся дома») после слова if НЕ ставится will — там работает обычный Present Simple: If it rains, we will stay at home. А для мечты или воображаемого условия в настоящем («Если бы я был на твоём месте...») берём Second Conditional: If I were you, I would accept the offer.",
+                    "rule_name": "Conditionals (Type 1 & Type 2)",
                     "examples": [
                         {"en": "If you send the draft today, I will review it tomorrow.", "ipa": "/ɪf juː send ðə drɑːft təˈdeɪ aɪ wɪl rɪˈvjuː ɪt təˈmɒrəʊ/", "ru_hint": "иф ю сэнд зэ драфт тудэй ай уил ривью ит тэмороу", "ru": "Если вы пришлёте черновик сегодня, я проверю его завтра."},
                         {"en": "If I were you, I would talk to the manager.", "ipa": "/ɪf aɪ wɜː juː aɪ wʊd tɔːk tuː ðə ˈmænɪdʒə/", "ru_hint": "иф ай уё ю ай вуд ток ту зэ мэнэджэ", "ru": "На твоём месте я бы поговорил с руководителем."},
-                        {"en": "All requests are processed automatically.", "ipa": "/ɔːl rɪˈkwests ɑː ˈprəʊsest ˌɔːtəˈmætɪkli/", "ru_hint": "ол рикуэстс ар проусэст отомэкли", "ru": "Все заявки обрабатываются автоматически."},
                     ],
                     "vocab": [
                         {"word": "draft", "ipa": "/drɑːft/", "ru_hint": "драфт", "ru": "черновик, проект документа", "example": "First draft.", "topic": "Деловая переписка"},
-                        {"word": "review", "ipa": "/rɪˈvjuː/", "ru_hint": "ривью", "ru": "проверять, делать обзор", "example": "Review the document.", "topic": "Работа и учёба"},
-                        {"word": "request", "ipa": "/rɪˈkwest/", "ru_hint": "рикуэст", "ru": "запрос, заявка", "example": "Submit a request.", "topic": "Работа и учёба"},
                         {"word": "accept", "ipa": "/əkˈsept/", "ru_hint": "эксэпт", "ru": "принимать", "example": "Accept an offer.", "topic": "Деловая переписка"},
                     ],
                     "exercises": [
@@ -403,6 +472,47 @@ LEVEL_B1 = {
                         },
                         {
                             "id": "b1-l2-ex2",
+                            "type": "fill_blank",
+                            "skill": "grammar",
+                            "prompt": "Дополните 2-й тип условных предложений: If I had more money, I ___ travel more.",
+                            "answer": "would",
+                            "accepted": ["would"],
+                            "explanation": "В воображаемом «бы» в главной части используется would."
+                        },
+                        {
+                            "id": "b1-l2-ex3",
+                            "type": "word_order",
+                            "skill": "grammar",
+                            "prompt": "Соберите предложение совета в 2-м условном типе («На твоём месте я бы поговорил с менеджером»):",
+                            "words": ["I", "would", "If", "were", "talk", "to the manager.", "you,", "I"],
+                            "answer": "If I were you, I would talk to the manager.",
+                            "accepted": ["If I were you, I would talk to the manager.", "If I were you, I would talk to the manager"],
+                            "explanation": "Устойчивая формула совета: If I were you, I would..."
+                        }
+                    ]
+                },
+                {
+                    "id": "b1-l2b",
+                    "kind": "lesson",
+                    "title": "Пассивный залог (Passive Voice: be + V3)",
+                    "skill_focus": ["grammar", "reading"],
+                    "estimated_minutes": 10,
+                    "showcase": [
+                        {"en": "The system was updated at night. / Tickets are booked online.", "ru": "Когда важнее сам предмет и результат, а не кто сделал действие -> be (am/is/are/was/were) + 3-я форма глагола (V3).", "speak": "The system was updated at night."},
+                    ],
+                    "simple_explanation": "В деловых текстах, новостях и инструкциях часто не важно, кто именно выполнил действие — важен сам объект («Отчёт был отправлен», «Заявки обрабатываются автоматически»). Для этого берём нужную форму глагола be (is/are — сейчас, was/were — в прошлом, will be — в будущем) и 3-ю форму глагола: The server was installed last night.",
+                    "rule_name": "Пассивный залог (Passive Voice: be + V3)",
+                    "examples": [
+                        {"en": "All requests are processed automatically.", "ipa": "/ɔːl rɪˈkwests ɑː ˈprəʊsest ˌɔːtəˈmætɪkli/", "ru_hint": "ол рикуэстс ар проусэст отомэкли", "ru": "Все заявки обрабатываются автоматически."},
+                        {"en": "The report was sent yesterday.", "ipa": "/ðə rɪˈpɔːt wɒz sent ˈjestədeɪ/", "ru_hint": "зэ рипот уоз сэнт естэдэй", "ru": "Отчёт был отправлен вчера."},
+                    ],
+                    "vocab": [
+                        {"word": "request", "ipa": "/rɪˈkwest/", "ru_hint": "рикуэст", "ru": "запрос, заявка", "example": "Submit a request.", "topic": "Работа и учёба"},
+                        {"word": "review", "ipa": "/rɪˈvjuː/", "ru_hint": "ривью", "ru": "проверять, делать обзор", "example": "Review the document.", "topic": "Работа и учёба"},
+                    ],
+                    "exercises": [
+                        {
+                            "id": "b1-l2b-ex1",
                             "type": "choice",
                             "skill": "grammar",
                             "prompt": "Выберите правильную форму Passive Voice: «The new server ___ last night.» (Новый сервер был установлен прошлой ночью)",
@@ -411,7 +521,7 @@ LEVEL_B1 = {
                             "explanation": "Сервер установили (над ним совершили действие) в прошлом (last night) -> was + V3 (was installed)."
                         },
                         {
-                            "id": "b1-l2-ex3",
+                            "id": "b1-l2b-ex2",
                             "type": "reading_qa",
                             "skill": "reading",
                             "passage": "Dear Colleagues, Please note that the student database will be updated this Saturday from 10:00 PM to midnight. If you have unsaved reports, please export them before Friday evening. In my opinion, this update will make daily searches twice as fast.",
@@ -425,7 +535,48 @@ LEVEL_B1 = {
                             "explanation": "В письме указано: «If you have unsaved reports, please export them before Friday evening»."
                         },
                         {
-                            "id": "b1-l2-ex4",
+                            "id": "b1-l2b-ex3",
+                            "type": "fill_blank",
+                            "skill": "grammar",
+                            "prompt": "Дополните пассивный залог в настоящем времени: All requests ___ processed automatically.",
+                            "answer": "are",
+                            "accepted": ["are"],
+                            "explanation": "Requests во множественном числе, настоящее время -> are processed."
+                        }
+                    ]
+                },
+                {
+                    "id": "b1-l2c",
+                    "kind": "lesson",
+                    "title": "Косвенная речь (Reported Speech) и выражение мнения",
+                    "skill_focus": ["grammar", "writing", "speaking"],
+                    "estimated_minutes": 10,
+                    "showcase": [
+                        {"en": "«I am ready.» → He said that he was ready.", "ru": "Когда пересказываем чужие слова в прошлом (said that), глагол сдвигается на шаг назад (am/is -> was).", "speak": "He said that he was ready."},
+                        {"en": "In my opinion, ... / I think that ...", "ru": "Вводные фразы помогают чётко и вежливо выразить свою точку зрения в переписке и обсуждении.", "speak": "In my opinion, working from home saves time."},
+                    ],
+                    "simple_explanation": "Когда вы передаёте чужие слова в прошлом (He said that... — Он сказал, что...), английский сдвигает время на один шаг в прошлое: «I am busy» превращается в He said that he was busy. А чтобы уверенно высказывать своё мнение в письмах и на встречах, используйте связки In my opinion, ... или From my point of view, ...",
+                    "rule_name": "Косвенная речь (Reported Speech) и деловое мнение",
+                    "examples": [
+                        {"en": "She said that she liked the new office.", "ipa": "/ʃiː sed ðæt ʃiː laɪkt ðə njuː ˈɒfɪs/", "ru_hint": "ши сэд зэт ши лайкт зэ нью офис", "ru": "Она сказала, что ей понравился новый офис."},
+                        {"en": "In my opinion, this plan is realistic.", "ipa": "/ɪn maɪ əˈpɪnjən ðɪs plæn ɪz ˌrɪəˈlɪstɪk/", "ru_hint": "ин май опиньон зис плэн из риэлистик", "ru": "По моему мнению, этот план реалистичен."},
+                    ],
+                    "vocab": [
+                        {"word": "opinion", "ipa": "/əˈpɪnjən/", "ru_hint": "опиньон", "ru": "мнение", "example": "In my opinion...", "topic": "Общение"},
+                        {"word": "colleague", "ipa": "/ˈkɒliːɡ/", "ru_hint": "колиг", "ru": "коллега", "example": "Dear colleagues.", "topic": "Работа и учёба"},
+                    ],
+                    "exercises": [
+                        {
+                            "id": "b1-l2c-ex1",
+                            "type": "choice",
+                            "skill": "grammar",
+                            "prompt": "Переведите в косвенную речь: «We are ready.» -> They said that they ___ ready.",
+                            "options": ["were", "are", "will be"],
+                            "answer": "were",
+                            "explanation": "После глагола в прошлом (said) форма are сдвигается на шаг назад — were."
+                        },
+                        {
+                            "id": "b1-l2c-ex2",
                             "type": "guided_writing",
                             "skill": "writing",
                             "prompt": "Изложите мнение (1–2 предложения) о работе из дома или в офисе, начав с фразы «In my opinion, ...» или «I think that ...»",
@@ -435,6 +586,15 @@ LEVEL_B1 = {
                             "min_words": 6,
                             "answer": "In my opinion, working from home saves time.",
                             "explanation": "Отлично! Вводные конструкции In my opinion / I think that помогают структурно выражать свою точку зрения на уровне B1."
+                        },
+                        {
+                            "id": "b1-l2c-ex3",
+                            "type": "fill_blank",
+                            "skill": "grammar",
+                            "prompt": "Передайте слова коллеги в прошлом: «I am busy.» -> He said that he ___ busy.",
+                            "answer": "was",
+                            "accepted": ["was"],
+                            "explanation": "В косвенной речи после said глагол am сдвигается в форму прошедшего времени was."
                         }
                     ]
                 },
@@ -578,25 +738,23 @@ LEVEL_B2 = {
                 {
                     "id": "b2-l2",
                     "kind": "lesson",
-                    "title": "Фразовые глаголы, устойчивые выражения и деловая аргументация",
-                    "skill_focus": ["vocabulary", "reading", "writing", "speaking"],
-                    "estimated_minutes": 22,
+                    "title": "Фразовые глаголы и деловые устойчивые сочетания",
+                    "skill_focus": ["vocabulary", "speaking"],
+                    "estimated_minutes": 11,
                     "showcase": [
-                        {"en": "figure out (разобраться), carry out (провести/выполнить), put off (отложить), point out (указать на)", "ru": "В живой речи носители говорят figure out вместо solve и put off вместо postpone.", "speak": "figure out, carry out, put off, point out"},
-                        {"en": "However, ... | Furthermore, ... | Taking everything into account, ...", "ru": "Связки уровня B2 превращают отдельные фразы в убедительный отчёт или выступление.", "speak": "However, furthermore, taking everything into account."},
+                        {"en": "figure out (разобраться), carry out (провести/выполнить), put off (отложить)", "ru": "В живой речи носители говорят figure out вместо solve и put off вместо postpone.", "speak": "figure out, carry out, put off"},
+                        {"en": "make a decision | meet a deadline", "ru": "Устойчивые сочетания (collocations): именно make a decision (не do!), meet a deadline.", "speak": "make a decision, meet a deadline"},
                     ],
-                    "simple_explanation": "На уровне B2 разница между «учебниковым» и естественным английским кроется в двух вещах: 1) Фразовые глаголы и устойчивые словосочетания (collocations): например, мы говорим make a decision (принять решение, а не do a decision!), meet a deadline (уложиться в срок), carry out an audit (провести проверку), figure out the root cause (выяснить первопричину), put off a meeting (перенести/отложить встречу). 2) Логические связки аргументации: On the one hand / On the other hand (с одной / с другой стороны), However (однако), Furthermore / Moreover (более того), As a result (в результате).",
-                    "rule_name": "Phrasal Verbs, Business Collocations & Discourse Markers",
+                    "simple_explanation": "На уровне B2 разница между «учебниковым» и естественным английским кроется во фразовых глаголах и устойчивых словосочетаниях (collocations). Вместо сухого do/solve носители говорят make a decision (принять решение), meet a deadline (уложиться в срок), carry out an audit (провести проверку), figure out the root cause (выяснить первопричину), put off a meeting (перенести/отложить встречу).",
+                    "rule_name": "Phrasal Verbs & Business Collocations",
                     "examples": [
                         {"en": "We need to figure out why the conversion rate dropped.", "ipa": "/wiː niːd tuː ˈfɪɡər aʊt waɪ ðə kənˈvɜːʃn reɪt drɒpt/", "ru_hint": "уи нид ту фигэр аут уай зэ конвёршн рэйт дропт", "ru": "Нам нужно разобраться, почему упала конверсия."},
                         {"en": "Let's not put off this decision until next quarter.", "ipa": "/lets nɒt pʊt ɒf ðɪs dɪˈsɪʒn ənˈtɪl nekst ˈkwɔːtə/", "ru_hint": "лэтс нот пут оф зис дисижн антил нэкст куотэ", "ru": "Давайте не будем откладывать это решение до следующего квартала."},
-                        {"en": "However, the benefits clearly outweigh the initial costs.", "ipa": "/haʊˈevə ðə ˈbenɪfɪts ˈklɪəli ˌaʊtˈweɪ ðə ɪˈnɪʃl kɒsts/", "ru_hint": "хауэвэ зэ бэнифитс клиали аутвэй зи инишл костс", "ru": "Однако преимущества явно перевешивают начальные затраты."},
                     ],
                     "vocab": [
                         {"word": "figure out", "ipa": "/ˈfɪɡər aʊt/", "ru_hint": "фигэр аут", "ru": "разобраться, выяснить, понять", "example": "I will figure it out.", "topic": "Фразовые глаголы"},
                         {"word": "put off", "ipa": "/pʊt ɒf/", "ru_hint": "пут оф", "ru": "откладывать, переносить", "example": "Never put off important tasks.", "topic": "Фразовые глаголы"},
                         {"word": "carry out", "ipa": "/ˈkæri aʊt/", "ru_hint": "кэри аут", "ru": "проводить, выполнять (исследование, работу)", "example": "Carry out a survey.", "topic": "Фразовые глаголы"},
-                        {"word": "outweigh", "ipa": "/ˌaʊtˈweɪ/", "ru_hint": "аутвэй", "ru": "перевешивать, превосходить по значимости", "example": "Pros outweigh cons.", "topic": "Деловая и академическая речь"},
                         {"word": "deadline", "ipa": "/ˈdedlaɪn/", "ru_hint": "дэдлайн", "ru": "крайний срок", "example": "Meet a tight deadline.", "topic": "Работа и учёба"},
                     ],
                     "exercises": [
@@ -615,6 +773,44 @@ LEVEL_B2 = {
                         },
                         {
                             "id": "b2-l2-ex2",
+                            "type": "choice",
+                            "skill": "vocabulary",
+                            "prompt": "Выберите естественное устойчивое сочетание для «принять решение»:",
+                            "options": ["make a decision", "do a decision", "put a decision"],
+                            "answer": "make a decision",
+                            "explanation": "Со словом decision в английском используется глагол make: make a decision."
+                        },
+                        {
+                            "id": "b2-l2-ex3",
+                            "type": "fill_blank",
+                            "skill": "vocabulary",
+                            "prompt": "Заполните пропуск фразовым глаголом («не откладывайте»): Let's not put ___ this decision until next week.",
+                            "answer": "off",
+                            "accepted": ["off"],
+                            "explanation": "Откладывать на потом — put off."
+                        }
+                    ]
+                },
+                {
+                    "id": "b2-l2b",
+                    "kind": "lesson",
+                    "title": "Деловая аргументация, отчёты и эссе",
+                    "skill_focus": ["reading", "writing", "speaking"],
+                    "estimated_minutes": 12,
+                    "showcase": [
+                        {"en": "However, ... | Furthermore, ... | Taking everything into account, ...", "ru": "Логические связки уровня B2 превращают отдельные фразы в убедительный отчёт или выступление.", "speak": "However, furthermore, taking everything into account."},
+                    ],
+                    "simple_explanation": "Чтобы ваши отчёты, презентации и эссе звучали убедительно, связывайте мысли логическими маркерами: On the one hand / On the other hand (с одной / с другой стороны), However (однако), Furthermore / Moreover (более того), As a result (в результате), Outweigh (перевешивать по значимости).",
+                    "rule_name": "Discourse Markers & Structured Argumentation",
+                    "examples": [
+                        {"en": "However, the benefits clearly outweigh the initial costs.", "ipa": "/haʊˈevə ðə ˈbenɪfɪts ˈklɪəli ˌaʊtˈweɪ ðə ɪˈnɪʃl kɒsts/", "ru_hint": "хауэвэ зэ бэнифитс клиали аутвэй зи инишл костс", "ru": "Однако преимущества явно перевешивают начальные затраты."},
+                    ],
+                    "vocab": [
+                        {"word": "outweigh", "ipa": "/ˌaʊtˈweɪ/", "ru_hint": "аутвэй", "ru": "перевешивать, превосходить по значимости", "example": "Pros outweigh cons.", "topic": "Деловая и академическая речь"},
+                    ],
+                    "exercises": [
+                        {
+                            "id": "b2-l2b-ex1",
                             "type": "reading_qa",
                             "skill": "reading",
                             "passage": "Executive Summary: Over the past six months, our department carried out a comprehensive transition to digital document workflows. Although initial training required extra hours, the long-term gains clearly outweigh the effort: processing time has dropped by 42%, and error rates have fallen significantly. Moving forward, we recommend automating archive indexing as well.",
@@ -628,7 +824,7 @@ LEVEL_B2 = {
                             "explanation": "В тексте указано: «the long-term gains clearly outweigh the effort: processing time has dropped by 42%»."
                         },
                         {
-                            "id": "b2-l2-ex3",
+                            "id": "b2-l2b-ex2",
                             "type": "free_writing",
                             "skill": "writing",
                             "prompt": "Напишите короткий аргументированный абзац (2–3 предложения) по теме автоматизации на работе, используя хотя бы одну связку (например: however, furthermore, in addition, as a result).",
@@ -637,6 +833,15 @@ LEVEL_B2 = {
                             "min_words": 12,
                             "answer": "Automation saves time; however, proper training is essential.",
                             "explanation": "Отличная связная аргументация уровня B2 с использованием логического маркера!"
+                        },
+                        {
+                            "id": "b2-l2b-ex3",
+                            "type": "choice",
+                            "skill": "vocabulary",
+                            "prompt": "Какая логическая связка лучше всего подходит для противопоставления («Однако...»)?",
+                            "options": ["However", "Furthermore", "As a result"],
+                            "answer": "However",
+                            "explanation": "However означает «однако» и используется для контраста, Furthermore — «более того», As a result — «в результате»."
                         }
                     ]
                 },

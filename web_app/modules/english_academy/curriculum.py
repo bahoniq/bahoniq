@@ -7,6 +7,7 @@ from typing import Any
 
 from .curriculum_a0_a1 import LEVEL_A0, LEVEL_A1
 from .curriculum_a2_b2 import LEVEL_A2, LEVEL_B1, LEVEL_B2
+from .dictionary_data import EXTENDED_DICTIONARY_RAW
 
 LEVELS: list[dict[str, Any]] = [LEVEL_A0, LEVEL_A1, LEVEL_A2, LEVEL_B1, LEVEL_B2]
 LEVEL_ORDER = ["A0", "A1", "A2", "B1", "B2"]
@@ -161,7 +162,7 @@ def get_lesson_by_id(lesson_id: str) -> dict[str, Any] | None:
 
 
 def get_base_vocabulary() -> list[dict[str, Any]]:
-    """Собирает единый базовый словарь курса без дублей с привязкой к уровню и уроку."""
+    """Собирает единый базовый словарь курса + встроенный A–Z словарь без дублей."""
     seen: set[str] = set()
     words: list[dict[str, Any]] = []
     for item in get_all_lessons_flat():
@@ -183,6 +184,25 @@ def get_base_vocabulary() -> list[dict[str, Any]]:
                     "lesson_id": item["id"],
                 }
             )
+    for word, ipa, ru_hint, ru, example, topic, level in EXTENDED_DICTIONARY_RAW:
+        key = word.strip().lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        words.append(
+            {
+                "id": f"w-{key.replace(' ', '-')}",
+                "word": word,
+                "ipa": ipa,
+                "ru_hint": ru_hint,
+                "ru": ru,
+                "example": example,
+                "topic": topic,
+                "level": level,
+                "lesson_id": "",
+            }
+        )
+    words.sort(key=lambda x: x["word"].lower())
     return words
 
 

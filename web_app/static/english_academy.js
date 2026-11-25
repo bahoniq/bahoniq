@@ -26,6 +26,9 @@
   const store = {
     view: 'studio', // 'studio' | 'hub' | 'settings'
     hubTab: 'vocab', // 'vocab' | 'mistakes' | 'dialogues' | 'practice' | 'progress'
+    sideTab: 'tutor', // 'tutor' | 'dict'
+    sideDictQuery: '',
+    sideDictLetter: '',
     selectedLevel: 'A0',
     lessonFilter: '',
     curriculum: { levels: [], dialogues: [] },
@@ -247,10 +250,14 @@
             <div id="eaCenterBody" class="acad-trainer-feed" style="padding:16px 18px;"></div>
           </div>
 
-          <!-- Правая колонка: Постоянный ИИ-наставник (как в Code Academy) -->
+          <!-- Правая колонка: ИИ-наставник и закреплённый Словарь A–Z -->
           <aside class="card acad-mentor-chat">
             <div class="acad-chat-header">
-              <div class="acad-chat-title-group">
+              <div class="ea-side-tabs" role="tablist" aria-label="Панель помощника">
+                <button type="button" class="ea-side-tab active" data-ea-side-tab="tutor" role="tab" aria-selected="true">🤖 Наставник</button>
+                <button type="button" class="ea-side-tab" data-ea-side-tab="dict" role="tab" aria-selected="false">📖 Словарь A–Z</button>
+              </div>
+              <div id="eaTutorHeaderMeta" class="acad-chat-title-group">
                 <div class="acad-chat-title">
                   <span class="acad-chat-avatar">🤖</span>
                   <div>
@@ -265,27 +272,38 @@
               </div>
             </div>
 
-            <div class="acad-chat-quick">
-              <button type="button" class="acad-quick-q" data-ea-qmode="explain" data-ea-q="Объясни текущую тему ещё проще на жизненном примере.">Проще на примере</button>
-              <button type="button" class="acad-quick-q" data-ea-qmode="hint" data-ea-q="Дай короткую подсказку к текущему заданию, не раскрывая ответ.">Подсказка</button>
-              <button type="button" class="acad-quick-q" data-ea-qmode="check_writing" data-ea-q="">Проверь фразу</button>
-              <button type="button" class="acad-quick-q" data-ea-qmode="dialogue" data-ea-q="Начни короткий тренировочный диалог по моему уровню.">Диалог</button>
-            </div>
+            <div id="eaSideTutorPane" class="ea-side-pane">
+              <div class="acad-chat-quick">
+                <button type="button" class="acad-quick-q" data-ea-qmode="explain" data-ea-q="Объясни текущую тему ещё проще на жизненном примере.">Проще на примере</button>
+                <button type="button" class="acad-quick-q" data-ea-qmode="hint" data-ea-q="Дай короткую подсказку к текущему заданию, не раскрывая ответ.">Подсказка</button>
+                <button type="button" class="acad-quick-q" data-ea-qmode="check_writing" data-ea-q="">Проверь фразу</button>
+                <button type="button" class="acad-quick-q" data-ea-qmode="dialogue" data-ea-q="Начни короткий тренировочный диалог по моему уровню.">Диалог</button>
+              </div>
 
-            <div id="eaChatMessages" class="acad-chat-messages">
-              <div class="acad-msg acad-msg-ai">
-                Здравствуйте! Я знаю ваш текущий уровень и ошибки. Задайте вопрос по-русски или напишите английскую фразу для проверки.
+              <div id="eaChatMessages" class="acad-chat-messages">
+                <div class="acad-msg acad-msg-ai">
+                  Здравствуйте! Я знаю ваш текущий уровень и ошибки. Задайте вопрос по-русски или напишите английскую фразу для проверки.
+                </div>
+              </div>
+
+              <div class="acad-chat-input-row">
+                <textarea id="eaChatInput" class="acad-chat-textarea" rows="2" placeholder="Спросите правило или напишите фразу на английском..."></textarea>
+                <div class="acad-chat-btn-subrow">
+                  <small class="acad-chat-key-hint">Enter — отправить</small>
+                  <button id="eaChatSendBtn" class="button primary acad-chat-send-btn" type="button">
+                    <span>Спросить</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div class="acad-chat-input-row">
-              <textarea id="eaChatInput" class="acad-chat-textarea" rows="2" placeholder="Спросите правило или напишите фразу на английском..."></textarea>
-              <div class="acad-chat-btn-subrow">
-                <small class="acad-chat-key-hint">Enter — отправить</small>
-                <button id="eaChatSendBtn" class="button primary acad-chat-send-btn" type="button">
-                  <span>Спросить</span>
-                </button>
+            <div id="eaSideDictPane" class="ea-side-pane ea-hidden">
+              <div class="ea-side-dict-controls">
+                <input id="eaSideDictSearch" class="ea-input ea-side-dict-input" type="search" placeholder="Поиск слова или перевода..." />
+                <div id="eaSideDictAZ" class="ea-side-az" aria-label="Алфавитный указатель"></div>
               </div>
+              <div id="eaSideDictCount" class="ea-side-dict-count"></div>
+              <div id="eaSideDictList" class="ea-side-dict-list"></div>
             </div>
           </aside>
         </div>
@@ -384,6 +402,27 @@
         sendTutor('chat');
       }
     });
+
+    // Переключатель правой панели: ИИ-наставник / Закреплённый словарь A–Z
+    host.querySelectorAll('[data-ea-side-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        store.sideTab = btn.dataset.eaSideTab;
+        host.querySelectorAll('[data-ea-side-tab]').forEach((b) => {
+          const active = b === btn;
+          b.classList.toggle('active', active);
+          b.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        el('eaSideTutorPane')?.classList.toggle('ea-hidden', store.sideTab !== 'tutor');
+        el('eaTutorHeaderMeta')?.classList.toggle('ea-hidden', store.sideTab !== 'tutor');
+        el('eaSideDictPane')?.classList.toggle('ea-hidden', store.sideTab !== 'dict');
+        if (store.sideTab === 'dict') renderSideDictionary();
+      });
+    });
+
+    el('eaSideDictSearch')?.addEventListener('input', (e) => {
+      store.sideDictQuery = e.target.value.trim().toLowerCase();
+      renderSideDictionary();
+    });
   }
 
   function openLesson(lessonId) {
@@ -411,6 +450,7 @@
       renderStagesStrip();
       renderLessonsSidebar();
       renderCenterBody();
+      if (store.sideTab === 'dict') renderSideDictionary();
     } else if (store.view === 'hub') {
       renderHubView();
     } else {
@@ -429,6 +469,78 @@
       badge.textContent = String(totalAttention);
       badge.classList.toggle('ea-hidden', totalAttention === 0);
     }
+  }
+
+  function renderSideDictionary() {
+    const azBox = el('eaSideDictAZ');
+    const listBox = el('eaSideDictList');
+    const countBox = el('eaSideDictCount');
+    if (!azBox || !listBox) return;
+
+    const allItems = Array.isArray(store.vocabulary) ? store.vocabulary : [];
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    azBox.innerHTML =
+      `<button type="button" class="ea-az-btn ${!store.sideDictLetter ? 'active' : ''}" data-ea-az="">Все</button>` +
+      letters
+        .map(
+          (ch) =>
+            `<button type="button" class="ea-az-btn ${store.sideDictLetter === ch ? 'active' : ''}" data-ea-az="${ch}">${ch}</button>`
+        )
+        .join('');
+
+    azBox.querySelectorAll('[data-ea-az]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        store.sideDictLetter = btn.dataset.eaAz || '';
+        renderSideDictionary();
+      });
+    });
+
+    const q = store.sideDictQuery || '';
+    const letter = store.sideDictLetter || '';
+    const filtered = allItems.filter((item) => {
+      const w = String(item.word || '').toLowerCase();
+      if (letter && !w.startsWith(letter.toLowerCase())) return false;
+      if (!q) return true;
+      return (
+        w.includes(q) ||
+        String(item.ru || '').toLowerCase().includes(q) ||
+        String(item.topic || '').toLowerCase().includes(q) ||
+        String(item.ru_hint || '').toLowerCase().includes(q)
+      );
+    });
+
+    if (countBox) {
+      countBox.textContent = `Найдено слов: ${filtered.length} из ${allItems.length}`;
+    }
+
+    if (!filtered.length) {
+      listBox.innerHTML = `<div class="acad-muted" style="font-size:12.5px;padding:12px 2px;">Ничего не найдено. Попробуйте другую букву или запрос.</div>`;
+      return;
+    }
+
+    listBox.innerHTML = filtered
+      .slice(0, 120)
+      .map(
+        (v) => `
+      <div class="ea-side-dict-card">
+        <div class="ea-side-dict-head">
+          <span class="ea-side-dict-word">${esc(v.word)}</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="ea-stage-badge" style="font-size:10px;padding:1px 6px;">${esc(v.level || 'A0')}</span>
+            <button type="button" class="ea-speak-btn" style="width:26px;height:26px;font-size:12px;" data-ea-side-speak="${esc(v.word)}" title="Озвучить">🔊</button>
+          </div>
+        </div>
+        <div class="ea-side-dict-ipa">${esc(v.ipa || '')}${v.ru_hint ? ` · [${esc(v.ru_hint)}]` : ''}</div>
+        <div class="ea-side-dict-ru">${esc(v.ru || '')}</div>
+        ${v.example ? `<div class="ea-side-dict-ex">${esc(v.example)}</div>` : ''}
+      </div>
+    `
+      )
+      .join('');
+
+    listBox.querySelectorAll('[data-ea-side-speak]').forEach((btn) => {
+      btn.addEventListener('click', () => speakEnglish(btn.dataset.eaSideSpeak));
+    });
   }
 
   function renderStagesStrip() {

@@ -86,7 +86,7 @@ class EnglishAcademyTests(unittest.TestCase):
         self.assertFalse(check_exercise_answer(ex_match, bad_map)["correct"])
 
         # Проверка письменного ответа B2
-        b2_l2 = get_lesson_by_id("b2-l2")
+        b2_l2 = get_lesson_by_id("b2-l2b")
         ex_free = next(x for x in b2_l2["exercises"] if x["type"] == "free_writing")
         self.assertFalse(check_exercise_answer(ex_free, "Привет мир")["correct"])
         self.assertTrue(
