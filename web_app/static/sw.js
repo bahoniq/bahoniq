@@ -1,10 +1,11 @@
 // BahonIQ Work Center Service Worker — Offline Shell Support
-const CACHE_NAME = 'bahoniq-pwa-v67-english-academy-v8';
+const CACHE_NAME = 'bahoniq-pwa-v68-ui-polish';
 const PRECACHE_URLS = [
   '/',
   '/assets/app.css',
   '/assets/english_academy.css',
   '/assets/theme_violet.css',
+  '/assets/ui_polish.css',
   '/assets/app.js',
   '/assets/english_academy.js',
   '/assets/favicon.ico',

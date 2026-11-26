@@ -293,6 +293,11 @@ def extract_metadata(msg: Any) -> Optional[Dict[str, Any]]:
     if not artist:
         artist = "Музыка ДИТ"
 
+    # В тегах/подписях бывают HTML-сущности («HammAli &amp; Navai») — показываем как обычный текст
+    import html as _html
+    title = _html.unescape(title)
+    artist = _html.unescape(artist)
+
     # Проверяем наличие встроенного thumbnail
     thumbs = getattr(document, "thumbs", None)
     has_cover = 1 if thumbs and len(thumbs) > 0 else 0
