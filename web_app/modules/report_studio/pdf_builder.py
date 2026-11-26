@@ -2334,17 +2334,72 @@ def _v52_dimensions(analysis: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _v52_fact(column: dict[str, Any], total: int) -> tuple[str, float, float]:
     top = _v51_top(column, 3)
-    if not top or not total:
+    valid_count = int(column.get("count", 0) or 0)
+    if not top or not valid_count:
         return "Недостаточно данных для вывода.", 0.0, 0.0
     first = top[0]; count = int(first.get("count", 0) or 0)
-    share = count * 100 / total
-    top3 = sum(int(x.get("count", 0) or 0) for x in top[:3]) * 100 / total
+    share = count * 100 / valid_count
+    top3 = sum(int(x.get("count", 0) or 0) for x in top[:3]) * 100 / valid_count
+    has_missing = valid_count < int(total or 0)
+    share_base = (
+        f" от {_format_number(valid_count)} заполненных"
+        if has_missing else ""
+    )
     fact = (f"Крупнейшая категория — «{_safe_text(first.get('value'), 180)}»: "
-            f"{_format_number(count)} записей ({share:.1f}%).")
+            f"{_format_number(count)} записей ({share:.1f}%{share_base}).")
     if len(top) > 1:
         second = int(top[1].get("count", 0) or 0)
         fact += f" Разница со второй категорией — {_format_number(count-second)} записей."
     return fact, share, top3
+
+
+def _v54_missingness_note(
+    column: dict[str, Any], total: int, styles, width: float,
+):
+    """Adds a local denominator note only to the page affected by missing data."""
+    if total <= 0:
+        return None
+    valid_count = int(column.get("count", 0) or 0)
+    missing_count = int(column.get("missing_count", 0) or 0)
+    if missing_count <= 0 or valid_count <= 0:
+        return None
+
+    coverage = valid_count * 100 / total
+    missing_share = missing_count * 100 / total
+    base = (
+        f"Поле «{_safe_text(column.get('name'), 100)}» заполнено у "
+        f"{_format_number(valid_count)} из {_format_number(total)} записей "
+        f"({coverage:.1f}%). Доли на этой странице рассчитаны только по "
+        "заполненным значениям."
+    )
+
+    if missing_share < 1.0:
+        return Table([[Paragraph(
+            "<b>База расчёта:</b> " + _escape(base, 420),
+            styles["SmallCustom"],
+        )]], colWidths=[width], style=TableStyle([
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 7),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+            ("LINEABOVE", (0, 0), (-1, 0), .5, BORDER),
+        ]))
+
+    warning = (
+        base + " Распределение характеризует только записи с указанным "
+        "значением и не распространяется на остальные записи."
+    )
+    return Table([[Paragraph(
+        "<b>ОГРАНИЧЕНИЕ ДАННЫХ</b><br/>" + _escape(warning, 520),
+        styles["SmallCustom"],
+    )]], colWidths=[width], style=TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFF6E2")),
+        ("BOX", (0, 0), (-1, -1), .5, BORDER),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+    ]))
 
 
 def _v52_interpretation(column: dict[str, Any], share: float, top3: float) -> tuple[str, str]:
@@ -2383,8 +2438,9 @@ def _v52_kpis(analysis: dict[str, Any], dimensions: list[dict[str, Any]], styles
     top_share = 0.0
     if top_dim and total:
         top_val = _v51_top(top_dim, 1)
-        if top_val:
-            top_share = int(top_val[0].get("count", 0) or 0) * 100 / total
+        valid_count = int(top_dim.get("count", 0) or 0)
+        if top_val and valid_count:
+            top_share = int(top_val[0].get("count", 0) or 0) * 100 / valid_count
 
     values = [
         (_format_number(total), "ВСЕГО СУБЪЕКТОВ", colors.HexColor("#11B5AE")),
@@ -2969,6 +3025,10 @@ def build_analytics_pdf_v53(
         story.append(Table([[chart, side]], colWidths=[width * .66, width * .34], style=TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ])))
+        missingness_note = _v54_missingness_note(column, total, styles, width)
+        if missingness_note is not None:
+            story.append(Spacer(1, 2 * mm))
+            story.append(missingness_note)
 
     cross = _v54_cross_analysis(analysis)
     if cross:
