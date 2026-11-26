@@ -539,6 +539,8 @@ async def sync_catalog(force: bool = False) -> Dict[str, Any]:
     media_messages = 0
     skipped_media = 0
     skipped_examples: List[Dict[str, Any]] = []
+    seen_msg_ids: set = set()
+    pruned_tracks_count = 0
 
     try:
         # Сканируем сообщения как новой супергруппы (t.me/bahoniqmusic), так и домиграционной истории чата
@@ -566,6 +568,7 @@ async def sync_catalog(force: bool = False) -> Dict[str, Any]:
                     continue
 
                 total_found += 1
+                seen_msg_ids.add(int(meta["telegram_msg_id"]))
                 file_unique_id = f"tgdoc_{meta['document_id']}" if meta.get("document_id") else f"tgmsg_{meta['telegram_msg_id']}"
                 seed_index = _load_cover_seed_index()
                 seed_entry = seed_index.get(file_unique_id, {})
@@ -579,14 +582,21 @@ async def sync_catalog(force: bool = False) -> Dict[str, Any]:
                     )
                     existing = cur.fetchone()
                     if not existing:
+                        # СТАБИЛЬНЫЙ id = telegram_msg_id. Раньше id выдавался по порядку (AUTOINCREMENT),
+                        # а БД на Render пересоздаётся при рестарте/деплое, поэтому после добавления/удаления
+                        # песен в Telegram номера «съезжали», и офлайн-кэш на магнитоле (хранится по id) играл старые песни.
+                        stable_id = int(meta["telegram_msg_id"])
+                        if conn.execute("SELECT 1 FROM tracks WHERE id = ?", (stable_id,)).fetchone():
+                            stable_id = None
                         conn.execute("""
                             INSERT INTO tracks (
-                                telegram_msg_id, document_id, access_hash, file_reference,
+                                id, telegram_msg_id, document_id, access_hash, file_reference,
                                 title, artist, album, duration, file_size, mime_type,
                                 file_name, date, caption, has_cover, file_unique_id,
                                 cover_hash, cover_source, cover_checked_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (
+                            stable_id,
                             meta["telegram_msg_id"], meta["document_id"], meta["access_hash"],
                             meta["file_reference"], meta["title"], meta["artist"], meta["album"],
                             meta["duration"], meta["file_size"], meta["mime_type"], meta["file_name"],
@@ -613,6 +623,17 @@ async def sync_catalog(force: bool = False) -> Dict[str, Any]:
                         ))
                         updated_tracks_count += 1
 
+        # Удаляем из каталога треки, которых больше нет в Telegram (скан прошёл полностью без ошибок)
+        if seen_msg_ids:
+            with conn:
+                stale_rows = [
+                    r[0] for r in conn.execute("SELECT telegram_msg_id FROM tracks").fetchall()
+                    if int(r[0]) not in seen_msg_ids
+                ]
+                for stale_msg in stale_rows:
+                    conn.execute("DELETE FROM tracks WHERE telegram_msg_id = ?", (stale_msg,))
+                pruned_tracks_count = len(stale_rows)
+
         now_str = datetime.now(timezone.utc).isoformat()
         with conn:
             if force:
@@ -631,6 +652,7 @@ async def sync_catalog(force: bool = False) -> Dict[str, Any]:
             "channel_id": getattr(channel, "id", None),
             "new_tracks": new_tracks_count,
             "updated_tracks": updated_tracks_count,
+            "removed_tracks": pruned_tracks_count,
             "total_tracks": total_in_db,
             "scanned_messages": scanned_messages,
             "media_messages": media_messages,

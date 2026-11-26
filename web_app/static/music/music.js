@@ -769,6 +769,8 @@
     if (savedInIdb || savedInOpfs) {
       offlineTrackIds.add(tid);
       persistOfflineTrackIds();
+      // Запоминаем, КАКАЯ именно песня лежит под этим номером (номер может поменяться на сервере)
+      rememberOfflineUid(tid, trackMeta?.file_unique_id || playlist.find(t => Number(t.id) === tid)?.file_unique_id);
       if (memoryBlobUrls.has(tid)) {
         URL.revokeObjectURL(memoryBlobUrls.get(tid));
       }
@@ -776,6 +778,214 @@
       return true;
     }
     return false;
+  }
+
+  // --- Привязка офлайн-файлов к стабильному ключу песни (file_unique_id), а не к номеру в каталоге ---
+  const OFFLINE_UID_MAP_KEY = 'bahoniq_offline_uid_map';
+
+  function loadOfflineUidMap() {
+    try {
+      const obj = JSON.parse(localStorage.getItem(OFFLINE_UID_MAP_KEY) || '{}');
+      return obj && typeof obj === 'object' ? obj : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveOfflineUidMap(map) {
+    try { localStorage.setItem(OFFLINE_UID_MAP_KEY, JSON.stringify(map)); } catch {}
+  }
+
+  function rememberOfflineUid(tid, uid) {
+    if (!uid) return;
+    const map = loadOfflineUidMap();
+    map[String(Number(tid))] = String(uid);
+    saveOfflineUidMap(map);
+  }
+
+  function forgetOfflineUid(tid) {
+    const map = loadOfflineUidMap();
+    if (String(Number(tid)) in map) {
+      delete map[String(Number(tid))];
+      saveOfflineUidMap(map);
+    }
+  }
+
+  // Список локальных файлов (номер -> размер) без чтения самих данных
+  async function listLocalAudioEntries() {
+    const out = new Map();
+    if (idb) {
+      await new Promise(resolve => {
+        try {
+          const tx = idb.transaction('tracks_blobs', 'readonly');
+          const req = tx.objectStore('tracks_blobs').openCursor();
+          req.onsuccess = e => {
+            const cur = e.target.result;
+            if (!cur) { resolve(); return; }
+            const row = cur.value || {};
+            const size = Number(row.blob?.size || row.size || 0);
+            if (size >= 20000 && row.complete !== false) out.set(Number(row.id), size);
+            cur.continue();
+          };
+          req.onerror = () => resolve();
+        } catch {
+          resolve();
+        }
+      });
+    }
+    if (opfsRoot && typeof opfsRoot.values === 'function') {
+      try {
+        for await (const handle of opfsRoot.values()) {
+          const m = /^track_(\d+)\.bin$/.exec(handle?.name || '');
+          if (!m || handle.kind !== 'file') continue;
+          const tid = Number(m[1]);
+          if (out.has(tid)) continue;
+          try {
+            const f = await handle.getFile();
+            if (f.size >= 20000) out.set(tid, f.size);
+          } catch {}
+        }
+      } catch {}
+    }
+    return out;
+  }
+
+  // Удаление файла без обновления интерфейса
+  async function removeLocalAudioRaw(tid) {
+    if (opfsRoot) {
+      try { await opfsRoot.removeEntry(`track_${tid}.bin`); } catch {}
+    }
+    if (idb) {
+      await new Promise(resolve => {
+        try {
+          const tx = idb.transaction('tracks_blobs', 'readwrite');
+          tx.objectStore('tracks_blobs').delete(tid);
+          tx.oncomplete = resolve;
+          tx.onerror = resolve;
+          tx.onabort = resolve;
+        } catch {
+          resolve();
+        }
+      });
+    }
+    if (memoryBlobUrls.has(tid)) {
+      try { URL.revokeObjectURL(memoryBlobUrls.get(tid)); } catch {}
+      memoryBlobUrls.delete(tid);
+    }
+    offlineTrackIds.delete(tid);
+    forgetOfflineUid(tid);
+  }
+
+  // Сверка скачанных файлов с актуальным каталогом сервера.
+  // Если номера песен «съехали» (после добавления/удаления в Telegram) — файл переносится под новый номер
+  // БЕЗ повторного скачивания; если песни в канале больше нет или файл не совпал — удаляется.
+  async function reconcileOfflineCache(oldPlaylist) {
+    if (!Array.isArray(playlist) || playlist.length === 0) return;
+    const sizeOk = (expected, actual) => !Number(expected) || Math.abs(Number(expected) - Number(actual)) <= 4096;
+    const byId = new Map(playlist.map(t => [Number(t.id), t]));
+    const byUid = new Map();
+    playlist.forEach(t => { if (t.file_unique_id) byUid.set(String(t.file_unique_id), t); });
+    const oldById = new Map((oldPlaylist || []).map(t => [Number(t.id), t]));
+    const uidMap = loadOfflineUidMap();
+
+    const entries = await listLocalAudioEntries();
+    if (entries.size === 0) return;
+
+    const okTids = new Set();
+    const moves = [];
+    const purges = [];
+    const moveTargets = new Set();
+
+    const planMove = (from, target) => {
+      const to = Number(target.id);
+      if (okTids.has(to) || moveTargets.has(to)) { purges.push(from); return; }
+      moveTargets.add(to);
+      moves.push({ from, to, track: target });
+    };
+
+    for (const [tid, size] of entries) {
+      let uid = uidMap[String(tid)] || '';
+      if (!uid) {
+        const old = oldById.get(tid);
+        if (old && old.file_unique_id && sizeOk(old.file_size, size)) uid = String(old.file_unique_id);
+      }
+      if (uid) {
+        const target = byUid.get(uid);
+        if (!target || !sizeOk(target.file_size, size)) { purges.push(tid); continue; }
+        if (Number(target.id) === tid) { okTids.add(tid); uidMap[String(tid)] = uid; continue; }
+        planMove(tid, target);
+        continue;
+      }
+      const cur = byId.get(tid);
+      if (cur && sizeOk(cur.file_size, size)) {
+        okTids.add(tid);
+        if (cur.file_unique_id) uidMap[String(tid)] = String(cur.file_unique_id);
+        continue;
+      }
+      const cands = playlist.filter(t => Number(t.file_size) === size);
+      if (cands.length === 1) planMove(tid, cands[0]);
+      else purges.push(tid);
+    }
+    saveOfflineUidMap(uidMap);
+
+    if (moves.length === 0 && purges.length === 0) return;
+
+    // Фаза 1: читаем переносимые файлы в память (ссылки на файлы, не копии)
+    const loaded = [];
+    for (const mv of moves) {
+      let blob = await getLocalAudioBlob(mv.from, 0);
+      if (blob && typeof File !== 'undefined' && blob instanceof File) {
+        // Файл из OPFS нельзя держать по ссылке после удаления записи — копируем в память
+        try { blob = new Blob([await blob.arrayBuffer()], { type: blob.type || 'audio/mpeg' }); } catch { blob = null; }
+      }
+      if (blob) loaded.push({ ...mv, blob });
+      else purges.push(mv.from);
+    }
+    // Фаза 2: убираем старые записи (нужно, чтобы номера не затирали друг друга при обмене)
+    for (const tid of new Set([...purges, ...loaded.map(m => m.from)])) {
+      await removeLocalAudioRaw(tid);
+    }
+    // Фаза 3: сохраняем под новыми номерами
+    for (const mv of loaded) {
+      await saveAudioLocally(mv.to, mv.blob, { ...mv.track, file_size: mv.blob.size });
+    }
+    console.info(`Offline cache reconciled: moved ${loaded.length}, removed ${purges.length}`);
+  }
+
+  // Переносим избранное / недавние на новые номера по стабильному ключу песни
+  function remapStoredTrackIds(oldPlaylist) {
+    if (!Array.isArray(oldPlaylist) || oldPlaylist.length === 0 || playlist.length === 0) return;
+    const oldUidById = new Map(oldPlaylist.map(t => [Number(t.id), t.file_unique_id]));
+    const newIdByUid = new Map(playlist.map(t => [String(t.file_unique_id), Number(t.id)]));
+    const mapId = id => {
+      const uid = oldUidById.get(Number(id));
+      if (!uid) return Number(id);
+      return newIdByUid.has(String(uid)) ? newIdByUid.get(String(uid)) : null;
+    };
+
+    const newFavs = [...favorites].map(mapId).filter(v => v !== null);
+    if (newFavs.length !== favorites.size || newFavs.some(v => !favorites.has(v))) {
+      favorites.clear();
+      newFavs.forEach(v => favorites.add(v));
+      persistFavorites();
+    }
+    const newRecent = recentTrackIds.map(mapId).filter((v, i, a) => v !== null && a.indexOf(v) === i);
+    if (newRecent.join(',') !== recentTrackIds.join(',')) {
+      recentTrackIds.length = 0;
+      newRecent.forEach(v => recentTrackIds.push(v));
+      persistRecentTracks();
+    }
+    const newHist = playbackHistory.map(mapId).filter(v => v !== null);
+    playbackHistory.length = 0;
+    newHist.forEach(v => playbackHistory.push(v));
+    try {
+      const lastId = Number(localStorage.getItem('bahoniq_last_track_id'));
+      if (lastId) {
+        const mapped = mapId(lastId);
+        if (mapped === null) localStorage.removeItem('bahoniq_last_track_id');
+        else if (mapped !== lastId) localStorage.setItem('bahoniq_last_track_id', String(mapped));
+      }
+    } catch {}
   }
 
   // --- Получение аудиофайла из локального хранилища ---
@@ -839,6 +1049,7 @@
       memoryBlobUrls.delete(tid);
     }
     offlineTrackIds.delete(tid);
+    forgetOfflineUid(tid);
     persistOfflineTrackIds();
     updateTrackItemBadge(tid);
     syncDownloadAllButton();
@@ -853,25 +1064,22 @@
     offlineTrackIds.clear();
     loadCachedPlaylistFromStorage();
 
-    // 1. Точная инспекция записей IndexedDB и подготовка быстрых Blob URL в памяти
+    // 1. Лёгкая инспекция IndexedDB: читаем только номера и размеры (Blob URL создаются лениво при воспроизведении,
+    // чтобы на слабой магнитоле не держать в памяти десятки ссылок и не тормозить запуск)
     if (idb) {
       await new Promise(resolve => {
         try {
           const tx = idb.transaction('tracks_blobs', 'readonly');
-          const req = tx.objectStore('tracks_blobs').getAll();
-          req.onsuccess = () => {
-            (req.result || []).forEach(row => {
-              const b = row?.blob;
-              const size = Number(b?.size || row?.size || 0);
-              if (b && size >= 20000 && row.complete !== false) {
-                const tid = Number(row.id);
-                offlineTrackIds.add(tid);
-                if (!memoryBlobUrls.has(tid)) {
-                  memoryBlobUrls.set(tid, URL.createObjectURL(b));
-                }
-              }
-            });
-            resolve();
+          const req = tx.objectStore('tracks_blobs').openCursor();
+          req.onsuccess = e => {
+            const cur = e.target.result;
+            if (!cur) { resolve(); return; }
+            const row = cur.value || {};
+            const size = Number(row.blob?.size || row.size || 0);
+            if (size >= 20000 && row.complete !== false) {
+              offlineTrackIds.add(Number(row.id));
+            }
+            cur.continue();
           };
           req.onerror = () => resolve();
         } catch {
@@ -891,9 +1099,6 @@
             const file = await handle.getFile();
             if (file && file.size >= 20000) {
               offlineTrackIds.add(tid);
-              if (!memoryBlobUrls.has(tid)) {
-                memoryBlobUrls.set(tid, URL.createObjectURL(file));
-              }
             }
           } catch {}
         }));
@@ -961,7 +1166,7 @@
     if (!track) return false;
     const tid = Number(track.id);
 
-    if (offlineTrackIds.has(tid) && memoryBlobUrls.has(tid)) return true;
+    if (offlineTrackIds.has(tid)) return true;
     if (downloadPromises.has(tid)) return downloadPromises.get(tid);
 
     const controller = new AbortController();
@@ -1171,57 +1376,105 @@
     if (btnDownloadActive) btnDownloadActive.classList.toggle('active', isOffline);
     updateUpNextStrip();
 
-    // 3. Выбор источника (синхронно):
-    // Если трек уже сохранён в памяти устройства — воспроизводим локальный Blob URL (0 мс, без сети).
-    // Если трек ещё не скачан — начинаем онлайн-стриминг (после начала воспроизведения он сам скачается в фоне).
-    let targetSrc = '';
+    // 3. Выбор источника.
+    // - Трек скачан: играем локальный Blob URL (без сети).
+    // - Трек не скачан: стримим с сервера, но с короткой задержкой — при быстром перелистывании (мультируль)
+    //   промежуточные треки не запускают запросы к серверу/Telegram, и интерфейс не «залипает».
+    if (pendingStreamTimer) {
+      clearTimeout(pendingStreamTimer);
+      pendingStreamTimer = null;
+    }
+    const hasActiveSource = Boolean(audio.src) && audio.src !== window.location.href;
+    const startSource = async () => {
+      if (requestId !== playRequestId) return;
+      let url = '';
+      if (isOffline) {
+        url = await ensureBlobUrl(tid);
+        if (requestId !== playRequestId) return;
+        if (!url) {
+          // Файл пропал из памяти устройства — снимаем отметку и стримим
+          offlineTrackIds.delete(tid);
+          forgetOfflineUid(tid);
+          persistOfflineTrackIds();
+          updateTrackItemBadge(tid);
+        }
+      }
+      const targetSrc = url || `/api/music/tracks/${tid}/stream`;
+      updateOfflinePill(url ? 'offline' : 'stream');
+      if (btnDownloadActive) btnDownloadActive.classList.toggle('active', Boolean(url));
+      const absoluteTargetSrc = targetSrc.startsWith('blob:')
+        ? targetSrc
+        : new URL(targetSrc, window.location.origin).href;
+      if (audio.src !== absoluteTargetSrc) {
+        audio.removeAttribute('crossorigin');
+        audio.src = targetSrc;
+      }
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          updatePlayButton(true);
+        }).catch(err => {
+          console.warn('Audio play initiated:', err);
+          updatePlayButton(!audio.paused);
+        });
+      }
+      warmNextBlobUrl();
+    };
+
     if (isOffline && memoryBlobUrls.has(tid)) {
-      targetSrc = memoryBlobUrls.get(tid);
+      // Мгновенный старт из памяти (синхронно в стеке клика)
       updateOfflinePill('offline');
+      const blobSrc = memoryBlobUrls.get(tid);
+      if (audio.src !== blobSrc) {
+        audio.removeAttribute('crossorigin');
+        audio.src = blobSrc;
+      }
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => updatePlayButton(true)).catch(err => {
+          console.warn('Audio play initiated:', err);
+          updatePlayButton(!audio.paused);
+        });
+      }
+      warmNextBlobUrl();
+    } else if (!isOffline && hasActiveSource) {
+      updateOfflinePill('stream');
+      pendingStreamTimer = setTimeout(() => {
+        pendingStreamTimer = null;
+        startSource();
+      }, STREAM_SWITCH_DELAY_MS);
     } else {
-      targetSrc = `/api/music/tracks/${tid}/stream`;
-      updateOfflinePill(isOffline ? 'offline' : 'stream');
-    }
-
-    const absoluteTargetSrc = targetSrc.startsWith('blob:')
-      ? targetSrc
-      : new URL(targetSrc, window.location.origin).href;
-    if (audio.src !== absoluteTargetSrc) {
-      audio.removeAttribute('crossorigin');
-      audio.src = targetSrc;
-    }
-
-    // 4. СИНХРОННЫЙ вызов audio.play() без блокирующих await — Autoplay Policy всегда одобрен!
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise.then(() => {
-        updatePlayButton(true);
-      }).catch(err => {
-        console.warn('Audio play initiated:', err);
-        updatePlayButton(!audio.paused);
-      });
+      startSource();
     }
 
     updateMediaSession(track);
     highlightCurrentTrackInList();
+  }
 
-    // 5. Если трек помечен как офлайн, но его Blob URL ещё не был создан в памяти — подтягиваем его
-    if (isOffline && !memoryBlobUrls.has(tid)) {
-      getLocalAudioBlob(tid, Number(track.file_size || 0)).then(blob => {
-        if (blob && requestId === playRequestId) {
-          const url = URL.createObjectURL(blob);
-          memoryBlobUrls.set(tid, url);
-          if (audio.currentTime < 1.5 && audio.src !== url) {
-            const savedTime = audio.currentTime;
-            const wasPlaying = !audio.paused;
-            audio.src = url;
-            audio.currentTime = savedTime;
-            updateOfflinePill('offline');
-            if (wasPlaying) audio.play().catch(() => {});
-          }
-        }
-      });
-    }
+  const STREAM_SWITCH_DELAY_MS = 220;
+  let pendingStreamTimer = null;
+
+  // Ленивое создание Blob URL для скачанного трека
+  async function ensureBlobUrl(tid) {
+    if (memoryBlobUrls.has(tid)) return memoryBlobUrls.get(tid);
+    const blob = await getLocalAudioBlob(tid, 0);
+    if (!blob) return '';
+    if (memoryBlobUrls.has(tid)) return memoryBlobUrls.get(tid);
+    const url = URL.createObjectURL(blob);
+    memoryBlobUrls.set(tid, url);
+    return url;
+  }
+
+  // Заранее готовим ссылку на следующий скачанный трек, чтобы переключение было мгновенным
+  function warmNextBlobUrl() {
+    try {
+      const next = peekNextTrackInQueue();
+      if (!next) return;
+      const ntid = Number(next.id);
+      if (offlineTrackIds.has(ntid) && !memoryBlobUrls.has(ntid)) {
+        ensureBlobUrl(ntid).catch(() => {});
+      }
+    } catch {}
   }
 
   function updatePlayButton(playing) {
@@ -1656,7 +1909,7 @@
 
   let lastAndroidSyncAt = 0;
   let lastAndroidSyncKey = '';
-  const MEDIA_CMD_DEBOUNCE_MS = 450;
+  const MEDIA_CMD_DEBOUNCE_MS = 180;
   const lastMediaCmdAt = Object.create(null);
 
   function buildPlaybackStatePayload() {
@@ -1915,10 +2168,25 @@
       }
       const data = await res.json();
       if (data && data.tracks && data.tracks.length > 0) {
+        const oldPlaylist = Array.isArray(playlist) ? playlist : [];
+        const prevCurrentUid = (currentIndex >= 0 && oldPlaylist[currentIndex])
+          ? oldPlaylist[currentIndex].file_unique_id
+          : null;
         playlist = data.tracks;
         filteredPlaylist = [...playlist];
         persistCachedPlaylist();
 
+        // Номера песен на сервере могли измениться (добавили/удалили песни в Telegram) —
+        // переносим избранное/историю и скачанные файлы по стабильному ключу песни.
+        remapStoredTrackIds(oldPlaylist);
+        if (prevCurrentUid) {
+          currentIndex = playlist.findIndex(t => t.file_unique_id === prevCurrentUid);
+        }
+        try {
+          await reconcileOfflineCache(oldPlaylist);
+        } catch (err) {
+          console.warn('Offline cache reconcile failed:', err);
+        }
         await scanOfflineTracks();
 
         const lastTrackId = Number(localStorage.getItem('bahoniq_last_track_id'));
