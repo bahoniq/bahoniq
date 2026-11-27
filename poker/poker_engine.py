@@ -70,14 +70,16 @@ def coerce_amount(amount) -> int:
 
 
 _STATE_FIELDS = (
-    "table", "dealer", "hand_no", "phase", "board", "deck", "current_bet", "min_raise", "to_act",
+    "table", "sb", "bb", "dealer", "hand_no", "phase", "board", "deck", "current_bet", "min_raise", "to_act",
     "auto_runout", "paid", "stats_applied", "result", "log", "hand_actions", "seq", "rebuys_total",
     "initial_total", "leave_requested", "obs", "moods", "start_stacks", "vpip_seen",
+    "mode", "tournament_buyin", "eliminated_order", "prize_paid",
 )
 
 
 class PokerGame:
-    def __init__(self, table: dict, seats: list, rng=None, dealer: int | None = None):
+    def __init__(self, table: dict, seats: list, rng=None, dealer: int | None = None,
+                 mode: str = "cash", tournament_buyin: int = 0):
         self.table = dict(table)
         self.sb = int(table["sb"])
         self.bb = int(table["bb"])
@@ -106,6 +108,10 @@ class PokerGame:
         self.moods = [1.0] * len(seats)
         self.start_stacks = [s.stack for s in seats]
         self.vpip_seen: list = []
+        self.mode = mode if mode in ("cash", "tournament") else "cash"
+        self.tournament_buyin = int(tournament_buyin)
+        self.eliminated_order: list = []
+        self.prize_paid = False
 
     # ------------------------------------------------------------------ сериализация
     def to_dict(self) -> dict:
@@ -136,6 +142,13 @@ class PokerGame:
 
     def _alive(self) -> list:
         return [s for s in self.seats if not s.folded]
+
+    def _next_with_chips(self, start: int) -> int:
+        for k in range(1, self.n_seats + 1):
+            idx = (start + k) % self.n_seats
+            if self.seats[idx].stack > 0:
+                return idx
+        return start
 
     def position_of(self, i: int) -> str:
         pos_list = POSITIONS_5 if self.n_seats == 5 else POSITIONS_6 if self.n_seats == 6 else POSITIONS_9
@@ -168,16 +181,27 @@ class PokerGame:
         if self.seats[HUMAN_SEAT].stack <= 0:
             raise IllegalAction("У вас закончились фишки")
 
-        for s in self.seats:
-            if not s.is_human and s.stack < self.bb:
-                new_stack = self._bot_stack()
-                self.rebuys_total += new_stack - s.stack
-                s.stack = new_stack
-                self._log(f"{s.name} докупает фишки", s.index)
+        if self.mode == "tournament":
+            if sum(1 for s in self.seats if s.stack > 0) < 2:
+                raise IllegalAction("Турнир уже завершён")
+            mults = (1, 2, 3, 5, 8, 12, 20, 30)
+            lvl = min(len(mults) - 1, self.hand_no // 6)
+            new_sb = int(self.table["sb"]) * mults[lvl]
+            new_bb = int(self.table["bb"]) * mults[lvl]
+            if new_bb > self.bb:
+                self.sb, self.bb = new_sb, new_bb
+                self._log(f"Блайнды выросли: {money(self.sb)} / {money(self.bb)}")
+        else:
+            for s in self.seats:
+                if not s.is_human and s.stack < self.bb:
+                    new_stack = self._bot_stack()
+                    self.rebuys_total += new_stack - s.stack
+                    s.stack = new_stack
+                    self._log(f"{s.name} докупает фишки", s.index)
 
         self.hand_no += 1
         if self.hand_no > 1:
-            self.dealer = (self.dealer + 1) % self.n_seats
+            self.dealer = self._next_with_chips(self.dealer) if self.mode == "tournament" else (self.dealer + 1) % self.n_seats
         self.board = []
         self.result = None
         self.paid = False
@@ -191,10 +215,17 @@ class PokerGame:
         for s in self.seats:
             s.hole = []
             s.bet = s.total = 0
-            s.folded = s.all_in = s.acted = s.raise_closed = s.revealed = False
-            s.last_action = ""
+            out = self.mode == "tournament" and s.stack <= 0
+            s.folded = out
+            s.all_in = False
+            s.acted = out
+            s.raise_closed = out
+            s.revealed = False
+            s.last_action = "Выбыл" if out else ""
         self.start_stacks = [s.stack for s in self.seats]
         for i, s in enumerate(self.seats):
+            if self.mode == "tournament" and s.stack <= 0:
+                continue
             self.obs[i]["hands"] += 1
             vol = {"wildcard": 0.6, "bluffer": 0.15}.get(s.persona, 0.0)
             self.moods[i] = 1.0 + self.rng.uniform(-vol, vol) if vol else 1.0
@@ -211,10 +242,18 @@ class PokerGame:
         first = (self.dealer + 1) % self.n_seats
         for _ in range(2):
             for k in range(self.n_seats):
-                self.seats[(first + k) % self.n_seats].hole.append(self.deck.pop())
+                seat = self.seats[(first + k) % self.n_seats]
+                if self.mode == "tournament" and seat.stack <= 0:
+                    continue
+                seat.hole.append(self.deck.pop())
 
         self.phase = "preflop"
-        sb_i, bb_i = (self.dealer + 1) % self.n_seats, (self.dealer + 2) % self.n_seats
+        if self.mode == "tournament":
+            active_cnt = sum(1 for s in self.seats if s.stack > 0)
+            sb_i = self.dealer if active_cnt == 2 else self._next_with_chips(self.dealer)
+            bb_i = self._next_with_chips(sb_i)
+        else:
+            sb_i, bb_i = (self.dealer + 1) % self.n_seats, (self.dealer + 2) % self.n_seats
         self._log(f"Раздача №{self.hand_no}. Дилер — {self.seats[self.dealer].name}")
         for idx, amt, label in ((sb_i, self.sb, "Малый блайнд"), (bb_i, self.bb, "Большой блайнд")):
             s = self.seats[idx]
@@ -499,6 +538,11 @@ class PokerGame:
         for w in winners:
             suffix = f" ({w['hand']})" if w["hand"] else ""
             self._log(f"{w['name']} забирает {money(w['amount'])}{suffix}", w["seat"])
+        if self.mode == "tournament":
+            for s in self.seats:
+                if s.stack <= 0 and s.index not in self.eliminated_order:
+                    self.eliminated_order.append(s.index)
+                    self._log(f"{s.name} выбывает из турнира", s.index)
         self.seq += 1
 
     # ------------------------------------------------------------------ вид для ботов

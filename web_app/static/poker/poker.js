@@ -138,18 +138,43 @@
 
   /* ---------------------------------------------------------------- лобби */
   function renderLobby(st) {
+    if (!S.lobbyMode) S.lobbyMode = 'cash';
+    const isTourney = S.lobbyMode === 'tournament';
+    const sub = $('#lobbySub');
+    if (sub) {
+      sub.textContent = isTourney
+        ? 'Турнир на выбывание: равные стеки, без докупок, рост блайндов каждые 6 раздач. Победитель забирает весь банк.'
+        : 'Уровень соперников растёт вместе со ставками. Играете на виртуальные деньги, вся игра идёт офлайн.';
+    }
+    const tabs = $('#modeTabs');
+    if (tabs) {
+      tabs.querySelectorAll('.mode-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === S.lobbyMode);
+        btn.onclick = () => {
+          if (S.lobbyMode === btn.dataset.mode) return;
+          AU.unlock(); AU.play('click');
+          S.lobbyMode = btn.dataset.mode;
+          renderLobby(S.state);
+        };
+      });
+    }
     const wrap = $('#lobbyTables'); wrap.innerHTML = '';
     st.tables.forEach((t, idx) => {
       const c = E('div', 'tcard' + (t.available ? '' : ' locked'));
       const dots = [[46, 38], [116, 22], [186, 38], [46, 112], [116, 128], [186, 112]]
         .map((p, i) => '<span class="dot" style="left:' + (p[0] - 7) + 'px;top:' + (p[1] - 7) + 'px;' + (i === 4 ? 'background:#B99A5E' : '') + '"></span>').join('');
+      const metaRows = isTourney
+        ? '<dt>Вход / Стек</dt><dd class="money">' + fmt(t.min_buyin) + '</dd>' +
+          '<dt>Приз (5 / 9)</dt><dd class="money">' + fmt(t.min_buyin * 5) + ' / ' + fmt(t.min_buyin * 9) + '</dd>' +
+          '<dt>Блайнды</dt><dd class="money">от ' + fmt(t.sb) + ' / ' + fmt(t.bb) + '</dd>'
+        : '<dt>Блайнды</dt><dd class="money">' + fmt(t.sb) + ' / ' + fmt(t.bb) + '</dd>' +
+          '<dt>Бай-ин</dt><dd class="money">' + fmt(t.min_buyin) + ' – ' + fmt(t.max_buyin) + '</dd>' +
+          '<dt>Соперники</dt><dd>' + t.level_name + '</dd>';
       c.innerHTML =
         '<div class="art"><div class="oval" style="--tint:' + TINTS[idx] + '"></div>' + dots + '<span class="lvl">УРОВЕНЬ ' + t.level + '</span></div>' +
         '<div class="body"><h2>' + t.name + '</h2><div class="tag">' + t.tagline + '</div>' +
-        '<dl><dt>Блайнды</dt><dd class="money">' + fmt(t.sb) + ' / ' + fmt(t.bb) + '</dd>' +
-        '<dt>Бай-ин</dt><dd class="money">' + fmt(t.min_buyin) + ' – ' + fmt(t.max_buyin) + '</dd>' +
-        '<dt>Соперники</dt><dd>' + t.level_name + '</dd></dl></div>' +
-        '<div class="status">' + (t.available ? 'ДОСТУПЕН' : 'Недостаточно средств') + '</div>';
+        '<dl>' + metaRows + '</dl></div>' +
+        '<div class="status">' + (t.available ? (isTourney ? 'НАЧАТЬ ТУРНИР' : 'ДОСТУПЕН') : 'Недостаточно средств') + '</div>';
       c.title = t.available ? '' : t.lock_reason;
       c.onclick = () => {
         AU.unlock(); AU.play('click');
@@ -168,9 +193,44 @@
   }
 
   function openBuyin(t) {
+    const isTourney = S.lobbyMode === 'tournament';
     const bal = S.state.profile.balance, maxAllowed = Math.min(t.max_buyin, bal);
     const rec = clamp(Math.round((t.min_buyin + (t.max_buyin - t.min_buyin) * 0.4) / t.bb) * t.bb, t.min_buyin, maxAllowed);
     S.modalClose = 'buyin';
+    if (isTourney) {
+      openModal(
+        '<h3>Турнир · ' + t.name + '</h3><p>На выбывание · равные стеки · рост блайндов каждые 6 раздач</p>' +
+        '<div class="row"><span>Доступно на балансе</span><b>' + fmt(bal) + '</b></div>' +
+        '<div class="row"><span>Фиксированный вход</span><b>' + fmt(t.min_buyin) + '</b></div>' +
+        '<div class="row"><span>Стартовый стек у всех</span><b>' + fmt(t.min_buyin) + '</b></div>' +
+        '<div class="row"><span>Призовой фонд (победителю)</span><b id="trPrize">' + fmt(t.min_buyin * 5) + '</b></div>' +
+        '<div class="row"><span>Участники</span><div style="display:flex;gap:8px;">' +
+        '<button class="qbtn" id="sz5" type="button" style="border-color:var(--brass);color:var(--text);">5 игроков</button>' +
+        '<button class="qbtn" id="sz9" type="button">9 игроков</button></div></div>' +
+        '<div class="btns"><button class="act" id="biCancel" type="button">Отмена</button><button class="act accent" id="biGo" type="button">Начать турнир</button></div>',
+        m => {
+          let seatsCount = 5;
+          const sz5 = $('#sz5', m), sz9 = $('#sz9', m), prizeEl = $('#trPrize', m);
+          const setSz = k => {
+            seatsCount = k;
+            prizeEl.textContent = fmt(t.min_buyin * k);
+            sz5.style.borderColor = k === 5 ? 'var(--brass)' : '';
+            sz5.style.color = k === 5 ? 'var(--text)' : '';
+            sz9.style.borderColor = k === 9 ? 'var(--brass)' : '';
+            sz9.style.color = k === 9 ? 'var(--text)' : '';
+          };
+          sz5.onclick = () => setSz(5);
+          sz9.onclick = () => setSz(9);
+          $('#biCancel', m).onclick = closeModal;
+          $('#biGo', m).onclick = async ev => {
+            const btn = ev.currentTarget; if (btn.disabled) return; btn.disabled = true;
+            S.justJoined = true;
+            const d = await call('join', { table_id: t.id, buyin: t.min_buyin, seats: seatsCount, mode: 'tournament' });
+            if (!d.ok) { btn.disabled = false; S.justJoined = false; }
+          };
+        });
+      return;
+    }
     openModal(
       '<h3>' + t.name + '</h3><p>Блайнды ' + fmt(t.sb) + ' / ' + fmt(t.bb) + ' · соперники: ' + t.level_name.toLowerCase() + '</p>' +
       '<div class="row"><span>Доступно на балансе</span><b>' + fmt(bal) + '</b></div>' +
@@ -290,8 +350,10 @@
       S.preAction = null;
       toast('Ставка выросла — выберите действие вручную');
     }
-    T.wm.textContent = s.table.name;
-    T.tinfo.textContent = s.table.name + '  ·  блайнды ' + fmt(s.table.sb) + ' / ' + fmt(s.table.bb) + '  ·  ' + (STREET_NAME[s.phase] || '');
+    T.wm.textContent = s.mode === 'tournament' ? ('ТУРНИР · ' + s.table.name) : s.table.name;
+    T.tinfo.textContent = s.mode === 'tournament'
+      ? ('ТУРНИР · ПРИЗ ' + fmt(s.tournament_prize) + '  ·  блайнды ' + fmt(s.table.sb) + ' / ' + fmt(s.table.bb) + ' (рост через ' + s.hands_to_blind_up + ')  ·  ' + (STREET_NAME[s.phase] || ''))
+      : (s.table.name + '  ·  блайнды ' + fmt(s.table.sb) + ' / ' + fmt(s.table.bb) + '  ·  ' + (STREET_NAME[s.phase] || ''));
     T.pot.innerHTML = '';
     T.pot.appendChild(A.chipStack(s.pot)); T.pot.appendChild(E('span', '', 'Банк')); T.pot.appendChild(E('b', '', fmt(s.pot)));
 
@@ -341,7 +403,7 @@
     R.root.classList.toggle('folded', sd.folded);
     R.root.classList.toggle('allin', sd.all_in && !sd.folded);
     R.root.classList.toggle('winner', isWinner);
-    R.atag.textContent = sd.folded ? 'Сброс' : (sd.last_action || '');
+    R.atag.textContent = sd.eliminated ? 'Выбыл' : (sd.folded ? 'Сброс' : (sd.last_action || ''));
 
     // звуки действий
     if (prevSd && animate && sd.last_action && sd.last_action !== prevSd.last_action) {
@@ -398,7 +460,9 @@
     S.resultKey = key;
     const res = s.result, net = res.net[0], human = s.seats[0];
     let title;
-    if (human.folded && net < 0) title = 'Вы сбросили карты';
+    if (s.tournament_over && s.tournament_winner === 0) title = 'Победа в турнире! Приз ' + fmt(s.tournament_prize);
+    else if (s.tournament_over && human.stack <= 0) title = 'Вы выбыли из турнира';
+    else if (human.folded && net < 0) title = 'Вы сбросили карты';
     else if (net > 0) title = 'Вы выиграли ' + fmt(net);
     else if (net < 0) title = 'Вы проиграли ' + fmt(-net);
     else title = 'Вы остались при своих';
@@ -433,7 +497,13 @@
 
     if (s.phase === 'complete') {
       const row = E('div', 'btnrow');
-      if (s.busted || s.leave_requested) {
+      if (s.tournament_over) {
+        const msg = s.tournament_winner === 0
+          ? ('Поздравляем! Вы выбили всех и забрали приз ' + fmt(s.tournament_prize))
+          : 'Турнир окончен — у вас закончились фишки';
+        consoleEl.appendChild(E('div', 'waiting', msg));
+        const b = E('button', 'act accent', 'Вернуться в лобби'); b.onclick = () => call('leave', {}); row.appendChild(b);
+      } else if (s.busted || s.leave_requested) {
         consoleEl.appendChild(E('div', 'waiting', s.busted ? 'Фишки за столом закончились' : 'Выход из-за стола после этой раздачи…'));
         const b = E('button', 'act accent', 'К столам'); b.onclick = () => call('leave', {}); row.appendChild(b);
       } else {

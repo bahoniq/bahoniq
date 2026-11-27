@@ -29,7 +29,8 @@ def dispatch(service: PokerService, method: str, path: str, body: dict | None) -
         if method != "POST":
             return 404, {"ok": False, "error": "Не найдено"}
         if name == "join":
-            return _ok(service, service.join(body.get("table_id"), body.get("buyin"), body.get("seats", 5)))
+            return _ok(service, service.join(body.get("table_id"), body.get("buyin"),
+                                             body.get("seats", 5), body.get("mode", "cash")))
         if name == "action":
             return _ok(service, service.action(body.get("seq"), str(body.get("action", "")), body.get("amount")))
         if name == "advance":

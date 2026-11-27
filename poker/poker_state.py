@@ -69,7 +69,8 @@ class PokerService:
         except Exception:
             log.exception("Не удалось восстановить стол — безопасно возвращаю стек игрока в баланс")
             try:
-                self.data["balance"] += max(0, int(sess["seats"][HUMAN_SEAT]["stack"]))
+                if sess.get("mode") != "tournament":
+                    self.data["balance"] += max(0, int(sess["seats"][HUMAN_SEAT]["stack"]))
             except Exception:
                 pass
             self.data["session"] = None
@@ -97,6 +98,13 @@ class PokerService:
                 st["losses"] += 1
                 st["total_lost"] += -net
             g.stats_applied = True
+        if g and g.mode == "tournament" and g.phase == "complete" and not g.prize_paid:
+            alive = [s for s in g.seats if s.stack > 0]
+            if len(alive) == 1 and alive[0].index == HUMAN_SEAT:
+                prize = g.tournament_buyin * g.n_seats
+                self.data["balance"] += prize
+                g.prize_paid = True
+                g._log(f"Вы победили в турнире! Приз: {money(prize)}", HUMAN_SEAT)
         self._persist()
 
     # ------------------------------------------------------------------ столы
@@ -109,17 +117,14 @@ class PokerService:
                         "lock_reason": "" if ok else f"Для входа необходимо минимум {money(t['min_buyin'])}"})
         return out
 
-    def join(self, table_id: str, buyin, max_seats: int = 5) -> dict:
+    def join(self, table_id: str, buyin, max_seats: int = 5, mode: str = "cash") -> dict:
         with self.lock:
             if self.game:
                 raise PokerError("Вы уже сидите за столом")
             table = TABLE_BY_ID.get(table_id)
             if not table:
                 raise PokerError("Такого стола нет")
-            try:
-                buyin = int(buyin)
-            except (TypeError, ValueError):
-                raise PokerError("Некорректный бай-ин")
+            mode = "tournament" if mode == "tournament" else "cash"
             try:
                 max_seats = int(max_seats)
             except (TypeError, ValueError):
@@ -127,18 +132,31 @@ class PokerService:
             if max_seats not in (5, 9):
                 max_seats = 5
             bal = self.data["balance"]
-            if bal < table["min_buyin"]:
-                raise PokerError(f"Для входа необходимо минимум {money(table['min_buyin'])}")
-            if not table["min_buyin"] <= buyin <= table["max_buyin"]:
-                raise PokerError(f"Бай-ин: от {money(table['min_buyin'])} до {money(table['max_buyin'])}")
-            if buyin > bal:
-                raise PokerError("Недостаточно средств на балансе")
+            if mode == "tournament":
+                buyin = int(table["min_buyin"])
+                if bal < buyin:
+                    raise PokerError(f"Для входа в турнир необходимо {money(buyin)}")
+                seats = [Seat(0, "Вы", True, buyin)]
+                for i, b in enumerate(BOTS[: max_seats - 1], start=1):
+                    seats.append(Seat(i, b["name"], False, buyin, persona=b["persona"]))
+                game = PokerGame(table, seats, rng=self.rng, mode="tournament", tournament_buyin=buyin)
+            else:
+                try:
+                    buyin = int(buyin)
+                except (TypeError, ValueError):
+                    raise PokerError("Некорректный бай-ин")
+                if bal < table["min_buyin"]:
+                    raise PokerError(f"Для входа необходимо минимум {money(table['min_buyin'])}")
+                if not table["min_buyin"] <= buyin <= table["max_buyin"]:
+                    raise PokerError(f"Бай-ин: от {money(table['min_buyin'])} до {money(table['max_buyin'])}")
+                if buyin > bal:
+                    raise PokerError("Недостаточно средств на балансе")
 
-            seats = [Seat(0, "Вы", True, buyin)]
-            placeholder = PokerGame(table, [Seat(0, "Вы", True, buyin)], rng=self.rng)
-            for i, b in enumerate(BOTS[: max_seats - 1], start=1):
-                seats.append(Seat(i, b["name"], False, placeholder._bot_stack(), persona=b["persona"]))
-            game = PokerGame(table, seats, rng=self.rng)
+                seats = [Seat(0, "Вы", True, buyin)]
+                placeholder = PokerGame(table, [Seat(0, "Вы", True, buyin)], rng=self.rng)
+                for i, b in enumerate(BOTS[: max_seats - 1], start=1):
+                    seats.append(Seat(i, b["name"], False, placeholder._bot_stack(), persona=b["persona"]))
+                game = PokerGame(table, seats, rng=self.rng)
             self.data["balance"] = bal - buyin       # деньги переходят из банка за стол одной операцией
             self.game = game
             game.start_hand()
@@ -154,7 +172,8 @@ class PokerService:
                 g.leave_requested = True
                 self._persist()
                 return self.state()
-            self.data["balance"] += max(0, g.seats[HUMAN_SEAT].stack)
+            if g.mode != "tournament":
+                self.data["balance"] += max(0, g.seats[HUMAN_SEAT].stack)
             self.game = None
             self._persist()
             return self.state()
@@ -275,7 +294,7 @@ class PokerService:
                 "index": s.index, "name": s.name, "is_human": s.is_human, "stack": s.stack, "bet": s.bet,
                 "folded": s.folded, "all_in": s.all_in, "cards": cards, "last_action": s.last_action,
                 "position": g.position_of(s.index), "label": bot.get("label", ""), "trait": bot.get("trait", ""),
-                "persona": s.persona,
+                "persona": s.persona, "eliminated": g.mode == "tournament" and s.stack <= 0 and not s.total,
             })
         human = g.seats[HUMAN_SEAT]
         hint, draws = "", []
@@ -286,8 +305,20 @@ class PokerService:
         legal = g.legal_actions(HUMAN_SEAT) if g.to_act == HUMAN_SEAT else {}
         legal_json = {k: (list(v) if isinstance(v, tuple) else v) for k, v in legal.items()}
         result = g.result
+        alive_tourney = [s for s in g.seats if s.stack > 0] if g.mode == "tournament" else []
+        tourney_winner = alive_tourney[0].index if (g.mode == "tournament" and g.phase == "complete" and len(alive_tourney) == 1) else None
+        tourney_over = g.mode == "tournament" and g.phase == "complete" and (len(alive_tourney) <= 1 or human.stack <= 0)
+        table_pub = {k: g.table[k] for k in ("id", "name", "level", "level_name")}
+        table_pub["sb"] = g.sb
+        table_pub["bb"] = g.bb
         return {
-            "table": {k: g.table[k] for k in ("id", "name", "sb", "bb", "level", "level_name")},
+            "table": table_pub,
+            "mode": g.mode,
+            "tournament_buyin": g.tournament_buyin,
+            "tournament_prize": g.tournament_buyin * g.n_seats if g.mode == "tournament" else 0,
+            "tournament_winner": tourney_winner,
+            "tournament_over": tourney_over,
+            "hands_to_blind_up": (6 - (g.hand_no % 6)) if g.mode == "tournament" else 0,
             "seq": g.seq, "hand_no": g.hand_no, "phase": g.phase, "dealer": g.dealer,
             "board": list(g.board), "pot": g.pot, "current_bet": g.current_bet, "min_raise": g.min_raise,
             "to_act": g.to_act, "auto_runout": g.auto_runout,

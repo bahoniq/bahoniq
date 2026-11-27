@@ -21,8 +21,16 @@
 
   <main id="lobby" class="screen">
     <div class="lobby-head">
-      <h1>Выберите стол</h1>
-      <p>Уровень соперников растёт вместе со ставками. Играете на виртуальные деньги, вся игра идёт офлайн.</p>
+      <div class="lobby-head-row">
+        <div>
+          <h1>Выберите стол</h1>
+          <p id="lobbySub">Уровень соперников растёт вместе со ставками. Играете на виртуальные деньги, вся игра идёт офлайн.</p>
+        </div>
+        <div class="mode-tabs" id="modeTabs">
+          <button class="mode-tab active" data-mode="cash" type="button">Кэш-столы</button>
+          <button class="mode-tab" data-mode="tournament" type="button">Турнир на выбывание</button>
+        </div>
+      </div>
     </div>
     <div id="lobbyTables" class="tables"></div>
     <footer id="lobbyFooter"></footer>

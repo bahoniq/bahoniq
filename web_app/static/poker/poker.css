@@ -55,8 +55,13 @@ button { font-family: inherit; }
 
 /* ---------- лобби ---------- */
 .lobby-head { position: absolute; left: 28px; top: 74px; right: 28px; }
+.lobby-head-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .lobby-head h1 { font-family: var(--serif); font-weight: 700; font-size: 26px; letter-spacing: 0.04em; }
 .lobby-head p { margin-top: 6px; font-size: 13px; color: var(--text2); }
+.mode-tabs { display: flex; gap: 6px; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
+.mode-tab { background: transparent; border: none; color: var(--text2); padding: 7px 14px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
+.mode-tab:hover { color: var(--text); }
+.mode-tab.active { background: rgba(185, 154, 94, 0.18); color: var(--brass); border: 1px solid rgba(185, 154, 94, 0.45); }
 .tables { position: absolute; left: 28px; top: 156px; width: 1224px; display: flex; gap: 16px; }
 .tcard {
   position: relative; width: 232px; height: 420px; border-radius: 14px; cursor: pointer; overflow: hidden;
