@@ -28,14 +28,14 @@ LEVELS = {
 }
 
 PERSONAS = {
-    "rock":     dict(tight=0.80, aggr=0.35, bluff=0.30),
-    "shark":    dict(tight=0.28, aggr=1.05, bluff=1.15),
-    "analyst":  dict(tight=0.52, aggr=0.60, bluff=0.65),
-    "bluffer":  dict(tight=0.25, aggr=0.95, bluff=2.20),
-    "wildcard": dict(tight=0.22, aggr=1.10, bluff=1.60),
+    "rock":     dict(tight=0.62, aggr=0.55, bluff=0.45),
+    "shark":    dict(tight=0.25, aggr=1.20, bluff=1.30),
+    "analyst":  dict(tight=0.40, aggr=0.80, bluff=0.85),
+    "bluffer":  dict(tight=0.20, aggr=1.10, bluff=2.20),
+    "wildcard": dict(tight=0.18, aggr=1.25, bluff=1.70),
 }
 
-BASE_OPEN = {"UTG": 8.5, "HJ": 7.5, "CO": 6.5, "BTN": 5.0, "SB": 6.5, "BB": 99.0}
+BASE_OPEN = {"UTG": 6.5, "HJ": 6.0, "CO": 5.0, "BTN": 3.5, "SB": 4.5, "BB": 99.0}
 
 
 # ---------------------------------------------------------------- оценка руки
@@ -171,7 +171,7 @@ def _preflop(view, lv, ps, rng):
         return _sloppy(view, rng)
 
     if eff_bb <= 12 and "allin" in legal:
-        thr = 8.5 - (12 - eff_bb) * 0.5 + tight_adj * 0.5
+        thr = 7.0 - (12 - eff_bb) * 0.5 + tight_adj * 0.5
         if c >= thr:
             return ("allin", None)
         if "check" in legal:
@@ -179,47 +179,51 @@ def _preflop(view, lv, ps, rng):
         return ("fold", None)
 
     if raises == 0:
-        open_th = (BASE_OPEN[pos] if lv["position"] else 7.5) + tight_adj
+        open_th = (BASE_OPEN[pos] if lv["position"] else 6.0) + tight_adj
         if to_call == 0:  # опция большого блайнда
-            if c >= 10.5 - (ps["aggr"] - 0.5) * 2 and "raise" in legal:
-                return _bet_or_raise(view, bb * 3.5)
+            if c >= 9.0 - (ps["aggr"] - 0.5) * 2 and "raise" in legal:
+                return _bet_or_raise(view, bb * 3.2)
             return ("check", None)
         steal = (lv["position"] and pos in ("BTN", "CO", "SB")
-                 and rng.random() < 0.10 * ps["bluff"] * lv["bluff"])
+                 and rng.random() < 0.18 * ps["bluff"] * lv["bluff"])
         if c >= open_th or steal:
-            size = bb * rng.choice((2.5, 3.0, 3.0, 3.5)) + view["limpers"] * bb
+            size = bb * rng.choice((2.5, 2.5, 3.0, 3.5)) + view["limpers"] * bb
             res = _bet_or_raise(view, size)
             if res:
                 return res
-        if lv["level"] == 1 and c >= open_th - 2.5 and "call" in legal and to_call <= bb:
-            return ("call", None)
+        # Лимп / колл в позиции или с перспективными руками, чтобы не сбрасывать всё подряд
+        if c >= open_th - 2.2 and "call" in legal and to_call <= bb * 1.5:
+            if ps["tight"] < 0.55 or view["limpers"] > 0 or pos in ("CO", "BTN", "SB"):
+                return ("call", None)
         return ("fold", None)
 
     if raises == 1:
         ratio = view["current_bet"] / bb
-        req = 8.0 + 0.9 * max(0.0, ratio - 2.5) + tight_adj
+        req = 6.2 + 0.65 * max(0.0, ratio - 2.5) + tight_adj * 0.75
         if pos == "BB" and lv["position"]:
-            req -= 1.0
-        three_bet = 11.5 + tight_adj * 0.5 - (ps["aggr"] - 0.5) * 2.5
+            req -= 1.5
+        elif pos in ("BTN", "CO"):
+            req -= 0.7
+        three_bet = 10.5 + tight_adj * 0.5 - (ps["aggr"] - 0.5) * 2.5
         bluff3 = (lv["position"] and pos in ("BTN", "SB", "BB", "CO") and 4.5 <= c < req
-                  and rng.random() < 0.06 * ps["bluff"] * lv["bluff"])
+                  and rng.random() < 0.11 * ps["bluff"] * lv["bluff"])
         if (c >= three_bet or bluff3) and "raise" in legal:
-            mult = 3.0 if pos in ("BTN", "CO") else 3.6
+            mult = 3.0 if pos in ("BTN", "CO") else 3.4
             res = _bet_or_raise(view, view["current_bet"] * mult)
             if res:
                 return res
-        if c >= req and "call" in legal and (to_call <= stack * 0.18 or c >= req + 2.5):
+        if c >= req and "call" in legal and (to_call <= stack * 0.28 or c >= req + 2.0):
             return ("call", None)
         return ("fold", None)
 
     # 3-бет и выше
-    if c >= 15.5:
-        res = _bet_or_raise(view, view["current_bet"] * 2.4)
+    if c >= 14.0:
+        res = _bet_or_raise(view, view["current_bet"] * 2.3)
         if res:
             return res
-    if c >= 13 and "call" in legal:
+    if c >= 10.5 and "call" in legal:
         return ("call", None)
-    if eff_bb <= 25 and c >= 11 and "allin" in legal:
+    if eff_bb <= 28 and c >= 9.5 and "allin" in legal:
         return ("allin", None)
     return ("fold", None)
 
@@ -238,54 +242,54 @@ def _postflop(view, lv, ps, rng):
 
     e_adj = e
     if to_call > 0:  # диапазон ставящего сильнее случайной руки
-        size = min(2.0, to_call / max(1, pot - to_call))
-        disc = (0.03 + 0.025 * view["raises_this_street"]) * (0.5 if lv["level"] == 1 else 1.0) * (0.5 + size)
+        size = min(1.8, to_call / max(1, pot - to_call))
+        disc = (0.015 + 0.015 * view["raises_this_street"]) * (0.5 if lv["level"] == 1 else 1.0) * (0.4 + 0.6 * size)
         e_adj = e - disc
 
     prof = _human_profile(view) if lv["adapt"] >= 1 else None
-    draw = lv["semi"] and street in ("flop", "turn") and 0.25 < e < 0.58 and bool(
+    draw = lv["semi"] and street in ("flop", "turn") and 0.20 < e < 0.62 and bool(
         detect_draws(view["hole"], view["board"]))
 
     # частота блефа и смелой игры
-    bp = 0.16 * ps["bluff"] * lv["bluff"]
+    bp = 0.22 * ps["bluff"] * lv["bluff"]
     if street == "river":
-        bp *= 0.8
+        bp *= 0.85
     if n_opp >= 3:
-        bp *= 0.3
+        bp *= 0.45
     if lv["position"] and view["in_position"]:
         bp *= 1.25
     if street == "flop" and to_call == 0 and view["was_preflop_aggressor"] and n_opp <= 2:
-        bp = max(bp, 0.40 * lv["bluff"] * (0.6 + 0.5 * ps["aggr"]))
+        bp = max(bp, 0.52 * lv["bluff"] * (0.6 + 0.5 * ps["aggr"]))
     if prof:
         if prof["fold"] > 0.5:
             bp *= 1 + (prof["fold"] - 0.5) * 3
         elif prof["fold"] < 0.28:
-            bp *= 0.4
+            bp *= 0.5
 
     if rng.random() < lv["mistake"]:
         return _sloppy(view, rng)
 
-    value_th = 0.60 + (ps["tight"] - 0.5) * 0.12 - (aggr - 0.6) * 0.08
-    value_th += 0.03 * wet if e_adj < 0.75 else 0
+    value_th = 0.50 + (ps["tight"] - 0.5) * 0.10 - (aggr - 0.6) * 0.08
+    value_th += 0.02 * wet if e_adj < 0.72 else 0
 
     # ---- никто не ставил
     if to_call == 0:
         if "bet" not in legal:
             return ("check", None)
         if (lv["adapt"] >= 2 and e_adj > 0.92 and street in ("flop", "turn") and wet < 0.4
-                and rng.random() < 0.30):
+                and rng.random() < 0.25):
             return ("check", None)  # слоуплей
         if e_adj >= value_th:
-            strength = "big" if e_adj >= 0.80 or wet > 0.6 else "small" if e_adj < 0.68 else "mid"
+            strength = "big" if e_adj >= 0.75 or wet > 0.6 else "small" if e_adj < 0.62 else "mid"
             res = _bet_or_raise(view, _size_fraction(lv, rng, strength) * pot)
             if res:
                 return res
-        if draw and rng.random() < 0.45 * aggr:
+        if draw and rng.random() < 0.65 * aggr:
             res = _bet_or_raise(view, _size_fraction(lv, rng, "small") * pot)
             if res:
                 return res
-        if e_adj >= 0.50 and lv["adapt"] >= 2 and prof and prof["agg"] < 0.35 and rng.random() < 0.35:
-            res = _bet_or_raise(view, 0.33 * pot)  # тонкий вэлью против пассивного
+        if e_adj >= 0.42 and lv["adapt"] >= 1 and prof and prof["agg"] < 0.40 and rng.random() < 0.42:
+            res = _bet_or_raise(view, 0.35 * pot)  # тонкий вэлью против пассивного
             if res:
                 return res
         if rng.random() < bp:
@@ -296,35 +300,35 @@ def _postflop(view, lv, ps, rng):
 
     # ---- нужно отвечать на ставку
     pot_odds = to_call / (pot + to_call)
-    margin = 0.02 + (ps["tight"] - 0.5) * 0.09 + (0.02 if street == "river" else 0) - max(0.0, aggr - 0.8) * 0.05
+    margin = -0.02 + (ps["tight"] - 0.5) * 0.07 + (0.02 if street == "river" else 0) - max(0.0, aggr - 0.7) * 0.05
     if lv["level"] == 1:
         pot_odds *= rng.uniform(0.7, 1.3)  # плохо считает размер банка
-    req = pot_odds + margin
+    req = max(0.10, pot_odds + margin)
     callish = False
     if prof:
-        if prof["agg"] > 0.6:
-            req -= 0.04
+        if prof["agg"] > 0.55:
+            req -= 0.05
             callish = True
         elif prof["agg"] < 0.3 and view["raises_this_street"]:
-            req += 0.05
+            req += 0.04
 
     if "raise" in legal or "allin" in legal:
-        if e_adj >= 0.78 and rng.random() < 0.35 + 0.5 * aggr:
+        if e_adj >= 0.72 and rng.random() < 0.40 + 0.45 * aggr:
             res = _bet_or_raise(view, view["current_bet"] + max(
                 view["min_raise"], _size_fraction(lv, rng, "big") * (pot + to_call)))
-            if res and res[0] != "allin" or (res and e_adj > 0.9):
+            if res and res[0] != "allin" or (res and e_adj > 0.88):
                 return res
-        if draw and to_call < 0.5 * pot and rng.random() < 0.18 * aggr and "raise" in legal:
+        if draw and to_call < 0.65 * pot and rng.random() < 0.28 * aggr and "raise" in legal:
             return _bet_or_raise(view, view["current_bet"] + max(
                 view["min_raise"], 0.7 * (pot + to_call)))
-        if (lv["adapt"] >= 2 and street != "river" and "raise" in legal
-                and rng.random() < bp * 0.25):
+        if (lv["adapt"] >= 1 and street != "river" and "raise" in legal
+                and rng.random() < bp * 0.32):
             return _bet_or_raise(view, view["current_bet"] + max(
                 view["min_raise"], 0.75 * (pot + to_call)))
 
-    if e_adj >= req and "call" in legal:
+    if (e_adj >= req or (draw and to_call <= 0.7 * pot)) and "call" in legal:
         return ("call", None)
-    if callish and e_adj >= req - 0.06 and "call" in legal:
+    if callish and e_adj >= req - 0.07 and "call" in legal:
         return ("call", None)
     return ("fold", None) if "fold" in legal else ("check", None)
 
