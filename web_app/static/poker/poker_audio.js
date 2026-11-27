@@ -21,7 +21,7 @@ window.PokerAudio = (function () {
         master.connect(ctx.destination);
 
         musicGain = ctx.createGain();
-        musicGain.gain.value = 0.14;
+        musicGain.gain.value = 0.38;
         musicGain.connect(ctx.destination);
 
         noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
@@ -113,8 +113,13 @@ window.PokerAudio = (function () {
     isEnabled() { return enabled; },
     setMusicEnabled(v) {
       musicEnabled = !!v;
-      if (musicEnabled) startMusicLoop();
-      else stopMusicLoop();
+      if (musicEnabled) {
+        const c = ensure();
+        if (c && c.state === 'suspended') c.resume().then(() => { if (musicEnabled) startMusicLoop(); });
+        else startMusicLoop();
+      } else {
+        stopMusicLoop();
+      }
     },
     isMusicEnabled() { return musicEnabled; },
     unlock() {
