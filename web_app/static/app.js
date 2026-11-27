@@ -243,7 +243,9 @@ function initializePremiumMotion() {
       category.className = 'tool-category';
       const modId = tile.dataset.open || '';
       category.textContent = TOOL_CATEGORIES[modId] ||
-        (tile.matches('a[href*="music"]') ? 'МЕДИА' : 'РАБОЧИЙ ИНСТРУМЕНТ');
+        (tile.matches('a[href*="music"]') ? 'МЕДИА' :
+         tile.matches('a[href*="poker"]') ? 'ПРИВАТНЫЙ КЛУБ' :
+         'РАБОЧИЙ ИНСТРУМЕНТ');
       meta.prepend(category);
     }
 
@@ -251,7 +253,7 @@ function initializePremiumMotion() {
     if (arrow && !tile.querySelector('.tool-action-label')) {
       const action = document.createElement('span');
       action.className = 'tool-action-label';
-      action.textContent = 'Открыть модуль';
+      action.textContent = tile.matches('a[href*="poker"]') ? 'Сесть за стол' : 'Открыть модуль';
       arrow.before(action);
     }
 
