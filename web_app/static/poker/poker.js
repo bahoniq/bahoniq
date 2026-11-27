@@ -559,7 +559,15 @@
       return;
     }
     if (s.to_act === 0) return;
-    const delay = s.to_act == null ? 1100 : 650 + Math.random() * 450, seq = s.seq;
+    let delay;
+    if (s.seats[0] && s.seats[0].folded) {
+      delay = s.to_act == null ? 650 : 420;
+    } else if (S.fastPace) {
+      delay = s.to_act == null ? 750 : 500 + Math.random() * 350;
+    } else {
+      delay = s.to_act == null ? 1300 : 1250 + Math.random() * 950;
+    }
+    const seq = s.seq;
     S.timer = setTimeout(async () => {
       const d = await call('advance', { seq });
       if (!d.state) S.timer = setTimeout(schedule, 1500);
@@ -585,6 +593,17 @@
     deckIdx = (deckIdx + 1) % DECKS.length;
     localStorage.setItem('poker_deck_idx', deckIdx);
     applyDeck();
+    AU.play('click');
+  };
+  S.fastPace = localStorage.getItem('poker_fast_pace') === '1';
+  function applyPace() {
+    $('#btnPace').textContent = S.fastPace ? 'Темп: Быстрый' : 'Темп: Обычный';
+  }
+  applyPace();
+  $('#btnPace').onclick = () => {
+    S.fastPace = !S.fastPace;
+    localStorage.setItem('poker_fast_pace', S.fastPace ? '1' : '0');
+    applyPace();
     AU.play('click');
   };
   updateMusicIcon();
