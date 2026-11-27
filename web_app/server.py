@@ -94,6 +94,9 @@ app.include_router(english_academy_router)
 from .routers.instruction_generator import router as instruction_generator_router
 app.include_router(instruction_generator_router)
 
+from .routers.poker import router as poker_router
+app.include_router(poker_router)
+
 # Режим запуска сервера:
 # - "all"   (по умолчанию локально): Work Center + Музыка в авто вместе
 # - "work"  (для Render): только Work Center без стриминга музыки (чтобы не тратить лимит 5 ГБ)
@@ -224,6 +227,10 @@ def pwa_sw():
 
 
 app.mount("/assets", StaticFiles(directory=STATIC), name="assets")
+
+POKER_STATIC = STATIC / "poker"
+if POKER_STATIC.exists():
+    app.mount("/poker/static", StaticFiles(directory=POKER_STATIC), name="poker_static")
 
 MUSIC_STATIC = STATIC / "music"
 app.mount("/music/assets", StaticFiles(directory=MUSIC_STATIC), name="music_assets")

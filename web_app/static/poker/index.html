@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Poker Club</title>
+  <link rel="stylesheet" href="/poker/static/poker.css">
+</head>
+<body>
+<div id="stage">
+  <header id="topbar">
+    <button id="btnBack" class="ghost" type="button">&larr; Work Center</button>
+    <div class="brand"><span class="brand-mark" id="brandMark"></span><span>POKER CLUB</span></div>
+    <div class="spacer"></div>
+    <div class="balance"><span class="lbl">Фишки</span><span id="balanceValue">0</span></div>
+    <button id="btnDeck" class="ghost" type="button" title="Цвет рубашки карт">Колода: Обсидиан</button>
+    <button id="btnMusic" class="icon-btn" type="button" title="Музыка за столом"></button>
+    <button id="btnSound" class="icon-btn" type="button" title="Звук"></button>
+  </header>
+
+  <main id="lobby" class="screen">
+    <div class="lobby-head">
+      <h1>Выберите стол</h1>
+      <p>Уровень соперников растёт вместе со ставками. Играете на виртуальные деньги, вся игра идёт офлайн.</p>
+    </div>
+    <div id="lobbyTables" class="tables"></div>
+    <footer id="lobbyFooter"></footer>
+  </main>
+
+  <main id="table" class="screen hidden"></main>
+
+  <div id="flyLayer"></div>
+  <div id="modalRoot"></div>
+  <div id="toast"></div>
+</div>
+<script src="/poker/static/poker_assets.js"></script>
+<script src="/poker/static/poker_audio.js"></script>
+<script src="/poker/static/poker.js"></script>
+</body>
+</html>
