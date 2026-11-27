@@ -297,6 +297,13 @@
   function buildTable(seatCount) {
     CUR_LAYOUT = LAYOUTS[seatCount === 5 ? 5 : 9];
     const root = $('#table'); root.innerHTML = '';
+    root.onclick = ev => {
+      if (ev.target.closest('button, .panel, .modal')) return;
+      const s = S.state && S.state.session;
+      if (!s || s.phase !== 'complete' || S.busy || performance.now() < S.lockUntil) return;
+      if (s.tournament_over || s.busted || s.leave_requested) call('leave', {});
+      else nextHand();
+    };
     root.appendChild(E('div', 'rail')); const felt = E('div', 'rail'); felt.style.background = 'none'; felt.style.boxShadow = 'none';
     felt.appendChild(E('div', 'felt')); felt.firstChild.style.zIndex = 0; felt.querySelector('.felt').style.inset = '24px';
     felt.className = 'rail-felt'; felt.style.cssText = 'position:absolute;left:195px;top:122px;width:890px;height:396px;border-radius:50%;pointer-events:none';
@@ -468,15 +475,10 @@
     else title = 'Вы остались при своих';
     const lines = res.winners.map(w => '<div class="l">' + w.name + (w.hand ? ' — <span>' + w.hand + '</span>' : '') + ' &nbsp;+' + fmt(w.amount) + '</div>').join('');
     const goLobby = s.tournament_over || s.busted || s.leave_requested;
-    const hintText = goLobby ? 'Нажмите сюда, чтобы вернуться в лобби' : 'Нажмите сюда для следующей раздачи';
+    const hintText = goLobby ? 'Нажмите в любом месте, чтобы вернуться в лобби' : 'Нажмите в любом месте стола для следующей раздачи';
     const el = E('div', 'result', '<div class="t">' + title + '</div>' + lines +
       (res.pots.length > 1 ? '<div class="l"><span>Побочных банков: ' + (res.pots.length - 1) + '</span></div>' : '') +
       '<div class="hint">' + hintText + '</div>');
-    el.onclick = () => {
-      if (S.busy || performance.now() < S.lockUntil) return;
-      if (goLobby) call('leave', {});
-      else nextHand();
-    };
     const delay = S.state.session && S.t ? 700 : 0;
     el.style.animationDelay = delay + 'ms';
     root.appendChild(el);
