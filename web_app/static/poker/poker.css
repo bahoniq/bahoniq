@@ -268,10 +268,12 @@ body.deck-wine .card.back {
 
 .result { position: absolute; left: 640px; top: 400px; transform: translate(-50%, -50%); width: 540px; text-align: center; z-index: 12;
   background: rgba(10, 14, 12, 0.9); border: 1px solid rgba(185, 154, 94, 0.55); border-radius: 14px; padding: 12px 22px;
-  animation: popIn .35s ease backwards; }
+  cursor: pointer; transition: border-color .15s, background .15s; animation: popIn .35s ease backwards; }
+.result:hover { border-color: var(--brass); background: rgba(14, 20, 17, 0.96); }
 .result .t { font-family: var(--serif); font-size: 21px; color: var(--brass); }
 .result .l { font-size: 13px; color: var(--text); margin-top: 5px; }
 .result .l span { color: var(--text2); }
+.result .hint { font-size: 11px; color: var(--text2); margin-top: 6px; letter-spacing: 0.04em; opacity: 0.85; }
 @keyframes popIn { from { opacity: 0; transform: translate(-50%, -46%) scale(0.96); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 
 /* панель действий */

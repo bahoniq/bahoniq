@@ -467,8 +467,16 @@
     else if (net < 0) title = 'Вы проиграли ' + fmt(-net);
     else title = 'Вы остались при своих';
     const lines = res.winners.map(w => '<div class="l">' + w.name + (w.hand ? ' — <span>' + w.hand + '</span>' : '') + ' &nbsp;+' + fmt(w.amount) + '</div>').join('');
+    const goLobby = s.tournament_over || s.busted || s.leave_requested;
+    const hintText = goLobby ? 'Нажмите сюда, чтобы вернуться в лобби' : 'Нажмите сюда для следующей раздачи';
     const el = E('div', 'result', '<div class="t">' + title + '</div>' + lines +
-      (res.pots.length > 1 ? '<div class="l"><span>Побочных банков: ' + (res.pots.length - 1) + '</span></div>' : ''));
+      (res.pots.length > 1 ? '<div class="l"><span>Побочных банков: ' + (res.pots.length - 1) + '</span></div>' : '') +
+      '<div class="hint">' + hintText + '</div>');
+    el.onclick = () => {
+      if (S.busy || performance.now() < S.lockUntil) return;
+      if (goLobby) call('leave', {});
+      else nextHand();
+    };
     const delay = S.state.session && S.t ? 700 : 0;
     el.style.animationDelay = delay + 'ms';
     root.appendChild(el);
