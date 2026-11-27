@@ -236,9 +236,8 @@ class PokerGame:
         if p.folded or p.all_in or p.stack <= 0:
             return {}
         to_call = max(0, self.current_bet - p.bet)
-        legal: dict = {}
+        legal: dict = {"fold": True}
         if to_call > 0:
-            legal["fold"] = True
             legal["call"] = min(to_call, p.stack)
         else:
             legal["check"] = True

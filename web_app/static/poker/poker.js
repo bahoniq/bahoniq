@@ -450,6 +450,14 @@
       consoleEl.appendChild(E('div', 'waiting', who ? 'Ходит ' + who + '…' : (s.auto_runout ? 'Открываем карты…' : 'Раздача карт…')));
       if (s.to_act != null && !human.folded && !human.all_in && !s.auto_runout) {
         const row = E('div', 'btnrow');
+        const afSel = S.preAction && S.preAction.mode === 'always_fold';
+        const afBtn = E('button', 'act pre' + (afSel ? ' selected' : ''), 'Авто-сброс');
+        afBtn.onclick = () => {
+          S.preAction = afSel ? null : { mode: 'always_fold', lockedBet: s.current_bet };
+          renderPanel(s, true);
+        };
+        row.appendChild(afBtn);
+
         const cfSel = S.preAction && S.preAction.mode === 'check_fold';
         const cfBtn = E('button', 'act pre' + (cfSel ? ' selected' : ''), 'Чек / Сброс');
         cfBtn.onclick = () => {
@@ -476,6 +484,10 @@
     if (S.preAction && !S.busy) {
       const pa = S.preAction;
       S.preAction = null;
+      if (pa.mode === 'always_fold') {
+        setTimeout(() => act('fold'), 120);
+        return;
+      }
       if (pa.mode === 'check_fold') {
         setTimeout(() => act(s.legal.check ? 'check' : 'fold'), 120);
         return;

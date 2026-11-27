@@ -120,8 +120,8 @@ button { font-family: inherit; }
 .card { --w: 64px; position: absolute; left: 0; top: 0; width: var(--w); height: calc(var(--w) * 1.4); border-radius: calc(var(--w) * 0.09);
   font-family: var(--serif); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5); }
 .card.sm { --w: 44px; } .card.md { --w: 64px; } .card.lg { --w: 84px; }
-.card.face { background: linear-gradient(160deg, #f8f4ea, #ece6d6); border: 1px solid #c9c0aa; color: #1d2321; }
-.card.face.red { color: var(--red); }
+.card.face { background: linear-gradient(160deg, #e5decb, #d2c8b2); border: 1px solid #a89f8b; color: #1e2422; }
+.card.face.red { color: #a83a3a; }
 .card .corner { position: absolute; display: flex; flex-direction: column; align-items: center; line-height: 1; }
 .card .corner.tl { left: calc(var(--w) * 0.08); top: calc(var(--w) * 0.06); }
 .card .corner.br { right: calc(var(--w) * 0.08); bottom: calc(var(--w) * 0.06); transform: rotate(180deg); }
